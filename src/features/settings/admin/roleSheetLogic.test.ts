@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BASIC_ON, CATALOG_RIGHT_IDS, DEFAULT_EXTRA, withNeeds, type CatalogRightId } from '../../../api/rightsCatalog';
+import type { TFunction } from 'i18next';
 import {
-  SHEET_SECTIONS, holdsLeaderWarning, leadSwitchesOff, powerKey, roleLineParts, saveShape, sectionState, standardListOf, withRight, withSection,
+  SHEET_SECTIONS, customRoleName, holdsLeaderWarning, leadSwitchesOff, powerKey, roleLabel, roleLineParts, saveShape, sectionState, standardListOf, withRight, withSection,
 } from './roleSheetLogic';
 
 const MEMBER: readonly CatalogRightId[] = withNeeds([...BASIC_ON]);
@@ -108,5 +109,28 @@ describe('the line of a role in the person sheet', () => {
     expect(roleLineParts(standardListOf('management'))).toEqual({ more: 10, less: 0 });
     const held = withRight(withRight(withRight(withRight(MEMBER, 'people.invite', true), 'people.change', true), 'task.work', false), 'file.share', false);
     expect(roleLineParts(held)).toEqual({ more: 2, less: 2 });
+  });
+});
+
+describe('the name of a role', () => {
+  const designer = { id: 'role_1', name: 'Designer', nameAr: 'مصمم', rights: [], off: [] };
+  const roles = { custom: [designer] };
+  const t = ((key: string) => `[${key}]`) as unknown as TFunction;
+
+  it('picks the English or the Arabic name of a custom role', () => {
+    expect(customRoleName(designer, 'en')).toBe('Designer');
+    expect(customRoleName(designer, 'ar')).toBe('مصمم');
+  });
+
+  it('gives the custom role of a person its own name', () => {
+    expect(roleLabel(roles, 'role_1', 'member', 'en', t)).toBe('Designer');
+    expect(roleLabel(roles, 'role_1', 'member', 'ar', t)).toBe('مصمم');
+  });
+
+  it('gives the word of the built-in role when the person has no custom role, or the role is gone', () => {
+    expect(roleLabel(roles, undefined, 'management', 'en', t)).toBe('[admin.roles.management]');
+    expect(roleLabel(roles, null, 'admin', 'ar', t)).toBe('[admin.roles.admin]');
+    expect(roleLabel(roles, 'role_9', 'member', 'en', t)).toBe('[admin.roles.member]');
+    expect(roleLabel(undefined, 'role_1', 'member', 'en', t)).toBe('[admin.roles.member]');
   });
 });

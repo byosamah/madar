@@ -10,12 +10,11 @@ import { Avatar } from '../../../components/Avatar';
 import { AvatarStack } from '../../../components/AvatarStack';
 import { Button } from '../../../components/Button';
 import { TextField } from '../../../components/Fields';
-import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
-import { PlusIcon } from '../../../components/icons/animated/plus';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
 import { Sheet } from '../../../components/Sheet';
 import { counted } from '../../../lib/grammar';
+import { AddButton, AdminPanel } from './AdminPanel';
 
 /** Make or change one team: its name, and who is in it. A team holds people only. */
 function TeamSheet({ team, open, onOpenChange }: { team: TeamRow | null; open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -84,14 +83,7 @@ export function TeamsSection() {
   const [editing, setEditing] = useState<TeamRow | null>(null);
   const remove = useUndoable('teams.delete', { message: () => t('teams.deleted') });
   return (
-    <section aria-labelledby="admin-teams" className="surface flex flex-col gap-3 rounded-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="admin-teams" className="text-headline">{t('teams.title')}</h2>
-        <Button onClick={() => setAdding(true)}>
-          <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-          {t('teams.add')}
-        </Button>
-      </div>
+    <AdminPanel id="admin-teams" title={t('teams.title')} action={<AddButton label={t('teams.add')} onClick={() => setAdding(true)} />}>
       <LoadFailed query={teams} />
       {teams.data?.length === 0 && <p className="text-footnote text-ink-2">{t('teams.empty')}</p>}
       <ul className="flex flex-col">
@@ -114,6 +106,6 @@ export function TeamsSection() {
       </ul>
       <TeamSheet team={null} open={adding} onOpenChange={setAdding} />
       <TeamSheet team={editing} open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null); }} />
-    </section>
+    </AdminPanel>
   );
 }

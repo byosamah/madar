@@ -10,8 +10,9 @@ import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 import { listFormat } from '../../../lib/dates';
+import { FormError } from '../../auth/AuthPage';
 import { RoleRights } from './RoleRights';
-import { holdsLeaderWarning, saveShape } from './roleSheetLogic';
+import { customRoleName, holdsLeaderWarning, saveShape } from './roleSheetLogic';
 
 /** The role that a sheet shows: a new role, a built-in role (its rights only), or a custom role (its names, rights and delete). */
 export type RoleTarget =
@@ -81,7 +82,7 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
     else if (target?.kind === 'built-in') update.mutate({ role: target.key, ...shape });
     else create.mutate({ name, nameAr, ...shape });
   };
-  const title = target?.kind === 'custom' ? (lang === 'ar' ? target.role.nameAr : target.role.name)
+  const title = target?.kind === 'custom' ? customRoleName(target.role, lang)
     : target?.kind === 'built-in' ? target.name : t('roles.sheet.newTitle');
   const customId = target?.kind === 'custom' ? target.role.id : null;
   const removeMessage = remove.error ? fieldError(remove.error, 'moveTo', t, '') || fieldError(remove.error, 'id', t, '') || errorMessage(remove.error, t) : '';
@@ -111,7 +112,7 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
           <SelectField id="role-move-to" label={t('roles.sheet.moveTo')} value={moveTo} onChange={(event) => setMoveTo(event.target.value)}>
             {moveChoices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
           </SelectField>
-          {removeMessage && <p role="alert" className="text-footnote text-late">{removeMessage}</p>}
+          <FormError text={removeMessage} />
         </div>
       </Sheet>
     );
@@ -162,7 +163,7 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
         {customId !== null && (
           <div className="flex flex-col gap-2">
             <Button variant="destructive" disabled={busy} onClick={startDelete}>{t('roles.sheet.delete')}</Button>
-            {removeMessage && <p role="alert" className="text-footnote text-late">{removeMessage}</p>}
+            <FormError text={removeMessage} />
           </div>
         )}
       </div>

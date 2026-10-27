@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { Client } from '../../../api/contract/entities';
-import { can } from '../../../api/permissions';
 import type { ProjectSummary } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
+import { useRight } from '../../../app/useRight';
 import { Button } from '../../../components/Button';
 import { TextField } from '../../../components/Fields';
 import { LoadFailed } from '../../../components/LoadFailed';
@@ -19,6 +19,7 @@ import { normalizeForSearch } from '../../../lib/text';
 import { ClientForm, useClientForm } from '../../projects/ClientForm';
 import { clientPatch, draftOfClient } from '../../projects/clientRules';
 import { useProjectName, useByProjectName } from '../../../app/projectName';
+import { AdminPanel } from './AdminPanel';
 
 /** One client in a sheet: the client form, then the client's projects as links. Save changes only the fields that changed. */
 function ClientSheet({ client, clients, projects, onClose }: { client: Client; clients: Client[]; projects: ProjectSummary[]; onClose: () => void }) {
@@ -84,13 +85,13 @@ export function ClientsSection() {
   const { t } = useTranslation();
   const lang = useLang();
   const byProjectName = useByProjectName();
-  const session = useCall('session.get', {});
+  // The clients of the office are for the people with the client right (fbk_014). The Admin holds it.
+  const allowed = useRight('clients.change');
   const clients = useCall('clients.list', {});
   const projects = useCall('projects.list', { status: 'all' });
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
-  // The clients of the office are for the people with the client right (fbk_014). The Admin holds it.
-  if (!session.data || !can(session.data.authority, 'clients.change')) return null;
+  if (!allowed) return null;
 
   const all = clients.data ?? [];
   const byClient = new Map<string, ProjectSummary[]>();
@@ -105,8 +106,7 @@ export function ClientsSection() {
   const opened = all.find((client) => client.id === openId);
 
   return (
-    <section aria-labelledby="admin-clients" className="surface flex flex-col gap-3 rounded-card p-5">
-      <h2 id="admin-clients" className="text-headline">{t('clientsAdmin.title')}</h2>
+    <AdminPanel id="admin-clients" title={t('clientsAdmin.title')}>
       <TextField
         id="clients-search" type="search" label={t('clientsAdmin.search')} dir="auto" autoComplete="off" value={query}
         onChange={(event) => setQuery(event.target.value)}
@@ -144,6 +144,6 @@ export function ClientsSection() {
           onClose={() => setOpenId(null)}
         />
       )}
-    </section>
+    </AdminPanel>
   );
 }

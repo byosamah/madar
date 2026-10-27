@@ -1,6 +1,9 @@
+import type { TFunction } from 'i18next';
+import type { RoleSettings } from '../../../api/contract/entities';
 import {
   BASIC_ON, CATALOG_SECTIONS, DEFAULT_EXTRA, RIGHT_NEEDS, withNeeds, type CatalogRightId, type RightScope,
 } from '../../../api/rightsCatalog';
+import type { Lang } from '../../../lib/dates';
 
 /**
  * The plain logic of the role sheet (role rights version 2, 2026-10-21): the 13 sections with their powers and switches, how a switch
@@ -85,7 +88,19 @@ export function holdsLeaderWarning(held: readonly CatalogRightId[]): boolean {
 
 /** The count of switches above and below the standard list (the 64 basic switches), for the line of a role in the person sheet. */
 export function roleLineParts(held: readonly CatalogRightId[]): { more: number; less: number } {
-  return { more: held.filter((id) => !BASIC_ON.includes(id)).length, less: BASIC_ON.filter((id) => !held.includes(id)).length };
+  const { rights, off } = saveShape(held);
+  return { more: rights.length, less: off.length };
+}
+
+/** The name of a custom role in the language of the screen. */
+export function customRoleName(role: { name: string; nameAr: string }, lang: Lang): string {
+  return lang === 'ar' ? role.nameAr : role.name;
+}
+
+/** The name of the role of a person: the custom role when the person has one, else the word of the built-in role. */
+export function roleLabel(roles: RoleSettings | undefined, roleId: string | null | undefined, systemRole: string, lang: Lang, t: TFunction): string {
+  const custom = roles?.custom?.find((role) => role.id === roleId);
+  return custom ? customRoleName(custom, lang) : t(`admin.roles.${systemRole}`);
 }
 
 /** The switches that the power needs and that belong to other powers, in catalog order. A need inside the power shows by itself. */

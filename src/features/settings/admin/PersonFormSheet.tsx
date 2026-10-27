@@ -11,7 +11,7 @@ import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 import { heldRightsOfRole } from '../../../api/rights';
-import { roleLineParts } from './roleSheetLogic';
+import { customRoleName, roleLabel, roleLineParts } from './roleSheetLogic';
 
 type Form = {
   name: string; nameAr: string; email: string; systemRole: SystemRole; kind: 'human' | 'agent'; ownerId: string; discipline: string;
@@ -40,18 +40,13 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
   const lang = useLang();
   const roleSettings = useCall('settings.get', {}).data?.roles;
   const customRoles = roleSettings?.custom ?? [];
-  const roleName = (roleId: string, systemRole: SystemRole) => {
-    const custom = customRoles.find((role) => role.id === roleId);
-    if (custom) return lang === 'ar' ? custom.nameAr : custom.name;
-    return t(`admin.roles.${systemRole}`);
-  };
   const viewerLanguage = session?.user.preferences.language ?? 'en';
   // One line under the Role field says what the chosen role holds, against the standard list of 64 switches (ADM-16; role rights version 2):
   // "Member: the standard rights.", "Designer: standard rights, plus 2, without 3.", "Admin: everything."
   const roleLine = (value: string): string => {
     if (value === 'admin') return t('roles.line.admin');
     const custom = customRoles.find((role) => role.id === value);
-    const name = custom ? roleName(custom.id, 'member') : t(`admin.roles.${value}`);
+    const name = custom ? customRoleName(custom, lang) : t(`admin.roles.${value}`);
     const { more, less } = roleLineParts(heldRightsOfRole(roleSettings, custom ?? (value as 'member' | 'management' | 'accounting')));
     if (more > 0 && less > 0) return t('roleRights.line.both', { name, more, less });
     if (more > 0) return t('roleRights.line.plus', { name, more });
@@ -137,7 +132,7 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
         {!isAgent && !viewerIsAdmin && (
           <div className="flex flex-col gap-1">
             <span className="text-footnote font-medium text-label-2">{t('admin.role')}</span>
-            <p className="text-body"><bdi>{roleName(form.roleId, form.systemRole)}</bdi></p>
+            <p className="text-body"><bdi>{roleLabel(roleSettings, form.roleId, form.systemRole, lang, t)}</bdi></p>
           </div>
         )}
         {!isAgent && viewerIsAdmin && (
@@ -151,7 +146,7 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
             <option value="accounting">{t('admin.roles.accounting')}</option>
             {customRoles.length > 0 && (
               <optgroup label={t('roles.officeRoles')}>
-                {customRoles.map((role) => <option key={role.id} value={role.id}>{lang === 'ar' ? role.nameAr : role.name}</option>)}
+                {customRoles.map((role) => <option key={role.id} value={role.id}>{customRoleName(role, lang)}</option>)}
               </optgroup>
             )}
             {/* Only an Admin makes an Admin, so the Admin role comes last. The API refuses it for Management too. */}

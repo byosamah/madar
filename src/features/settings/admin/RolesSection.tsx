@@ -9,8 +9,9 @@ import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { ChevronRightIcon } from '../../../components/icons/animated/chevron-right';
+import { AdminPanel } from './AdminPanel';
 import { RoleSheet, type RoleChoice, type RoleHolder, type RoleTarget } from './RoleSheet';
-import { standardListOf } from './roleSheetLogic';
+import { customRoleName, standardListOf } from './roleSheetLogic';
 
 const BUILT_IN = ['management', 'accounting', 'member'] as const;
 
@@ -33,7 +34,6 @@ export function RolesSection() {
   const holdersOf = (match: (user: User) => boolean): RoleHolder[] => people.filter(match).map((user) => ({ id: user.id, name: personName(user) }));
   const builtInHolders = (role: (typeof BUILT_IN)[number]) => holdersOf((user) => user.systemRole === role && (role !== 'member' || !user.roleId));
   const customHolders = (id: string) => holdersOf((user) => user.roleId === id);
-  const customName = (role: { name: string; nameAr: string }) => (lang === 'ar' ? role.nameAr : role.name);
   const custom = roles.custom ?? [];
 
   const rows: { id: string; name: string; holders: number; rights: number; target: RoleTarget }[] = [
@@ -43,24 +43,24 @@ export function RolesSection() {
     })),
     ...custom.map((role) => {
       const held = heldRightsOfRole(roles, role);
-      return { id: role.id, name: customName(role), holders: customHolders(role.id).length, rights: held.length, target: { kind: 'custom' as const, role, held, standard: memberList } };
+      return { id: role.id, name: customRoleName(role, lang), holders: customHolders(role.id).length, rights: held.length, target: { kind: 'custom' as const, role, held, standard: memberList } };
     }),
   ];
   const shownId = shown?.kind === 'custom' ? shown.role.id : shown?.kind === 'built-in' ? shown.key : null;
   // The roles that the people of a deleted custom role can take: the built-in roles that are not Admin, and the other custom roles.
   const moveChoices: RoleChoice[] = [
     ...BUILT_IN.slice().reverse().map((role) => ({ value: role, label: t(`admin.roles.${role}`) })),
-    ...custom.filter((role) => role.id !== shownId).map((role) => ({ value: role.id, label: customName(role) })),
+    ...custom.filter((role) => role.id !== shownId).map((role) => ({ value: role.id, label: customRoleName(role, lang) })),
   ];
   const holders = shown?.kind === 'built-in' ? builtInHolders(shown.key) : shown?.kind === 'custom' ? customHolders(shown.role.id) : [];
   const peopleText = (count: number) => (count === 0 ? t('roles.noPeople') : t('roles.peopleCount', { count }));
 
   return (
-    <section aria-labelledby="admin-roles" className="surface flex flex-col gap-3 rounded-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="admin-roles" className="text-headline">{t('roles.title')}</h2>
-        <Button onClick={() => setShown({ kind: 'new', held: memberList, standard: memberList })}>{t('roles.new')}</Button>
-      </div>
+    <AdminPanel
+      id="admin-roles"
+      title={t('roles.title')}
+      action={<Button onClick={() => setShown({ kind: 'new', held: memberList, standard: memberList })}>{t('roles.new')}</Button>}
+    >
       <p className="text-footnote text-label-2">{t('roles.intro')}</p>
       <ul className="hairline flex flex-col">
         <li className="flex min-h-14 flex-col justify-center px-2 py-2">
@@ -92,6 +92,6 @@ export function RolesSection() {
         holders={holders}
         moveChoices={moveChoices}
       />
-    </section>
+    </AdminPanel>
   );
 }

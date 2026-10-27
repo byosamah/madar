@@ -7,6 +7,7 @@ import { IconButton } from '../../../components/IconButton';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
 import { XIcon } from '../../../components/icons/animated/x';
+import { CheckRow } from './CheckRow';
 import type { Kind, Picked } from './TemplateGantt';
 import {
   moveStage, moveStageStart, moveTaskToStage, removeStage, removeTask, startsBeforeStageAbove, taskOutsideStage, tasksEndDay, touchTask, wholeNumber,
@@ -233,16 +234,9 @@ function TaskDetails({ task, draft, setDraft, onLink, onUnlink, onPick, error }:
         <TextField id="tpl-detail-start" label={t('projectTemplates.startDay')} value={task.start} error={error('start')} onChange={(event) => setDays({ ...task, start: event.target.value })} {...NUMBER} />
         <TextField id="tpl-detail-days" label={t('projectTemplates.days')} value={task.days} error={error('days')} onChange={(event) => setDays({ ...task, days: event.target.value })} {...NUMBER} />
       </div>
-      <label htmlFor="tpl-detail-flexible" className="flex min-h-11 items-center gap-3 self-start rounded-xl pe-2 hover:bg-fill">
-        <input
-          id="tpl-detail-flexible"
-          type="checkbox"
-          className="size-5 shrink-0 accent-[var(--c-accent-fill)]"
-          checked={task.flexible}
-          onChange={(event) => setTask({ ...task, flexible: event.target.checked })}
-        />
+      <CheckRow id="tpl-detail-flexible" checked={task.flexible} onChange={(flexible) => setTask({ ...task, flexible })}>
         <span className="text-subheadline">{t('projectTemplates.canStretch')}</span>
-      </label>
+      </CheckRow>
       <WaitsFor
         id="tpl-detail"
         choices={draft.tasks.flatMap((other, at) => (other.id === task.id ? [] : [{ id: other.id, name: other.title.trim() || String(at + 1) }]))}
@@ -271,16 +265,9 @@ function TaskDetails({ task, draft, setDraft, onLink, onUnlink, onPick, error }:
             value={task.checklist.join('\n')}
             onCommit={(text) => setTask({ ...task, checklist: text.split('\n').map((line) => line.trim().slice(0, 200)).filter(Boolean).slice(0, 100) })}
           />
-          <label htmlFor="tpl-detail-review" className="flex min-h-11 items-center gap-3 self-start rounded-xl pe-2 hover:bg-fill">
-            <input
-              id="tpl-detail-review"
-              type="checkbox"
-              className="size-5 shrink-0 accent-[var(--c-accent-fill)]"
-              checked={task.needsReview}
-              onChange={(event) => setTask({ ...task, needsReview: event.target.checked })}
-            />
+          <CheckRow id="tpl-detail-review" checked={task.needsReview} onChange={(needsReview) => setTask({ ...task, needsReview })}>
             <span className="text-subheadline">{t('projectTemplates.needsReview')}</span>
-          </label>
+          </CheckRow>
         </div>
       </details>
       <div className="border-t border-separator pt-3">

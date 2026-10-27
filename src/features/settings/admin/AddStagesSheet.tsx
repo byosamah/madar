@@ -7,6 +7,7 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { Sheet } from '../../../components/Sheet';
 import { counted } from '../../../lib/grammar';
 import { stageSpan } from '../../../lib/projectPlan';
+import { CheckRow } from './CheckRow';
 
 /**
  * "Add stages from another template" (fbk_008 item 7; ADM-17). The person picks one other saved template and ticks its stages. Each
@@ -78,35 +79,17 @@ export function AddStagesSheet({ exclude, onAdd, onClose }: {
           <fieldset className="flex flex-col gap-1">
             <legend className="field-label mb-1">{t('projectTemplates.stagesToAdd')}</legend>
             {source.stages.map((stage) => (
-              <label key={stage.id} className="flex min-h-11 items-center gap-3 self-start rounded-xl pe-2 hover:bg-fill">
-                <input
-                  type="checkbox"
-                  className="size-5 shrink-0 accent-[var(--c-accent-fill)]"
-                  checked={stageIds.includes(stage.id)}
-                  onChange={() => toggle(stage.id)}
-                />
+              <CheckRow key={stage.id} checked={stageIds.includes(stage.id)} onChange={() => toggle(stage.id)}>
                 <span dir="auto" className="text-subheadline">{stage.name}</span>
                 <span className="text-footnote text-ink-2">{lineOf(source, stage.id)}</span>
-              </label>
+              </CheckRow>
             ))}
-            <label className="mt-2 flex min-h-11 items-center gap-3 self-start rounded-xl border-t border-separator pt-2 pe-2 hover:bg-fill">
-              <input
-                type="checkbox"
-                className="size-5 shrink-0 accent-[var(--c-accent-fill)]"
-                checked={withTasks}
-                onChange={(event) => setWithTasks(event.target.checked)}
-              />
+            <CheckRow checked={withTasks} onChange={setWithTasks} className="mt-2 border-t border-separator pt-2">
               <span className="text-subheadline">{t('projectTemplates.withTasks')}</span>
-            </label>
-            <label className="flex min-h-11 items-center gap-3 self-start rounded-xl pe-2 hover:bg-fill">
-              <input
-                type="checkbox"
-                className="size-5 shrink-0 accent-[var(--c-accent-fill)]"
-                checked={keepDays}
-                onChange={(event) => setKeepDays(event.target.checked)}
-              />
+            </CheckRow>
+            <CheckRow checked={keepDays} onChange={setKeepDays}>
               <span className="text-subheadline">{t('projectTemplates.keepTheirDays')}</span>
-            </label>
+            </CheckRow>
           </fieldset>
         )}
       </div>

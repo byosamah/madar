@@ -7,6 +7,10 @@ Settings (desk) and the same sections on the Me tab (phone), and the Admin secti
   that right. `sectionsFor` reads the viewer, and `opensAdminPage` (`api/rights.ts`) decides the person menu. A desk opens the first section at
   `/admin`. A phone shows the list there. An unknown or forbidden section goes back to `/admin`. A person who is not the Admin sees "Office"
   as the page title.
+- A section draws its shell with `AdminPanel` (`AdminPanel.tsx`): the section tag, the title, and the header row when it gets an `action`.
+  `AddButton` is the plus button. `action={null}` keeps the row with no button. A tick box with its label is `CheckRow`. Only `admin/`
+  files import them. `LinkProjectSheet.tsx` also loads on the project page, so it imports neither. A section asks `useRight` or `useCan`
+  (`app/useRight.tsx`) for a right, never the session. The name of a role comes from `roleLabel` and `customRoleName` (`roleSheetLogic.ts`).
 - Roles (`RolesSection.tsx`, `RoleSheet.tsx`, `RoleRights.tsx`, `roleSheetLogic.ts`, `RoleToggle.tsx`): the Roles section is the Admin's only.
   The count of rights, powers and sections comes from the catalog and no guide states it (`src/api/rightsCatalog.test.ts` pins it). The add-a-
   switch checklist is in `src/api/CLAUDE.md`. Words: `real/rr2sheet.*` (key tree `roleRights`).
@@ -31,10 +35,12 @@ Settings (desk) and the same sections on the Me tab (phone), and the Admin secti
 - People (`PeopleSection.tsx`): a turned-off person or agent has "Remove from the list" (`RemoveSheet.tsx`). The sheet asks first (Cancel has
   the focus) and has no Undo. The History keeps the name (`api/CLAUDE.md`).
 - Requests and bugs (`FeedbackSection.tsx`): three tabs, Open (the default), Done and Rejected. Each report has one status `Menu` with the
-  statuses as radio items. Done and Rejected offer Undo. Rejected opens `RejectSheet` first, which needs a reason. A sender has no list of
+  statuses as radio items. A report signs the links of its screenshots only when its box is near the view (`RowShots`, `useNearView`).
+  Done and Rejected offer Undo. Rejected opens `RejectSheet` first, which needs a reason. A sender has no list of
   their own reports: the notice (switch `feedback_done`) is the only place they see the status.
 - `OfficeSection.tsx` (`office.settings`) holds the Admin block "Work hours": the default range of a person who chose none, and "Keep
-  notifications on". A change of the lock widens the default range at once, and Save refuses a default that misses the lock.
+  notifications on". A change of the lock widens the default range at once (`widenToLock` in `workRange.ts`, also used by
+  `effectiveWorkHours`), and Save refuses a default that misses the lock.
 - A new logo gets a frame step (`LogoFrame.tsx`) and a new profile picture gets `AvatarFrameSheet.tsx`. Both use the shared
   `components/PictureFrame.tsx`. The crop helpers are in `lib/picture.ts` (`PictureCrop`, `cropPlace`, `cropPreview`, `fillCrop`). The avatar
   step starts as the centre square, so a person who presses Save gets what they got before. The welcome step and the Admin forms have no

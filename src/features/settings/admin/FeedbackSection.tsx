@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { FEEDBACK_STATUSES, REJECT_REASON_MAX, type Feedback, type FeedbackStatus } from '../../../api/contract/entities';
@@ -9,6 +9,7 @@ import { PRIVATE } from '../../../app/privateMark';
 import { fieldError } from '../../../app/errors';
 import { useAction, useCall } from '../../../app/runtime';
 import { useIsPhone } from '../../../app/useIsPhone';
+import { useNearView } from '../../../app/useNearView';
 import { Age } from '../../../components/Age';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
@@ -26,9 +27,9 @@ import { SegmentedControl } from '../../../components/SegmentedControl';
  * A press opens it bigger in a sheet, and a press on the big picture opens it at full size in a new tab. The sheet uses the
  * link of the thumbnail, so the server signs nothing new.
  */
-function Screenshot({ id, index }: { id: string; index: number }) {
+function Screenshot({ id, index, near }: { id: string; index: number; near: boolean }) {
   const { t } = useTranslation();
-  const { url, onError, broken } = useScreenshotLink(id, index);
+  const { url, onError, broken } = useScreenshotLink(id, index, near);
   const [open, setOpen] = useState(false);
   const n = index + 1;
   const name = t('feedback.screenshotN', { n });
@@ -59,6 +60,20 @@ function Screenshot({ id, index }: { id: string; index: number }) {
         )}
       </Sheet>
     </>
+  );
+}
+
+/**
+ * The screenshots of one report. A link is signed only when the box comes near the view: the list keeps the done reports too, and a
+ * signed link for each of their pictures would load at once.
+ */
+function RowShots({ id, count }: { id: string; count: number }) {
+  const box = useRef<HTMLDivElement>(null);
+  const near = useNearView(box);
+  return (
+    <div ref={box} className="flex flex-wrap gap-2 ps-11">
+      {Array.from({ length: count }, (_, index) => <Screenshot key={index} id={id} index={index} near={near} />)}
+    </div>
   );
 }
 
@@ -128,9 +143,11 @@ export function FeedbackSection() {
   const setStatus = useAction('feedback.setStatus');
   const busy = markDone.isPending || setStatus.isPending;
   const rows = list.data ?? [];
-  const byTab = (which: Tab) => rows.filter((row) => tabOf(row.item.status) === which);
-  const shown = byTab(tab);
-  const open = byTab('open').length;
+  // One pass over the rows fills the three tabs, in the order of the rows.
+  const groups: Record<Tab, typeof rows> = { open: [], done: [], rejected: [] };
+  for (const row of rows) groups[tabOf(row.item.status)].push(row);
+  const shown = groups[tab];
+  const open = groups.open.length;
   const choose = (item: Feedback, status: FeedbackStatus) => {
     if (status === 'rejected') {
       setRejecting(item);
@@ -153,7 +170,7 @@ export function FeedbackSection() {
           label={t('feedback.adminTitle')}
           value={tab}
           onChange={setTab}
-          options={TABS.map((value) => ({ value, label: `${t(`feedback.tabs.${value}`)} (${byTab(value).length})` }))}
+          options={TABS.map((value) => ({ value, label: `${t(`feedback.tabs.${value}`)} (${groups[value].length})` }))}
         />
       )}
       {rows.length > 0 && shown.length === 0 && <p className="text-subheadline text-ink-2">{t(tab === 'open' ? 'feedback.noneOpen' : tab === 'done' ? 'feedback.noneDone' : 'feedback.noneRejected')}</p>}
@@ -195,11 +212,7 @@ export function FeedbackSection() {
                 </div>
                 {!phone && action}
               </div>
-              {item.screenshots.length > 0 && (
-                <div className="flex flex-wrap gap-2 ps-11">
-                  {item.screenshots.map((_, index) => <Screenshot key={index} id={item.id} index={index} />)}
-                </div>
-              )}
+              {item.screenshots.length > 0 && <RowShots id={item.id} count={item.screenshots.length} />}
             </li>
           );
         })}

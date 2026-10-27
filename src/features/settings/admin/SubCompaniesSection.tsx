@@ -9,14 +9,14 @@ import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
-import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
-import { PlusIcon } from '../../../components/icons/animated/plus';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
 import { Sheet } from '../../../components/Sheet';
 import { LOGO_PLATE, SubCompanyLogo } from '../../../components/SubCompanyLogo';
 import { counted } from '../../../lib/grammar';
 import { DEFAULT_CROP, PictureError, pictureOf, type PictureCrop } from '../../../lib/picture';
+import { FormError } from '../../auth/AuthPage';
+import { AddButton, AdminPanel } from './AdminPanel';
 import { LogoFrame } from './LogoFrame';
 
 /** A sub-company with the number of projects that name it (subCompanies.list). */
@@ -27,6 +27,9 @@ const projectsOf = (id: string) => `/projects?subCompany=${id}`;
 
 /** The wait before a change of the frame makes the picture again, so a drag does not make one picture for each pixel. */
 const FRAME_DELAY_MS = 250;
+
+/** The word key of a logo that did not load: too big, or unreadable. */
+const logoProblem = (failure: unknown) => (failure instanceof PictureError && failure.reason === 'too_big' ? 'subCompanies.logoTooBig' : 'subCompanies.logoUnreadable');
 
 /**
  * The duplicate-name text under a field. The shared reason words (errors.reasons) hold a template text for "duplicate_name",
@@ -86,7 +89,7 @@ function SubCompanySheet({ sub, open, onOpenChange }: { sub: SubCompany | null; 
       setCrop(DEFAULT_CROP);
       setFraming(false);
     } catch (failure) {
-      setProblem(t(failure instanceof PictureError && failure.reason === 'too_big' ? 'subCompanies.logoTooBig' : 'subCompanies.logoUnreadable'));
+      setProblem(t(logoProblem(failure)));
     } finally {
       setBusy(false);
       // The same file can be chosen again after a failure.
@@ -106,7 +109,7 @@ function SubCompanySheet({ sub, open, onOpenChange }: { sub: SubCompany | null; 
       void pictureOf(source, { fit: 'contain', crop })
         .then((made) => { if (current) setLogo(made); })
         .catch((failure: unknown) => {
-          if (current) setProblem(t(failure instanceof PictureError && failure.reason === 'too_big' ? 'subCompanies.logoTooBig' : 'subCompanies.logoUnreadable'));
+          if (current) setProblem(t(logoProblem(failure)));
         })
         .finally(() => { if (current) setFraming(false); });
     }, FRAME_DELAY_MS);
@@ -178,7 +181,7 @@ function SubCompanySheet({ sub, open, onOpenChange }: { sub: SubCompany | null; 
             />
             <Button disabled={busy} onClick={() => fileRef.current?.click()}>{logo ? t('subCompanies.changeLogo') : t('subCompanies.chooseLogo')}</Button>
             <p className="text-footnote text-ink-2">{t('subCompanies.logoHint')}</p>
-            {problem && <p role="alert" className="text-footnote text-late">{problem}</p>}
+            <FormError text={problem} />
           </div>
         </div>
         {source && <LogoFrame file={source} crop={crop} onCrop={changeCrop} />}
@@ -242,14 +245,7 @@ export function SubCompaniesSection() {
   const remove = useUndoable('subCompanies.delete', { message: () => t('subCompanies.deleted') });
   const rows: Row[] = list.data ?? [];
   return (
-    <section aria-labelledby="admin-sub-companies" className="surface flex flex-col gap-3 rounded-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="admin-sub-companies" className="text-headline">{t('subCompanies.title')}</h2>
-        <Button onClick={() => setAdding(true)}>
-          <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-          {t('subCompanies.add')}
-        </Button>
-      </div>
+    <AdminPanel id="admin-sub-companies" title={t('subCompanies.title')} action={<AddButton label={t('subCompanies.add')} onClick={() => setAdding(true)} />}>
       <LoadFailed query={list} />
       {list.data?.length === 0 && <p className="text-footnote text-ink-2">{t('subCompanies.empty')}</p>}
       <ul className="flex flex-col">
@@ -281,6 +277,6 @@ export function SubCompaniesSection() {
       <SubCompanySheet sub={null} open={adding} onOpenChange={setAdding} />
       <SubCompanySheet sub={editing} open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null); }} />
       {moving && <MoveSheet sub={moving} others={rows.filter((item) => item.id !== moving.id)} onClose={() => setMoving(null)} />}
-    </section>
+    </AdminPanel>
   );
 }

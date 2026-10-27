@@ -108,9 +108,10 @@ type ScreenshotLink = { url: string; expiresAt: string };
 
 /**
  * A URL for one screenshot of a report, for the Admin (spec 4.3). The real build signs a link; the prototype reads the stored
- * picture. "broken" is true when the sign fails or the new link breaks too, so the screen shows its fallback.
+ * picture. "broken" is true when the sign fails or the new link breaks too, so the screen shows its fallback. With `enabled` false
+ * the link is not asked for yet: the URL is null and "broken" is false, so the screen shows its grey box.
  */
-export function useScreenshotLink(id: string, index: number): PictureLink {
+export function useScreenshotLink(id: string, index: number, enabled = true): PictureLink {
   const runtime = useRuntime();
   const remote = isRemote(runtime);
   const { api } = runtime;
@@ -121,7 +122,7 @@ export function useScreenshotLink(id: string, index: number): PictureLink {
       if (remote) return { url: ((await api.call('feedback.screenshot', { id, index })) as unknown as ScreenshotLink).url };
       return { blob: (await api.call('feedback.screenshot', { id, index })).blob };
     },
-    enabled: true,
+    enabled,
     remote,
     picture: `${id}|${index}`,
   });

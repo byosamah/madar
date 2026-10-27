@@ -8,23 +8,14 @@ import { Button } from '../../../components/Button';
 import { TextField } from '../../../components/Fields';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Switch } from '../../../components/Switch';
-import { coversLock, officeWorkHoursOf, type WorkRange } from '../../../lib/quietHours';
+import { coversLock, officeWorkHoursOf, type WorkLock, type WorkRange } from '../../../lib/quietHours';
+import { FormError } from '../../auth/AuthPage';
 import { StageList } from '../../projects/ProjectFields';
 import { WorkRangeFields } from '../WorkRangeFields';
+import { widenToLock } from '../workRange';
+import { AdminPanel } from './AdminPanel';
 
 type Problems = { stages?: string; limit?: string; stale?: string; workHours?: string };
-
-type Lock = WorkRange & { on: boolean };
-
-/** The range with the lock inside it: every day of the lock, and the times of the lock. */
-function widen(range: WorkRange, lock: Lock): { days: number[]; from: string; to: string } {
-  if (!lock.on) return { days: [...range.days], from: range.from, to: range.to };
-  return {
-    days: [...new Set([...range.days, ...lock.days])].sort((a, b) => a - b),
-    from: range.from < lock.from ? range.from : lock.from,
-    to: range.to > lock.to ? range.to : lock.to,
-  };
-}
 
 /** The form starts from the saved settings once. A refresh of the settings never replaces what the Admin typed. */
 function OfficeForm({ saved }: { saved: Settings }) {
@@ -36,7 +27,7 @@ function OfficeForm({ saved }: { saved: Settings }) {
   // The work hours (owner, 2026-10-22, fbk_048): the default range of a person who chose none, and the lock that nobody can be quiet inside.
   const office = officeWorkHoursOf(saved);
   const [range, setRange] = useState<WorkRange>({ days: office.days, from: office.from, to: office.to });
-  const [lock, setLock] = useState<Lock>(office.lock);
+  const [lock, setLock] = useState<WorkLock>(office.lock);
   const [problems, setProblems] = useState<Problems>({});
   const save = useAction('settings.update', { onSuccess: () => toast.show({ message: t('admin.officeSaved') }) });
   const submit = (event: FormEvent) => {
@@ -60,6 +51,7 @@ function OfficeForm({ saved }: { saved: Settings }) {
       workHours: { days: [...range.days], from: range.from, to: range.to, lock: { on: lock.on, days: [...lock.days], from: lock.from, to: lock.to } },
     });
   };
+  const rangeLabels = { days: t('admin.workHours.days'), from: t('admin.workHours.from'), to: t('admin.workHours.to') };
   const workHoursError = problems.workHours ?? fieldError(save.error, 'workHours', t, t('errors.reasons.work_hours_default_lock'));
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
@@ -81,15 +73,14 @@ function OfficeForm({ saved }: { saved: Settings }) {
         <p className="text-footnote text-label-2">{t('admin.workHours.hint')}</p>
         <p className="text-subheadline">{t('admin.workHours.defaultTitle')}</p>
         <WorkRangeFields
-          idPrefix="office-default" value={range} lock={lock} onChange={setRange}
-          labels={{ days: t('admin.workHours.days'), from: t('admin.workHours.from'), to: t('admin.workHours.to') }}
+          idPrefix="office-default" value={range} lock={lock} onChange={setRange} labels={rangeLabels}
         />
         <Switch
           id="office-lock" label={t('admin.workHours.lock')} description={t('admin.workHours.lockHint')} checked={lock.on}
           onChange={(on) => {
             const next = { ...lock, on };
             setLock(next);
-            setRange(widen(range, next));
+            setRange(widenToLock(range, next));
           }}
         />
         {lock.on && (
@@ -98,12 +89,12 @@ function OfficeForm({ saved }: { saved: Settings }) {
             onChange={(next) => {
               const changed = { ...lock, ...next };
               setLock(changed);
-              setRange(widen(range, changed));
+              setRange(widenToLock(range, changed));
             }}
-            labels={{ days: t('admin.workHours.days'), from: t('admin.workHours.from'), to: t('admin.workHours.to') }}
+            labels={rangeLabels}
           />
         )}
-        {workHoursError && <p role="alert" className="text-footnote text-late">{workHoursError}</p>}
+        <FormError text={workHoursError ?? null} />
       </fieldset>
       <Button type="submit" className="self-start" disabled={save.isPending}>{t('admin.saveOffice')}</Button>
     </form>
@@ -114,10 +105,9 @@ export function OfficeSection() {
   const { t } = useTranslation();
   const settings = useCall('settings.get', {});
   return (
-    <section aria-labelledby="admin-office" className="surface flex flex-col gap-3 rounded-card p-5">
-      <h2 id="admin-office" className="text-headline">{t('admin.office')}</h2>
+    <AdminPanel id="admin-office" title={t('admin.office')}>
       {/* No empty form: saving an empty stage list would erase the office's default stages. */}
       {settings.data ? <OfficeForm saved={settings.data} /> : settings.error && <LoadFailed error={settings.error} onRetry={() => void settings.refetch()} />}
-    </section>
+    </AdminPanel>
   );
 }

@@ -1,24 +1,24 @@
-import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
-import { PlusIcon } from '../../../components/icons/animated/plus';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
-import { can, holdsAdminRights } from '../../../api/permissions';
+import { holdsAdminRights } from '../../../api/permissions';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
 import { useByPersonName, usePersonName } from '../../../app/personName';
 import { REMOTE } from '../../../app/mode';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
+import { useCan } from '../../../app/useRight';
 import { actorContext } from '../../../lib/grammar';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
-import { Button } from '../../../components/Button';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
+import { AddButton, AdminPanel } from './AdminPanel';
 import { useDeactivate } from './DeactivateSheet';
 import { PersonFormSheet } from './PersonFormSheet';
 import { useRemove } from './RemoveSheet';
+import { roleLabel } from './roleSheetLogic';
 
 export function PeopleSection() {
   const { t } = useTranslation();
@@ -30,11 +30,7 @@ export function PeopleSection() {
   // The custom roles of the office: a Member with one shows the name of that role (owner, 2026-10-18, fbk_014).
   const settings = useCall('settings.get', {});
   const lang = useLang();
-  const roleOf = (user: User) => {
-    const custom = settings.data?.roles?.custom?.find((role) => role.id === user.roleId);
-    if (custom) return lang === 'ar' ? custom.nameAr : custom.name;
-    return t(`admin.roles.${user.systemRole}`);
-  };
+  const roleOf = (user: User) => roleLabel(settings.data?.roles, user.roleId, user.systemRole, lang, t);
   // Who still waits for their invitation (plan 5.1). The prototype has no sign-in, so it never asks.
   const invites = useCall('users.invites', {}, { enabled: REMOTE });
   const invited = new Set((invites.data ?? []).filter((row) => row.state === 'invited').map((row) => row.userId));
@@ -53,20 +49,15 @@ export function PeopleSection() {
   // Management cannot change an Admin, so an Admin's row has no actions for it.
   const viewerIsAdmin = session.data?.authority.systemRole === 'admin';
   // Role rights version 2: each button asks the switch of its own power. The section opens for any of the five.
-  const may = (action: 'people.invite' | 'people.change' | 'people.turnOff' | 'people.remove') => session.data !== undefined && can(session.data.authority, action);
+  const may = useCan();
   // An agent acts with the rights of its person, so the agent of an Admin holds Admin rights too. The screen asks the API rule
   // itself (audit 2026-10-03, SHL-9).
   return (
-    <section aria-labelledby="admin-people" className="surface flex flex-col gap-3 rounded-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="admin-people" className="text-headline">{t('admin.people')}</h2>
-        {may('people.invite') && (
-          <Button onClick={() => setAdding(true)}>
-            <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-            {t('admin.addPerson')}
-          </Button>
-        )}
-      </div>
+    <AdminPanel
+      id="admin-people"
+      title={t('admin.people')}
+      action={may('people.invite') ? <AddButton label={t('admin.addPerson')} onClick={() => setAdding(true)} /> : null}
+    >
       <LoadFailed query={users} />
       <ul className="flex flex-col">
         {[...(users.data ?? [])].sort(byName).map((user) => {
@@ -110,6 +101,6 @@ export function PeopleSection() {
       {remove.sheet}
       <PersonFormSheet open={adding} onOpenChange={setAdding} person={null} />
       <PersonFormSheet open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null); }} person={editing} />
-    </section>
+    </AdminPanel>
   );
 }

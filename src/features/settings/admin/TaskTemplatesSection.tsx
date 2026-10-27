@@ -9,6 +9,7 @@ import { TextField } from '../../../components/Fields';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
 import { actorContext } from '../../../lib/grammar';
+import { AdminPanel } from './AdminPanel';
 
 type Row = Pick<TaskTemplateRow, 'id' | 'name' | 'stageName' | 'checklist' | 'createdByName' | 'createdByNameAr' | 'createdByGender' | 'canEdit'>;
 
@@ -48,8 +49,7 @@ export function TaskTemplatesSection() {
   const groups = new Map<string, Row[]>();
   for (const template of templates.data ?? []) groups.set(template.stageName, [...(groups.get(template.stageName) ?? []), template]);
   return (
-    <section aria-labelledby="admin-task-templates" className="surface flex flex-col gap-3 rounded-card p-5">
-      <h2 id="admin-task-templates" className="text-headline">{t('taskTemplates.title')}</h2>
+    <AdminPanel id="admin-task-templates" title={t('taskTemplates.title')}>
       <LoadFailed query={templates} />
       {templates.data?.length === 0 && <p className="text-footnote text-ink-2">{t('taskTemplates.empty')}</p>}
       {[...groups].map(([stageName, rows]) => (
@@ -81,6 +81,6 @@ export function TaskTemplatesSection() {
           </ul>
         </div>
       ))}
-    </section>
+    </AdminPanel>
   );
 }

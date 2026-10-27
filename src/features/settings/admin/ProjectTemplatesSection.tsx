@@ -4,16 +4,14 @@ import type { ProjectTemplate } from '../../../api/contract/entities';
 import type { ProjectTemplateRow } from '../../../api/handlers/projectTemplates';
 import { useUndoable } from '../../../app/actions';
 import { usePersonName } from '../../../app/personName';
-import { can } from '../../../api/permissions';
 import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
-import { Button } from '../../../components/Button';
+import { useRight } from '../../../app/useRight';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
-import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
-import { PlusIcon } from '../../../components/icons/animated/plus';
 import { actorContext, counted } from '../../../lib/grammar';
 import { templateDays } from '../../../lib/projectPlan';
+import { AddButton, AdminPanel } from './AdminPanel';
 import { ProjectTemplateEditor } from './ProjectTemplateEditor';
 import { TemplateProjectsSheet } from './TemplateProjectsSheet';
 import { duplicateDraft, type TemplateDraft } from './templateDraft';
@@ -45,10 +43,9 @@ export function ProjectTemplatesSection() {
   const templates = useCall('projectTemplates.list', {});
   const toast = useToast();
   // The update of the projects of a template needs the right templates.updateProjects, which the Admin holds (role-rights, 2026-10-23).
-  const authority = useCall('session.get', {}).data?.authority;
-  const mayUpdate = authority !== undefined && can(authority, 'templates.updateProjects');
+  const mayUpdate = useRight('templates.updateProjects');
   // "New template" and "Duplicate" make a new template, so they need templates.projectCreate (role rights version 2).
-  const mayCreate = authority !== undefined && can(authority, 'templates.projectCreate');
+  const mayCreate = useRight('templates.projectCreate');
   // The number of projects that follow the template being deleted, for the words of the Undo toast.
   const deletedFollowers = useRef(0);
   const remove = useUndoable('projectTemplates.delete', {
@@ -77,16 +74,11 @@ export function ProjectTemplatesSection() {
   };
 
   return (
-    <section aria-labelledby="admin-project-templates" className="surface flex flex-col gap-3 rounded-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="admin-project-templates" className="text-headline">{t('projectTemplates.title')}</h2>
-        {mayCreate && (
-          <Button onClick={() => setEditing({ template: null })}>
-            <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-            {t('projectTemplates.new')}
-          </Button>
-        )}
-      </div>
+    <AdminPanel
+      id="admin-project-templates"
+      title={t('projectTemplates.title')}
+      action={mayCreate ? <AddButton label={t('projectTemplates.new')} onClick={() => setEditing({ template: null })} /> : null}
+    >
       <p className="text-footnote text-ink-2">{t('projectTemplates.intro')}</p>
       <LoadFailed query={templates} />
       {templates.data?.length === 0 && <p className="text-subheadline text-ink-2">{t('projectTemplates.empty')}</p>}
@@ -151,6 +143,6 @@ export function ProjectTemplatesSection() {
         />
       )}
       {updating !== null && <TemplateProjectsSheet template={updating.template} reviewAll={updating.reviewAll} onClose={() => setUpdating(null)} />}
-    </section>
+    </AdminPanel>
   );
 }

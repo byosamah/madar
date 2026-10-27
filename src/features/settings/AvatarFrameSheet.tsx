@@ -6,6 +6,7 @@ import { Button } from '../../components/Button';
 import { PictureFrame } from '../../components/PictureFrame';
 import { Sheet } from '../../components/Sheet';
 import { DEFAULT_CROP, PictureError, pictureOf, type PictureCrop } from '../../lib/picture';
+import { FormError } from '../auth/AuthPage';
 
 /** The sizes of the preview circles: the picture in Settings, the header of a chat, and the bubbles and small lists. */
 const AVATAR_SIZES = [72, 40, 24] as const;
@@ -65,7 +66,7 @@ export function AvatarFrameSheet({ file, user, onCancel, onSave, onUnreadable, s
           previews={(circle) => AVATAR_SIZES.map((side) => circle(side))}
           onUnreadable={onUnreadable}
         />
-        {problem && <p role="alert" className="text-footnote text-late">{problem}</p>}
+        <FormError text={problem} />
       </div>
     </Sheet>
   );

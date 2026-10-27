@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import { clockFormat, listFormat, localeFor, type Lang } from '../../lib/dates';
-import { clockSteps, officeWorkHoursOf, workHoursOf, type Clock, type PersonLike, type SettingsLike, type WorkHours, type WorkRange } from '../../lib/quietHours';
+import { clockSteps, officeWorkHoursOf, workHoursOf, type Clock, type PersonLike, type SettingsLike, type WorkHours, type WorkLock, type WorkRange } from '../../lib/quietHours';
 
 /** The words of the weekdays and the times of the work range, for the Settings section and the Admin block (fbk_048). */
 
@@ -64,6 +64,19 @@ export function endOptions(value: WorkRange, lock?: { on: boolean; to: Clock }):
 }
 
 /**
+ * The range with the lock inside it: every day of the lock, and the times of the lock. A lock that is off leaves the range as it is. The
+ * result is a new range, so the input never changes.
+ */
+export function widenToLock(range: WorkRange, lock: WorkLock): { days: number[]; from: Clock; to: Clock } {
+  if (!lock.on) return { days: [...range.days], from: range.from, to: range.to };
+  return {
+    days: [...new Set([...range.days, ...lock.days])].sort((a, b) => a - b),
+    from: range.from < lock.from ? range.from : lock.from,
+    to: range.to > lock.to ? range.to : lock.to,
+  };
+}
+
+/**
  * The range as the Quiet hours page shows it and saves it, and as the Me hub names it: the choice of the person, widened to hold the
  * lock. The range always holds the lock, also when the Admin moved the lock after the person chose.
  */
@@ -71,10 +84,5 @@ export function effectiveWorkHours(person: PersonLike, settings: SettingsLike): 
   const mine = workHoursOf(person, settings);
   const { lock } = officeWorkHoursOf(settings);
   if (!lock.on) return mine;
-  return {
-    quiet: mine.quiet,
-    days: [...new Set([...mine.days, ...lock.days])].sort((a, b) => a - b),
-    from: mine.from < lock.from ? mine.from : lock.from,
-    to: mine.to > lock.to ? mine.to : lock.to,
-  };
+  return { quiet: mine.quiet, ...widenToLock(mine, lock) };
 }

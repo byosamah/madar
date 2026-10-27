@@ -4,6 +4,7 @@ import { MAX_PREREQUISITES } from '../../../api/contract/limits';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { counted } from '../../../lib/grammar';
 import { stageSpan, templateDays } from '../../../lib/projectPlan';
+import { FormError } from '../../auth/AuthPage';
 import { barOf, chartDays, dayAt, waitsThrough, weekStarts } from './ganttMath';
 import { draftPlanTemplate, moveStageStart, touchTask, wholeNumber, type DraftTask, type TemplateDraft } from './templateDraft';
 
@@ -307,7 +308,7 @@ export function TemplateGantt({ draft, onChange, onLink, selected, onSelect }: {
         </div>
       </div>
       {bars.length === 0 && <p role="status" className="text-footnote text-ink-2">{t('projectTemplates.timelineEmpty')}</p>}
-      {problem && <p role="alert" className="text-footnote text-late">{problem}</p>}
+      <FormError text={problem} />
       <div className="flex items-start gap-3">
         <div className="w-[13.75rem] shrink-0 pt-6">
           {rows.map((row) => (
