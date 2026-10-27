@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState, type MutableRefObject, type ReactNod
 import { useTranslation } from 'react-i18next';
 import type { ChecklistItem, Task } from '../../../api/contract/entities';
 import type { FileView, TaskDetail } from '../../../api/contract/views';
-import { useDownloadFile } from '../../../app/files';
+import { useDownloadFile } from '../../../app/useDownloadFile';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useAction } from '../../../app/runtime';

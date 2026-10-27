@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../../../app/useIsPhone';
 import type { FileView } from '../../../api/contract/views';
-import { useDownloadFile, useFileLink, useFileUrl, usePictureTest } from '../../../app/files';
+import { useFileLink, useFileUrl, usePictureTest } from '../../../app/files';
+import { useDownloadFile } from '../../../app/useDownloadFile';
 import { PRIVATE } from '../../../app/privateMark';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';

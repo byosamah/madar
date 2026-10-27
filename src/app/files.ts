@@ -13,7 +13,6 @@ import { errorMessage } from './errors';
 import { REMOTE } from './mode';
 import { useCall, useRuntime, type Runtime } from './runtime';
 import { makeThumb } from './thumbs';
-import { useToast } from './toasts';
 
 /** A signed link lives 10 minutes; the screens ask for a new one after 8 (plan 5.2). */
 export const LINK_STALE_MS = 8 * 60 * 1000;
@@ -181,18 +180,6 @@ export async function downloadFile(api: MadarApi, fileId: string, letter?: strin
   const url = URL.createObjectURL(blob);
   save(url, file.file.name);
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-/**
- * The press handler of a Download control. It reads the runtime and the toast once, saves the file with the build flag of the
- * runtime, and shows a failure as a toast.
- */
-export function useDownloadFile(): (fileId: string, letter?: string) => void {
-  const runtime = useRuntime();
-  const toast = useToast();
-  return (fileId, letter) => {
-    downloadFile(runtime.api, fileId, letter, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error));
-  };
 }
 
 /** One file for "Download all": its id and the name it gets in the ZIP file. */
