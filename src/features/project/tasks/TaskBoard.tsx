@@ -5,11 +5,10 @@ import {
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { GripVerticalIcon } from '../../../components/icons/animated/grip-vertical';
 import { motion } from 'motion/react';
-import { useEffect, useRef, useState, type MouseEventHandler, type PointerEventHandler, type ReactNode, type RefObject, type TouchEventHandler } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type MouseEventHandler, type PointerEventHandler, type ReactNode, type RefObject, type TouchEventHandler } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskStatus } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
-import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
 import { useToast } from '../../../app/toasts';
 import { useIsPhone } from '../../../app/useIsPhone';
@@ -20,10 +19,11 @@ import { NoLeadMark } from '../../../components/NoLeadMark';
 import { spring } from '../../../design/motion';
 import { BOARD_COLUMNS, moveTargets, nextColumn } from '../../../lib/board';
 import { todayISO } from '../../../lib/dates';
-import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
+import { whenOf } from '../../../lib/due';
 import { versionOf } from '../../../lib/taskPeople';
 import { prefersReducedMotion, useDragSensors } from './dragSensors';
 import { useStageBack } from './StageBack';
+import { useMoveTask } from './useTaskMoves';
 import { useTouchPhone } from './useTouchPhone';
 import { isWaiting, waitingNames } from '../../../lib/waiting';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
@@ -43,13 +43,15 @@ const columnKeys: KeyboardCoordinateGetter = (event, { context }) => {
 
 /**
  * A card. On the Tasks screen (`across`) the board mixes projects, so the card names its project, or the word Office for a to-do of no
- * project, and a card that waits for my review says "Your review" (fbk_042).
+ * project, and a card that waits for my review says "Your review" (fbk_042). The board gives `today`: a card never reads the clock alone,
+ * so it renders again for a new day, and not when a drag only asks the board.
  */
-function CardFace({ row, lifted = false, across = false, yourReview = false }: { row: TaskRow; lifted?: boolean; across?: boolean; yourReview?: boolean }) {
+const CardFace = memo(function CardFace({ row, today, lifted = false, across = false, yourReview = false }: {
+  row: TaskRow; today: string; lifted?: boolean; across?: boolean; yourReview?: boolean;
+}) {
   const { t } = useTranslation();
   const lang = useLang();
-  const word = dueWord(row.task.dueDate, todayISO(), row.task.status);
-  const starts = startsLater(row.task.startDate, todayISO(), row.task.status);
+  const when = whenOf(row.task, today, t, lang);
   return (
     // The grip and the Move menu cover only the top end of the card, so only the title keeps 96 px free and is tall enough to
     // clear them. On a touch phone the grip is gone (a press and hold lifts the card), so the title keeps 48 px free. The box of the title follows the page direction, so a Latin title in Arabic keeps the free space on the side
@@ -68,8 +70,7 @@ function CardFace({ row, lifted = false, across = false, yourReview = false }: {
         </p>
       )}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-footnote text-ink-2">
-        {starts && <span className="tabular whitespace-nowrap">{startsText(row.task.startDate as string, t, lang)}</span>}
-        {!starts && word && row.task.dueDate && <span className={`tabular whitespace-nowrap ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
+        {when && <span className={`tabular whitespace-nowrap${when.late ? ' font-medium text-attn' : ''}`}>{when.text}</span>}
         {row.task.flagged && <AnimatedIcon icon={BadgeAlertIcon} size={12} className="text-attn" aria-label={t('tasks.flagged')} />}
         <span className="ms-auto">{!row.owner
           ? <NoLeadMark size={22} />
@@ -80,7 +81,7 @@ function CardFace({ row, lifted = false, across = false, yourReview = false }: {
       {isWaiting(row) && row.task.status !== 'done' && <p dir="auto" className="text-footnote text-ink-2">{t('tasks.waitingFor', { names: waitingNames(row, lang) })}</p>}
     </div>
   );
-}
+});
 
 function Column({ status, count, closed, note, children }: { status: TaskStatus; count: number; closed: boolean; note?: string; children: ReactNode }) {
   const { t } = useTranslation();
@@ -104,8 +105,8 @@ function Column({ status, count, closed, note, children }: { status: TaskStatus;
   );
 }
 
-function BoardCard({ row, reviews, across, dragging, onOpen, onSendBack, onMove }: {
-  row: TaskRow; reviews: boolean; across: boolean; dragging: boolean; onOpen: () => void; onSendBack: () => void; onMove: (status: TaskStatus) => void;
+function BoardCard({ row, today, reviews, across, dragging, onOpen, onSendBack, onMove }: {
+  row: TaskRow; today: string; reviews: boolean; across: boolean; dragging: boolean; onOpen: () => void; onSendBack: () => void; onMove: (status: TaskStatus) => void;
 }) {
   const { t } = useTranslation();
   const touch = useTouchPhone();
@@ -125,7 +126,7 @@ function BoardCard({ row, reviews, across, dragging, onOpen, onSendBack, onMove 
   const reviewing = reviews && row.task.status === 'in_review';
   return (
     <li ref={setNodeRef} {...starts} className={`relative ${touch ? 'touch-manipulation pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] ' : ''}${dragging ? 'opacity-40' : ''}`}>
-      <button type="button" onClick={onOpen} className="block w-full text-start"><CardFace row={row} across={across} yourReview={across && reviewing} /></button>
+      <button type="button" onClick={onOpen} className="block w-full text-start"><CardFace row={row} today={today} across={across} yourReview={across && reviewing} /></button>
       {row.canMove && (
         // A press on the grip or the Move menu starts no lift, with a pointer, a mouse or a finger.
         <div className="absolute end-1 top-1 flex" onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()}>
@@ -218,12 +219,18 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
   const droppedAt = useRef(0);
   const board = useRef<HTMLDivElement>(null);
   const back = useStageBack();
-  const move = useUndoable('tasks.move', {
-    message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
-    onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),
-  });
+  const move = useMoveTask(back);
   const sensors = useDragSensors(8, columnKeys);
-  const closedFor = (row: TaskRow, status: TaskStatus) => status !== row.task.status && !moveTargets(row.task.status, reviewsOf(row), row.task.needsReview, row.owner !== null).includes(status);
+  // The rows of each column, grouped once for the columns and the counts. The order of the rows stays.
+  const byStatus = useMemo(() => {
+    const groups: Record<TaskStatus, TaskRow[]> = { todo: [], in_progress: [], in_review: [], done: [] };
+    for (const row of rows) groups[row.task.status].push(row);
+    return groups;
+  }, [rows]);
+  // The clock is read here and given to each card, so a new day still gives new due words at the next render.
+  const today = todayISO();
+  const targetsOf = (row: TaskRow) => moveTargets(row.task.status, reviewsOf(row), row.task.needsReview, row.owner !== null);
+  const closedFor = (row: TaskRow, status: TaskStatus) => status !== row.task.status && !targetsOf(row).includes(status);
   // The screen point of the pointer while a card is lifted. The delta of the drag end also counts the scroll of the board
   // and the page since the drag began, so on a phone, where the board scrolls, it missed the column (audit 2026-10-03, F-9).
   const pointer = useRef<{ x: number; y: number } | null>(null);
@@ -254,7 +261,7 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
     droppedAt.current = Date.now();
     const row = rows.find((r) => r.task.id === active.id);
     if (!row) return;
-    if (over && moveTargets(row.task.status, reviewsOf(row), row.task.needsReview, row.owner !== null).includes(over.id as TaskStatus)) {
+    if (over && targetsOf(row).includes(over.id as TaskStatus)) {
       move.mutate({ id: row.task.id, status: over.id as TaskStatus });
       return;
     }
@@ -317,13 +324,14 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
         className={`-mx-4 grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto px-4 pb-2 max-sm:auto-cols-[calc(100%-3rem)] max-sm:overscroll-x-contain max-sm:scroll-ps-4 sm:mx-0 sm:px-0 ${activeId ? 'max-sm:snap-none' : 'max-sm:snap-x max-sm:snap-mandatory'}`}
       >
         {BOARD_COLUMNS.map((status) => {
-          const columnRows = rows.filter((row) => row.task.status === status);
+          const columnRows = byStatus[status];
           return (
             <Column key={status} status={status} count={columnRows.length} closed={!!lifted && closedFor(lifted, status)} note={status === 'done' ? doneNote : undefined}>
               {columnRows.map((row) => (
                 <BoardCard
                   key={row.task.id}
                   row={row}
+                  today={today}
                   reviews={reviewsOf(row)}
                   across={across}
                   dragging={row.task.id === activeId}
@@ -336,9 +344,9 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
           );
         })}
       </div>
-      <BoardDots lane={board} counts={BOARD_COLUMNS.map((status) => rows.filter((row) => row.task.status === status).length)} />
+      <BoardDots lane={board} counts={BOARD_COLUMNS.map((status) => byStatus[status].length)} />
       <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 350, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1.15)' }}>
-        {lifted ? <CardFace row={lifted} lifted across={across} yourReview={across && reviewsOf(lifted) && lifted.task.status === 'in_review'} /> : null}
+        {lifted ? <CardFace row={lifted} today={today} lifted across={across} yourReview={across && reviewsOf(lifted) && lifted.task.status === 'in_review'} /> : null}
       </DragOverlay>
       {back.sheet}
     </DndContext>

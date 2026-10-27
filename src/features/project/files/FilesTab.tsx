@@ -1,6 +1,6 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
-import { useEffect, useRef, useState, type ComponentType, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { ProjectLink } from '../../../api/contract/entities';
@@ -21,14 +21,16 @@ import { tabButtonShows } from '../mainButton';
 import { DownloadAllButton } from '../../files/DownloadAll';
 import { shownKey, shownName } from '../../../lib/projectLabel';
 import type { TabProps } from '../tabs';
+import { useLayerSwap } from '../tasks/lazyLayer';
 import { FileGroups, groupsOf, type GroupActions } from './FileGroups';
 import { foldersOf, placeKey, type Place } from './fileDragSlots';
 import { loadedFilesDrag, loadFilesDrag } from './filesDragLoader';
-import type { FilesDragHostProps } from './FilesDragLayer';
 import { MoveFileSheet, placeOfFile } from './MoveFileSheet';
 import { PreviewSheet } from './PreviewSheet';
 import { LinkSheet, ProjectLinks, projectLinkRows } from './ProjectLinks';
 import { ShareFileSheet } from './ShareFileSheet';
+
+const filesDrag = { loaded: loadedFilesDrag, load: loadFilesDrag };
 
 /**
  * True when a drag carries files from the computer. The browser drags a picture of a row by itself, with no file in it, and that drag must
@@ -167,17 +169,7 @@ export function FilesTab({ detail }: TabProps) {
   // The pointer drag is for a desk with a fine pointer, and for a person who may upload. The layer starts to load when the tab opens, so the swap
   // from the static list happens once, early, and not when the files arrive.
   const dragOn = !phone && !coarse && canUpload;
-  const [Host, setHost] = useState<ComponentType<FilesDragHostProps> | null>(loadedFilesDrag);
-  useEffect(() => {
-    if (!dragOn || Host) return undefined;
-    let live = true;
-    loadFilesDrag().then((layer) => {
-      if (live) setHost(() => layer);
-    }, () => undefined);
-    return () => {
-      live = false;
-    };
-  }, [dragOn, Host]);
+  const Host = useLayerSwap(filesDrag, dragOn);
 
   // A file from the computer dropped on a stage group or a folder goes there; the frame follows the pointer. The place under the pointer wins.
   const zoneOf: GroupActions['zoneOf'] = (place) => {

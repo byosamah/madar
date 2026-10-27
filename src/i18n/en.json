@@ -316,7 +316,6 @@
     "stageEnds": "Ends {{date}}",
     "stageTasks": "To-dos done: {{done}} of {{total}}",
     "current": "Current stage",
-    "comingSoon": "This tab arrives later in this build step.",
     "about": "About",
     "stages": "Stages",
     "pause": "Pause project",

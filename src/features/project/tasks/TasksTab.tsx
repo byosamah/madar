@@ -10,6 +10,7 @@ import { FilterButton } from '../../../components/FilterButton';
 import { oneOf } from '../../../lib/params';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { TASK_PANEL, usePanelLink } from '../panelLink';
+import { RadioChoice } from '../RadioChoice';
 import { setFilterParam, type TabProps } from '../tabs';
 import { TaskBoard } from './TaskBoard';
 import { TaskList } from './TaskList';
@@ -17,6 +18,8 @@ import { TaskSheet } from './TaskSheet';
 import { ViewButton } from './ViewButton';
 
 const FILTERS = ['all', 'mine', 'overdue', 'flagged', 'no_lead'] as const;
+/** The Show choices of the tab, for the read that the project page starts with projects.get (tabs.tsx, FET-2). */
+export { FILTERS as TASK_FILTERS };
 const VIEWS = ['list', 'board'] as const;
 const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
 const RADIO = 'flex min-h-11 items-center gap-3 text-body text-ink';
@@ -46,10 +49,7 @@ const TasksBody = memo(function TasksBody({ detail, filter, showDone, view, rows
           <fieldset className="flex flex-col">
             <legend className={LEGEND}>{t('projects.show')}</legend>
             {FILTERS.map((value) => (
-              <label key={value} className={RADIO}>
-                <input type="radio" name="tasks-show" checked={filter === value} onChange={() => onFilter(value)} className="size-5 accent-[var(--sig-from)]" />
-                {t(`tasks.filter.${value}`)}
-              </label>
+              <RadioChoice key={value} name="tasks-show" checked={filter === value} label={t(`tasks.filter.${value}`)} onChange={() => onFilter(value)} />
             ))}
           </fieldset>
           {view === 'list' && (
@@ -63,10 +63,7 @@ const TasksBody = memo(function TasksBody({ detail, filter, showDone, view, rows
             <fieldset className="flex flex-col border-t border-hairline pt-2">
               <legend className={LEGEND}>{t('tasks.view')}</legend>
               {VIEWS.map((value) => (
-                <label key={value} className={RADIO}>
-                  <input type="radio" name="tasks-view" checked={view === value} onChange={() => onView(value)} className="size-5 accent-[var(--sig-from)]" />
-                  {t(`tasks.views.${value}`)}
-                </label>
+                <RadioChoice key={value} name="tasks-view" checked={view === value} label={t(`tasks.views.${value}`)} onChange={() => onView(value)} />
               ))}
             </fieldset>
           )}

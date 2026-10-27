@@ -76,8 +76,9 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
 - dnd-kit is a chunk of its own. `SortableTaskRows.tsx` draws static rows, and a list with a grip loads `DragLayer.tsx` through
   `dragLayerLoader.ts` and swaps it in. The test helpers load the layer first (`DragLayerSwap.test.tsx` holds the swap). The checklist drag is
   the same pattern (`ChecklistDrag.tsx`, `checklistLayerLoader.ts`, `ChecklistSwap.test.tsx`); one drop calls `change` once with the whole
-  list. A dnd-kit keyboard drag in jsdom needs `getBoundingClientRect` mocked for each row (`features/work/WorkOrder.test.tsx`), and the test
-  awaits the place message after Space and after each arrow key.
+  list. `lazyLayer.ts` holds what the three loaders share (task rows, checklist, Files tab): `createLayerLoader` and the swap hook
+  `useLayerSwap`, which also gives the focus back. It imports no dnd-kit. A dnd-kit keyboard drag in jsdom needs `getBoundingClientRect`
+  mocked for each row (`features/work/WorkOrder.test.tsx`), and the test awaits the place message after Space and after each arrow key.
 - `TaskPeople.tsx` loads `TaskPeopleList.tsx` through `lazyOverlay`, so vaul stays out of the first load. A failed import reloads the page
   once (`reloadOnFailedImport`). A second failure shows the toast of a failed step through `ListGuard`. A test of a failed import needs its
   own file for each step (`TaskPeopleFirstFailure.test.tsx`, `TaskPeopleFailedChunk.test.tsx`): a lazy part keeps its first answer for the
@@ -87,7 +88,8 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   holds all state and actions, and both draw the same shared parts: the Review, Take and Join blocks (`StepBlocks.tsx`), the description,
   the read-only dates and the footer buttons (`TaskPanelParts.tsx`), the two views and the comment thread (`Conversation.tsx`). The lead and
   status choices and the lead change come from `useLeadChoices.ts` through `useTaskPanel` (`statusOptions`, `ownerOptions`, `changeLead`);
-  the lazy `TaskPeopleList.tsx` reads the same hook, so the file imports no vaul and no dnd-kit. The title and the description each take a
+  the lazy `TaskPeopleList.tsx` reads the same hook, so the file imports no vaul and no dnd-kit. The move and the finish of a to-do, with their toast words, are
+  `useMoveTask` and `useCompleteTask` (`useTaskMoves.ts`): the panel, the board and the row use them. The title and the description each take a
   new saved value on their own, and a field with unsaved typing keeps it (`TaskSheetTyping.test.tsx`). `nextStep(data, viewerCan, makerId)` in `nextStep.ts` picks one next step; `NextStepSlot.tsx` draws it. The
   file name differs in case from `nextStep.ts` on purpose, because macOS resolves `./NextStep` to the `.ts` file. At most one main button;
   in the Conversation view it is secondary (`demote`).

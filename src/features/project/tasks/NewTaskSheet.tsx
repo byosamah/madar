@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../../api/contract/entities';
 import type { ProjectDetail } from '../../../api/contract/views';
@@ -18,8 +18,9 @@ import { useStageBack } from './StageBack';
  * and the due date, as the office task panel has. The words next to the "+" stay the quick add. A new task has no lead until a
  * person picks one, as the quick add makes it (owner, 2026-10-05). The lead comes from the team: only the leader and the Admin add
  * a person to it, and they do that in the task panel. The rest lives in the task panel too, one press away from the toast.
+ * It is memoized: the quick add of the stage renders on each key, and its props stay the same between keys, so the closed sheet waits.
  */
-export function NewTaskSheet({ detail, stage, open, onOpenChange, onOpen }: {
+export const NewTaskSheet = memo(function NewTaskSheet({ detail, stage, open, onOpenChange, onOpen }: {
   detail: ProjectDetail; stage: Stage; open: boolean; onOpenChange: (open: boolean) => void; onOpen: (taskId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -83,4 +84,4 @@ export function NewTaskSheet({ detail, stage, open, onOpenChange, onOpen }: {
       {back.sheet}
     </>
   );
-}
+});

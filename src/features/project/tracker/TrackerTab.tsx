@@ -15,6 +15,7 @@ import { oneOf } from '../../../lib/params';
 import { activeMembers } from '../../../lib/tracker';
 import { ENTRY_PANEL, usePanelLink } from '../panelLink';
 import { tabButtonShows } from '../mainButton';
+import { RadioChoice } from '../RadioChoice';
 import { setFilterParam, type TabProps } from '../tabs';
 import { EntrySheet } from './EntrySheet';
 import { ExportSheet } from './ExportSheet';
@@ -27,15 +28,6 @@ import { projectKey } from '../../../lib/projectCode';
 type Filter = { type: TrackerType | 'all'; direction: TrackerDirection | 'all'; openOnly: boolean };
 const TYPES = ['all', ...TRACKER_TYPES] as const;
 const SIDES = ['all', ...Sides.options] as const;
-
-function Choice({ name, value, checked, label, onChange }: { name: string; value: string; checked: boolean; label: string; onChange: () => void }) {
-  return (
-    <label className="flex min-h-11 items-center gap-3 text-body text-ink">
-      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} className="size-5 accent-[var(--sig-from)]" />
-      {label}
-    </label>
-  );
-}
 
 /** The record of every exchange with the client (owner, 2026-10-01): open loops on top, a one-line log, then the history by week. */
 export function TrackerTab({ detail }: TabProps) {
@@ -121,16 +113,16 @@ export function TrackerTab({ detail }: TabProps) {
             <div className="flex flex-col gap-3">
               <fieldset className="flex flex-col">
                 <legend className="pb-1 text-footnote font-semibold text-ink-2">{t('tracker.typeLabel')}</legend>
-                <Choice name="tracker-type" value="all" checked={filter.type === 'all'} label={t('tracker.filterAll')} onChange={() => setFilter({ ...filter, type: 'all' })} />
+                <RadioChoice name="tracker-type" value="all" checked={filter.type === 'all'} label={t('tracker.filterAll')} onChange={() => setFilter({ ...filter, type: 'all' })} />
                 {TRACKER_TYPES.map((value) => (
-                  <Choice key={value} name="tracker-type" value={value} checked={filter.type === value} label={t(`tracker.type.${value}`)} onChange={() => setFilter({ ...filter, type: value })} />
+                  <RadioChoice key={value} name="tracker-type" value={value} checked={filter.type === value} label={t(`tracker.type.${value}`)} onChange={() => setFilter({ ...filter, type: value })} />
                 ))}
               </fieldset>
               <fieldset className="flex flex-col">
                 <legend className="pb-1 text-footnote font-semibold text-ink-2">{t('tracker.directionLabel')}</legend>
-                <Choice name="tracker-direction" value="all" checked={filter.direction === 'all'} label={t('tracker.filterAll')} onChange={() => setFilter({ ...filter, direction: 'all' })} />
+                <RadioChoice name="tracker-direction" value="all" checked={filter.direction === 'all'} label={t('tracker.filterAll')} onChange={() => setFilter({ ...filter, direction: 'all' })} />
                 {Sides.options.map((value) => (
-                  <Choice key={value} name="tracker-direction" value={value} checked={filter.direction === value} label={t(`tracker.direction.${value}`)} onChange={() => setFilter({ ...filter, direction: value })} />
+                  <RadioChoice key={value} name="tracker-direction" value={value} checked={filter.direction === value} label={t(`tracker.direction.${value}`)} onChange={() => setFilter({ ...filter, direction: value })} />
                 ))}
               </fieldset>
               <label className="flex min-h-11 items-center gap-3 text-body text-ink">

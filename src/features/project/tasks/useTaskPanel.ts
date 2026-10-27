@@ -19,6 +19,7 @@ import { useStageBack } from './StageBack';
 import { personOption } from './TaskHelpers';
 import { EMPTY_FILES, newItemId, type ChecklistDraft, type Patch } from './TaskParts';
 import { useLeadChoices } from './useLeadChoices';
+import { useCompleteTask, useMoveTask } from './useTaskMoves';
 
 export type TaskPanelProps = { detail: ProjectDetail | null; data: TaskDetail; onClose: () => void; noteFirst: boolean };
 
@@ -56,15 +57,10 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
       return false;
     },
   });
-  const move = useUndoable('tasks.move', {
-    message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
-    onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),
-  });
+  const move = useMoveTask(back);
   // The one finish button of the phone panel: the same call as the tick of a list row and the Done button of Focus mode. The server
   // result decides the toast, so the toast is true even when the word of the button was a guess.
-  const complete = useUndoable('tasks.complete', {
-    message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.completed')),
-  });
+  const complete = useCompleteTask();
   // The Review block goes away after Approve or Send back, and the pressed button goes with it. The focus then goes to the
   // panel, so a keyboard keeps its place and the next Tab stays in the panel (audit 2026-10-03, F-8 repair).
   const root = useRef<HTMLDivElement>(null);

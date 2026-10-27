@@ -39,3 +39,17 @@ export function startsLater(startDate: string | null | undefined, today: string,
 export function startsText(startDate: string, t: TFunction, lang: Lang): string {
   return t('tasks.startsOn', { date: formatDay(startDate, lang, 'withWeekday') });
 }
+
+/** The start or due words of a to-do, and whether they show the late sign. */
+export type When = { text: string; late: boolean };
+
+/**
+ * The one date word of a to-do line: "Starts Sun 4 Oct" while the start is later, else the due word. The start word wins. The late sign
+ * is for a past due date only, never for a start word and never for a to-do in review. Null when the to-do has neither word.
+ */
+export function whenOf(task: { dueDate: string | null; startDate?: string | null; status: TaskStatus }, day: string, t: TFunction, lang: Lang): When | null {
+  if (startsLater(task.startDate, day, task.status)) return { text: startsText(task.startDate, t, lang), late: false };
+  const word = dueWord(task.dueDate, day, task.status);
+  if (!word || !task.dueDate) return null;
+  return { text: dueText(word, t, lang, task.dueDate), late: word.tone === 'attn' };
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import i18n from 'i18next';
 import { initI18n } from '../i18n';
-import { dueText, dueWord } from './due';
+import { dueText, dueWord, whenOf } from './due';
 
 const TODAY = '2026-09-30';
 
@@ -29,5 +29,30 @@ describe('gentle due words', () => {
     expect(dueText(dueWord('2026-09-27', TODAY, 'todo')!, ta, 'ar', '2026-09-27')).toBe('تجاوزت موعدها بـ3 أيام');
     expect(dueText(dueWord('2026-09-28', TODAY, 'todo')!, ta, 'ar', '2026-09-28')).toBe('تجاوزت موعدها بيومين');
     initI18n('en');
+  });
+});
+
+describe('the date word of a to-do line', () => {
+  const task = (over: Partial<Parameters<typeof whenOf>[0]>) => ({ dueDate: null, startDate: null, status: 'todo' as const, ...over });
+
+  it('lets the start word win while the start is later', () => {
+    initI18n('en');
+    const t = i18n.t.bind(i18n);
+    expect(whenOf(task({ startDate: '2026-10-04', dueDate: '2026-09-27' }), TODAY, t, 'en')).toEqual({ text: 'Starts Sun 4 Oct', late: false });
+  });
+
+  it('shows the late sign for a past due date only', () => {
+    initI18n('en');
+    const t = i18n.t.bind(i18n);
+    expect(whenOf(task({ dueDate: '2026-09-27' }), TODAY, t, 'en')).toEqual({ text: '3 days past due', late: true });
+    expect(whenOf(task({ dueDate: '2026-10-03' }), TODAY, t, 'en')).toEqual({ text: 'In 3 days', late: false });
+    expect(whenOf(task({ dueDate: '2026-09-27', status: 'in_review' }), TODAY, t, 'en')?.late).toBe(false);
+  });
+
+  it('gives nothing for a to-do with no date or a done to-do', () => {
+    initI18n('en');
+    const t = i18n.t.bind(i18n);
+    expect(whenOf(task({}), TODAY, t, 'en')).toBeNull();
+    expect(whenOf(task({ dueDate: '2026-09-27', startDate: '2026-10-04', status: 'done' }), TODAY, t, 'en')).toBeNull();
   });
 });

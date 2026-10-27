@@ -8,6 +8,7 @@ import { FilterButton } from '../../../components/FilterButton';
 import { EmptyState } from '../../../components/EmptyState';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { oneOf } from '../../../lib/params';
+import { RadioChoice } from '../RadioChoice';
 import { setFilterParam, type TabProps } from '../tabs';
 import { Composer } from './Composer';
 import { FeedEntry } from './FeedEntry';
@@ -48,10 +49,7 @@ export function ActivityTab({ detail }: TabProps) {
             <fieldset className="flex flex-col">
               <legend className="pb-1 text-footnote font-semibold text-ink-2">{t('overview.feed')}</legend>
               {FILTERS.map((value) => (
-                <label key={value} className="flex min-h-11 items-center gap-3 text-body text-ink">
-                  <input type="radio" name="feed-show" checked={filter === value} onChange={() => setFilter(value)} className="size-5 accent-[var(--sig-from)]" />
-                  {t(`overview.feedFilter.${value}`)}
-                </label>
+                <RadioChoice key={value} name="feed-show" checked={filter === value} label={t(`overview.feedFilter.${value}`)} onChange={() => setFilter(value)} />
               ))}
             </fieldset>
           </FilterButton>

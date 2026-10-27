@@ -93,6 +93,7 @@ function DateReasonSheet({ move, initial, onKeep, onSend, onClose }: {
   const meeting = useMeeting();
   const [reason, setReason] = useState(initial);
   const moved = (['startDate', 'dueDate'] as const).filter((key) => move.from[key] !== move.to[key]).length;
+  const meetingReason = t('dateReason.meetingReason', { date: formatDay(todayISO(), lang, 'withWeekday') });
   return (
     <Sheet
       open
@@ -121,9 +122,7 @@ function DateReasonSheet({ move, initial, onKeep, onSend, onClose }: {
         <DateMoveLines move={move} className="text-subheadline font-semibold" />
         {meeting && (
           // One press gives the reason a meeting always has: the team decided it today.
-          <Button onClick={() => onSend(t('dateReason.meetingReason', { date: formatDay(todayISO(), lang, 'withWeekday') }))}>
-            {t('dateReason.meetingReason', { date: formatDay(todayISO(), lang, 'withWeekday') })}
-          </Button>
+          <Button onClick={() => onSend(meetingReason)}>{meetingReason}</Button>
         )}
         <TextArea
           id="date-reason"

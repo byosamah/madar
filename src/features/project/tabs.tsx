@@ -10,7 +10,7 @@ import type { Read } from './reads';
 import { taskPanelReads } from './tasks/TaskSheet';
 import { OverviewTab } from './overview/OverviewTab';
 import { ScheduleTab } from './schedule/ScheduleTab';
-import { TasksTab } from './tasks/TasksTab';
+import { TASK_FILTERS, TasksTab } from './tasks/TasksTab';
 import { TeamTab } from './team/TeamTab';
 import { TrackerTab } from './tracker/TrackerTab';
 
@@ -80,8 +80,8 @@ function MoreBody(props: TabProps) {
   return <MoreTab {...props} />;
 }
 
-/** The body of each tab. Each later task of plan 2 fills in its own line. */
-export const TAB_BODY: Record<ProjectTab, ComponentType<TabProps> | null> = {
+/** The body of each tab. */
+export const TAB_BODY: Record<ProjectTab, ComponentType<TabProps>> = {
   overview: OverviewTab,
   tasks: TasksTab,
   activity: ActivityTab,
@@ -91,9 +91,6 @@ export const TAB_BODY: Record<ProjectTab, ComponentType<TabProps> | null> = {
   team: TeamTab,
   more: MoreBody,
 };
-
-// The Show choices of the Tasks tab (TasksTab.tsx). tabs.test.tsx checks that each choice gives the key that the tab mounts.
-const TASK_FILTERS = ['all', 'mine', 'overdue', 'flagged', 'no_lead'] as const;
 
 /**
  * The reads that a tab mounts first, with the exact keys of their useCall (performance audit 2026-10-07, FET-2 and LIV-1).

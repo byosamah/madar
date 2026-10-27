@@ -9,7 +9,7 @@ import { useUndoable } from '../../../app/actions';
 import { useStableHandler } from '../../../app/useStableHandler';
 import { prefersReducedMotion, useDragSensors } from './dragSensors';
 import { RowGrip } from './RowGrip';
-import { TaskRowItem } from './TaskRowItem';
+import { TaskRowItem, type RowDrag } from './TaskRowItem';
 import { useTouchPhone } from './useTouchPhone';
 
 /**
@@ -18,7 +18,10 @@ import { useTouchPhone } from './useTouchPhone';
  */
 type Open = (row: TaskRow, thread?: boolean) => void;
 
-/** One row of the sortable list. The row renders again only when its own data changes or dnd-kit says so (a drag). */
+/**
+ * One row of the sortable list. The row renders again only when its own data changes or dnd-kit says so (a drag). The grip and the `drag`
+ * object keep their identity while the values they read stay the same, so the memo of `TaskRowItem` holds for a row that dnd-kit only asked.
+ */
 const SortableRow = memo(function SortableRow({ row, me, onOpen, still, sortable, showProject, today }: {
   row: TaskRow; me: User | undefined; onOpen: Open; still: boolean; sortable: boolean; showProject: boolean; today: string;
 }) {
@@ -29,25 +32,25 @@ const SortableRow = memo(function SortableRow({ row, me, onOpen, still, sortable
     // Under reduced motion the other rows jump to their new places and do not slide.
     transition: prefersReducedMotion() ? null : undefined,
   });
-  // The row moves up and down only.
-  const style = { transform: transform ? `translate3d(0, ${Math.round(transform.y)}px, 0)` : undefined, transition };
-  const grip = <RowGrip row={row} sortable={sortable} activatorRef={setActivatorNodeRef} handle={{ ...attributes, ...listeners }} />;
-  return (
-    <TaskRowItem
-      row={row}
-      me={me}
-      onOpen={onOpen}
-      showProject={showProject}
-      today={today}
-      drag={{
-        ref: setNodeRef, style, lifted: isDragging, still, grip,
-        // On a touch phone the whole row takes the hold (mouse and touch). The grip keeps the keyboard.
-        listeners: touch && listeners
-          ? { onMouseDown: listeners.onMouseDown as MouseEventHandler<HTMLElement>, onTouchStart: listeners.onTouchStart as TouchEventHandler<HTMLElement> }
-          : undefined,
-      }}
-    />
+  const grip = useMemo(
+    () => <RowGrip row={row} sortable={sortable} activatorRef={setActivatorNodeRef} handle={{ ...attributes, ...listeners }} />,
+    [row, sortable, setActivatorNodeRef, attributes, listeners],
   );
+  // On a touch phone the whole row takes the hold (mouse and touch). The grip keeps the keyboard.
+  const holdListeners = useMemo(
+    () => (touch && listeners
+      ? { onMouseDown: listeners.onMouseDown as MouseEventHandler<HTMLElement>, onTouchStart: listeners.onTouchStart as TouchEventHandler<HTMLElement> }
+      : undefined),
+    [touch, listeners],
+  );
+  // The row moves up and down only.
+  const y = transform?.y;
+  const drag = useMemo<RowDrag>(() => ({
+    ref: setNodeRef,
+    style: { transform: y === undefined ? undefined : `translate3d(0, ${Math.round(y)}px, 0)`, transition },
+    lifted: isDragging, still, grip, listeners: holdListeners,
+  }), [setNodeRef, y, transition, isDragging, still, grip, holdListeners]);
+  return <TaskRowItem row={row} me={me} onOpen={onOpen} showProject={showProject} today={today} drag={drag} />;
 });
 
 /** The group of a row in a list that holds more than one group (the Today list of Home: past due, then due today). */

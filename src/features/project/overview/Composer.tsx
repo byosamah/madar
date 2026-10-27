@@ -8,6 +8,7 @@ import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { MentionField } from '../../../components/MentionField';
+import { prefersReducedMotion } from '../../../lib/motion';
 import { withMentionMarkup } from '../../../lib/text';
 import { AttachButton, PickedFiles, onPastePictures, useAttachments, useBlockFileDrop } from '../../files/Attachments';
 import { ChatDropArea, DropReceiver } from '../../inbox/ChatDrop';
@@ -40,8 +41,7 @@ export function Composer({ detail, compact = false }: { detail: ProjectDetail; c
     area.current?.focus();
     // A phone shows the box low on the page: bring it to the middle of the screen.
     if (phone) {
-      const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      area.current?.scrollIntoView?.({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+      area.current?.scrollIntoView?.({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     }
     setParams((current) => {
       const next = new URLSearchParams(current);

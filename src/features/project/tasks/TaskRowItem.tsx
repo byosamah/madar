@@ -6,15 +6,13 @@ import { memo, useState, type CSSProperties, type HTMLAttributes, type ReactNode
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
-import { useUndoable } from '../../../app/actions';
 import { useToast } from '../../../app/toasts';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { ProjectTile } from '../../../components/ProjectTile';
-import { StatusSign } from '../../../components/StatusSign';
 import { spring } from '../../../design/motion';
 import { todayISO } from '../../../lib/dates';
-import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
+import { whenOf } from '../../../lib/due';
 import { actorContext } from '../../../lib/grammar';
 import { helpersOf, versionOf } from '../../../lib/taskPeople';
 import { isWaiting, waitingNames } from '../../../lib/waiting';
@@ -24,6 +22,8 @@ import { CircleDashedIcon } from '../../../components/icons/animated/circle-dash
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 import { TaskPeople } from './TaskPeople';
+import { DueSign, VersionBadge } from './TaskSigns';
+import { useCompleteTask } from './useTaskMoves';
 import { shownName } from '../../../lib/projectLabel';
 
 /** A mark that no translation contains. It shows where the name sits in a translated line. */
@@ -75,9 +75,7 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
   const nameOf = usePersonName();
   const toast = useToast();
   const [ticking, setTicking] = useState(false);
-  const complete = useUndoable('tasks.complete', {
-    message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.completed')),
-  });
+  const complete = useCompleteTask();
   const { task } = row;
   // A helper cannot finish the task, so the row says that they help and who leads it (audit 2026-10-03, V-35).
   const helping = Boolean(me && task.ownerId !== me.id && helpersOf(task).includes(me.id));
@@ -106,9 +104,7 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
   const holdable = Boolean(drag?.listeners);
   const rtl = document.documentElement.dir === 'rtl';
   const day = today ?? todayISO();
-  const word = dueWord(task.dueDate, day, task.status);
-  const starts = startsLater(task.startDate, day, task.status);
-  const when = starts ? startsText(task.startDate as string, t, lang) : word && task.dueDate ? dueText(word, t, lang, task.dueDate) : null;
+  const when = whenOf(task, day, t, lang);
   return (
     // Moments 2 and 8 (redesign spec 4): a ticked row slides out toward the end side; a row that Undo brings back slides in from there.
     <motion.li
@@ -161,17 +157,12 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
         <button type="button" onClick={() => onOpen(row)} className="min-w-0 flex-1 py-2 text-start">
           <span className="flex items-center gap-2">
             <span dir="auto" className={`block min-w-0 truncate text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
-            {versionOf(task) > 1 && (
-              <span title={t('tasks.versionLabel', { n: versionOf(task) })} className="tabular shrink-0 rounded-full bg-fill px-1.5 text-caption font-semibold text-ink-2">
-                <span aria-hidden>{t('tasks.versionBadge', { n: versionOf(task) })}</span>
-                <span className="sr-only">{t('tasks.versionLabel', { n: versionOf(task) })}</span>
-              </span>
-            )}
+            {versionOf(task) > 1 && <VersionBadge version={versionOf(task)} className="shrink-0" />}
           </span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
             {helping && row.owner && <HelperLine name={nameOf(row.owner)} context={actorContext(me)} />}
             {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
-            {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late" wrap>{when}</StatusSign> : <span className="tabular">{when}</span>)}
+            {when && <DueSign when={when} />}
             {waiting && (
               <span className="inline-flex min-w-0 items-center gap-1">
                 <AnimatedIcon icon={PauseIcon} size={12} className="shrink-0" aria-hidden />

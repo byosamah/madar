@@ -14,6 +14,7 @@ import { TabPanel, Tabs } from '../../components/Tabs';
 import type { ProjectSummary } from '../../api/contract/views';
 import { sharedSource } from '../../app/sharedLayout';
 import { todayISO } from '../../lib/dates';
+import { prefersReducedMotion } from '../../lib/motion';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
 import { PausedBanner } from './PausedBanner';
 import { prefetchReads, sessionMayAddTask, sessionSeesPayments } from './reads';
@@ -27,8 +28,7 @@ import { useProjectName } from '../../app/projectName';
 function scrollToTabRow(): void {
   const top = document.querySelector('[data-tab-anchor]')?.getBoundingClientRect().top;
   if (top === undefined || top >= 0) return;
-  const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  window.scrollTo({ top: window.scrollY + top, behavior: reduced ? 'auto' : 'smooth' });
+  window.scrollTo({ top: window.scrollY + top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
 }
 
 /** One project with the tabs Overview, Tasks, Schedule, Files & Links and Team (spec 5). The tab lives in the link. */
@@ -120,7 +120,7 @@ export function ProjectScreen() {
       <TabPanel value={phone ? litPhoneTab(current) : current}>
         {phone && isMorePage(current)
           ? <MoreSubPage detail={detail.data} page={current} />
-          : Body ? <Body detail={detail.data} /> : <EmptyState title={t(`project.tab.${current}`)} body={t('project.comingSoon')} />}
+          : <Body detail={detail.data} />}
       </TabPanel>
     </div>
   );
