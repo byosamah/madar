@@ -159,4 +159,4 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
   call in order, and `hold` keeps the calls it picks until `release()`. A render-count test wraps a component with
   `vi.mock(path, importOriginal)` and waits until the count is stable before it compares.
 - `vi.mock` replaces an export for the other modules only. A hook in the same file that calls that export calls its own copy, and the test
-  no longer sees the call. Put such a hook in its own file that imports the export (`app/useDownloadFile.ts`, 2026-10-27).
+  no longer sees the call. Put such a hook in its own file that imports the export (2026-10-27).
