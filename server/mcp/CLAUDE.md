@@ -372,6 +372,8 @@ acts, when the ACTOR is an agent, the person of the agent must give a code that 
 
 ## Tests
 - The MCP layer refuses no unknown tool argument: the zod object of the call drops it. Test a refusal on the call, not on MCP.
+- A text change of `INSTRUCTIONS` or `TOOL_DOCS`: `npx vitest run --project server server/mcp --no-file-parallelism` runs the 51 MCP
+  files (about 610 tests) in about 30 s, `toolSize.test.ts` included.
 - `npm run test:mcp`: the MCP tests, then the official conformance runner (`conformance.ts`, known gaps in
   `conformance-baseline.yml`).
 - The runner serves its own mcp function. Never run a shared `supabase functions serve` next to it.

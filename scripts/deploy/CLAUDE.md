@@ -103,7 +103,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   record: a section at the end of `docs/superpowers/real-build/proof.md` (after the last "Release record"), a line in `TASKS.md`,
   one commit on main. Push it once; after a refusal the owner runs the `!` command. That commit changes HEAD, so the next
   production needs `all.sh test` again.
-- To prove what a copy serves, grep a new English word in `assets/words.en-*.js` (named in the first-load scripts of `index.html`).
+- To prove what a copy serves, grep a new English word in `assets/words.en-*.js`. `index.html` does not name that file: a first-load
+  script does. Find it with `for s in $(curl -s <host>/ | grep -o '/assets/[^"]*\.js' | sort -u); do curl -s <host>$s | grep -o 'words\.en-[A-Za-z0-9_-]*\.js'; done | sort -u` (sandbox off).
 - Every script refuses production when `CI` or `GITHUB_ACTIONS` is set. A `MADAR_DEPLOY_CONFIRMED` from the shell never counts.
 - The auto-mode safety system may refuse a production deploy or a key change until the owner says so in chat. Respect
   the refusal. Never work around it.
