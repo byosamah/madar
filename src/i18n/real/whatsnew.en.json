@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-127": {
+        "title": "See a PDF before you download it",
+        "body": "Press a PDF in a chat or a comment. It opens a preview. Press \"Download\" inside it to save the file."
+      },
       "2026-10-23-126": {
         "title": "Insert a project file into a chat",
         "body": "Press the clip in a chat and choose \"Insert from a project\". Pick files or folders. Madar sends them with no new upload and no new storage. The list shows only the projects that all the people of the chat are on."

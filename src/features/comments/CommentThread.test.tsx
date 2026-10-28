@@ -77,7 +77,7 @@ describe('comments', () => {
     await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Photo and detail.');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Send' }));
     const preview = await within(sheet).findByRole('button', { name: 'View Stair site.jpg' });
-    expect(within(sheet).getByRole('button', { name: 'Download Stair detail.pdf' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Preview Stair detail.pdf' })).toBeInTheDocument();
     expect(within(sheet).queryByRole('button', { name: 'Download Stair site.jpg' })).toBeNull();
     await userEvent.click(preview);
     const viewer = await screen.findByRole('dialog', { name: 'Stair site.jpg' });
@@ -98,7 +98,7 @@ describe('comments', () => {
     expect(within(sheet).getByText('Stair detail.pdf')).toBeInTheDocument();
     await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Detail attached.');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Send' }));
-    const chip = await within(sheet).findByRole('button', { name: 'Download Stair detail.pdf' });
+    const chip = await within(sheet).findByRole('button', { name: 'Preview Stair detail.pdf' });
     expect(chip).toBeInTheDocument();
     const file = Object.values(store.state.files).find((f) => f.name === 'Stair detail.pdf');
     expect(file).toMatchObject({ projectId: 'prj_001', taskId: 'tsk_007' });
@@ -135,7 +135,7 @@ describe('comments', () => {
     expect(within(within(sheet).getByRole('list', { name: 'Files to send' })).getByText('Stair detail.pdf')).toBeInTheDocument();
     await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Dropped.');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Send' }));
-    await within(sheet).findByRole('button', { name: 'Download Stair detail.pdf' });
+    await within(sheet).findByRole('button', { name: 'Preview Stair detail.pdf' });
     expect(Object.values(store.state.files).find((f) => f.name === 'Stair detail.pdf')).toMatchObject({ projectId: 'prj_001', taskId: 'tsk_007' });
   });
 

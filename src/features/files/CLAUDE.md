@@ -15,7 +15,7 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
 
 ## Picture preview in a bubble or comment
 - `AttachmentList` (`PictureAttachments.tsx`) replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`. A picture (`Attachment.mimeType`
-  and `usePictureTest`) is a small rounded picture from the thumb link. Two or more sit in a grid. Every other file stays a chip. Posts and
+  and `usePictureTest`) is a small rounded picture from the thumb link. Two or more sit in a grid. A PDF is a chip that previews (tsk_485, below). Every other file stays a chip that downloads. Posts and
   the Tracker keep `FileChips`. The chip list is `min-w-0 max-w-full`, so a long name is cut with an ellipsis.
 - The box holds its place while the picture loads (the last known shape in `SHAPES`, else 4 to 3). The picture asks for its link only near
   the view (`useNearView`, `app/useNearView.ts`; the Files tab rows use it too). A picture that breaks, or that the store keeps as a download
@@ -26,6 +26,17 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
   transform only). The stage is `touch-none` with `data-vaul-no-drag`, and the `gesturestart` default is stopped so Safari never zooms the
   page. A new picture and a viewer that opens again start at 1x. A press on the dark space closes only at 1x. `ImageViewer.zoom.test.tsx`
   plays the sizes. `MessageLog` keeps the newest message in view while a picture grows its box.
+
+## PDF preview in a bubble or comment (tsk_485)
+- A PDF (`mimeType` `application/pdf`) in `AttachmentList` is a chip named "Preview <name>". A press opens `PreviewSheet`
+  (`features/project/files/PreviewSheet.tsx`), the preview of the Files tab: a frame on a desk, and on a phone a sheet with one real link
+  (Safari for iPhone blocks a window that opens after a wait; do not change this). The chip list takes the `preview` prop
+  (`FileChip`, `FileChips`). Posts and the Tracker pass none, so their PDF chips still download.
+- The file saves only from the "Download" button inside the preview (`PdfFoot` in `PreviewSheet.tsx`, desk and phone). The preview asks
+  `files.link` as the person, as the download does. A refused link shows no frame and no link.
+- `PreviewSheet` takes `PreviewView` (id, name, type, optional letter), so a message gives no version letter and the newest version
+  opens. The preview loads in its own chunk (`lazyOverlay`, warmed at the first touch of the chip).
+- Tests: `PdfPreview.test.tsx`. Words: `attachments.preview` in `src/i18n/real/chat-insert.*`.
 
 ## Download all
 - `AttachmentList` ends with one quiet text button "Download all (N)" (`DownloadAll.tsx`, never a main button) when two or more files can be

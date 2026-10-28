@@ -1,7 +1,8 @@
 {
   "attachments": {
     "attachMenu": "أرفق",
-    "insertFromProject": "أدرج من مشروع"
+    "insertFromProject": "أدرج من مشروع",
+    "preview": "عاين {{name}}"
   },
   "insert": {
     "back": "رجوع",

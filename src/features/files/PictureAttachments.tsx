@@ -8,9 +8,13 @@ import { useToast } from '../../app/toasts';
 import { useNearView } from '../../app/useNearView';
 import { ImageViewer } from '../../components/ImageViewer';
 import { todayISO } from '../../lib/dates';
-import { FileChips } from './Attachments';
+import { lazyOverlay } from '../../app/lazyOverlay';
+import { FileChips, type ChipPreview } from './Attachments';
 import { DownloadAllButton } from './DownloadAll';
 import { ZipTitleContext } from './zipTitle';
+
+/** The preview of a PDF loads in its own chunk at the first touch, so a chat that holds no PDF never pays for it (tsk_485). */
+const pdfPreview = lazyOverlay(() => import('../project/files/PreviewSheet').then((m) => m.PreviewSheet));
 
 /**
  * The shape of each picture that a screen has shown, by file id. A picture that shows again (a chat that opens again, a message that
@@ -135,6 +139,7 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
   const isPicture = usePictureTest();
   const [broken, setBroken] = useState<ReadonlySet<string>>(new Set());
   const [viewer, setViewer] = useState<{ index: number; open: boolean } | null>(null);
+  const [pdf, setPdf] = useState<Named | null>(null);
   const tiles = useRef(new Map<string, HTMLButtonElement>());
   const onBroken = useCallback((id: string) => setBroken((all) => (all.has(id) ? all : new Set(all).add(id))), []);
   if (files.length === 0) return null;
@@ -144,6 +149,7 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
   const count = pictures.length;
   const downloadable = files.filter((file): file is Named => file.name !== null).map((file) => ({ id: file.id, name: file.name }));
   const columns = count >= 5 ? 'grid-cols-3' : 'grid-cols-2';
+  const preview: ChipPreview = { open: setPdf, warm: pdfPreview.warm };
   return (
     <div className="flex flex-col gap-1.5">
       {count > 0 && (
@@ -161,8 +167,16 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
           ))}
         </ul>
       )}
-      <FileChips files={chips} />
+      <FileChips files={chips} preview={preview} />
       <DownloadAllButton items={downloadable} zipName={() => `${title ?? t('zip.defaultName')} ${todayISO()}`} />
+      {pdf && (
+        <pdfPreview.Overlay
+          views={[{ file: { id: pdf.id, name: pdf.name }, latest: { mimeType: pdf.mimeType ?? 'application/pdf' } }]}
+          index={0}
+          onIndex={() => undefined}
+          onClose={() => setPdf(null)}
+        />
+      )}
       {viewer && count > 0 && (
         <PictureViewer
           pictures={pictures}

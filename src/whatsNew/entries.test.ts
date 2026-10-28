@@ -461,3 +461,19 @@ describe("the What's new entries of the chat files (fbk_070)", () => {
     }
   });
 });
+
+// A PDF in a chat or a comment opens a preview first (tsk_485, owner 2026-10-28). Found by id, never by place.
+describe("the What's new entry of the PDF preview (tsk_485)", () => {
+  it('sits under the usage entry and above the entry of the project files in a chat, with no right and no link', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-127')).toEqual({ id: '2026-10-23-127', day: '2026-10-28' });
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-127')).toBe(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-102') + 1);
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-126')).toBe(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-127') + 1);
+  });
+
+  it('names the preview and the Download button in the words of the screen, in English and Arabic', () => {
+    const word = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-127', part]));
+    expect(word(en, 'body')).toContain(`"${String(wordAt(en, ['files', 'download']))}"`);
+    expect(word(ar, 'body')).toContain(`«${String(wordAt(ar, ['files', 'download']))}»`);
+    for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
+  });
+});

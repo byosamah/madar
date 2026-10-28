@@ -244,8 +244,15 @@ export function UploadList({ files, progress }: { files: File[]; progress: Reado
   );
 }
 
-/** One file as a chip. A press saves the file. A deleted file shows as removed. */
-export function FileChip({ file }: { file: Attachment }) {
+/** What a PDF chip does on a press (tsk_485): open the preview, and load its code early at the first touch. */
+export type ChipPreview = { open: (file: Attachment & { name: string }) => void; warm: () => void };
+const PDF = 'application/pdf';
+
+/**
+ * One file as a chip. A press saves the file. A deleted file shows as removed. With `preview`, a PDF is a chip that previews: a press
+ * opens the preview, and the file saves only from the Download button inside it (tsk_485). Any other type keeps the download.
+ */
+export function FileChip({ file, preview }: { file: Attachment; preview?: ChipPreview }) {
   const { t } = useTranslation();
   const runtime = useRuntime();
   const { api } = runtime;
@@ -258,11 +265,17 @@ export function FileChip({ file }: { file: Attachment }) {
       </span>
     );
   }
+  const name = file.name;
+  const previews = preview !== undefined && file.mimeType === PDF;
   return (
     <button
       type="button"
-      aria-label={t('attachments.download', { name: file.name })}
-      onClick={() => downloadFile(api, file.id, undefined, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error))}
+      aria-label={t(previews ? 'attachments.preview' : 'attachments.download', { name })}
+      onPointerDown={previews ? preview.warm : undefined}
+      onClick={() => {
+        if (previews) preview.open({ ...file, name });
+        else downloadFile(api, file.id, undefined, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error));
+      }}
       className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong max-sm:min-h-11"
     >
       <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden className="shrink-0" />
@@ -275,14 +288,14 @@ export function FileChip({ file }: { file: Attachment }) {
  * The files of a comment or a message, each as a chip. The list and each item may shrink below the width of the file name
  * (`min-w-0 max-w-full`), so the chip stays inside its bubble and cuts a long name with an ellipsis (fbk_040).
  */
-export function FileChips({ files }: { files: Attachment[] }) {
+export function FileChips({ files, preview }: { files: Attachment[]; preview?: ChipPreview }) {
   const { t } = useTranslation();
   if (files.length === 0) return null;
   return (
     <ul aria-label={t('attachments.files')} className="flex min-w-0 max-w-full flex-wrap gap-2">
       {files.map((file) => (
         <li key={file.id} className="min-w-0 max-w-full">
-          <FileChip file={file} />
+          <FileChip file={file} {...(preview ? { preview } : {})} />
         </li>
       ))}
     </ul>

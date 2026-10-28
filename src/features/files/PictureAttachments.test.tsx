@@ -63,7 +63,7 @@ describe('the files of a message or a comment (owner, 2026-10-19)', () => {
     // Row pictures load and decode only near the view (src/CLAUDE.md).
     expect(img).toHaveAttribute('loading', 'lazy');
     expect(img).toHaveAttribute('decoding', 'async');
-    expect(screen.getByRole('button', { name: 'Download Plan.pdf' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Preview Plan.pdf' })).toBeInTheDocument();
     // Only the picture asks for a link, and only for its small picture. The PDF asks for nothing until a press.
     expect(links()).toEqual([{ id: 'fil_001', letter: undefined, variant: 'thumb', disposition: 'inline' }]);
     expect(container.querySelectorAll('img')).toHaveLength(1);
@@ -136,7 +136,7 @@ describe('the files of a message or a comment (owner, 2026-10-19)', () => {
     const grid = await screen.findByRole('list', { name: 'Pictures' });
     expect(within(grid).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['View Site photo.jpg', 'View Level 2.png', 'View Stair.webp']);
     expect(grid).toHaveClass('grid');
-    expect(screen.getByRole('button', { name: 'Download Plan.pdf' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Preview Plan.pdf' })).toBeInTheDocument();
     await waitFor(() => expect(container.querySelectorAll('img')).toHaveLength(3));
   });
 

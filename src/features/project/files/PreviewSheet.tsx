@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../../../app/useIsPhone';
-import type { FileView } from '../../../api/contract/views';
 import { useFileLink, useFileUrl, usePictureTest } from '../../../app/files';
 import { useDownloadFile } from '../../../app/useDownloadFile';
 import { PRIVATE } from '../../../app/privateMark';
@@ -13,7 +12,13 @@ import { Sheet } from '../../../components/Sheet';
 /** True for a file the preview can show: a picture or a PDF. */
 export const canPreview = (mimeType: string) => mimeType.startsWith('image/') || mimeType === 'application/pdf';
 
-type PreviewProps = { views: FileView[]; index: number; onIndex: (index: number) => void; onClose: () => void };
+/**
+ * What the preview needs of a file: its id, its name, its type and the letter of the version (none means the newest). A FileView of the
+ * Files tab fits. A chat message or a comment gives only the id, the name and the type, so it passes no letter (tsk_485).
+ */
+export type PreviewView = { file: { id: string; name: string }; latest: { letter?: string; mimeType: string } };
+
+type PreviewProps = { views: PreviewView[]; index: number; onIndex: (index: number) => void; onClose: () => void };
 
 /** Previous and Next, for a preview of several views (the meeting drawings). */
 function Steps({ views, index, onIndex }: Pick<PreviewProps, 'views' | 'index' | 'onIndex'>) {
@@ -52,6 +57,22 @@ function PhonePicture({ views, index, onIndex, onClose }: PreviewProps) {
 }
 
 /**
+ * The foot of a PDF preview (tsk_485): the steps of several views, and a quiet Download. A PDF opened from a chat or a comment shows its
+ * content first and saves only on this press. The button asks files.link as the person, as every download does.
+ */
+function PdfFoot({ views, index, onIndex }: Pick<PreviewProps, 'views' | 'index' | 'onIndex'>) {
+  const { t } = useTranslation();
+  const download = useDownloadFile();
+  const view = views[index];
+  return (
+    <div className="flex w-full flex-col items-center gap-2">
+      {views.length > 1 && <Steps views={views} index={index} onIndex={onIndex} />}
+      <Button variant="plain" onClick={() => download(view.file.id, view.latest.letter)}>{t('files.download')}</Button>
+    </div>
+  );
+}
+
+/**
  * A PDF on a phone is a sheet with one real link (phone D). Safari for iPhone blocks a window that opens after a wait, so the link
  * is made after the signed link has loaded. Until then the button is off.
  */
@@ -60,7 +81,7 @@ function PhonePdf({ views, index, onIndex, onClose }: PreviewProps) {
   const view = views[index];
   const link = useFileLink(view.file.id, view.latest.letter);
   return (
-    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={view.file.name} footer={views.length > 1 ? <Steps views={views} index={index} onIndex={onIndex} /> : undefined}>
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={view.file.name} footer={<PdfFoot views={views} index={index} onIndex={onIndex} />}>
       <div className="flex flex-col items-center gap-3 py-6 text-center">
         <span data-file-icon className="grid size-16 place-items-center rounded-2xl bg-fill text-label-2">
           <AnimatedIcon icon={FileTextIcon} size={32} aria-hidden />
@@ -123,7 +144,7 @@ function DeskPreview({ views, index, onIndex, onClose }: PreviewProps) {
     );
   } else if (url && picture) body = <img src={url} alt={view.file.name} className={`${PRIVATE} w-full rounded-2xl bg-white`} />;
   else if (url) body = <iframe src={url} title={view.file.name} className={`${PRIVATE} h-[70dvh] w-full rounded-2xl bg-white`} />;
-  const footer = views.length > 1 ? <Steps views={views} index={index} onIndex={onIndex} /> : undefined;
+  const footer = type === 'application/pdf' ? <PdfFoot views={views} index={index} onIndex={onIndex} /> : views.length > 1 ? <Steps views={views} index={index} onIndex={onIndex} /> : undefined;
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={view.file.name} wide footer={footer}>
       {body}

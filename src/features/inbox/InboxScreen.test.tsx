@@ -83,7 +83,7 @@ describe('the Inbox chat', () => {
     await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Beam B14.pdf', { type: 'application/pdf' }));
     await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'The beam sheet.');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-    expect(await screen.findByRole('button', { name: 'Download Beam B14.pdf' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Preview Beam B14.pdf' })).toBeInTheDocument();
     const file = Object.values(store.state.files).find((f) => f.name === 'Beam B14.pdf');
     expect(file?.projectId).toBe('prj_001');
     expect(file?.conversationId).toBeUndefined();
@@ -92,7 +92,7 @@ describe('the Inbox chat', () => {
     await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Level 2.pdf', { type: 'application/pdf' }));
     await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'The level plan.');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-    expect(await screen.findByRole('button', { name: 'Download Level 2.pdf' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Preview Level 2.pdf' })).toBeInTheDocument();
     const direct = Object.values(store.state.files).find((f) => f.name === 'Level 2.pdf');
     expect(direct).toMatchObject({ projectId: null, taskId: null, stageId: null });
     expect(store.state.conversations[direct!.conversationId!].kind).toBe('direct');
@@ -122,7 +122,7 @@ describe('the Inbox chat', () => {
     await waitFor(() => expect(preview.querySelector('img')).toHaveAttribute('src', 'blob:madar-test'));
     // The picture is no chip. The PDF stays one.
     expect(log.queryByRole('button', { name: 'Download Site photo.jpg' })).toBeNull();
-    expect(log.getByRole('button', { name: 'Download Brief.pdf' })).toBeInTheDocument();
+    expect(log.getByRole('button', { name: 'Preview Brief.pdf' })).toBeInTheDocument();
     await userEvent.click(preview);
     const viewer = await screen.findByRole('dialog', { name: 'Site photo.jpg' });
     await userEvent.click(within(viewer).getByRole('button', { name: 'Download Site photo.jpg' }));
@@ -234,7 +234,7 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(Object.values(store.state.messages).some((m) => m.body === 'Drawing.pdf' && (m.fileIds ?? []).length === 1)).toBe(true));
-    expect(await screen.findByRole('button', { name: 'Download Drawing.pdf' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Preview Drawing.pdf' })).toBeInTheDocument();
     // With no file and no words, Send stays off.
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   });

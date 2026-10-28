@@ -1,7 +1,8 @@
 {
   "attachments": {
     "attachMenu": "Attach",
-    "insertFromProject": "Insert from a project"
+    "insertFromProject": "Insert from a project",
+    "preview": "Preview {{name}}"
   },
   "insert": {
     "back": "Back",
