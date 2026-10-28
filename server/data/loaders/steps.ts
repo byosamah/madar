@@ -3,7 +3,7 @@ import { COLLECTION } from '../../../src/api/events';
 import { commentCountKey, emptyState, fileCountKey, type State } from '../../../src/api/store';
 import { FEED_VERBS } from '../../../src/api/views';
 import { can } from '../../../src/api/permissions';
-import { goneProjectsOf, hiddenProjectIds, MEMBER_ADDED_VERB, MEMBER_REMOVED_VERB, PROJECT_DELETED_VERB, viewsGoneProject, visibleProjectIds, type GoneProject } from '../../../src/api/projectView';
+import { goneProjectsOf, hiddenProjectIds, MEMBER_TARGET, PROJECT_DELETED_VERB, viewsGoneProject, visibleProjectIds, type GoneProject } from '../../../src/api/projectView';
 import type { TableCollection } from '../tables';
 import type { Cond, Select } from './query';
 import type { Load } from './build';
@@ -72,9 +72,10 @@ export function projectConds(L: Load, col = 'project_id'): Cond[] {
 
 /**
  * The facts of the deleted projects (security review F4): the delete event of each project that has no record in the office, and for a
- * delete event that holds no team list, the member changes of that project. The rows join the State, so the view rule of the handler
- * (seesProjectEvent, eventProjectViewer) reads the same events. "projectIds" limits the read to those projects, else it reads every delete
- * event of the office (a few rows). A project that is live reads its live rule, so its delete events (taken back) count for nothing.
+ * delete event that holds no team list, every change of the team rows of that project, the undos too. The rows join the State, so the
+ * view rule of the handler (seesProjectEvent, eventProjectViewer) reads the same events. "projectIds" limits the read to those projects,
+ * else it reads every delete event of the office (a few rows). A project that is live reads its live rule, so its delete events (taken
+ * back) count for nothing.
  */
 export async function goneProjects(L: Load, projectIds?: readonly string[]): Promise<Map<string, GoneProject>> {
   const ids = projectIds && [...new Set(projectIds)].filter((id) => L.office.projects[id] === undefined);
@@ -82,7 +83,7 @@ export async function goneProjects(L: Load, projectIds?: readonly string[]): Pro
   const where: Cond[] = [{ col: 'verb', in: [PROJECT_DELETED_VERB] }, ...(ids ? [{ col: 'project_id', in: ids } as Cond] : [])];
   const deletes = ((await L.select({ c: 'events', where })) as Event[]).filter((event) => L.office.projects[event.targetId] === undefined);
   const old = [...new Set(deletes.filter((event) => !event.teamIds).map((event) => event.targetId))];
-  const changes = old.length === 0 ? [] : (await L.select({ c: 'events', where: [{ col: 'project_id', in: old }, { col: 'verb', in: [MEMBER_ADDED_VERB, MEMBER_REMOVED_VERB] }] })) as Event[];
+  const changes = old.length === 0 ? [] : (await L.select({ c: 'events', where: [{ col: 'project_id', in: old }, { col: 'target_type', eq: MEMBER_TARGET }] })) as Event[];
   return goneProjectsOf([...deletes, ...changes]);
 }
 

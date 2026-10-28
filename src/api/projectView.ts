@@ -33,8 +33,8 @@ export function hiddenProjectIds(state: ViewState, viewer: User): string[] {
 export const PROJECT_DELETED_VERB = 'project.deleted';
 
 /** The verbs of the changes of the team of a project. A member change holds the person in "after" (added) or in "before" (removed). */
-export const MEMBER_ADDED_VERB = 'member.added';
-export const MEMBER_REMOVED_VERB = 'member.removed';
+/** The target type of every change of a team row: member.added, member.removed, member.updated and their undos. */
+export const MEMBER_TARGET = 'member';
 
 /** The facts of a deleted project that its view rule reads, taken from its delete event (security review F4). */
 export type GoneProject = {
@@ -56,26 +56,25 @@ const userIdIn = (side: unknown): string | undefined => {
 };
 
 /**
- * The team of a project at the delete, for a delete event that holds no list (written before the list existed). It replays the member
- * changes that came before the delete, in order. A team row that was written with no change is not known here: such a row exists only in
- * sample data and in tests, and every delete event of the current code holds the list.
+ * The team of a project at the delete, for a delete event that holds no list (written before the list existed). It replays the changes of
+ * the team rows that came before the delete, in order, by their shape: a row with no before is added, a row with no after is removed. An
+ * Undo is a change of its own (verb "undo"), so the undo of an add removes the person and the undo of a remove adds the person again. A
+ * change of the role keeps both sides. A team row that was written with no change is not known here: such a row exists only in sample
+ * data and in tests, and every delete event of the current code holds the list.
  */
 function teamFromChanges(deleteSeq: number, changes: readonly MemberEvent[]): string[] {
   const team = new Set<string>();
   for (const change of [...changes].sort((a, b) => a.seq - b.seq)) {
     if (change.seq >= deleteSeq) continue;
-    if (change.verb === MEMBER_ADDED_VERB) {
-      const id = userIdIn(change.after);
-      if (id) team.add(id);
-    } else if (change.verb === MEMBER_REMOVED_VERB) {
-      const id = userIdIn(change.before);
-      if (id) team.delete(id);
-    }
+    const added = change.before == null ? userIdIn(change.after) : undefined;
+    const removed = change.after == null ? userIdIn(change.before) : undefined;
+    if (added) team.add(added);
+    if (removed) team.delete(removed);
   }
   return [...team];
 }
 
-/** The facts of one deleted project. "changes" are the member changes of that project: they are read only when the event holds no list. */
+/** The facts of one deleted project. "changes" are the changes of its team rows: they are read only when the event holds no list. */
 export function goneProjectOf(event: DeleteEvent, changes: readonly MemberEvent[]): GoneProject {
   const before = (event.before ?? {}) as { access?: { hidden?: boolean; viewerIds?: string[] }; leaderId?: string | null };
   return {
@@ -88,16 +87,17 @@ export function goneProjectOf(event: DeleteEvent, changes: readonly MemberEvent[
 
 /**
  * The facts of every deleted project that these events name, by project id. A project that was deleted, taken back and deleted again reads its
- * newest delete that stands. Pass the events of the state: the delete events, and for an old delete event the member changes.
+ * newest delete that stands. Pass the events of the state: the delete events, and for an old delete event every change of its team rows
+ * (target type "member": the adds, the removes, the role changes and their undos).
  */
-export function goneProjectsOf(events: Iterable<Pick<Event, 'verb' | 'projectId' | 'targetId' | 'seq' | 'before' | 'after' | 'teamIds'> & Partial<Pick<Event, 'undoneBy'>>>): Map<string, GoneProject> {
+export function goneProjectsOf(events: Iterable<Pick<Event, 'verb' | 'projectId' | 'targetType' | 'targetId' | 'seq' | 'before' | 'after' | 'teamIds'> & Partial<Pick<Event, 'undoneBy'>>>): Map<string, GoneProject> {
   const deletes = new Map<string, DeleteEvent>();
   const changes = new Map<string, MemberEvent[]>();
   for (const event of events) {
     if (event.verb === PROJECT_DELETED_VERB) {
       const found = deletes.get(event.targetId);
       if (!event.undoneBy && (!found || event.seq > found.seq)) deletes.set(event.targetId, event);
-    } else if ((event.verb === MEMBER_ADDED_VERB || event.verb === MEMBER_REMOVED_VERB) && event.projectId !== null) {
+    } else if (event.targetType === MEMBER_TARGET && event.projectId !== null) {
       changes.set(event.projectId, [...(changes.get(event.projectId) ?? []), event]);
     }
   }
