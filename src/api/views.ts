@@ -373,21 +373,25 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
   const inProject = task.projectId === null ? [] : Object.values(state.tasks).filter((t) => t.projectId === task.projectId);
   const stages = task.projectId === null ? [] : stagesOf(state, task.projectId);
   const ids = new Set(task.prerequisiteIds ?? []);
+  // Each kind of change is asked once. Six flags below read these three answers.
+  const mayDetails = mayChangeTask(viewer, 'details', r);
+  const mayDates = mayChangeTask(viewer, 'dates', r);
+  const mayWork = mayChangeTask(viewer, 'work', r);
   return {
     ...taskRowOf(state, task, today, viewer),
     needsFirst: tasksChrono(inProject.filter((t) => ids.has(t.id)), stages).map(link),
     unlocks: tasksChrono(inProject.filter((t) => (t.prerequisiteIds ?? []).includes(task.id)), stages).map(link),
     viewerCan: {
       // edit: the old flag for the person who changes every kind of field; the flags editDetails, editDates and work below split it.
-      edit: mayChangeTask(viewer, 'details', r) && mayChangeTask(viewer, 'dates', r) && mayChangeTask(viewer, 'work', r),
+      edit: mayDetails && mayDates && mayWork,
       editAll: mayAssignTask(viewer, r),
-      complete: mayChangeTask(viewer, 'work', r) && task.status !== 'done',
+      complete: mayWork && task.status !== 'done',
       review: can(viewer, 'task.review', r) && task.status === 'in_review',
       setNeedsReview: can(viewer, 'task.review', r),
       // A lead who took the task themselves does not delete it (security review 2026-10-20).
       delete: mayDeleteTask(viewer, r) && (can(viewer, 'task.any', r) || isTaskMaker(viewer, r) || !leadTookTask(state, task)),
       contribute: mayTickChecklist(viewer, r),
-      newVersion: task.status === 'done' && mayChangeTask(viewer, 'work', r),
+      newVersion: task.status === 'done' && mayWork,
       // A template belongs to a stage, so an office task never becomes one. It serves the whole office, so the leader and the
       // Admin save it, never the maker alone (the rule of taskTemplates.save).
       saveTemplate: task.stageId !== null && can(viewer, 'templates.taskSave', { projectRole: r.projectRole }),
@@ -395,9 +399,9 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       // Joins as a helper with one tap: a person on the team who neither leads nor helps, on a project task (fbk_035).
       help: task.projectId !== null && task.ownerId !== viewer.id && !helpersOf(task).includes(viewer.id) && can(viewer, 'task.help', r),
       // Role rights version 2: one flag for each gate of the task panel. A change of any to-do (task.any) passes every kind of change.
-      editDetails: mayChangeTask(viewer, 'details', r),
-      editDates: mayChangeTask(viewer, 'dates', r),
-      work: mayChangeTask(viewer, 'work', r),
+      editDetails: mayDetails,
+      editDates: mayDates,
+      work: mayWork,
       comment: can(viewer, 'comment.create', r),
       upload: can(viewer, 'file.upload', r),
     },
@@ -445,9 +449,11 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
 export function mayDeleteFile(state: State, viewer: User, file: FileRec): boolean {
   // A file of a direct chat or a group stays with its messages: nobody deletes it (owner, 2026-10-19). The same for a file of a meeting.
   if (file.conversationId !== undefined || file.meetingId !== undefined) return false;
+  // Both rules read switches (task.officeAll, the scope rights), so they need the attached office rights.
+  const actor = ensureRights(state, viewer);
   const resource = file.projectId === null ? officeResource(state, file.taskId, viewer.id) : { projectRole: projectRoleOf(state, file.projectId, viewer.id) };
-  return can(viewer, 'file.deleteAny', resource)
-    || can(viewer, 'file.deleteOwn', { ...resource, authorId: principalOf(state, file.versions[0].uploadedBy) });
+  return can(actor, 'file.deleteAny', resource)
+    || can(actor, 'file.deleteOwn', { ...resource, authorId: principalOf(state, file.versions[0].uploadedBy) });
 }
 
 /**
@@ -467,7 +473,7 @@ export function mayViewFile(state: State, viewer: User, file: FileRec): boolean 
   }
   // A file of a project reads like the project: a hidden project leaves its files to the people who see it (hidden projects, owner 2026-10-22).
   if (file.projectId !== null) return can(ensureRights(state, viewer), 'project.view', projectResource(state, file.projectId, viewer.id));
-  return can(viewer, 'task.view', officeResource(state, file.taskId, viewer.id));
+  return can(ensureRights(state, viewer), 'task.view', officeResource(state, file.taskId, viewer.id));
 }
 
 /**

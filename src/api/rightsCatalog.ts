@@ -798,7 +798,7 @@ const OLD_IDS: ReadonlySet<string> = new Set(LEGACY_RIGHT_IDS);
 /** True when the text is one of the 17 old right names (an old id may also be a new id: subCompanies.manage). */
 export const isLegacyRight = (id: string): id is LegacyRightId => OLD_IDS.has(id);
 
-/** The 113 ids plus the old names that are not among them: the form of a stored list (StoredRight). */
+/** The catalog ids plus the old names that are not among them: the form of a stored list (StoredRight). */
 export const STORED_RIGHT_IDS = [...CATALOG_RIGHT_IDS, ...LEGACY_RIGHT_IDS.filter((id) => !(CATALOG_RIGHT_IDS as readonly string[]).includes(id))] as [
   CatalogRightId, ...(CatalogRightId | LegacyRightId)[],
 ];
@@ -813,17 +813,17 @@ export function expandRights(stored: readonly string[]): CatalogRightId[] {
   return CATALOG_RIGHT_IDS.filter((id) => out.has(id));
 }
 
-/** The ids with the switches they need added, transitively. Each id once, in the order of the catalog. */
+/** True when the need is on another power than the switch. Only such a need can drop the switch (see dropUnmetNeeds). */
+function crossNeed(id: CatalogRightId, need: CatalogRightId): boolean {
+  return RIGHT_INFO[id].power !== RIGHT_INFO[need].power;
+}
+
 /**
  * The switches that stay when a stored list is read: a switch whose need on ANOTHER power is not in the list counts as off, again and again
  * until no switch drops (fail closed). Example: "Connect AI assistants" off turns every AI switch off. A need between two scopes of one power
  * ("Every project" needs "Projects I lead") does not drop: "Every project" covers the projects the person leads, and an old role with the
  * right to delete any project holds only "Every project". The role sheet uses withNeeds when a person turns a switch on.
  */
-function crossNeed(id: CatalogRightId, need: CatalogRightId): boolean {
-  return RIGHT_INFO[id].power !== RIGHT_INFO[need].power;
-}
-
 export function dropUnmetNeeds(ids: readonly CatalogRightId[]): CatalogRightId[] {
   const out = new Set<CatalogRightId>(ids);
   for (let again = true; again; ) {
@@ -833,6 +833,7 @@ export function dropUnmetNeeds(ids: readonly CatalogRightId[]): CatalogRightId[]
   return CATALOG_RIGHT_IDS.filter((id) => out.has(id));
 }
 
+/** The ids with the switches they need added, transitively. Each id once, in the order of the catalog. */
 export function withNeeds(ids: readonly CatalogRightId[]): CatalogRightId[] {
   const out = new Set<CatalogRightId>(ids);
   for (let again = true; again; ) {

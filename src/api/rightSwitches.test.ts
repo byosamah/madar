@@ -43,7 +43,7 @@ const plain = (action: Action): Spec => ({ action, resource: () => ({}) });
 const ownTask = (action: Action): Spec => ({ action, resource: (where) => ({ projectRole: where, ownerId: ME, makerId: ME }) });
 const authored = (action: Action): Spec => ({ action, resource: (where) => ({ projectRole: where, authorId: ME }) });
 const meeting = (action: Action, organizer: string, attendees: string[] = []): Spec => ({
-  action, resource: (where) => ({ projectRole: where, meeting: { organizerId: organizer, attendeeIds: attendees, noProject: false } }),
+  action, resource: (where) => ({ projectRole: where, access: OPEN, meeting: { organizerId: organizer, attendeeIds: attendees, noProject: false } }),
 });
 
 /** The spec of each power: the action that its switches answer. */
@@ -161,9 +161,10 @@ function casesOf(id: OfficeRight): { pass: Resource[]; refuse: Resource[] } {
   if (power === 'project.seeAll') return { pass: [{ projectRole: 'other', access: OPEN }], refuse: [{ projectRole: 'other', access: HIDDEN }] };
   if (power === 'project.hidden') return { pass: [{ projectRole: 'other', access: HIDDEN }], refuse: [] };
   if (power === 'meeting.editOwn' || power === 'meeting.minutesOwn') {
-    // Own powers: the people rule must hold too. A meeting of another organizer refuses.
+    // Own powers: the people rule must hold too. A meeting of another organizer refuses. The person must also see the project (the view rule):
+    // on an open project that the person does not work on, the holder has no "See every project", so the own right refuses.
     const other: Resource = { ...at('team'), meeting: { organizerId: OTHER, attendeeIds: [], noProject: false } };
-    return { pass: [at('team'), at('other'), noProjectMeeting(power)], refuse: [other] };
+    return { pass: [at('team'), noProjectMeeting(power)], refuse: [other, at('other')] };
   }
   if (power === 'task.work' || power === 'task.details' || power === 'task.dates' || power === 'task.deleteOwn') {
     // The person leads and made the to-do. A to-do of other people refuses.

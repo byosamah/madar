@@ -84,7 +84,8 @@ pure handlers, an additive contract, a table for a new collection, a test count 
 - One rule: `mayViewProject(state, project, viewer)` = `can(viewer, 'project.view', projectResource(state, projectId, viewerId))`.
   True for a holder of `project.hidden`, the leader, a team member, a chosen person, and a holder of `project.seeAll` when
   the project is open. `task.view` and `comment.read` of a project resource and `meeting.view` of a project meeting read the
-  same rule. A person who left the office never sees a hidden project.
+  same rule. A person who left the office never sees a hidden project, and sees only the open projects that the person saw while active.
+  The own meeting rights (`meeting.editOwn`, `meeting.minutesOwn`) also need this rule; `meeting.plan` does not.
 - The rule fails closed. A resource with no `access` facts, or with no project, denies everyone except a holder of
   `project.hidden`, the leader and the team. Never write `{ projectRole }` alone for a view check: build the resource with
   `projectResource`. `mayViewProject`, `mayViewTask` and `mayViewMeeting` attach the rights (`ensureRights`).

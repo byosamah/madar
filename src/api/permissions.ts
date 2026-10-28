@@ -319,8 +319,10 @@ function canOnMeeting(actor: Actor, action: Action, resource: Resource): boolean
     }
   }
   const role = resource.projectRole ?? 'other';
-  const own = organizer && held('meeting.editOwn');
-  const ownMinutes = attends && held('meeting.minutesOwn');
+  // The own rights also need the view rule of the project: a person who cannot see the project keeps no right on its meeting. The
+  // plan, any and any-minutes rights stay free of it: the plan button asks with a resource that has no access facts.
+  const own = organizer && held('meeting.editOwn') && viewsProject(actor, resource);
+  const ownMinutes = attends && held('meeting.minutesOwn') && viewsProject(actor, resource);
   switch (action) {
     // A project meeting reads like its project: a person who does not see the project does not see the meeting (hidden projects).
     case 'meeting.view':
@@ -350,8 +352,9 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
   // A person who left the office reads and changes no meeting.
   if (resource.meeting) return actor.active && canOnMeeting(actor, action, resource);
   // A project task reads like its project. An office task stays with its people.
-  // A hidden project never shows to a person who left the office (owner, 2026-10-22).
-  if (!actor.active) return resource.access !== undefined && !resource.access.hidden && (action === 'project.view' || (action === 'task.view' && !resource.office));
+  // A hidden project never shows to a person who left the office (owner, 2026-10-22). Such a person sees only the open projects that
+  // the same person saw while active, so the view rule of the project applies here too.
+  if (!actor.active) return resource.access !== undefined && !resource.access.hidden && (action === 'project.view' || (action === 'task.view' && !resource.office)) && viewsProject(actor, resource);
   if (resource.office) return canOnOfficeTask(actor, action, resource);
   const admin = actor.systemRole === 'admin';
   const role = resource.projectRole ?? 'other';

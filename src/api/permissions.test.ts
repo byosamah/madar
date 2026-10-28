@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { can, mayViewMeeting, meetingResource, principalOf, projectRoleOf, type Action, type ProjectRole } from './permissions';
 import { withOfficeRights } from './rights';
-import type { User } from './contract/entities';
+import type { RoleSettings, User } from './contract/entities';
 import { makeUser, makeWorld } from '../test/factories';
 
 const admin = makeUser('usr_001', { systemRole: 'admin' });
@@ -118,6 +118,26 @@ describe('permission details', () => {
     expect(can(gone, 'admin.manage')).toBe(false);
   });
 
+  it('lets a person who left read only what the person read while active (fix: seeAll and the team)', () => {
+    const roles: RoleSettings = { off: { member: ['project.seeAll'] } };
+    const hiddenFacts = { access: { hidden: true, chosen: false } };
+    const gone = (rolesOf?: RoleSettings) => withOfficeRights(makeUser('usr_009', { active: false }), rolesOf);
+    // Member with "See every project" off, not on the team: an open project stays unseen, and so do its to-dos.
+    expect(can(gone(roles), 'project.view', open())).toBe(false);
+    expect(can(gone(roles), 'task.view', open())).toBe(false);
+    // Member with "See every project" on (the default): the open project shows, the hidden one does not.
+    expect(can(gone(), 'project.view', open())).toBe(true);
+    expect(can(gone(), 'task.view', open())).toBe(true);
+    expect(can(gone(), 'project.view', hiddenFacts)).toBe(false);
+    // Member on the team, "See every project" off: the open project shows, a hidden project does not (the team does not open it for a person who left).
+    expect(can(gone(roles), 'project.view', { ...open(), projectRole: 'team' })).toBe(true);
+    expect(can(gone(roles), 'project.view', { ...hiddenFacts, projectRole: 'team' })).toBe(false);
+    expect(can(gone(roles), 'project.view', { access: { hidden: true, chosen: true } })).toBe(false);
+    // A person who left changes nothing and reads no comment.
+    expect(can(gone(), 'comment.read', open())).toBe(false);
+    expect(can(gone(), 'task.work', { ...open(), projectRole: 'team', ownerId: 'usr_009' })).toBe(false);
+  });
+
   it('reads the project role from the state', () => {
     const state = makeWorld();
     expect(projectRoleOf(state, 'prj_001', 'usr_002')).toBe('leader');
@@ -188,6 +208,30 @@ describe('the rights of a meeting (fbk_022, owner 2026-10-19)', () => {
     expect(can(gone, 'meeting.view', meetingResource(state, { projectId: 'prj_001', ...mine }, gone.id))).toBe(false);
     expect(can(gone, 'meeting.plan', { meeting: { organizerId: gone.id, attendeeIds: [], noProject: true } })).toBe(false);
     expect(writes(gone, meetingResource(state, { projectId: 'prj_001', ...mine }, gone.id))).toBe(false);
+  });
+
+  it('stops an organizer or attendee who cannot view the project from the own meeting rights', () => {
+    const noSeeAll: RoleSettings = { off: { member: ['project.seeAll'] } };
+    const person = (id: string, roles?: RoleSettings) => withOfficeRights(makeUser(id), roles);
+    const meeting = { organizerId: 'usr_010', attendeeIds: ['usr_011'], noProject: false };
+    const on = (access: { hidden: boolean; chosen: boolean }, projectRole: ProjectRole) => ({ projectRole, access, meeting });
+    const ownRights = (actor: User, resource: ReturnType<typeof on>) => [can(actor, 'meeting.editOwn', resource), can(actor, 'meeting.minutesOwn', resource)];
+    // The organizer of a hidden project, not on the team and not chosen: both rights fail.
+    expect(ownRights(person('usr_010'), on({ hidden: true, chosen: false }, 'other'))).toEqual([false, false]);
+    // The same person on the team: both pass.
+    expect(ownRights(person('usr_010'), on({ hidden: true, chosen: false }, 'team'))).toEqual([true, true]);
+    // An attendee who is a chosen person of the hidden project writes the minutes.
+    expect(can(person('usr_011'), 'meeting.minutesOwn', on({ hidden: true, chosen: true }, 'other'))).toBe(true);
+    // An attendee of a hidden project who is not chosen does not.
+    expect(can(person('usr_011'), 'meeting.minutesOwn', on({ hidden: true, chosen: false }, 'other'))).toBe(false);
+    // An open project, organizer not on the team, "See every project" off: both fail. With it on, both pass.
+    expect(ownRights(person('usr_010', noSeeAll), on({ hidden: false, chosen: false }, 'other'))).toEqual([false, false]);
+    expect(ownRights(person('usr_010'), on({ hidden: false, chosen: false }, 'other'))).toEqual([true, true]);
+  });
+
+  it('keeps the plan right free of the view rule (the hand-built resource of the plan button has no access facts)', () => {
+    const planner = withOfficeRights(makeUser('usr_010'), { rights: { member: ['meeting.plan.all'] } });
+    expect(can(planner, 'meeting.plan', { projectRole: 'other', meeting: { organizerId: planner.id, attendeeIds: [], noProject: false } })).toBe(true);
   });
 
   it('answers false for a meeting action that has no meeting, and for a task action on a meeting', () => {

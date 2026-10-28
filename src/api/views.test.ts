@@ -1,8 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { countComments, countFiles, feedFor, taskRowOf, updateItemOf } from './views';
+import { countComments, countFiles, feedFor, mayDeleteFile, mayViewFile, taskRowOf, updateItemOf } from './views';
+import type { FileRec } from './contract/entities';
 import { commentCountKey, fileCountKey, type State } from './store';
 import { buildSeed } from '../data/seed';
-import { TODAY } from '../test/factories';
+import { makeTask, makeUser, makeWorld, STAMP, TODAY } from '../test/factories';
 
 /** The counts a server loader puts in the state: one for each comment target and each task with files. */
 function countsOf(state: State): Record<string, number> {
@@ -70,5 +71,37 @@ describe('counts (plan 4.13, A4; AM 7.4)', () => {
     for (const item of feedFor(full, projectId, 'posts', 50, viewer)) {
       if (item.kind === 'update') expect(item.commentCount).toBe(countComments(full, 'update', item.id));
     }
+  });
+});
+
+describe('the file rules attach the office rights themselves', () => {
+  // A person who arrives as a plain User (no officeRights) must still get the rights of the role. The office to-do rules read task.officeAll
+  // with holdsRight, which fails closed without attached rights.
+  function officeFileWorld() {
+    const state = makeWorld();
+    state.settings.roles = { custom: [{ id: 'rol_001', name: 'Office reader', nameAr: 'قارئ المكتب', rights: ['task.officeAll'] }] };
+    state.users.usr_007 = makeUser('usr_007', { roleId: 'rol_001' });
+    state.users.usr_008 = makeUser('usr_008');
+    // An office to-do that Omar (usr_004) made and Sara (usr_003) leads, with a file that Omar uploaded.
+    state.tasks.tsk_900 = makeTask({ id: 'tsk_900', projectId: null, stageId: null, title: 'Office errand', ownerId: 'usr_003', createdBy: 'usr_004', needsReview: false });
+    const version = { letter: 'A', blobKey: 'blob_1', mimeType: 'application/pdf', size: 10, uploadedBy: 'usr_004', uploadedAt: STAMP };
+    const file: FileRec = { id: 'fil_900', projectId: null, stageId: null, taskId: 'tsk_900', name: 'Errand.pdf', versions: [version] };
+    state.files.fil_900 = file;
+    return { state, file };
+  }
+
+  it('shows and deletes the file of an office to-do for a holder of task.officeAll who arrives as a plain User', () => {
+    const { state, file } = officeFileWorld();
+    const holder = state.users.usr_007;
+    expect('officeRights' in holder).toBe(false);
+    expect(mayViewFile(state, holder, file)).toBe(true);
+    expect(mayDeleteFile(state, holder, file)).toBe(true);
+  });
+
+  it('still shows and deletes nothing for a Member without task.officeAll', () => {
+    const { state, file } = officeFileWorld();
+    const member = state.users.usr_008;
+    expect(mayViewFile(state, member, file)).toBe(false);
+    expect(mayDeleteFile(state, member, file)).toBe(false);
   });
 });
