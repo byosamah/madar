@@ -50,7 +50,9 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
 - Chat search: `messages.search_text` and `comments.search_text` hold `bodySearchText(body)` (`src/lib/searchMatch.ts`). The SQL
   function `search_fold` must stay in step with it (`server/it/messageSearch.it.test.ts` checks that they agree).
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
-  event (`undoes`). The save never writes `undoneBy`.
+  event (`undoes`). The save never writes `undoneBy`. An Undo has the verb `undo` on the target of the change, never the opposite
+  verb: a rule that replays changes (the team of a deleted project) reads the undo events by their shape (no `before`: added; no
+  `after`: removed).
 
 ## Counters, stories, idempotency
 - Counters are a table under the office lock, so they have no gaps.

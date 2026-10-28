@@ -51,7 +51,8 @@ write natural Arabic, not a word-for-word copy of the English.
   the id number.
 - A test finds its entry by id, never by `WHATS_NEW[0]`.
 - The usage data entry (`2026-10-23-102`) stays first: `entries.test.ts` pins `WHATS_NEW[0]` to it. A new entry goes second
-  (the header of `entries.ts` says "at the top": follow this rule instead).
+  (the header of `entries.ts` says "at the top": follow this rule instead). A test that pins an older entry right under the
+  usage entry (`findIndex(...) + 1`) breaks then: change that pin to "under the usage entry".
 - `day` is the day the production release goes live. Write the planned day before `all.sh test`. When production goes on
   another day, fix it in the release record commit. `entries.test.ts` fails on a day still to come or out of order (it leaves
   the first entry out of the order check). It also pins the set of release days and the list of rights that an entry may name:

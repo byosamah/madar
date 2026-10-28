@@ -130,6 +130,8 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
   Each suite uses its own schema. `scripts/restore-check.test.ts` needs `MADAR_AGE` (the `age` binary). Storage and R2
   suites need MinIO (`server/it/minio.ts`).
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
+  `test:db`, `test:it` and `test:mcp` take only the heavy lock, so one `docker-lock.sh run <holder> -- bash <script>` can hold a
+  whole sequence (db reset, the three suites, stop) with no deadlock.
 - One heavy run at a time: `npm test`, `test:server`, `test:db`, `test:lite`, `test:office`, `test:it`, `test:mcp` and
   `npm run smoke` take `scripts/dev/heavy-lock.sh` by themselves and wait for the run before them
   (`heavy-lock: waiting for ...` names the holder). Start them in the background. `maxWorkers` in `vite.config.ts` caps
@@ -197,6 +199,8 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 - One builder for a track works in `deploy-test` on `rb/<track>` (`git switch -c`): no commit on main, no push, no deploy.
   The merge lead rebases it on main, runs the gates once, then `git switch main && git merge --ff-only rb/<track>` and
   `git branch -d rb/<track>`. Run `git branch -d` from the folder that holds main: it tests against the HEAD of that folder.
+  `-d` refuses a branch that reached main by a rebase or a cherry-pick: check that `git cherry main <branch>` prints only `-`
+  lines, then use `-D`.
 - While a release waits on its recorded commit, build the next batch in a worktree branch: production refuses any new commit
   on main, and any changed file in the folder of main (a guide line too). Edit on a branch, and fast-forward main after the
   release.
@@ -205,6 +209,8 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 - The main folder (`/Users/osamakhalil/dev/madar`) sits on a detached HEAD and stays behind when main moves. A session that
   starts there loads its old guides. After you move main, move it too when its `git status` is clean:
   `git -C /Users/osamakhalil/dev/madar checkout --detach main`.
+- A Claude Security report (`CLAUDE-SECURITY-<ts>/` in the main folder) holds its own `.gitignore` with `*`, so `git status` stays
+  clean and the report does not block a release.
 - Claude's `git push origin main` is refused by the auto-mode check. Commit on main in `deploy-test`, then hand the owner
   `! git -C /Users/osamakhalil/dev/madar/.claude/worktrees/deploy-test push origin main`.
 - A Playwright agent writes `.playwright-mcp/` into its working directory. In the repo it is a new untracked folder, and
