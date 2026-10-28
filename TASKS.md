@@ -893,7 +893,7 @@ Sonnet builders, Claude leads (owner, 2026-10-21). What's new 2026-10-23-74.
   The server allows it (`stages.replace` asks `project.stages`). Options: (a) a small "Edit stages" sheet of its own on the Schedule tab
   for `viewerCan.editStages`; (b) open the edit sheet with only the stage part when the person holds `project.stages` alone. Today every
   role holds both by default, so nobody meets it until the Admin turns one off.
-- [ ] **Small fix: the Needs field of a maker without "Give to-dos to other people".** The "waits for" field of a to-do (`TaskNeeds` in
+- [x] **Small fix: the Needs field of a maker without "Give to-dos to other people".** Done 2026-10-28 (tsk_418, de11c82c): the flag `viewerCan.editPrerequisites` comes from `mayChangePrerequisites`, the rule of the server. What's new 136. The "waits for" field of a to-do (`TaskNeeds` in
   `src/features/project/tasks/TaskSheet.tsx`, line about 482) shows only with `viewerCan.editAll && canDetails`. The server rule of
   prerequisites is `task.any`, or the maker with `task.details` (`tasks.update`, `mayChangePrerequisites`). So a maker whose role has
   `task.assign` off sees no field, although the call would pass. Fix: a new additive flag `viewerCan.editPrerequisites` from the same rule
@@ -1121,7 +1121,7 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md
 - [x] Screenshots: the Inbox line (EN/AR, light/dark, 390 px and desk), the role sheet switch
 - [x] Test copy (`all.sh test`), then production at 10c7191b (2026-10-25 12:43), release record
 - [x] Mark fbk_056 and fbk_057 done in Madar (2026-10-25 12:45, story sty_b5w6qh34op2hvthd2tz4jw)
-- [ ] Found 2026-10-25 (not in this release, propose to the owner): on a 390 px phone in Arabic, the four Inbox kind chips do not fit one row, and «الأشخاص» drops to a second row
+- [x] Found 2026-10-25: on a 390 px phone in Arabic, the four Inbox kind chips did not fit one row, and «الأشخاص» dropped to a second row. Done 2026-10-28 (tsk_448, 7aa65289): the owner chose the one word «المهام»; `tests/e2e/inboxPhone.spec.ts` measures one row. What's new 135.
 
 ## fbk_052, fbk_055, fbk_058, fbk_059 (owner, 2026-10-25: "go ahead"; production waits for the owner)
 
@@ -1266,6 +1266,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] tsk_488: the To-do list (/tasks) marked Dashboard in the top bar, in English and Arabic, since 2026-10-01. It now marks Tasks; the Deadlines list still marks Dashboard (3ceacd67). What's new 130. Done 2026-10-28: production at 8169cbd9.
 - [x] tsk_489: `madar_call_failed` sends only the call name, no `personId` and no `personName`. `eventFields.test.ts` pins the fields of every PostHog event of Madar (a713d766). Done 2026-10-28: production at 8169cbd9.
 - [ ] Flaky test: `src/features/me/focusInert.test.tsx` ("keeps the data-pill mark on the phone bar") fails under a load average of about 11, also on main 9ade9ea1 alone (2026-10-28: `inert` of the phone bar is true when the test reads it). It passes alone at a lower load. Find the race and make the test wait for the state.
+- [ ] Time-of-day test: `test:office` fails 3 mail tests (`batch.wd.test.ts` "sends the mail of a new task after the answer", `cron.wd.test.ts` "runs the job steps" and "sends at most 45 network calls") after the office work hours. They passed at 15:33 and failed at 19:50 on main 86d68fee (2026-10-28): the office Worker reads the real clock, and the notice mails stop in quiet hours. Pin the work hours or the clock in the office test.
 
 ## Security scan fixes (Claude Security scan of 2026-10-28; owner: "test copy, then production", "check production, then fix", "fix it properly")
 Report and patches: `CLAUDE-SECURITY-20261028-093704/` in the main folder (git-ignored). Branches `rb/sec-small`, `rb/sec-approval`, `rb/sec-history`.
