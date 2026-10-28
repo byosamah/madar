@@ -1265,3 +1265,13 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [ ] tsk_487: the Work screen jumps while it loads on a computer (CLS 0.459).
 - [ ] tsk_488: in Arabic the Tasks screen marks Dashboard in the top bar.
 - [ ] tsk_489: the PostHog event of a failed call sends the name of the person; remove it.
+
+## Security scan fixes (Claude Security scan of 2026-10-28; owner: "test copy, then production", "check production, then fix", "fix it properly")
+Report and patches: `CLAUDE-SECURITY-20261028-093704/` in the main folder (git-ignored). Branches `rb/sec-small`, `rb/sec-approval`, `rb/sec-history`.
+- [x] F2 (medium): the email code of a reset or invitation link has 10 digits; `config-check.ts` refuses another value (5c8106c2). Takes effect when `all.sh` pushes the config.
+- [x] F3 (low): a report id must name a real report, so `__proto__` cannot reach `Object.prototype` (5c8106c2).
+- [x] What's new 131 to 134, one line for each fix (546f0bab).
+- [x] F1 check on production (read-only, 2026-10-28): 3 approved AI apps (Claude, ChatGPT, Claude Code), none hides an unknown address.
+- [ ] F1 (medium): Madar stores the return address that the person saw and refuses an AI app that hides another one (`rb/sec-approval`, a migration and a SQLite step).
+- [ ] F4 (low): the History of a deleted open project shows only to the people who could see it at the delete (`rb/sec-history`).
+- [ ] Join the three branches, run the merge gate once, release to the test copy, then production on the owner's OK.
