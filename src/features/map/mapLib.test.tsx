@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.hoisted(() => { vi.stubEnv('VITE_MADAR_API', 'remote'); });
 const lib = vi.hoisted(() => ({
   setWorkerUrl: undefined as unknown as ReturnType<typeof vi.fn>,
-  setRTLTextPlugin: undefined as unknown as ReturnType<typeof vi.fn>,
   addProtocol: undefined as unknown as ReturnType<typeof vi.fn>,
   made: 0,
   canvasLoaded: 0,
@@ -15,7 +14,6 @@ const lib = vi.hoisted(() => ({
 
 vi.mock('maplibre-gl', () => {
   lib.setWorkerUrl = vi.fn();
-  lib.setRTLTextPlugin = vi.fn(() => Promise.resolve());
   lib.addProtocol = vi.fn();
   return {
     Map: class {
@@ -24,12 +22,10 @@ vi.mock('maplibre-gl', () => {
       }
     },
     setWorkerUrl: lib.setWorkerUrl,
-    setRTLTextPlugin: lib.setRTLTextPlugin,
     addProtocol: lib.addProtocol,
   };
 });
 vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url', () => ({ default: 'worker.js' }));
-vi.mock('../../../node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url', () => ({ default: '/assets/rtl-text-abc.js' }));
 // The canvas itself is a double that never calls the loader: only the lazy factory can start the library.
 vi.mock('./MapCanvas', () => {
   lib.canvasLoaded += 1;

@@ -12,8 +12,9 @@ of coordinates. The Dashboard Map tab is `src/features/dashboard/DashboardMap.ts
   with the chunk request. A pointer down on the Dashboard Map tab calls `warmMap()`. The map never joins the idle prefetch.
 - The worker is a `?worker&url` import (it needs its own imports bundled). `releaseUrl` adds `VITE_MADAR_BUILD` to the worker address:
   a browser keeps an assets file for a year, and the worker obeys the policy header of its own file.
-- The Arabic text plugin is a file of this build. `MapCanvas.tsx` imports `@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url` by a
-  path into `node_modules`. Its WebAssembly needs `'wasm-unsafe-eval'` in `script-src` (`config/headers.template`). Never load it from a CDN.
+- No Arabic text plugin (owner, 2026-10-28, tsk_486). MapLibre 6 shapes Arabic text by itself: the map drew the same pixels with
+  the plugin loaded, blocked and absent. The plugin ran with eval() in the worker, the policy blocked it, and PostHog got an unhandled
+  error (11 times, 6 people). Never set `setRTLTextPlugin` again, and never loosen the policy for it. `MapCanvas.test.tsx` pins this.
 - A test that runs the loader sets the flag and mocks the library: `vi.mock('maplibre-gl', () => import('<path>/test/fakeMapLib'))`. The
   real library makes a Worker. jsdom has none, and `npm test` then ends with exit code 1 while every test passes. `mapTestRule.test.ts`
   holds the rule.

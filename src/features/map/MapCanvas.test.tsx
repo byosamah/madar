@@ -119,7 +119,6 @@ vi.mock('maplibre-gl', () => {
   };
 });
 vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url', () => ({ default: 'worker.js' }));
-vi.mock('../../../node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url', () => ({ default: '/assets/rtl-text-abc.js' }));
 
 /** A map with a button. The button sets the point that the map centers on, as a search hit does. */
 function Host() {
@@ -164,14 +163,15 @@ describe('MapCanvas (fbk_017)', () => {
     controls.length = 0;
   });
 
-  // This test comes first: the library loads once for the whole file, so only the first render calls the plugin loader.
-  it('draws the tiles of OpenFreeMap, and loads the Arabic text plugin from a file of this build', async () => {
+  // This test comes first: the library loads once for the whole file, so only the first render runs the loader.
+  // MapLibre 6 shapes Arabic text by itself. The Arabic text plugin ran with eval(), which the policy blocks, and gave an
+  // unhandled error in PostHog, so the loader never sets it (owner, 2026-10-28, tsk_486).
+  it('draws the tiles of OpenFreeMap, and loads no Arabic text plugin', async () => {
     await renderWithRuntime(<MapCanvas pins={[]} />);
     await waitFor(() => expect(made).toHaveLength(1));
     const style = made[0].style as { sources: { openmaptiles: { url: string } }; glyphs: string };
     expect(style.sources.openmaptiles.url).toBe('https://tiles.openfreemap.org/planet');
-    expect(rtl.setRTLTextPlugin).toHaveBeenCalledWith(expect.stringMatching(/\/assets\/rtl-text-abc\.js$/), true);
-    expect(String(rtl.setRTLTextPlugin.mock.calls[0][0])).not.toMatch(/^https:\/\/(?!localhost)/);
+    expect(rtl.setRTLTextPlugin).not.toHaveBeenCalled();
     // The satellite tiles go through the loader of Madar, which sends the origin of the page as the referrer (owner, 2026-10-20).
     expect(rtl.addProtocol).toHaveBeenCalledWith('madar-satellite', loadSatelliteTile);
   });

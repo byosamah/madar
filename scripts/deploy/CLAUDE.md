@@ -79,7 +79,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
      project `madar`: branch `preview` for test, `main` for production. The `functions/` folder (the Pages Functions) goes
      too. `headers.ts` holds the fixed hosts of the CSP and `headers.test.ts` pins them. `/sw.js` gets `Cache-Control:
      no-cache`. The push services need no `connect-src`: the browser, not the page, talks to them. The page's own `/api`
-     needs none either. `script-src` holds `'wasm-unsafe-eval'` for the Arabic text plugin of the map.
+     needs none either. `script-src` holds `'wasm-unsafe-eval'`. Its first user, the Arabic text plugin of the map, is gone
+     (2026-10-28, tsk_486): drop it after a check that no other file of the build runs WebAssembly.
   7. `checks.sh`: through the page host, `GET /api/health` gives 200 with `x-madar-server` of the host in
      `config/server-host.json`; with `JOBS_SECRET` (curl reads it on stdin, `-K -`) database, lock and asyncContext are ok;
      `POST /mcp` with no token gives 401 from the same host. It only reads, so it asks no typed word. A failed check stops

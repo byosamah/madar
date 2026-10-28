@@ -30,7 +30,8 @@ describe('renderHeaders', () => {
     expect(headers).toMatch(/\/assets\/\*\n {2}Cache-Control: public, max-age=31536000, immutable/);
     expect(directive(headers, 'frame-ancestors')).toEqual(["'none'"]);
     expect(directive(headers, 'style-src')).toEqual(["'self'", "'unsafe-inline'"]);
-    // 'wasm-unsafe-eval' lets the Arabic text plugin of the map run its WebAssembly. It allows no eval() (owner, 2026-10-19).
+    // 'wasm-unsafe-eval' allows WebAssembly and no eval() (owner, 2026-10-19). Its first user, the Arabic text plugin of the map, is
+    // gone (2026-10-28, tsk_486); scripts/deploy/CLAUDE.md says when to drop it.
     expect(directive(headers, 'script-src')).toEqual(["'self'", "'wasm-unsafe-eval'"]);
   });
 
