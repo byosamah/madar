@@ -15,8 +15,11 @@ import { groupsOf, type GroupData } from '../project/files/groupsOf';
 import { ProjectSearch } from '../projects/ProjectSearch';
 import { CheckRow } from '../settings/admin/CheckRow';
 
-/** Where the picker looks: a project chat and a to-do thread keep to their own project (projectId); every other chat looks in all. */
-export type InsertScope = { projectId?: string };
+/**
+ * Where the picker looks. A project chat and a to-do thread keep to their own project (projectId). A direct chat and a group give their
+ * conversationId: the picker then lists only the projects that hold every person of the chat (owner, 2026-10-28).
+ */
+export type InsertScope = { projectId?: string; conversationId?: string };
 /** One project file that the person picked: its id and its name (the words of the message when the person adds none). */
 export type PickedProjectFile = { id: string; name: string };
 
@@ -67,28 +70,37 @@ export function ProjectFilePicker({ scope, onClose, onSend }: { scope: InsertSco
             {t('insert.back')}
           </Button>
         )}
-        {level.kind === 'projects' && <Projects onOpen={(id) => setLevel({ kind: 'project', id })} />}
+        {level.kind === 'projects' && <Projects conversationId={scope.conversationId} onOpen={(id) => setLevel({ kind: 'project', id })} />}
         {level.kind !== 'projects' && <Stages level={level} onOpenStage={(stageId) => setLevel({ kind: 'stage', id: level.id, stageId })} picked={picked} onToggle={toggle} />}
       </div>
     </Sheet>
   );
 }
 
-/** The projects that the person may open, found by a part of the name or the code. */
-function Projects({ onOpen }: { onOpen: (id: string) => void }) {
+/**
+ * The projects that the person may open, found by a part of the name or the code. In a direct chat or a group, only the projects that
+ * hold every person of the chat: the rule of chats.send, asked once for the whole list (chats.insertProjects).
+ */
+function Projects({ conversationId, onOpen }: { conversationId: string | undefined; onOpen: (id: string) => void }) {
   const { t } = useTranslation();
   const projectName = useProjectName();
   const byName = useByProjectName();
   const list = useCall('projects.list', { status: 'all' });
+  const shared = useCall('chats.insertProjects', { conversationId: conversationId ?? 'cnv_000' }, { enabled: conversationId !== undefined });
   const [word, setWord] = useState('');
+  const allowed = useMemo(() => (shared.data ? new Set(shared.data) : null), [shared.data]);
   const rows = useMemo(() => {
     const needle = word.trim().toLowerCase();
     return [...(list.data ?? [])]
+      .filter(({ project }) => allowed === null || allowed.has(project.id))
       .filter(({ project }) => needle === '' || `${project.name} ${project.nameAr ?? ''} ${project.code}`.toLowerCase().includes(needle))
       .sort((a, b) => byName(a.project, b.project));
-  }, [list.data, word, byName]);
+  }, [list.data, allowed, word, byName]);
   if (list.error && !list.data) return <LoadFailed query={list} />;
-  if (!list.data) return <div aria-busy="true" className="min-h-24" />;
+  if (conversationId !== undefined && shared.error && !shared.data) return <LoadFailed query={shared} />;
+  if (!list.data || (conversationId !== undefined && !shared.data)) return <div aria-busy="true" className="min-h-24" />;
+  // No project holds every person of the chat: one plain line that says why, and no empty list or search field.
+  if (allowed !== null && !list.data.some(({ project }) => allowed.has(project.id))) return <p className="px-1 text-footnote text-ink-2">{t('insert.noShared')}</p>;
   return (
     <>
       <ProjectSearch value={word} onChange={setWord} />

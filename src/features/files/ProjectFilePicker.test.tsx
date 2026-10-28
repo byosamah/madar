@@ -56,11 +56,11 @@ async function openStage(name: RegExp) {
   await userEvent.click(await within(await sheet()).findByRole('button', { name }));
 }
 
-/** Omar is signed in, in a direct chat with Reem. He neither leads nor works on prj_009, which Faisal leads. */
+/** Omar is signed in, in a direct chat with Khalid. Both work on prj_003 and prj_007. Omar neither leads nor works on prj_009, which Faisal leads. */
 function omar(state: State) {
   plant(state);
   state.session.currentUserId = 'usr_004';
-  state.conversations.cnv_900 = { id: 'cnv_900', kind: 'direct', projectId: null, memberIds: ['usr_004', 'usr_003'], createdAt: STAMP };
+  state.conversations.cnv_900 = { id: 'cnv_900', kind: 'direct', projectId: null, memberIds: ['usr_004', 'usr_008'], createdAt: STAMP };
 }
 
 afterEach(() => {
@@ -196,8 +196,8 @@ describe('the picker: projects, stages, folders and files', () => {
     await renderApp(DIRECT, plant);
     await openInsert();
     const box = within(await sheet());
-    await userEvent.type(await box.findByRole('searchbox', { name: 'Search projects' }), 'mosque');
-    expect(await box.findByRole('button', { name: /Rakah Neighbourhood Mosque/ })).toBeInTheDocument();
+    await userEvent.type(await box.findByRole('searchbox', { name: 'Search projects' }), 'gulf');
+    expect(await box.findByRole('button', { name: /Gulf Crest HQ Interiors/ })).toBeInTheDocument();
     expect(box.queryByRole('button', { name: /Corniche Office Tower/ })).toBeNull();
   });
 
@@ -212,17 +212,66 @@ describe('the picker: projects, stages, folders and files', () => {
 });
 
 describe('the rules of who may open the file (the same as Share)', () => {
-  it('shows the refusal of the server when the other person of the chat is not on the project, and sends nothing', async () => {
-    // Faisal is on no part of prj_006 (Hala leads it).
+  it('lists only the projects that hold every person of the chat, so Send never refuses for that reason (owner, 2026-10-28)', async () => {
+    // Faisal is on no part of prj_006 (Hala leads it). Hala and Faisal are both on Corniche Office Tower.
     const { store } = await renderApp(DIRECT, plant);
     await openInsert();
-    await openProject(/Al Waha Clinic Fit-out/);
     const box = within(await sheet());
-    await userEvent.click((await box.findAllByRole('button', { name: /\d+ files?$/ }))[0]);
-    await userEvent.click(await box.findByRole('checkbox', { name: 'Cover render.svg' }));
-    await userEvent.click(box.getByRole('button', { name: 'Send 1 file' }));
-    expect(await screen.findByText('This person is not on the project of this file. They cannot open it.')).toBeInTheDocument();
+    expect(await box.findByRole('button', { name: /Corniche Office Tower/ })).toBeInTheDocument();
+    expect(box.queryByRole('button', { name: /Al Waha Clinic Fit-out/ })).toBeNull();
     expect(newOf(store.state)).toHaveLength(0);
+  });
+
+  it('lists exactly the projects that chats.insertProjects names, the rule of chats.send', async () => {
+    const { store, api } = await renderApp(DIRECT, plant);
+    const shared = new Set(await api.call('chats.insertProjects', { conversationId: 'cnv_013' }));
+    await openInsert();
+    const box = within(await sheet());
+    await box.findByRole('button', { name: /Corniche Office Tower/ });
+    const listed = (await box.findAllByRole('button', { name: /^(?!Back)/ })).map((button) => button.textContent ?? '');
+    const names = Object.values(store.state.projects).filter((project) => shared.has(project.id)).map((project) => project.name);
+    for (const name of names) expect(listed.some((text) => text.includes(name)), name).toBe(true);
+    const others = Object.values(store.state.projects).filter((project) => !shared.has(project.id)).map((project) => project.name);
+    for (const name of others) expect(listed.some((text) => text.includes(name)), name).toBe(false);
+  });
+
+  it('asks the server once for the list and never once for each project', async () => {
+    const { api } = await renderApp(DIRECT, plant);
+    const calls: string[] = [];
+    const original = api.call.bind(api);
+    api.call = ((name: string, input: unknown, meta?: unknown) => {
+      calls.push(name);
+      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+    }) as typeof api.call;
+    await openInsert();
+    await within(await sheet()).findByRole('button', { name: /Corniche Office Tower/ });
+    expect(calls.filter((name) => name === 'chats.insertProjects')).toHaveLength(1);
+    expect(calls.filter((name) => name === 'projects.get')).toHaveLength(0);
+  });
+
+  it('says why when no project holds every person of the chat, with no empty list and no search field', async () => {
+    await renderApp('/inbox/cnv_901', (state) => {
+      plant(state);
+      state.session.currentUserId = 'usr_004';
+      // A new person who is on no project, so no project holds both people of this chat.
+      state.users.usr_901 = { ...state.users.usr_003, id: 'usr_901', name: 'Newcomer Nobody', email: 'newcomer@example.com' };
+      state.conversations.cnv_901 = { id: 'cnv_901', kind: 'direct', projectId: null, memberIds: ['usr_004', 'usr_901'], createdAt: STAMP };
+    });
+    await openInsert();
+    const box = within(await sheet());
+    expect(await box.findByText('No project has all the people of this chat.')).toBeInTheDocument();
+    expect(box.queryByRole('searchbox')).toBeNull();
+    expect(box.queryByRole('button', { name: /Corniche Office Tower/ })).toBeNull();
+    expect(box.getByRole('button', { name: 'Send' })).toBeDisabled();
+  });
+
+  it('keeps the plain line for a search with no match, apart from the line that says why', async () => {
+    await renderApp(DIRECT, plant);
+    await openInsert();
+    const box = within(await sheet());
+    await userEvent.type(await box.findByRole('searchbox', { name: 'Search projects' }), 'zzzz');
+    expect(await box.findByText('No project matches.')).toBeInTheDocument();
+    expect(box.queryByText('No project has all the people of this chat.')).toBeNull();
   });
 
   it('lists no hidden project to a person who does not see it, and lists it to a person who does', async () => {
@@ -232,15 +281,15 @@ describe('the rules of who may open the file (the same as Share)', () => {
     });
     await openInsert();
     const box = within(await sheet());
-    expect(await box.findByRole('button', { name: /Corniche Office Tower/ })).toBeInTheDocument();
+    expect(await box.findByRole('button', { name: /Eastern Shore Primary School/ })).toBeInTheDocument();
     expect(box.queryByRole('button', { name: /Gulf Crest HQ Interiors/ })).toBeNull();
     cleanup();
-    // Faisal leads prj_009, so the same list shows it to him.
+    // Faisal leads prj_009 and Lina works on it, so the same list shows it to him.
     await renderApp('/inbox/cnv_900', (state) => {
       omar(state);
       state.projects.prj_009.access = { hidden: true, viewerIds: [] };
       state.session.currentUserId = 'usr_002';
-      state.conversations.cnv_900.memberIds = ['usr_002', 'usr_003'];
+      state.conversations.cnv_900.memberIds = ['usr_002', 'usr_007'];
     });
     await openInsert();
     expect(await within(await sheet()).findByRole('button', { name: /Gulf Crest HQ Interiors/ })).toBeInTheDocument();
@@ -303,5 +352,19 @@ describe('in Arabic', () => {
     await userEvent.click(within(menu).getByRole('menuitem', { name: 'أدرج من مشروع' }));
     const box = within(await screen.findByRole('dialog', { name: 'أدرج من مشروع' }));
     expect(await box.findByRole('button', { name: 'أرسل' })).toBeDisabled();
+  });
+
+  it('says in Arabic why no project is listed', async () => {
+    await renderApp('/inbox/cnv_901', (state) => {
+      plant(state);
+      state.session.currentUserId = 'usr_004';
+      state.users.usr_004.preferences.language = 'ar';
+      state.users.usr_901 = { ...state.users.usr_003, id: 'usr_901', name: 'Newcomer Nobody', email: 'newcomer@example.com' };
+      state.conversations.cnv_901 = { id: 'cnv_901', kind: 'direct', projectId: null, memberIds: ['usr_004', 'usr_901'], createdAt: STAMP };
+    });
+    await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
+    await userEvent.click(await screen.findByRole('button', { name: 'أرفق' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'أدرج من مشروع' }));
+    expect(await within(await screen.findByRole('dialog', { name: 'أدرج من مشروع' })).findByText('لا يوجد مشروع يضم كل من في هذه المحادثة.')).toBeInTheDocument();
   });
 });

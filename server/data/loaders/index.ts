@@ -174,6 +174,8 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'chats.list': chat(chatsAll),
   'chats.messages': chat(chatsMessages),
   'chats.send': chat(chatsSend),
+  // The picker list reads only the office (the chats, the projects, the teams and the rights), never a message or a file.
+  'chats.insertProjects': office,
   'chats.editMessage': chat(chatMessageCall),
   'chats.deleteMessage': chat(chatMessageCall),
   'chats.markRead': chat(chatsMarkRead),

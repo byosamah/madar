@@ -167,6 +167,9 @@ export const MCP_DENY = [
   'live.ticket',
   // The typing signal is live and personal, like the push calls: an agent never types (chat presence design B).
   'chats.typing',
+  // The list of the picker "Insert from a project" (owner, 2026-10-28): it only narrows a screen list. An agent sends with chats.send and reads the refusal. The size of the
+  // tool list (toolSize.test.ts) has no room for one more tool.
+  'chats.insertProjects',
   // Google Calendar (fbk_022, owner 2026-10-19): a person connects it in the Settings screen. All four calls refuse an agent with forbidden (server/calls/google.ts and
   // the prototype fake), so none can work for an agent. The meetings of its person reach their Google Calendar by themselves, with the title, the time and the place only.
   'google.status', 'google.connectStart', 'google.connect', 'google.disconnect',

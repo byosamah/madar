@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
+import { ConversationId, FileId, ProjectId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
 import { MAX_REACTION_KINDS } from '../contract/emoji';
 import { REACTIONS } from '../contract/limits';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
@@ -10,12 +10,12 @@ import { forbidden, invalid, notFound } from '../errors';
 import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
 import { readCopiesOf } from '../adminCopies';
 import { notifyIn } from '../notify';
-import { projectViewer } from '../projectView';
+import { projectViewer, visibleProjectIds } from '../projectView';
 import { inTaskThread, newCommentsOf, threadUnread } from '../taskUnread';
 import { can, mayViewTask, principalOf, projectRoleOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
-import { assertFilesForDirect, assertFilesInProject } from './attach';
+import { assertFilesForDirect, assertFilesInProject, shareBlockOf } from './attach';
 import { assertCan, replyNotHere, roleIn } from './shared';
 import { isLine, lineKindOf } from '../../lib/commentLine';
 import { mentionedUserIds, plainText } from '../../lib/text';
@@ -404,6 +404,30 @@ export const chatsSend = defineCall({
     const conversation = requireConversation(ctx, input.conversationId);
     if (personLeft(ctx.state, conversation, ctx.authority)) throw closedChatError(conversation);
     return postMessage(ctx, conversation, input.body, input.fileIds, input.replyToId);
+  },
+});
+
+/**
+ * The projects that the picker "Insert from a project" lists in a direct chat or a group (owner, 2026-10-28): the projects that the
+ * person sees and that hold the person and every other person of the chat. It is the rule of chats.send (`shareBlockOf`), so Send never
+ * refuses a listed project for this reason. The answer holds only ids of projects that the person sees already. A chat that the person
+ * may not open answers as a missing chat. A person without the switches that chats.send asks for gets no project. A project chat keeps its own project.
+ */
+export const chatsInsertProjects = defineCall({
+  input: z.object({ conversationId: ConversationId }),
+  output: z.array(ProjectId),
+  readOnly: true,
+  run(input, ctx) {
+    const conversation = requireConversation(ctx, input.conversationId);
+    if (!can(ctx.authority, 'file.share') || personLeft(ctx.state, conversation, ctx.authority)) return [];
+    if (conversation.kind === 'project') {
+      return conversation.projectId && visibleProjectIds(ctx.state, ctx.authority).has(conversation.projectId) && shareBlockOf(ctx, conversation.projectId, []) === null
+        ? [conversation.projectId] : [];
+    }
+    const others = conversation.memberIds.filter((id) => id !== ctx.authority.id);
+    if (others.length === 0 || !can(ctx.authority, 'chat.direct')) return [];
+    const sees = visibleProjectIds(ctx.state, ctx.authority);
+    return Object.keys(ctx.state.projects).filter((id) => sees.has(id) && shareBlockOf(ctx, id, others) === null);
   },
 });
 
@@ -907,6 +931,7 @@ export const chatCalls = {
   'chats.list': chatsList,
   'chats.messages': chatsMessages,
   'chats.send': chatsSend,
+  'chats.insertProjects': chatsInsertProjects,
   'chats.editMessage': chatsEditMessage,
   'chats.deleteMessage': chatsDeleteMessage,
   'chats.markRead': chatsMarkRead,

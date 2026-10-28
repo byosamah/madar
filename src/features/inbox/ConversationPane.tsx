@@ -342,7 +342,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
             // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
             upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
             // Insert from a project (fbk_070): a project chat takes only files of its own project, a direct chat or a group takes any project file.
-            insert={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : {}}
+            insert={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { conversationId: id }}
             replyTo={replyTo}
             onCancelReply={() => setReplyTo(null)}
             onEditLast={editLast}

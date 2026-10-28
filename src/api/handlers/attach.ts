@@ -66,15 +66,20 @@ export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: 
     if (file.projectId === null) officeFileStays();
     // A project file goes into a direct chat or a group only with the switch "Share files", as files.share asks it (fbk_070).
     if (!can(ctx.authority, 'file.share')) throw forbidden('You cannot do this.', { action: 'file.share' });
-    if (!mayShareProjectFile(ctx, file.projectId, ctx.authority.id)) {
-      throw invalid('fileIds', 'You cannot see the project of this file.', 'file_not_visible');
-    }
-    for (const recipientId of recipientIds) {
-      if (!mayShareProjectFile(ctx, file.projectId, recipientId)) {
-        throw invalid('fileIds', 'The other person cannot see the project of this file.', 'recipient_not_on_project');
-      }
-    }
+    const block = shareBlockOf(ctx, file.projectId, recipientIds);
+    if (block === 'file_not_visible') throw invalid('fileIds', 'You cannot see the project of this file.', block);
+    if (block === 'recipient_not_on_project') throw invalid('fileIds', 'The other person cannot see the project of this file.', block);
   }
+}
+
+/**
+ * The one rule of a project file in a direct chat or a group (fbk_070): the sender and every other person of the chat must be on the
+ * project. It gives the reason that stops the file, or null when the file may go. The check of chats.send (assertFilesForDirect) and the
+ * list of the picker (chats.insertProjects) both ask it, so the picker never lists a project that Send then refuses.
+ */
+export function shareBlockOf(ctx: Ctx, projectId: string, recipientIds: string[]): 'file_not_visible' | 'recipient_not_on_project' | null {
+  if (!mayShareProjectFile(ctx, projectId, ctx.authority.id)) return 'file_not_visible';
+  return recipientIds.every((recipientId) => mayShareProjectFile(ctx, projectId, recipientId)) ? null : 'recipient_not_on_project';
 }
 
 /**

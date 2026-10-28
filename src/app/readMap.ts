@@ -94,6 +94,8 @@ const RULES: Record<string, ReadRule> = {
   'chats.list': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
   'chats.unreadCount': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
   'chats.messages': rule('person', ['chatReads', 'conversations', 'members', 'messages', 'preferences', 'projects', 'users']),
+  // The picker list of a chat (owner, 2026-10-28): the people of the chat, their place on each project and their rights decide it.
+  'chats.insertProjects': rule('office', ['conversations', 'members', 'projects', 'users']),
   'chats.waiting': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
   // The ticket of the live socket (exit wave 3): src/api/remote/liveSocket.ts asks for it with api.call, never with useCall.
   'live.ticket': rule('none', []),

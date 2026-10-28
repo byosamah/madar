@@ -6,6 +6,7 @@ import { projectCalls } from './projects';
 import { addGroupConversation, addProjectConversation } from '../chatState';
 import type { RoleSettings } from '../contract/entities';
 import { makeProject, makeUser, NOW, STAMP, testApi } from '../../test/factories';
+import { memberKey } from '../rowKeys';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -123,5 +124,99 @@ describe('a hidden project in the insert path', () => {
       expect(hiddenFile, conversationId).toMatchObject({ code: 'invalid_input', details: { reason: 'file_missing' } });
     }
     expect(Object.values(w.store.state.messages)).toHaveLength(0);
+  });
+});
+
+/**
+ * The projects that the picker of a direct chat and a group lists (owner, 2026-10-28): only the projects that hold the sender and every
+ * other person of the chat, by the very rule that chats.send checks. So Send never fails because a person is not on the project.
+ * prj_001: Faisal leads it, Sara is on the team. prj_003: Faisal leads it, Sara and Omar are on the team. prj_004: Omar leads it, nobody
+ * else is on it. prj_002 is hidden (see world). The group "team" is Sara, Faisal and Hala. The group "mixed" is Sara, Faisal and Omar.
+ */
+describe('chats.insertProjects: the projects that a chat may take', () => {
+  function plan() {
+    const t = world();
+    const state = t.store.state;
+    state.projects.prj_003 = makeProject({ id: 'prj_003', code: 'P-003', name: 'Third', leaderId: 'usr_002' });
+    state.projects.prj_004 = makeProject({ id: 'prj_004', code: 'P-004', name: 'Fourth', leaderId: 'usr_004' });
+    state.members[memberKey('prj_003', 'usr_003')] = { projectId: 'prj_003', userId: 'usr_003', discipline: 'Architect' };
+    state.members[memberKey('prj_003', 'usr_004')] = { projectId: 'prj_003', userId: 'usr_004', discipline: 'Architect' };
+    const version = { letter: 'A', blobKey: 'blob_1', mimeType: 'application/pdf', size: 10, uploadedBy: 'usr_003', uploadedAt: STAMP };
+    for (const [id, projectId] of [['fil_301', 'prj_003'], ['fil_401', 'prj_004']] as const) {
+      state.files[id] = { id, projectId, stageId: null, taskId: null, name: `${id}.pdf`, versions: [version] };
+    }
+    return t;
+  }
+  const FILE_OF: Record<string, string> = { prj_001: 'fil_001', prj_003: 'fil_301', prj_004: 'fil_401' };
+
+  it('lists only the projects that hold every person of a group', async () => {
+    const t = plan();
+    t.as('usr_003');
+    expect(await t.api.call('chats.insertProjects', { conversationId: t.team })).toEqual(['prj_001', 'prj_003']);
+    expect(await t.api.call('chats.insertProjects', { conversationId: t.mixed })).toEqual(['prj_003']);
+  });
+
+  it('lists the projects of a direct chat with a person who is on only some of them', async () => {
+    const t = plan();
+    t.as('usr_003');
+    const withOmar = await t.api.call('chats.openDirect', { userId: 'usr_004' });
+    expect(await t.api.call('chats.insertProjects', { conversationId: withOmar.id })).toEqual(['prj_003']);
+    const withFaisal = await t.api.call('chats.openDirect', { userId: 'usr_002' });
+    expect(await t.api.call('chats.insertProjects', { conversationId: withFaisal.id })).toEqual(['prj_001', 'prj_003']);
+  });
+
+  it('gives the answer of chats.send: a project is in the list exactly when a file of it goes into the chat', async () => {
+    const t = plan();
+    for (const person of ['usr_003', 'usr_002']) {
+      t.as(person);
+      const direct = await t.api.call('chats.openDirect', { userId: person === 'usr_003' ? 'usr_004' : 'usr_001' });
+      for (const conversationId of [t.team, t.mixed, direct.id]) {
+        const allowed = new Set(await t.api.call('chats.insertProjects', { conversationId }).catch(() => []));
+        for (const [projectId, fileId] of Object.entries(FILE_OF)) {
+          const sent = await t.api.call('chats.send', { conversationId, body: 'x', fileIds: [fileId] }).then(() => true, () => false);
+          expect(allowed.has(projectId), `${person} ${conversationId} ${projectId}`).toBe(sent);
+        }
+      }
+    }
+  });
+
+  it('lists nothing for a person without the switch "Share files"', async () => {
+    const t = plan();
+    t.as('usr_006');
+    const group = addGroupConversation(t.store.state, 'Desk group', 'usr_006', ['usr_006', 'usr_003', 'usr_002'], STAMP);
+    expect(await t.api.call('chats.insertProjects', { conversationId: group.id })).toEqual([]);
+  });
+
+  it('answers a project chat with its own project', async () => {
+    const t = plan();
+    t.as('usr_002');
+    expect(await t.api.call('chats.insertProjects', { conversationId: t.room })).toEqual(['prj_001']);
+  });
+
+  it('answers an outsider of the chat exactly as for a chat that was never made, and lists no project', async () => {
+    const t = plan();
+    t.as('usr_004');
+    const shape = (error: unknown) => JSON.stringify(error, ['code', 'message', 'details']).split(t.team).join('@').split('cnv_999').join('@');
+    const real = await t.api.call('chats.insertProjects', { conversationId: t.team }).catch((error: unknown) => error);
+    const none = await t.api.call('chats.insertProjects', { conversationId: 'cnv_999' }).catch((error: unknown) => error);
+    expect(real).toMatchObject({ code: 'not_found' });
+    expect(shape(real)).toEqual(shape(none));
+  });
+
+  it('never lists a project that the person may not see, and shows a hidden project only to the people who see it', async () => {
+    const t = plan();
+    t.as('usr_002');
+    await t.api.call('projects.setAccess', { id: 'prj_002', hidden: true, viewerIds: [] });
+    const seen = async (person: string, conversationId: string) => {
+      t.as(person);
+      const visible = new Set((await t.api.call('projects.list', { status: 'all' })).map((row) => row.project.id));
+      const listed = await t.api.call('chats.insertProjects', { conversationId });
+      for (const id of listed) expect(visible.has(id), `${person} ${id}`).toBe(true);
+      return listed;
+    };
+    expect(await seen('usr_003', t.team)).not.toContain('prj_002');
+    // Faisal leads prj_002 and Hala is the Admin, so a group of the two may take its file.
+    const pair = addGroupConversation(t.store.state, 'Pair', 'usr_002', ['usr_002', 'usr_001'], STAMP);
+    expect(await seen('usr_002', pair.id)).toContain('prj_002');
   });
 });

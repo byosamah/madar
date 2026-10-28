@@ -12,6 +12,7 @@
     "send_two": "أرسل ملفين",
     "send_few": "أرسل {{count}} ملفات",
     "send_many": "أرسل {{count}} ملفًا",
-    "send_other": "أرسل {{count}} ملف"
+    "send_other": "أرسل {{count}} ملف",
+    "noShared": "لا يوجد مشروع يضم كل من في هذه المحادثة."
   }
 }

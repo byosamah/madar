@@ -127,6 +127,7 @@ Own OAuth server (consent, token step, grants): `server/mcp/oauth/CLAUDE.md`.
   only files of its own project. At most 10 files in a message (`MAX_ATTACHMENTS`). It needs `ai.messages`, as every send. `files.uploadContent`
   keeps its 10 MB: the 500 MB of a project file is for the screens (a signed upload straight to R2). Tests: `chatInsertDocs.test.ts`,
   `src/api/handlers/chatInsert.test.ts`. The tool list is at its 110 KB cap (`toolSize.test.ts`): a new tool word needs a cut elsewhere.
+  `chats.insertProjects` (the list of the picker of the screens, owner 2026-10-28) is on the deny list for that reason: an agent sends and reads the refusal.
 - Chat files follow the rights of the person. The agent of a member reads the id, name and type, sends a file (`files.uploadContent` with
   `conversationId`, then `chats.send` with `fileIds`) and opens it with `files.link`. The agent of a non-member (an Admin too) gets
   `not_found` on every path, with no file name in the text. A read of a chat file (`files.link`, `files.get`, a cover) needs `ai.readChats`

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INSTRUCTIONS, TOOL_DOCS } from './docs';
 import { aiSwitchOf } from './aiSwitches';
-import { MCP_ALLOW } from './tools';
+import { MCP_ALLOW, MCP_DENY } from './tools';
 
 /**
  * Project files in a chat and the file limits (fbk_070, owner 2026-10-27). An agent sends project files into a chat with chats.send and
@@ -36,6 +36,12 @@ describe('the MCP words of project files in a chat', () => {
   it('chats.send stays an allowed tool behind the one AI switch ai.messages', () => {
     expect(MCP_ALLOW).toContain('chats.send');
     expect(aiSwitchOf('chats.send')).toBe('ai.messages');
+  });
+
+  it('keeps chats.insertProjects, the list of the picker, away from an agent: chats.send gives the refusal (owner, 2026-10-28)', () => {
+    expect(MCP_DENY).toContain('chats.insertProjects');
+    expect(MCP_ALLOW as readonly string[]).not.toContain('chats.insertProjects');
+    expect(Object.keys(TOOL_DOCS)).not.toContain('chats.insertProjects');
   });
 
   it('writes no em-dash and no en-dash', () => {

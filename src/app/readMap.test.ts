@@ -121,6 +121,7 @@ function inputsOf(name: string, s: State): unknown[] {
       ...conversationIds.map((conversationId) => ({ conversationId })),
       ...(someMessage ? [{ conversationId: someMessage.conversationId, before: someMessage.id, limit: 5 }] : []),
     ];
+    case 'chats.insertProjects': return conversationIds.map((conversationId) => ({ conversationId }));
     case 'projectTemplates.matchPlan': {
       // The Admin reads the matches of a template with each project (the link sheet, fbk_008 item 4). Others get forbidden.
       const plan = Object.values(s.projectTemplates ?? {}).find((template) => template.tasks.length > 0);

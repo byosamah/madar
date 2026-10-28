@@ -5,7 +5,7 @@
     "items": {
       "2026-10-23-126": {
         "title": "Insert a project file into a chat",
-        "body": "Press the clip in a chat and choose \"Insert from a project\". Pick files or folders. Madar sends them with no new upload and no new storage."
+        "body": "Press the clip in a chat and choose \"Insert from a project\". Pick files or folders. Madar sends them with no new upload and no new storage. The list shows only the projects that all the people of the chat are on."
       },
       "2026-10-23-125": {
         "title": "Bigger files in a project",

@@ -107,6 +107,7 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'chats.updateGroup': [{ conversationId: 'cnv_001', name: 'Renamed' }],
     'chats.leaveGroup': [{ conversationId: 'cnv_001' }],
     'chats.archive': [{ conversationId: 'cnv_001', archived: true }],
+    'chats.insertProjects': [{ conversationId: 'cnv_001' }],
     'chats.markUnread': [{ conversationId: 'cnv_001' }],
     'chats.editMessage': [{ id: talk.id, body: 'A corrected line' }, talk.actingForId],
     'chats.deleteMessage': [{ id: gone.id }, gone.actingForId],

@@ -180,6 +180,12 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   `files.share` does), the sender and every other person of the chat must be on the project (`file_not_visible`, `recipient_not_on_project`).
   A project chat and a to-do thread take only files of their own project (`file_other_project`). At most `MAX_ATTACHMENTS` (10) in a
   message: the screen sends 10 in each message, in order. Tests: `chatInsert.test.ts`, `attachments.test.ts`.
+- **The picker list of a chat** (owner, 2026-10-28). `chats.insertProjects { conversationId }` gives the ids of the projects that the picker lists in a direct
+  chat or a group: the projects the person sees, filtered by `shareBlockOf` (`attach.ts`), the one rule that `assertFilesForDirect` asks too. So a listed
+  project never fails Send for the reason "the other person is not on the project". The call reads the office only (loader `office`), one answer for the
+  whole list. A chat that the person may not open answers `not_found`, as `chats.messages`. A person without `file.share` or `chat.direct` gets `[]`. A
+  project chat gives its own project. It is on the MCP deny list (the tool list has no room). The parity test of `chatInsert.test.ts` sends a file of each
+  project and compares.
 - A message view (`messageViewOf`) drops the file row of a file that the reader may not view (`mayViewFile`). The loader
   brings the office task of each file (`attachedFiles`), so the scoped load gives the same rows.
 - `search.query` has a `messages` group (`messageHits`, `messageSearch.ts`): the chats the person may open

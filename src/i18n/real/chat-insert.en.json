@@ -9,6 +9,7 @@
     "noFiles": "This project has no files yet.",
     "send": "Send",
     "send_one": "Send 1 file",
-    "send_other": "Send {{count}} files"
+    "send_other": "Send {{count}} files",
+    "noShared": "No project has all the people of this chat."
   }
 }
