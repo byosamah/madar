@@ -5,7 +5,7 @@ import { mentionMarkup } from '../../src/lib/text';
 import { fakeDeps } from '../test/fakes/deps';
 import { memoryData } from '../core/memoryData';
 import { createRunCall } from '../core/runCall';
-import { chatLine, noticeLine } from './line';
+import { chatLine, chatLineOutcome, GONE, noticeLine, noticeLineOutcome } from './line';
 import { pushWords } from './words';
 
 /**
@@ -160,5 +160,45 @@ describe('noticeLine', () => {
 
   it('falls back to the word Madar as the title of a notice with no project', () => {
     expect(pushWords('en')('push.notificationTitle')).toBe('Madar');
+  });
+});
+
+// GONE (tsk_439): the person may not open the item any more. It is not "no line": no line sends the empty push, GONE sends nothing.
+describe('the outcome of a line: GONE or no line', () => {
+  it('chatLineOutcome says GONE for a chat that the person may not open, and null for a chat with no line to show', async () => {
+    const w = world();
+    const group = await w.call<{ id: string }>('usr_001', 'chats.createGroup', { name: 'Private group', memberIds: ['usr_002', 'usr_003'] });
+    await w.call('usr_001', 'chats.send', { conversationId: group.id, body: 'The fee is 40,000.' });
+    expect(await chatLineOutcome(w.deps, 'usr_004', group.id, { run: w.run })).toBe(GONE);
+    const { id } = await w.call<{ id: string }>('usr_001', 'chats.openDirect', { userId: 'usr_002' });
+    await w.call('usr_001', 'chats.send', { conversationId: id, body: 'Hello' });
+    await w.call('usr_002', 'chats.send', { conversationId: id, body: 'Hi' });
+    expect(await chatLineOutcome(w.deps, 'usr_002', id, { run: w.run })).toBeNull();
+  });
+
+  it('chatLineOutcome says GONE for the thread of a to-do that the person may not open, and null when a read fails for another reason', async () => {
+    const w = world((office) => {
+      office.projects.prj_001.access = { hidden: true, viewerIds: [] };
+    });
+    const task = Object.values(w.office.tasks).find((one) => one.projectId === 'prj_001')!;
+    expect(await chatLineOutcome(w.deps, 'usr_004', task.id, { run: w.run })).toBe(GONE);
+    const broken: typeof w.run = async () => ({ ok: false, error: { code: 'failed', message: 'Broken.' } }) as never;
+    expect(await chatLineOutcome(w.deps, 'usr_004', task.id, { run: broken })).toBeNull();
+    expect(await chatLineOutcome(w.deps, 'usr_004', 'cnv_001', { run: broken })).toBeNull();
+  });
+
+  it('noticeLineOutcome says GONE when every unread notice reads as gone, and null when no notice is unread', async () => {
+    const w = world((office) => {
+      for (const notice of Object.values(office.notifications)) notice.read = true;
+      office.projects.prj_001.access = { hidden: true, viewerIds: [] };
+      office.notifications.ntf_901 = {
+        id: 'ntf_901', userId: 'usr_004', trigger: 'task_assigned', actorId: 'usr_001', targetType: 'task', targetId: 'tsk_009', read: false,
+        createdAt: '2026-10-04T08:00:00.000+03:00', dedupeKey: null,
+      };
+    });
+    expect(await noticeLineOutcome(w.deps, 'usr_004', { run: w.run })).toBe(GONE);
+    expect(await noticeLineOutcome(w.deps, 'usr_003', { run: w.run })).toBeNull();
+    // The old function keeps its answer: null for both.
+    expect(await noticeLine(w.deps, 'usr_004', { run: w.run })).toBeNull();
   });
 });

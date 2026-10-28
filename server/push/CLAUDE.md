@@ -10,10 +10,17 @@ computer, on Android, and on an iPhone once Madar is on the Home Screen.
   `line.ts` states what a chat, a task comment and a notice put in the title and the body. A press opens that chat, task thread or notice.
 - `line.ts` makes the line by reading AS THE PERSON who gets the push, with the read calls of the screens (`session.get`, `notifications.list`,
   `chats.list`, and `comments.list` with `tasks.get` for a task thread with no Inbox row). A chat or a task that the person may not open gives
-  no line. The run is `deps.runCall ?? runCall`, as in the job steps. Never build a line from SQL or from the state of another person. The
+  no line, and the answer is GONE (next rule). The run is `deps.runCall ?? runCall`, as in the job steps. Never build a line from SQL or from the state of another person. The
   bell sentence is one function for the bell and the line (`src/lib/noticeSentence.ts`). The words are `words.ts`.
 - `encrypt.ts` encrypts the line for that browser alone (RFC 8291 with aes128gcm, WebCrypto only; the test holds the vector of Appendix A). The
   push service carries bytes it cannot read. The browser gives its keys (`p256dh`, `auth`) at `push.register`.
+- GONE (`line.ts`, `noticeLineOutcome` and `chatLineOutcome`): the person may not open the item of the push any more, because the person
+  lost the view of its project or left the chat since the plan. A read as the person answers `not_found` or `forbidden`, or the chat is
+  not in `chats.list`, or every unread notice that makes a push reads `gone` in `notifications.list`. Then the effect sends NOTHING to any
+  device, with keys or without, and ends as done with no retry. Any other failure (a throw, `failed`, `unauthenticated`) is no GONE: the
+  person still views the item, so the empty push goes. The reads run also when no device has keys, because GONE must stop the empty push
+  too; that costs two or three read calls for each push of a keyless device. `sendChatPush` skips an item whose chat is gone and shows the
+  newest one that is not. `noticeLine` and `chatLine` keep the old answer (null for both). Test: `viewLostPush.test.ts`.
 - A device with no keys, a line that cannot be made (`lineOrNull` logs the error name only, never its text), or keys of a wrong form get the
   EMPTY push. The service worker (`public/sw.js`) then shows ONE fixed line: title "Madar" and body "You have something new in Madar."
   (Arabic: "مدار" and "لديك جديد في مدار."). The worker also shows the fixed line for a line it cannot trust (a missing title or body, a tag
@@ -42,7 +49,8 @@ computer, on Android, and on an iPhone once Madar is on the Home Screen.
   signal) and the row ends as done, with no retry.
 - The job step `quietEnd` (`jobs/steps/quietEnd.ts`, `held.ts`) runs after `summary`. For each person with a held device who is no longer quiet
   it sends ONE empty push (the fixed line) to each device, then clears `heldAt` (`PUSH_RELEASE_SQL`). It sends nothing when the person has
-  nothing unread (`notifications.list` and `chats.list` as the person; a copy for an Admin does not count; a read that fails counts as
+  nothing unread (`notifications.list` and `chats.list` as the person; a copy for an Admin does not count; a notice that reads `gone` does
+  not count, so a person who lost the view of a project while the push was held gets nothing for it; a read that fails counts as
   unread) and still clears the mark. A push service that fails keeps the mark of that device, and the step throws so the next run tries again.
 - A device that takes any push loses `heldAt` (`PUSH_SENT_SQL`). `push.register` keeps the mark of the same person and drops it when the
   endpoint moves. Postgres and SQLite each have their statements (`PUSH_HOLD_*`, `PUSH_RELEASE_*`, `HELD_PEOPLE_*`).
@@ -53,7 +61,7 @@ computer, on Android, and on an iPhone once Madar is on the Home Screen.
   reads the three secrets. `makeVapidKeys` makes a pair.
 - `send.ts`: one push to one endpoint. `sendPush` tells `sent`, `gone` or `refused`, or throws `PushSendError` for a retry. With `body` it
   posts the encrypted line with `Content-Encoding: aes128gcm`.
-- `encrypt.ts`: `encryptPush`. `line.ts`: `noticeLine` and `chatLine`.
+- `encrypt.ts`: `encryptPush`. `line.ts`: `noticeLine` and `chatLine`, and `noticeLineOutcome` and `chatLineOutcome` (with GONE).
 - `words.ts`: the words of the line in an i18next instance of its own. It imports only the `inbox`, `notices` and `push` parts of the word
   files BY NAME, to keep the api bundle small (`entries/bundles.test.ts` bounds it). `words.test.ts` checks that its `inbox` words are all the
   `inbox` words of the screens: a track that adds a bell sentence in a new word file adds that file to `words.ts`.
@@ -80,8 +88,10 @@ computer, on Android, and on an iPhone once Madar is on the Home Screen.
   says, and not through a notice of the item. `planPushes` uses the rule of `mayViewProject` (`server/data/projectAudience.ts`): a holder of
   `project.hidden`, the leader, the team, a chosen person, and a holder of `project.seeAll` when the project is open. A chosen person is in
   `viewerIds`, never in `teamIds`. `PUSH_ITEMS_SQL` reads the team and the access; the SQLite reader reads the office lists. A fact with no
-  project reads as everyone. Quiet hours (`held.ts`) send the fixed line with no data and name no project. Leak tests:
-  `hiddenProjectPush.test.ts`, `hiddenProjectLeaks.test.ts`.
+  project reads as everyone. Quiet hours (`held.ts`) send the fixed line with no data and name no project. `planPushes` decides at save
+  time only. The effect runs later (the 10 second wait, a retry, the 15-minute job), so it asks again as the person: a person who lost
+  the view since the plan gets nothing (GONE, above). Leak tests: `hiddenProjectPush.test.ts`, `hiddenProjectLeaks.test.ts`,
+  `viewLostPush.test.ts`.
 - A copy for an Admin who picked "Everything" (`Notification.forUserIds`) gives no push: `PUSH_NEW_NOTICES_SQL` and the SQLite reader skip it.
   `planPushes` reads the stored "Notify me" level and the default "named" of a project chat, never the Admin choice. Test: `adminCopies.test.ts`.
 - Only an active human with at least one device. The switches of the notices already decide whether a notice exists. There is no push switch
@@ -98,9 +108,10 @@ computer, on Android, and on an iPhone once Madar is on the Home Screen.
 3. The 15-minute job writes the same rows after its own save (`jobs/steps/triggers.ts`) and retries a failed row (up to 5 times). A `push.chat`
    row waits `CHAT_WAIT_MS` (`WAITED_KINDS`). Then `sendChatPush` asks `PUSH_STILL_NEW_SQL` which items the person has not read on any device
    (`chat_reads.lastReadAt`) and which are not deleted, and sends one push only when one is left.
-4. The effect `sendPushNotify` reads the devices of the person again from the primary (with their keys). When one has keys, it makes the line
-   (`noticeLine`; `sendChatPush` makes `chatLine` for the chat of the newest item that is still new), then posts to each device at once: the
-   encrypted line to a device with keys, the empty push to the others.
+4. The effect `sendPushNotify` reads the devices of the person again from the primary (with their keys). It makes the line as the person
+   (`noticeLineOutcome`; `sendChatPush` makes `chatLineOutcome` for the chat of the newest item that is still new and not gone), also when
+   no device has keys. When the answer is GONE it stops and sends nothing. Else it posts to each device at once: the encrypted line to a
+   device with keys, the empty push to the others.
    - 201 or 202: sent. The effect sets `lastPushAt` of the device.
    - 404 or 410: the browser dropped the subscription. The effect deletes the device.
    - 429, 5xx, a network error or a timeout (3 s): the effect handles the other devices, then throws `PushSendError`, and the outbox tries the
@@ -146,5 +157,6 @@ computer, on Android, and on an iPhone once Madar is on the Home Screen.
 ## Tests
 - `vapid.test.ts`, `send.test.ts` (a stub fetch), `notify.test.ts` (the producer, the SQL rules, the effect, the registration),
   `encrypt.test.ts`, `line.test.ts` (the real calls on the sample office in memory), `notifyLine.test.ts` (the test decrypts the body as the
-  browser does), `words.test.ts`. The SQL itself runs on the local database in `server/it/push.it.test.ts` (`test:it`).
+  browser does), `viewLostPush.test.ts` (the effects and the quiet end on a real SQLite office, after the person lost the view), `words.test.ts`.
+  A test that does not test the line sets `deps.runCall = noLineRun` (`server/test/fakes/noLineRun.ts`): the line then reads as an error. The SQL itself runs on the local database in `server/it/push.it.test.ts` (`test:it`).
 - The phone itself shows the line only on a device check of the owner.

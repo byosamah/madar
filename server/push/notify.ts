@@ -7,7 +7,7 @@ import type { Deps, Query } from '../core/ports';
 import { MESSAGE_LITE, PUSH_COMMENT_LITE, readPushFacts, type PushSaved } from './chatFacts';
 import { planPushes, type ChatPushItem } from './chatRule';
 import { encryptPush, PushTextError } from './encrypt';
-import { chatLine, noticeLine, type LineOptions, type PushLine } from './line';
+import { chatLineOutcome, GONE, noticeLineOutcome, type LineOptions, type LineOutcome, type PushLine } from './line';
 import { sendPush, PushSendError } from './send';
 import { PushConfigError } from './vapid';
 
@@ -129,11 +129,11 @@ export async function devicesOf(deps: Deps, userId: string): Promise<Device[]> {
 }
 
 /**
- * The line, or null. A failure to make it never stops the push: the person gets the fixed line. The log names the kind of error
- * only, never its text, which may quote the words of a message.
+ * The line, null, or GONE. A failure to make it never stops the push: the person gets the fixed line, and the log names the kind of
+ * error only, never its text, which may quote the words of a message. GONE (line.ts) means that the person may not open the item any
+ * more: the effect sends nothing. The reads run also when no device has keys, because GONE must stop the empty push too (tsk_439).
  */
-async function lineOrNull(deps: Deps, devices: Device[], make: () => Promise<PushLine | null>): Promise<PushLine | null> {
-  if (!devices.some((device) => device.keys !== null)) return null;
+async function lineOrNull(deps: Deps, make: () => Promise<LineOutcome>): Promise<LineOutcome> {
   try {
     return await make();
   } catch (error) {
@@ -212,14 +212,19 @@ export async function sendChatPush(payload: Record<string, unknown>, deps: Deps,
   if (items.length === 0) return;
   const fresh = await stillNewItems(deps, userId, items);
   if (fresh.length === 0) return;
-  // The line shows the chat of the newest item that is still new.
-  const newest = [...items].reverse().find((item) => fresh.includes(item.itemId));
   const { devices, quiet } = await readDevices(deps, userId);
   if (devices.length === 0) return;
   // Quiet hours (owner, 2026-10-22): asked at send time, after the wait. A person in quiet hours gets no push now, and the row ends as done.
   if (quiet) return holdDevices(deps, userId);
-  const line = newest ? await lineOrNull(deps, devices, () => chatLine(deps, userId, newest.chatId, o)) : null;
-  await postToDevices(deps, devices, line);
+  // The line shows the chat of the newest item that is still new. An item of a chat that the person may not open any more is skipped
+  // (the person lost the view since the plan, tsk_439). When every item is gone, nothing goes to any device and the row ends as done.
+  let outcome: LineOutcome = GONE;
+  for (const item of [...items].reverse().filter((one) => fresh.includes(one.itemId))) {
+    outcome = await lineOrNull(deps, () => chatLineOutcome(deps, userId, item.chatId, o));
+    if (outcome !== GONE) break;
+  }
+  if (outcome === GONE) return;
+  await postToDevices(deps, devices, outcome);
 }
 
 /** The push.notify effect: one push to each device of one person, with the line of the newest unread notice. */
@@ -230,7 +235,10 @@ export async function sendPushNotify(payload: Record<string, unknown>, deps: Dep
   if (devices.length === 0) return;
   // Quiet hours (owner, 2026-10-22): a person in quiet hours gets no push now, and the row ends as done. The bell keeps the notice.
   if (quiet) return holdDevices(deps, userId);
-  await postToDevices(deps, devices, await lineOrNull(deps, devices, () => noticeLine(deps, userId, o)));
+  // The person may have lost the view of the project of the notice since the plan (tsk_439): then nothing goes, and the row ends as done.
+  const outcome = await lineOrNull(deps, () => noticeLineOutcome(deps, userId, o));
+  if (outcome === GONE) return;
+  await postToDevices(deps, devices, outcome);
 }
 
 /** One push to each device: the encrypted line where the device has keys, else the empty push. */

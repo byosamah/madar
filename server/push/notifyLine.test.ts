@@ -182,12 +182,22 @@ describe('the push line in the push effects (owner, 2026-10-21)', () => {
     expect(posts[0].init.body).toBeUndefined();
   });
 
-  it('reads nothing as the person when no device has keys', async () => {
+  // The read also runs for a device with no keys (tsk_439): a person who may not open the item gets no push at all. A person who may
+  // still open it gets the empty push, as before. Every read is as the person.
+  it('reads as the person also when no device has keys, and sends the empty push when the line is no more than null', async () => {
     const { deps, posts } = setup([{ endpoint: `${FCM}one`, keys: null }]);
-    const { run, asked } = reads({});
+    const { run, asked } = reads({ 'session.get': { user: { preferences: { language: 'en' } } }, 'notifications.list': [] });
     await sendPushNotify({ userId: 'usr_002' }, deps, { run });
-    expect(asked).toEqual([]);
+    expect(asked).toEqual(['usr_002 session.get', 'usr_002 notifications.list']);
     expect(posts).toHaveLength(1);
+    expect(posts[0].init.body).toBeUndefined();
+  });
+
+  it('sends nothing to a device with no keys when every read answers not_found (the item is gone)', async () => {
+    const { deps, posts } = setup([{ endpoint: `${FCM}one`, keys: null }]);
+    const { run } = reads({});
+    await sendPushNotify({ userId: 'usr_002' }, deps, { run });
+    expect(posts).toEqual([]);
   });
 
   it('reads the keys of each device with the device query', async () => {

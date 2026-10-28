@@ -20,37 +20,57 @@ import { pushWords } from './words';
  * - The person's own language, with the Arabic name on Arabic screens. A press opens the chat, the task thread or the notice.
  *
  * null means no line: the sender then sends the empty push, and the browser shows the fixed line (public/sw.js).
+ *
+ * GONE means that the person may no longer open the item of the push (tsk_439). A read as the person answers not_found or forbidden,
+ * or the item is no longer in the list of the person: the person lost the view of its project, left the chat, or the item is deleted.
+ * The sender then sends nothing to any device, because the empty push would show "You have something new in Madar." about an item that
+ * the person cannot open. Any other failure of a read is no GONE: the sender sends the empty push (the wrong answer is the fixed line).
  */
 
 export type PushLine = { title: string; body: string; url: string; tag: string; lang: Language };
 export type LineOptions = { run?: RunCall };
+/** The answer of a read of the line for the sender: the line, no line, or GONE (the person may not open the item any more). */
+export const GONE = 'gone' as const;
+export type LineOutcome = PushLine | null | typeof GONE;
 
 const BODY_MAX = 180;
 const clip = (text: string): string => (text.length > BODY_MAX ? `${text.slice(0, BODY_MAX - 1)}…` : text);
 
-type Reader = <T>(name: string, input: unknown) => Promise<T | null>;
+/** A read as the person: the output, or "gone" (not_found or forbidden), or "error" (any other failure). */
+type Read<T> = { ok: true; output: T } | { ok: false; gone: boolean };
+type Reader = <T>(name: string, input: unknown) => Promise<Read<T>>;
 
-/** A read call as the person. A refusal (the person may not see it) gives null, as a missing item does. */
+/** A read call as the person. A refusal (the person may not see it) reads as gone, as a missing item does. */
 function readerOf(deps: Deps, userId: string, o: LineOptions): Reader {
   const run = o.run ?? deps.runCall ?? runCall;
   return async <T>(name: string, input: unknown) => {
     const result = await run(deps, { principal: { userId }, name, input, batch: { storyRefs: new Map(), overviewCalls: 0 } });
-    return result.ok ? (result.output as T) : null;
+    if (result.ok) return { ok: true, output: result.output as T };
+    return { ok: false, gone: result.error.code === 'not_found' || result.error.code === 'forbidden' };
   };
 }
 
+/** The output of a read, or null when the read failed (the value of a read that the line can do without). */
+const outputOf = <T>(result: Read<T>): T | null => (result.ok ? result.output : null);
+
 async function languageOf(read: Reader): Promise<Language> {
-  const session = await read<{ user: { preferences?: { language?: Language } } }>('session.get', {});
+  const session = outputOf(await read<{ user: { preferences?: { language?: Language } } }>('session.get', {}));
   return session?.user.preferences?.language === 'ar' ? 'ar' : 'en';
 }
 
-/** The line of the newest unread notice of the person. A copy for an Admin never makes a line: a copy has no push. */
-export async function noticeLine(deps: Deps, userId: string, o: LineOptions = {}): Promise<PushLine | null> {
+/**
+ * The line of the newest unread notice of the person, null when no unread notice stands, or GONE when every unread notice that makes a
+ * push reads as gone for the person (notifications.list marks the notice of a project that the person may not view, or of a deleted
+ * item). A copy for an Admin never makes a line: a copy has no push.
+ */
+export async function noticeLineOutcome(deps: Deps, userId: string, o: LineOptions = {}): Promise<LineOutcome> {
   const read = readerOf(deps, userId, o);
   const lang = await languageOf(read);
-  const views = await read<NoticeView[]>('notifications.list', { unreadOnly: true });
-  const view = views?.find((one) => !one.notification.read && one.notification.forUserIds === undefined && !one.gone);
-  if (!view) return null;
+  const listed = await read<NoticeView[]>('notifications.list', { unreadOnly: true });
+  if (!listed.ok) return listed.gone ? GONE : null;
+  const unread = listed.output.filter((one) => !one.notification.read && one.notification.forUserIds === undefined);
+  const view = unread.find((one) => !one.gone);
+  if (!view) return unread.length > 0 ? GONE : null;
   const t = pushWords(lang);
   return {
     title: view.project ? shownName(view.project, lang) : t('push.notificationTitle'),
@@ -61,26 +81,40 @@ export async function noticeLine(deps: Deps, userId: string, o: LineOptions = {}
   };
 }
 
+/** The line of the newest unread notice of the person, or null (no line, and also an item that is gone: see noticeLineOutcome). */
+export async function noticeLine(deps: Deps, userId: string, o: LineOptions = {}): Promise<PushLine | null> {
+  const outcome = await noticeLineOutcome(deps, userId, o);
+  return outcome === GONE ? null : outcome;
+}
+
 /** The line of a task thread from its own comments: a helper or a named person may have no row of the thread in the Inbox. */
-async function taskLine(read: Reader, lang: Language, taskId: string): Promise<PushLine | null> {
+async function taskLine(read: Reader, lang: Language, taskId: string): Promise<LineOutcome> {
   const comments = await read<CommentView[]>('comments.list', { targetType: 'task', targetId: taskId });
-  const last = comments?.filter((one) => one.kind === 'message').at(-1);
   const detail = await read<TaskDetail>('tasks.get', { id: taskId });
-  if (!last || !detail) return null;
+  // The person may not open the thread or the to-do any more: a hidden project, an office to-do that the person left, a deleted to-do.
+  if ((!comments.ok && comments.gone) || (!detail.ok && detail.gone)) return GONE;
+  const last = outputOf(comments)?.filter((one) => one.kind === 'message').at(-1);
+  const task = outputOf(detail);
+  if (!last || !task) return null;
   const words = plainText(last.comment.body).replace(/\s+/g, ' ').trim();
-  return { title: detail.task.title, body: clip(`${personName(last.author, lang)}: ${words}`), url: chatLink(taskId), tag: `madar-chat-${taskId}`, lang };
+  return { title: task.task.title, body: clip(`${personName(last.author, lang)}: ${words}`), url: chatLink(taskId), tag: `madar-chat-${taskId}`, lang };
 }
 
 /**
  * The line of a chat or a task thread (chatId: the conversation id, or the task id of a task comment) for the person. It shows the
- * newest message, which is the one of the push or a newer one. The person's own newest message gives no line.
+ * newest message, which is the one of the push or a newer one. The person's own newest message gives no line. GONE: the person may
+ * not open the chat or the thread any more (the chat is not in the list of the person, or the thread answers not_found or forbidden).
  */
-export async function chatLine(deps: Deps, userId: string, chatId: string, o: LineOptions = {}): Promise<PushLine | null> {
+export async function chatLineOutcome(deps: Deps, userId: string, chatId: string, o: LineOptions = {}): Promise<LineOutcome> {
   const read = readerOf(deps, userId, o);
   const lang = await languageOf(read);
-  const rows = await read<ChatRow[]>('chats.list', {});
-  const row = rows?.find((one) => one.id === chatId);
-  if (!row) return chatId.startsWith('tsk_') ? taskLine(read, lang, chatId) : null;
+  const listed = await read<ChatRow[]>('chats.list', {});
+  // A list that fails says nothing about a chat. For another reason than gone, a task thread still asks its own reads.
+  if (!listed.ok && listed.gone) return GONE;
+  const row = outputOf(listed)?.find((one) => one.id === chatId);
+  if (!listed.ok) return chatId.startsWith('tsk_') ? taskLine(read, lang, chatId) : null;
+  // A task thread may have no row of the thread in the Inbox, so its own reads decide. Any other chat that the list lacks is gone.
+  if (!row) return chatId.startsWith('tsk_') ? taskLine(read, lang, chatId) : GONE;
   // A quiet line of a reason makes no push of its own, and the person's own message needs none.
   if (row.previewMine || row.previewAuthor === null || row.preview === '' || row.previewKind !== null) return null;
   const author = personName(row.previewAuthor, lang);
@@ -92,4 +126,10 @@ export async function chatLine(deps: Deps, userId: string, chatId: string, o: Li
     tag: `madar-chat-${chatId}`,
     lang,
   };
+}
+
+/** The line of a chat or a task thread for the person, or null (no line, and also a chat that is gone: see chatLineOutcome). */
+export async function chatLine(deps: Deps, userId: string, chatId: string, o: LineOptions = {}): Promise<PushLine | null> {
+  const outcome = await chatLineOutcome(deps, userId, chatId, o);
+  return outcome === GONE ? null : outcome;
 }

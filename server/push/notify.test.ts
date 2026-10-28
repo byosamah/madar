@@ -3,6 +3,7 @@ import { sharedCalls } from '../../src/api/sharedCalls';
 import { AFTER_ANSWER_KINDS, EFFECTS_OF, processOutbox, registerEffect, writeOutbox } from '../core/effects';
 import { memoryMailDb } from '../mail/memoryMailDb';
 import { fakeDeps } from '../test/fakes/deps';
+import { noLineRun } from '../test/fakes/noLineRun';
 import {
   PUSH_CHAT_EFFECT, PUSH_DEVICES_SQL, PUSH_EFFECT, PUSH_FACTS_SQL, PUSH_GONE_SQL, PUSH_ITEMS_SQL, PUSH_LEVELS_SQL, PUSH_NEW_NOTICES_SQL, PUSH_PEOPLE_SQL, PUSH_SENT_SQL,
   PUSH_STILL_NEW_SQL, pushRows, sendChatPush, sendPushNotify,
@@ -287,6 +288,7 @@ describe('sendPushNotify: the push of one person', () => {
       return undefined;
     });
     const deps = fakeDeps({ db: mem.db, config: o.noConfig ? {} : { push: o.config ?? vapid } });
+    deps.runCall = noLineRun;
     deps.clock.set(NOW);
     const calls: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -382,6 +384,7 @@ describe('sendChatPush: the push after the wait (item 20)', () => {
       return undefined;
     });
     const deps = fakeDeps({ db: mem.db, config: { push: vapid } });
+    deps.runCall = noLineRun;
     deps.clock.set(NOW);
     const calls: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {

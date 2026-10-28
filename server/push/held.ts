@@ -23,7 +23,9 @@ export const HELD_PEOPLE_LITE = "select distinct user_id from push_devices where
 
 /**
  * True when the person has something unread, read AS the person with the calls of the screens: an unread notice that is no copy for an
- * Admin (a copy sends no push), or an unread chat or task thread. A read that fails counts as unread: the wrong answer is a push.
+ * Admin (a copy sends no push) and does not read as gone, or an unread chat or task thread (the list holds only what the person may
+ * open). A person who lost the view of a project since the push was held has nothing unread in it. A read that fails counts as unread:
+ * the wrong answer is a push.
  */
 async function hasUnread(deps: Deps, userId: string, o: LineOptions): Promise<boolean> {
   const run = o.run ?? deps.runCall ?? runCall;
@@ -34,7 +36,8 @@ async function hasUnread(deps: Deps, userId: string, o: LineOptions): Promise<bo
   try {
     const notices = await read<NoticeView[]>('notifications.list', { unreadOnly: true });
     if (notices === null) return true;
-    if (notices.some((one) => !one.notification.read && one.notification.forUserIds === undefined)) return true;
+    // A notice that reads as gone (its project is hidden from the person, or its item is deleted) is no unread item (tsk_439).
+    if (notices.some((one) => !one.notification.read && one.notification.forUserIds === undefined && !one.gone)) return true;
     const chats = await read<ChatRow[]>('chats.list', {});
     return chats === null || chats.some((row) => row.unread > 0 && !row.archived);
   } catch {

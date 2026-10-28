@@ -7,6 +7,7 @@ import type { RunCall } from '../core/runCall';
 import { QUIET_SQL, QUIET_LITE, isQuietNow } from '../core/quiet';
 import { memoryMailDb } from '../mail/memoryMailDb';
 import { fakeDeps } from '../test/fakes/deps';
+import { noLineRun } from '../test/fakes/noLineRun';
 import { HELD_PEOPLE_SQL, releaseHeld } from './held';
 import {
   PUSH_DEVICES_SQL, PUSH_HOLD_LITE, PUSH_HOLD_SQL, PUSH_RELEASE_LITE, PUSH_RELEASE_SQL, PUSH_SENT_LITE, PUSH_SENT_SQL, PUSH_STILL_NEW_SQL, sendChatPush, sendPushNotify,
@@ -177,6 +178,7 @@ describe('a push.notify row in quiet hours ends as done, and never as a retry', 
       return undefined;
     });
     const deps = fakeDeps({ db: mem.db, config: { push: { ...(await makeVapidKeys()), subject: 'mailto:madar@vado.sa' } } });
+    deps.runCall = noLineRun;
     deps.clock.set(EVENING);
     deps.pushFetch = (async () => new Response(null, { status: 201 })) as typeof fetch;
     await sendPushNotify({ userId: 'usr_002' }, deps);
