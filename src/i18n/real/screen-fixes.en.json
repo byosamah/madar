@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-130": {
+        "title": "The top bar shows where you are",
+        "body": "On the to-do list, the top bar now marks Tasks. Before, it marked Dashboard."
+      }
+    }
+  }
+}

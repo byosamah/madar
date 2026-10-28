@@ -22,6 +22,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   { id: '2026-10-23-132', day: '2026-10-28', right: 'feedback.manage' },
   { id: '2026-10-23-133', day: '2026-10-28', right: 'ai.connect' },
   { id: '2026-10-23-134', day: '2026-10-28', right: 'admin.manage' },
+  // The top bar marks Tasks on the to-do list, not Dashboard (tsk_488). The lead sets the real release day before the test deploy.
+  { id: '2026-10-23-130', day: '2026-10-28' },
   // A PDF in a chat or a comment opens a preview before it downloads (tsk_485). The lead sets the real release day before the test deploy.
   { id: '2026-10-23-127', day: '2026-10-28' },
   // Insert a project file into a chat (fbk_070, tsk_482) and 500 MB for the files of a project (tsk_483). The lead sets the real release day before the test deploy.

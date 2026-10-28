@@ -14,6 +14,10 @@ screens are in `src/CLAUDE.md`. The remote sign-in, realtime and storage ports a
   sit outside the sign-in gate (`remote` only).
 - The desk shell (`AppShell.tsx`, from 640 px): a tab pill that floats at the top centre, the Madar mark at the top start (a press opens Home) and
   the person menu at the top end. No sidebar. The phone (`useIsPhone`, under 640 px) has its own shell (below).
+- The marked tab of the desk pill comes from `isNavActive(to, pathname, search)` (`nav.ts`), and a test pins each route in English and Arabic
+  (`TabPillMarked.test.tsx`). The To-do list (`/tasks`) marks Tasks, because it shows to-dos. Only the Deadlines list
+  (`/tasks?mode=deadlines`) marks the Dashboard. Before 2026-10-28 every `/tasks` link marked the Dashboard (tsk_488). The phone bar has its own
+  rule (`phoneTabOf`: `/tasks` is in the Me tab, with a back link to the Dashboard).
 - Layer numbers: the tab pill and the corner buttons `z-30`, Focus `z-[35]`, the dim layer of a sheet `z-40`, sheets, picture viewer and menus
   `z-50`, toasts `z-80`. Pin every new layer against these.
 - The person menu (`PersonMenu.tsx`, from 640 px) has three groups with a hairline before each: `quick` (Away only with a live port; Mode and

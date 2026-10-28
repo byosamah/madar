@@ -32,10 +32,17 @@ export const SEARCH_ITEM: NavItem = { to: '/search', key: 'nav.search', animated
 /** The bell beside Search opens the notifications (owner, 2026-10-01). The Inbox tab is the chat. */
 export const NOTIFICATIONS_ITEM: NavItem = { to: '/notifications', key: 'nav.notifications', animated: BellIcon };
 
-/** A project belongs to Projects; the lists behind the Dashboard numbers belong to the Dashboard. */
-export function isNavActive(to: string, pathname: string): boolean {
+/**
+ * The tab that a screen belongs to. A project belongs to Projects. The To-do list (/tasks) is a Tasks screen: it shows to-dos and its
+ * title says so (tsk_488). The Deadlines list (/tasks?mode=deadlines) has no to-dos in it and opens from the Dashboard, so it belongs
+ * to the Dashboard. The desk pill and the slide of a screen call this. Only the pill passes the search of the link.
+ */
+export function isNavActive(to: string, pathname: string, search = ''): boolean {
   if (to === '/') return pathname === '/';
-  if (to === '/dashboard' && pathname === '/tasks') return true;
+  if (pathname === '/tasks') {
+    const deadlines = new URLSearchParams(search).get('mode') === 'deadlines';
+    return to === (deadlines ? '/dashboard' : '/work');
+  }
   // Meetings are the second view of the Tasks tab (fbk_022).
   if (to === '/work' && pathname === '/meetings') return true;
   return pathname === to || pathname.startsWith(`${to}/`);

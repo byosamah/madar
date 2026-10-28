@@ -20,7 +20,7 @@ export function TabPill() {
 /** The desk pill. The open tab carries the signature. */
 function DeskPill() {
   const { t } = useTranslation();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const unreadChats = useCall('chats.unreadCount', {}).data?.unread ?? 0;
   const compact = useCompactBars();
   // From 640 px the Inbox is a round icon beside Search and the bell (owner, 2026-10-01). On a phone it stays a tab.
@@ -36,7 +36,7 @@ function DeskPill() {
       className={`pill fixed inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-32px)] max-w-md items-center gap-0.5 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
     >
       {NAV.filter((item) => (phone || !item.badge) && (!item.right || may(item.right))).map((item) => {
-        const active = isNavActive(item.to, pathname);
+        const active = isNavActive(item.to, pathname, search);
         const Moving = item.animated;
         // On a phone each tab is one press area of 48 px with its icon in the centre, and the open tab is a round pill, the
         // shape of the bar (owner, 2026-10-20). The bar keeps the 16 px edge of the page. The word of the tab stays for screen

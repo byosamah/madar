@@ -505,3 +505,22 @@ describe("the What's new entries of the security scan (2026-10-28)", () => {
     }
   });
 });
+
+// The top bar marks the open screen (tsk_488, owner 2026-10-28). Found by id, never by place.
+describe("the What's new entry of the marked tab on the to-do list (tsk_488)", () => {
+  it('sits under the usage entry and above the PDF entry, with no right and no link', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-130')).toEqual({ id: '2026-10-23-130', day: '2026-10-28' });
+    const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
+    expect(at('2026-10-23-130')).toBeGreaterThan(at('2026-10-23-102'));
+    expect(at('2026-10-23-130')).toBeLessThan(at('2026-10-23-127'));
+  });
+
+  it('names the two tabs in the words of the bar, in English and Arabic', () => {
+    const word = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-130', part]));
+    expect(word(en, 'body')).toContain(String(wordAt(en, ['nav', 'tasks'])));
+    expect(word(en, 'body')).toContain(String(wordAt(en, ['nav', 'dashboard'])));
+    expect(word(ar, 'body')).toContain(`«${String(wordAt(ar, ['nav', 'tasks']))}»`);
+    expect(word(ar, 'body')).toContain(`«${String(wordAt(ar, ['nav', 'dashboard']))}»`);
+    for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
+  });
+});
