@@ -2734,3 +2734,22 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   threads is scanned once. A stored unread count (written by `chats.send` and `chats.markRead`) would remove it; it needs its own plan. Ceilings: the
   measured rows plus 10%: 4,120 and 4,199.
 
+
+### Release record: production at d0cd32ad (2026-10-28, the "Now" to-dos: unread number, 500 MB, insert from a project, PDF preview)
+- What shipped (7 commits of `rb/todo-unread` and `rb/chat-insert`, Sonnet builders, tests first). 629298a4 and 5a57c606: the chat icon of a
+  to-do row shows only the comments that the person has not read (tsk_481, fbk_071); one rule with the Inbox (`src/api/taskUnread.ts`);
+  `TaskRow.unreadCount` is additive; `tasks.list` adds 2 statements for the whole list on Postgres; the office rows pins rose from 2,444
+  and 2,536 to 4,120 and 4,199 (section "tasks.list unread number"). d12c7ad4 and 2772a7a0: 500 MB for a project file, 250 MB for a direct
+  chat, a group, a meeting with no project and an office to-do (tsk_483, fbk_070). b56d1929 and 687268ee: "Insert from a project" in the
+  attach menu of every chat (tsk_482, fbk_070); the picker lists only the projects that hold every person of the chat (owner, 2026-10-28;
+  the new read `chats.insertProjects` is on the MCP deny list because the tool list is at its cap); 10 files in each message; no second
+  copy; `chats.send` now needs "Share files" for a project file in a direct chat or a group. d90880ea: a PDF in a chat or a comment opens
+  the preview before the download (tsk_485). d0cd32ad: TASKS.md. What's new 124 to 127.
+- Gates. Builders: typecheck; each new test failed before its fix; npm test 12,440 passed on the final code; test:office 40. Lead, on the
+  joined branch: build, build:server, build:remote (bundle checks passed); test:lite 3,409; test:db 3,409; test:it 350; test:mcp 619
+  (conformance: only the 27 expected failures); smoke 135. Screenshots: EN/AR, light/dark, 390 and 1280 px, one WebKit set.
+- `all.sh test` by Claude (record d0cd32ad): quick checks passed (157 calls). The deploy suite did not run. The Chrome of Claude had no
+  session on the test copy, so Claude did not try the screens there.
+- `echo production | scripts/deploy/all.sh production` run by the owner with `!`. Live checks: health from supabase, fileStore r2, 157
+  calls; database, lock and asyncContext ok; /mcp with no token 401; madar.vado.sa answers 200, and its `words.en-B22giaag.js` holds the
+  four new What's new titles. Not yet seen: one real 500 MB upload to R2.
