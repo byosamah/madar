@@ -1265,6 +1265,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] tsk_487: closed by the owner (2026-10-28): no jump on a cold load of /work. The PostHog score came from one tab open for more than a day (a CLS row holds the worst burst of the tab life). The guide `src/app/insight/CLAUDE.md` says how to read such a row (e9cdb754).
 - [x] tsk_488: the To-do list (/tasks) marked Dashboard in the top bar, in English and Arabic, since 2026-10-01. It now marks Tasks; the Deadlines list still marks Dashboard (3ceacd67). What's new 130.
 - [x] tsk_489: `madar_call_failed` sends only the call name, no `personId` and no `personName`. `eventFields.test.ts` pins the fields of every PostHog event of Madar (a713d766).
+- [ ] Flaky test: `src/features/me/focusInert.test.tsx` ("keeps the data-pill mark on the phone bar") fails under a load average of about 11, also on main 9ade9ea1 alone (2026-10-28: `inert` of the phone bar is true when the test reads it). It passes alone at a lower load. Find the race and make the test wait for the state.
 
 ## Security scan fixes (Claude Security scan of 2026-10-28; owner: "test copy, then production", "check production, then fix", "fix it properly")
 Report and patches: `CLAUDE-SECURITY-20261028-093704/` in the main folder (git-ignored). Branches `rb/sec-small`, `rb/sec-approval`, `rb/sec-history`.
