@@ -23,7 +23,7 @@ describe("What's new entries", () => {
   it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
     const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
     expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
-    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27']));
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28']));
   });
 
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
@@ -76,7 +76,7 @@ describe("What's new entries", () => {
   });
 
   it('name a real right and a real address when they have them (chats-14)', () => {
-    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink', 'ai.readChats'];
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink', 'ai.readChats', 'people.turnOff'];
     for (const entry of WHATS_NEW) {
       if (entry.right) expect(rights, entry.id).toContain(entry.right);
       if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
@@ -355,9 +355,9 @@ describe("the What's new entry of the continuous project", () => {
 // The AI assistant reads the chats before it answers about a project or a to-do (owner, 2026-10-27). Only for the holders of
 // "AI reads chats": an assistant without it cannot read them.
 describe("the What's new entry of the context rule of the AI assistant", () => {
-  it('is in the newest day, under the usage entry, for the holders of the switch "AI reads chats"', () => {
+  it('is in its day, under the usage entry and the two fixes of 2026-10-28, for the holders of the switch "AI reads chats"', () => {
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-120')).toEqual({ id: '2026-10-23-120', day: '2026-10-27', right: 'ai.readChats' });
-    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-120')).toBe(1);
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-120')).toBe(3);
   });
 
   it('names the project chat and the to-do thread in the screen words, and says to start a new chat', () => {
@@ -371,5 +371,30 @@ describe("the What's new entry of the context rule of the AI assistant", () => {
     expect(body(ar)).toContain('محادثة المشروع');
     expect(body(ar)).toContain('نقاش المهمة');
     for (const text of [title(en), body(en), title(ar), body(ar)]) expect(text).not.toMatch(/[–—]/);
+  });
+});
+
+// The two fixes of the cleanup of the project page and of Settings (code review 2026-10-27). The note about who changes the leader
+// is only for the people who may turn people off, because only they open the warning.
+describe("the What's new entries of the fixes of 2026-10-28", () => {
+  it('are the newest, under the usage entry: the Tracker weeks for everyone, and the warning before Deactivate for its holders', () => {
+    expect(WHATS_NEW.slice(1, 3)).toEqual([
+      { id: '2026-10-23-122', day: '2026-10-28', to: '/projects' },
+      { id: '2026-10-23-121', day: '2026-10-28', right: 'people.turnOff' },
+    ]);
+  });
+
+  it('name the screen words: the Tracker history and its weeks, Deactivate and the note about the leader', () => {
+    const words = (tree: Parameters<typeof wordAt>[0], id: string) =>
+      ['title', 'body'].map((part) => String(wordAt(tree, ['whatsNew', 'items', id, part])));
+    expect(words(en, '2026-10-23-122').join(' ')).toContain('Tracker history');
+    expect(words(en, '2026-10-23-122')[1]).toContain('"Last week"');
+    expect(words(ar, '2026-10-23-122')[1]).toContain('«الأسبوع الماضي»');
+    expect(words(en, '2026-10-23-121')[0]).toContain('deactivate');
+    expect(words(en, '2026-10-23-121')[1]).toContain('"An Admin changes the leader."');
+    expect(words(ar, '2026-10-23-121')[0]).toContain('توقف حساب');
+    for (const id of ['2026-10-23-121', '2026-10-23-122']) {
+      for (const text of [...words(en, id), ...words(ar, id)]) expect(text).not.toMatch(/[–—]|undefined/);
+    }
   });
 });

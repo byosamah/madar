@@ -3,6 +3,14 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-122": {
+        "title": "The week names in the Tracker history stay right",
+        "body": "The Tracker history now changes its week names, such as \"This week\" and \"Last week\", on time. This also works when a project stays open on your screen into a new week."
+      },
+      "2026-10-23-121": {
+        "title": "A correct note when you deactivate a leader",
+        "body": "When you deactivate a person who leads projects, the warning lists those projects. If your role may change the leader of any project, you no longer read \"An Admin changes the leader.\""
+      },
       "2026-10-23-120": {
         "title": "Your AI assistant reads the chats too",
         "body": "When you ask your AI assistant about a project or a to-do, it now also reads the project chat, the posts and the to-do thread. It tells you in which chat it found the answer. Start a new chat with your assistant to get this."
