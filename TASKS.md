@@ -1249,3 +1249,9 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] Clean the 18 CLAUDE.md guides: stale facts fixed, the rules of one feature in 23 folder guides, the history in `docs/decision-log.md` (done 2026-10-27: production at b57528bf)
 - [x] Fix 4 code comments that disagreed with the guides: Mac backup, pooler idle, Daftra key role, files backup (done 2026-10-27: production at b57528bf)
 - [ ] Rewrite `.github/workflows/files-backup.yml` for R2 alone (it still copies to a B2 crypt remote) before anyone enables it
+
+## Cleanup of the project page and Settings (2026-10-28)
+- [x] `/simplify` and `/code-review` of `src/features/project/`: shared parts, no screen change; the Tracker history week names follow the day, What's new 122 (done 2026-10-28: production at 16aa2507)
+- [x] `/simplify` and `/code-review` of `src/features/settings/`: one Admin panel, the role helpers, one work-hours lock rule; the Deactivate note follows the leader right of each project, What's new 121 (done 2026-10-28: production at 16aa2507)
+- [ ] A bug review of the code of both folders that the cleanup did not touch (`/code-review` read only the changed lines)
+- [ ] Proposals outside the two folders: the download hook in `Attachments.tsx` and `PictureAttachments.tsx`, reduced motion in `PhoneTabBar`, one shared ConfirmSheet, one radio-key hook, ChannelSwitch to SwitchButton (a bigger press area: owner OK first)

@@ -2678,3 +2678,25 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   fileStore r2, 156 calls; /mcp with no token 401; page 200 with the title Madar; /favicon.ico 200; madar.vado.sa serves the bootstrap file
   of the deploy.
 - No What's new entry: people see no change.
+
+### Release record: production at 16aa2507 (2026-10-28, the cleanup of the project page and Settings, the Deactivate note, three rule gaps)
+- What shipped. `rb/simplify-project` (8 commits): `/simplify` of `src/features/project/` and the fixes of its `/code-review`. The parts of
+  the to-do panel, the rows, Files & Links, Overview, the Tracker, payments and the team are shared, and no screen changed (42 shot pairs:
+  39 the same, 3 with sub-pixel noise that main also shows). The Tracker history takes `today` as a prop, so its week names follow the day
+  (What's new 122). `rb/simplify-settings` (7 commits): `/simplify` of `src/features/settings/`, its review fixes (130 shot pairs, all the
+  same), and the Deactivate note: `DeactivateSheet` reads `viewerCan.changeLeader` of each listed project in place of `systemRole`, so a
+  custom role with `project.leader.all` no longer reads "An Admin changes the leader." (What's new 121, for `people.turnOff`).
+  `rb/rights-gaps` (2 commits, session madar-38): three rule gaps in `src/api` that an earlier check already stopped, and a list speed fix.
+  People see no change, so it has no What's new line. 16aa2507: the TASKS.md checks of 2026-10-27.
+- Gates of 2e5c9ff1 (the two cleanups together): typecheck; npm test 12,294 passed; build; build:server; build:remote (first load 31
+  files, 293,518 B gzip); test:lite 3,359; test:office 40; test:db 3,359; test:it 350; test:mcp 613 (conformance: only the 27 expected
+  failures); smoke 135. Gates of `rb/rights-gaps` on the code of 16aa2507 (madar-38): typecheck, npm test 12,311, the three builds,
+  test:lite and test:office passed. Its test:db, test:it and test:mcp still ran at the production deploy (owner: "go production now").
+- `all.sh test` by madar-38 (record 16aa2507). The deploy suite did NOT run: the owner asked for production at once. Check of the test copy
+  in the owner's Chrome as the admin sample: Admin People, the Deactivate warning of Omar Haddad (2 projects and 5 to-dos, no leader note
+  for the Admin), the project tabs To-dos, Tracker, Files & Links and Overview, a to-do panel, Project templates and Settings all load,
+  with no console error.
+- `echo production | scripts/deploy/all.sh production` run by Claude on the owner's "deploy to production". Live checks: health from
+  supabase, fileStore r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401; page 200 with the title Madar;
+  /favicon.ico 200; madar.vado.sa serves `index-BRQcoQ7W.js` and `bootstrap-Dx2Z5ymP.js` of the deploy 9cfa40d4, and its
+  `words.en-*.js` holds both new What's new titles. First load in production: 31 files, 293,546 B gzip.
