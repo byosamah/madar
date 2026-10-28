@@ -15,8 +15,6 @@ The owner sees how the team uses Madar, which errors they hit and replays of the
 - Names (owner, 2026-10-25 and 2026-10-28): only an `$exception` record carries `personId` and `personName` (added in `before_send`). An
   action carries none: screen views, clicks, slow steps, refusals, failed calls (`madar_call_failed`) and sheets. `eventFields.test.ts`
   pins the fields of every event that `src/app/insight/` captures; a new event needs its line there.
-- `harmlessError` (`client.ts`) drops two kinds of error record: the ResizeObserver warning and the failure of the Arabic text plugin
-  of the map (tsk_486).
 - `posthogOptions` (`client.ts`) holds the privacy rules and `client.test.ts` pins them. `before_send` runs `scrubEvent` (`scrub.ts`), which
   fails closed (a record it cannot read is dropped). `src/lib/urlScrub.ts` keeps the pure parts, shared with the server.
 - Put `PRIVATE` (`privateMark.ts`, `ph-no-capture`) on the smallest element that holds a chat message, an amount of money, or a file picture or

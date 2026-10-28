@@ -22,20 +22,12 @@ export type InsightEnv = 'production' | 'test';
  */
 const HARMLESS_ERROR = /ResizeObserver loop/;
 
-/**
- * The failure of the Arabic text plugin of the map (tsk_486, 2026-10-28). MapLibre loads the plugin in its worker and gives its failure
- * to nobody: the page sees an unhandled rejection. Two causes exist. A browser refuses eval() (Chrome, Safari and Firefox word it each
- * their own way; Madar runs no other eval), or the worker cannot fetch the plugin file. MapLibre draws Arabic with its own shaping when
- * the plugin is missing, so the map still works and the owner needs no record. Another failed load names another file and stays.
- */
-const PLUGIN_FAILURE = /Evaluating a string as JavaScript violates|Refused to evaluate a string as JavaScript|call to eval\(\) blocked by CSP|Failed to load \S*mapbox-gl-rtl-text/;
-
-/** True for an error record that holds only a harmless warning or the failure of the Arabic text plugin. */
+/** True for an error record that holds only the harmless warning. */
 function harmlessError(properties: Record<string, unknown> | undefined): boolean {
   const list = properties?.$exception_list;
   const first = Array.isArray(list) ? (list[0] as { value?: unknown } | undefined)?.value : undefined;
   const text = typeof first === 'string' ? first : properties?.$exception_message;
-  return typeof text === 'string' && (HARMLESS_ERROR.test(text) || PLUGIN_FAILURE.test(text));
+  return typeof text === 'string' && HARMLESS_ERROR.test(text);
 }
 
 type OptionsInput = {

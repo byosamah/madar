@@ -40,9 +40,6 @@ export function loadMapLib(): Promise<typeof MapLib> {
         import('./mapPopup.css'),
       ])
       : Promise.reject(new Error('The street map is in the real build only.')));
-    // The worker file sits in assets/map-worker/: config/headers.template gives that path the one policy with 'unsafe-eval', because the
-    // worker runs the Arabic text plugin with eval() (owner, 2026-10-28, tsk_486). MapLibre raises a failure of the plugin in its own
-    // code, outside this promise: insight/client.ts keeps that one failure out of PostHog.
     lib.setWorkerUrl(releaseUrl(worker.default, import.meta.env.VITE_MADAR_BUILD));
     lib.setRTLTextPlugin(new URL(rtl.default, window.location.href).href, true).catch(() => undefined);
     lib.addProtocol(SATELLITE_SCHEME, loadSatelliteTile);

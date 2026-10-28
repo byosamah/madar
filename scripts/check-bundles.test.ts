@@ -437,27 +437,6 @@ describe('the map library (fbk_017): MapLibre loads only at Set pin, never in th
   });
 });
 
-describe('the map worker file (owner decision A, 2026-10-28, tsk_486): it sits under assets/map-worker/, where its own policy rule matches', () => {
-  const remote = (extra: Record<string, string>) =>
-    checkBundles('remote', dist({ 'index.html': remoteIndex, 'assets/index-abc.js': 'console.log(1)', 'sw.js': 'self.addEventListener("push", () => {})', ...extra }));
-
-  it('fails a remote build that holds the map library and no worker file under assets/map-worker/', () => {
-    const result = remote({ 'assets/maplibre-gl-abc.js': 'const c="maplibregl-canvas";', 'assets/maplibre-gl-worker-abc.js': '(function(){})()' });
-    expect(result.ok).toBe(false);
-    expect(result.lines.join('\n')).toMatch(/FAIL: the map worker file: .*assets\/map-worker\//);
-  });
-
-  it('passes a remote build whose worker file sits under assets/map-worker/', () => {
-    const result = remote({ 'assets/maplibre-gl-abc.js': 'const c="maplibregl-canvas";', 'assets/map-worker/maplibre-gl-worker-abc.js': '(function(){})()' });
-    expect(result.ok).toBe(true);
-    expect(result.lines.join('\n')).toMatch(/ok: the map worker file: assets\/map-worker\/maplibre-gl-worker-abc\.js/);
-  });
-
-  it('asks for no worker file when the build holds no map library', () => {
-    expect(remote({}).ok).toBe(true);
-  });
-});
-
 describe('the emoji data (chat presence design D8): the panel loads at its first open, never with the page', () => {
   it('fails a remote first load that holds the emoji data, so the list would load with the page', () => {
     const result = checkRemote((files) => { files['assets/vendor-v1.js'] += 'const c={en:"grinning face"};'; });

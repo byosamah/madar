@@ -110,9 +110,6 @@ export default defineConfig(({ mode }) => ({
   // The prototype build is one script file, so the prototype artifact holds every script. The remote modes keep code splitting.
   build: mode.startsWith('remote') ? { rolldownOptions: { output: { codeSplitting: REMOTE_CHUNKS } } } : { rolldownOptions: { output: { codeSplitting: false } } },
   base: mode.startsWith('remote') ? '/' : './',
-  // The map worker file gets its own folder, so config/headers.template can match it with one path (/assets/map-worker/*) and give it
-  // the one policy that allows eval() (owner decision A, 2026-10-28, tsk_486). The hash stays in the name for the long cache.
-  worker: { rolldownOptions: { output: { entryFileNames: 'assets/map-worker/[name]-[hash].js' } } },
   // The prototype takes the screen list with plain imports: in its one script file, an on-demand import costs extra start-up
   // code for each screen (performance audit BND-1). The remote modes split the screens, and the tests keep the on-demand list.
   // The remote modes point three Supabase client packages that the screens never call at an empty stand-in (FL-5).

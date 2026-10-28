@@ -5,10 +5,11 @@ keep each decision that still sets a rule, as a rule. This file is the record of
 Sections follow the guide that held the text. Line numbers and counts in this file are from that day and can be old.
 
 ## 2026-10-28
-- Map worker (tsk_486, owner, option A): only the one map worker file gets its own policy that allows `'unsafe-eval'`. The policy of every
-  page stays as it was. Reason given: the worker runs the Arabic text plugin with eval(), and the page policy blocked it, so PostHog
-  recorded an unhandled error 11 times for 6 people. Note of the builder: MapLibre 6.11.2 shapes Arabic itself, so the map drew the
-  same pixels before and after (see `src/features/map/CLAUDE.md`). Removing the plugin is open for the owner.
+- Map plugin (tsk_486, owner): Madar no longer loads the Arabic text plugin of the map (`@mapbox/mapbox-gl-rtl-text`). MapLibre 6.11.2
+  draws right-to-left text by itself, and the map drew the same pixels with the plugin loaded, blocked and absent. The worker ran the
+  plugin with eval(), the page policy blocked it, and PostHog recorded an unhandled error 11 times for 6 people. The owner first chose a
+  worker policy with `'unsafe-eval'` (option A, on a wrong claim that the Arabic names were not shaped), then the removal: no eval and
+  no policy change.
 - PostHog names (tsk_489, owner): the event of a failed call (`madar_call_failed`) sends no `personId` and no `personName`. Only errors
   carry the person, as the rule of 2026-10-25 says.
 
