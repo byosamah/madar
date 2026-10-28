@@ -2753,3 +2753,29 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` run by the owner with `!`. Live checks: health from supabase, fileStore r2, 157
   calls; database, lock and asyncContext ok; /mcp with no token 401; madar.vado.sa answers 200, and its `words.en-B22giaag.js` holds the
   four new What's new titles. Not yet seen: one real 500 MB upload to R2.
+
+
+### Release record: production at c44091f5 (2026-10-28, the fixes of the Claude Security scan)
+- The scan: Claude Security, whole repository at afe2c49e (the production code then), `medium`, focus on reachable production code; 63
+  researchers, a three-lens panel; 4 findings kept (2 medium, 2 low). Report and patch notes: `CLAUDE-SECURITY-20261028-093704/` in the main
+  folder (git-ignored). The patch panel passed F2 and F3 and declined F1 and F4 after two attempts each; the owner chose to rebuild both.
+- What shipped (`rb/sec-join`: `rb/sec-small`, `rb/sec-approval`, `rb/sec-history`). 5c8106c2: F2, the email code of a reset or invitation
+  link has 10 digits (`[auth.email] otp_length`), and `config-check.ts` refuses another value; F3, `requireFeedback` takes only an own key,
+  so the id `__proto__` cannot reach `Object.prototype`. F1 (CWE-863): the approval stores the redirect address that the screen showed
+  (`agent_approvals.redirect_uri`, read through the new `madar_private.agent_pending`; SQLite step 13) and refuses an AI app that holds
+  an unknown address on another scheme or host (`agent_redirect_hidden`); `ensureAgentUser` and the per-call check run the same rule, so a
+  link from before the fix stops too. F4 (CWE-863): `projects.delete` records `teamIds` on the delete event, and the History of a deleted
+  open project shows only to `project.seeAll`, `project.hidden`, the leader, the chosen viewers and that team; an old delete event rebuilds
+  its team from every change of a team row, the undos too (a background security review found the undo gap in the first commit).
+  What's new 131 to 134. Migration `20261028000100_platform_agent_redirect.sql`.
+- F1 check before the build (read-only, production): 3 approved AI apps (Claude, ChatGPT, Claude Code), none mixes an unknown address with
+  another place, so the strict rule for the old approvals stops no live app. Known leftover that code cannot fix: Supabase Auth keeps the
+  grant of an approval made before the deploy (the Z7 risk); none exists with the F1 shape today.
+- Gates on the joined branch. Before the test copy: the fast gate 5,094; the touched folders 958; build, build:server, build:remote;
+  test:lite 3,421; on a local stack with this config.toml, `guards`, `consent`, `mcp` and `tokens` integration files (16, 7, 9, 8). Before
+  production: test:db 3,421; test:it 351; test:mcp 649 (conformance: only the 27 expected failures); test:office 40; npm test 12,486 of
+  12,487 (`src/features/me/focusInert.test.tsx` failed under load and passed alone). No smoke and no screenshots: no screen changed.
+- `all.sh test` by Claude (record c44091f5): the migration and `auth.email.otp_length` reached madar-test; quick checks passed (157 calls).
+- `echo production | scripts/deploy/all.sh production` by Claude, on the owner's OK ("right after the gates pass"). The migration and
+  `auth.email.otp_length` reached production. Live checks: health from supabase, fileStore r2, 157 calls; /mcp with no token 401;
+  madar.vado.sa answers 200 with the title Madar, `/favicon.ico` 200, and its `words.en-cguOeVOL.js` holds the four new What's new titles.

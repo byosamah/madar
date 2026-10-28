@@ -1268,10 +1268,11 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 
 ## Security scan fixes (Claude Security scan of 2026-10-28; owner: "test copy, then production", "check production, then fix", "fix it properly")
 Report and patches: `CLAUDE-SECURITY-20261028-093704/` in the main folder (git-ignored). Branches `rb/sec-small`, `rb/sec-approval`, `rb/sec-history`.
-- [x] F2 (medium): the email code of a reset or invitation link has 10 digits; `config-check.ts` refuses another value (5c8106c2). Takes effect when `all.sh` pushes the config.
-- [x] F3 (low): a report id must name a real report, so `__proto__` cannot reach `Object.prototype` (5c8106c2).
-- [x] What's new 131 to 134, one line for each fix (546f0bab).
+- [x] F2 (medium): the email code of a reset or invitation link has 10 digits; `config-check.ts` refuses another value (6f12836e).
+- [x] F3 (low): a report id must name a real report, so `__proto__` cannot reach `Object.prototype` (6f12836e).
+- [x] What's new 131 to 134, one line for each fix (883adec7).
 - [x] F1 check on production (read-only, 2026-10-28): 3 approved AI apps (Claude, ChatGPT, Claude Code), none hides an unknown address.
-- [ ] F1 (medium): Madar stores the return address that the person saw and refuses an AI app that hides another one (`rb/sec-approval`, a migration and a SQLite step).
-- [ ] F4 (low): the History of a deleted open project shows only to the people who could see it at the delete (`rb/sec-history`).
-- [ ] Join the three branches, run the merge gate once, release to the test copy, then production on the owner's OK.
+- [x] F1 (medium): Madar stores the return address that the person saw and refuses an AI app that hides another one (7c058070; migration `20261028000100_platform_agent_redirect.sql`, SQLite step 13).
+- [x] F4 (low): the History of a deleted open project shows only to the people who could see it at the delete (351bbcdd, a21f8701: an undone team change counts too).
+- [x] Joined as `rb/sec-join`, gates once, test copy, then production at c44091f5 (done 2026-10-28; release record in proof.md).
+- [ ] Ask each person to remove any AI app they do not know in Settings, Agents: Supabase keeps the grant of an approval made before the fix (none with the F1 shape on 2026-10-28).
