@@ -1,0 +1,17 @@
+{
+  "attachments": {
+    "attachMenu": "أرفق",
+    "insertFromProject": "أدرج من مشروع"
+  },
+  "insert": {
+    "back": "رجوع",
+    "noProjects": "لا يوجد مشروع مطابق.",
+    "noFiles": "لا توجد ملفات في هذا المشروع بعد.",
+    "send": "أرسل",
+    "send_one": "أرسل ملفًا واحدًا",
+    "send_two": "أرسل ملفين",
+    "send_few": "أرسل {{count}} ملفات",
+    "send_many": "أرسل {{count}} ملفًا",
+    "send_other": "أرسل {{count}} ملف"
+  }
+}

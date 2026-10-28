@@ -42,7 +42,9 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   `viewerCan.upload`. The name field saves on Enter or blur with text. A taken name shows the refusal as a toast (`folder_name_taken`), with no
   check on the screen. A person who may upload sees every stage as a group once the tab has a file, a folder or a link. The groups wait for
   `files.list`. Delete asks nothing and the Undo brings back the folder and the folder of its files (`events.undoStory`). A file whose
-  `folderId` is not a folder of its stage reads as at the root, so a file is never hidden (`groupsOf`, `placeOfFile`).
+  `folderId` is not a folder of its stage reads as at the root, so a file is never hidden (`groupsOf`, `placeOfFile`). `groupsOf` lives in
+  `files/groupsOf.ts` with no UI import (`FileGroups.tsx` exports it again), so the picker "Insert from a project" of a chat reuses the groups
+  without the rows (`src/features/files/CLAUDE.md`).
 - "Move to" is in the "..." menu of every file for `viewerCan.upload`, on a desk and a phone (`MoveFileSheet`, `files.move`).
 - The pointer drag works for a desk with a fine pointer and `viewerCan.upload` (`dragOn`). dnd-kit is a chunk of its own: `FilesDragLayer.tsx`
   through `filesDragLoader.ts`, the same loaded-module pattern as `dragLayerLoader.ts`. `check-bundles.ts` refuses `DndDescribedBy` in the

@@ -3,6 +3,14 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-126": {
+        "title": "Insert a project file into a chat",
+        "body": "Press the clip in a chat and choose \"Insert from a project\". Pick files or folders. Madar sends them with no new upload and no new storage."
+      },
+      "2026-10-23-125": {
+        "title": "Bigger files in a project",
+        "body": "You can now upload files up to 500 MB in a project. Before, the limit was 250 MB. A chat keeps the limit of 250 MB."
+      },
       "2026-10-23-123": {
         "title": "No push about a project you cannot see",
         "body": "Madar now sends you no push about a project you can no longer see. Before, a push that was already on its way could still arrive. It said \"You have something new in Madar.\""

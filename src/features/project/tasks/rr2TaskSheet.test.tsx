@@ -75,7 +75,8 @@ describe('the comment box of the Conversation (comment.create, file.upload)', ()
   it('shows the box and the Attach button with the switches on', async () => {
     const panel = await conversation('usr_005')();
     expect(await within(panel).findByLabelText('Add a comment')).toBeInTheDocument();
-    expect(within(panel).getByText('Attach files')).toBeInTheDocument();
+    // The clip opens a short menu (fbk_070): Upload a file and Insert from a project.
+    expect(within(panel).getByRole('button', { name: 'Attach' })).toBeInTheDocument();
   });
 
   it('shows the quiet line in place of the box with comment.create off', async () => {

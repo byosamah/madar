@@ -54,3 +54,24 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
   (`defaultPrevented`).
 - Every chat takes files. A project chat uploads into the files of its project. A direct chat and a group upload into the chat itself
   (`UploadTarget.conversationId`). A chat file shows in no Files tab and no search.
+- The size limit follows the place (fbk_070): `useFileLimit(place)` and `useAttachments(max, initial, place)` give 500 MB for a project file
+  (a project chat too, because its file joins the project) and 250 MB for a direct chat, a group, a meeting with no project and an office
+  to-do. The upload adapter names the same limit in its refusal (`fileLimitOf` with the store limit of `session.get`). A person who needs a
+  larger file in a chat inserts the project file.
+
+## Attach menu and Insert from a project
+- The clip of a chat box (`Composer.tsx`) and of the comments of a to-do (`CommentThread.tsx`) is `AttachMenu`: a short menu with "Upload a
+  file" (`files.uploadOne`) and "Insert from a project" (a bottom sheet on a phone, as every `Menu` with `sheetOnPhone`). The menu shows only
+  for a person with `file.share` and where the box has an `insert` scope. Else the clip is the plain `AttachButton`. The hidden file input
+  stays beside the menu with the label "Attach files" (tests upload to it), and the item opens it, as the Files tab does.
+- `insert` is `{}` for a direct chat and a group (every project the person may open) and `{ projectId }` for a project chat and a to-do of a
+  project (the server takes only files of that project). An office to-do has none: its files stay on the task.
+- `ProjectFilePicker.tsx` loads at the first press (`lazyOverlay`). Levels: projects (a search field, `projects.list` with status all), the
+  stages of one project (`groupsOf` of `files/groupsOf.ts`, so "No stage" and the empty-stage rule are those of the Files tab), then the
+  folders (a folder with no file is left out; a tick takes all its files) and the files outside a folder. A file inside a folder is sent
+  only with its folder. The ticks stay while the person steps back. One Send button with the count. A project chat starts at its own stages.
+- Send makes no upload: `insertParts.ts` cuts the pick into messages of 10 files, with the file names as the words, and the box sends them
+  with its own `onSend` (the outbox of a chat, `comments.create` for a to-do), in one tick, so the server keeps the order. The text and
+  the picked files of the box stay. A refusal of the server (the other person is not on the project) shows as a toast.
+- The lists are the reads of the Files tab, so a hidden project and a file that the person may not open never show. Tests:
+  `ProjectFilePicker.test.tsx`, `InsertInTodo.test.tsx`, `ChatFileLimit.test.tsx` (`features/inbox`).

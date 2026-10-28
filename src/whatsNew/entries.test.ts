@@ -385,6 +385,7 @@ describe("the What's new entries of the fixes of 2026-10-28", () => {
       { id: '2026-10-23-122', day: '2026-10-28', to: '/projects' },
       { id: '2026-10-23-121', day: '2026-10-28', right: 'people.turnOff' },
     ]);
+    expect(at).toBe(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-123') + 1);
   });
 
   it('name the screen words: the Tracker history and its weeks, Deactivate and the note about the leader', () => {
@@ -436,5 +437,27 @@ describe("the What's new entry of the unread number on the chat icon", () => {
     expect(word(ar, 'title')).toContain('أيقونة المحادثة');
     expect(word(ar, 'body')).toContain('لم تقرأها');
     for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
+  });
+});
+
+// Bigger files in a project (tsk_483) and the project files in a chat (tsk_482), fbk_070, owner 2026-10-27. Found by id, never by place.
+describe("the What's new entries of the chat files (fbk_070)", () => {
+  it('sit under the usage entry, newest first, with no right and no link', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-125')).toEqual({ id: '2026-10-23-125', day: '2026-10-28' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-126')).toEqual({ id: '2026-10-23-126', day: '2026-10-28' });
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-125')).toBe(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-126') + 1);
+  });
+
+  it('name both limits and the menu choice in the words of the screen, in English and Arabic', () => {
+    const word = (tree: Parameters<typeof wordAt>[0], id: string, part: string) => String(wordAt(tree, ['whatsNew', 'items', id, part]));
+    expect(word(en, '2026-10-23-125', 'body')).toContain('500 MB');
+    expect(word(en, '2026-10-23-125', 'body')).toContain('250 MB');
+    expect(word(ar, '2026-10-23-125', 'body')).toContain('500 ميغابايت');
+    expect(word(ar, '2026-10-23-125', 'body')).toContain('250 ميغابايت');
+    expect(word(en, '2026-10-23-126', 'body')).toContain(String(wordAt(en, ['attachments', 'insertFromProject'])));
+    expect(word(ar, '2026-10-23-126', 'body')).toContain(`«${String(wordAt(ar, ['attachments', 'insertFromProject']))}»`);
+    for (const id of ['2026-10-23-125', '2026-10-23-126']) {
+      for (const text of [word(en, id, 'title'), word(en, id, 'body'), word(ar, id, 'title'), word(ar, id, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
+    }
   });
 });

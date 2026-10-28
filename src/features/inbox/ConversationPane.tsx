@@ -341,6 +341,8 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
             pending={false}
             // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
             upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
+            // Insert from a project (fbk_070): a project chat takes only files of its own project, a direct chat or a group takes any project file.
+            insert={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : {}}
             replyTo={replyTo}
             onCancelReply={() => setReplyTo(null)}
             onEditLast={editLast}
@@ -532,6 +534,8 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
           everyone={task.data.everyone}
           pending={false}
           upload={task.data.viewerCan.upload ? { projectId: where?.id ?? null, stageId: task.data.task.stageId, taskId: id } : undefined}
+          // A to-do of a project takes files of its own project. An office to-do (no project) keeps its files on the task: no insert.
+          insert={where ? { projectId: where.id } : undefined}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
           onEditLast={editLast}

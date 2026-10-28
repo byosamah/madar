@@ -1,0 +1,14 @@
+{
+  "attachments": {
+    "attachMenu": "Attach",
+    "insertFromProject": "Insert from a project"
+  },
+  "insert": {
+    "back": "Back",
+    "noProjects": "No project matches.",
+    "noFiles": "This project has no files yet.",
+    "send": "Send",
+    "send_one": "Send 1 file",
+    "send_other": "Send {{count}} files"
+  }
+}

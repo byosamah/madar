@@ -14,7 +14,10 @@ import { MentionField } from '../../components/MentionField';
 import { withMentionMarkup } from '../../lib/text';
 import { EmojiButton, type EmojiButtonHandle } from '../emoji/EmojiButton';
 import { insertAt } from '../emoji/insert';
-import { AttachButton, pastedPictures, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { AttachMenu } from '../files/AttachMenu';
+import { pastedPictures, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { insertParts } from '../files/insertParts';
+import type { InsertScope, PickedProjectFile } from '../files/ProjectFilePicker';
 import { useChatDropReceiver } from './ChatDrop';
 import { ComposerReplyStrip } from './ReplyStrip';
 
@@ -28,6 +31,11 @@ type ComposerProps = {
   onSend: (body: string, fileIds: string[], clear: () => void) => void;
   /** Where picked files go: a project, an office task or a chat of its own. Without it, the box shows no attach control. */
   upload?: UploadTarget;
+  /**
+   * Where "Insert from a project" looks (fbk_070, owner 2026-10-27). A direct chat or a group looks in every project the person may open
+   * (`{}`). A project chat and a to-do thread keep to their own project (`{ projectId }`), as the server asks. Missing: no such choice.
+   */
+  insert?: InsertScope;
   /** The message that the next send answers (chat design 2026-10-19, item 10). Its strip shows above the field. */
   replyTo?: ReplyRef | null;
   /** The X of the strip, and Escape in the field, call this. */
@@ -60,7 +68,7 @@ export function Composer(props: ComposerProps) {
  * Search unmounts the box; its draft waits until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the
  * keys of the comment box (CommentThread), so a task thread and the comments of its task share one draft.
  */
-function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast, onTextChange, autoFocus = true, compact = false }: ComposerProps & { owner: string }) {
+function ComposerBox({ id, people, everyone, pending, onSend, upload, insert, owner, replyTo, onCancelReply, onEditLast, onTextChange, autoFocus = true, compact = false }: ComposerProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   // On a phone, Enter makes a new line and only the Send button sends (chat design 2026-10-19, item 7).
@@ -71,7 +79,7 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
   const tight = phone || compact;
   const keyboard = useKeyboardOpen();
   const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
-  const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
+  const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey), upload);
   const [uploading, setUploading] = useState(false);
   const [text, setText] = useDraftText(owner, draftKey);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -107,6 +115,11 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
   }, [replyId]);
   // A file may go with no words: its name becomes the words, the same way Share does (audit 2026-10-03, SHL-21).
   const files = upload ? attachments.files : [];
+  // The project files go as messages at once, 10 in each message, in the order of the picks (fbk_070). They are the project files
+  // themselves: no upload and no new storage. The words are the file names, as for a file sent with no words. The text of the box stays.
+  const insertFiles = (picked: PickedProjectFile[]) => {
+    for (const part of insertParts(picked)) onSend(part.body, part.fileIds, () => undefined);
+  };
   const submit = async () => {
     const body = withMentionMarkup(text.trim(), people) || files.map((file) => file.name).join(', ').slice(0, MESSAGE_MAX);
     if (!body || pending || uploading) return;
@@ -141,7 +154,7 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
       {upload && <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />}
       {/* On a phone the row is tighter and Send is a round icon, so the box keeps the width it had before the emoji button (chat presence, 2026-10-21). */}
       <div className={`flex items-end ${tight ? 'gap-1' : 'gap-2'}`}>
-      {upload && <AttachButton compact onPick={attachments.add} />}
+      {(upload || insert) && <AttachMenu compact canUpload={!!upload} insert={insert} onPick={attachments.add} onInsert={insertFiles} />}
       <EmojiButton ref={emoji} onPick={insertEmoji} returnTo={() => field.current} />
       <div
         className="min-w-0 flex-1"

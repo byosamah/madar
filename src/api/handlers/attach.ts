@@ -1,6 +1,6 @@
 import type { Ctx } from '../registry';
 import type { FileRec } from '../contract/entities';
-import { invalid } from '../errors';
+import { forbidden, invalid } from '../errors';
 import { can, projectRoleOf } from '../permissions';
 import { ensureRights } from '../rights';
 import { mayViewFile } from '../views';
@@ -64,6 +64,8 @@ export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: 
     }
     if (file.meetingId !== undefined) meetingFileStays();
     if (file.projectId === null) officeFileStays();
+    // A project file goes into a direct chat or a group only with the switch "Share files", as files.share asks it (fbk_070).
+    if (!can(ctx.authority, 'file.share')) throw forbidden('You cannot do this.', { action: 'file.share' });
     if (!mayShareProjectFile(ctx, file.projectId, ctx.authority.id)) {
       throw invalid('fileIds', 'You cannot see the project of this file.', 'file_not_visible');
     }

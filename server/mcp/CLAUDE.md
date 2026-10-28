@@ -121,6 +121,12 @@ Own OAuth server (consent, token step, grants): `server/mcp/oauth/CLAUDE.md`.
   a read by the agent is not a read by the person. An agent edits or deletes only a message of its person or of its agent
   (`isMine`, reason `not_author`). `chats.messages` of a group also gives its quiet `lines`: a line is no message and never waits for a reply.
   Tests: `messageTools.test.ts`, `chatSwitches.test.ts`.
+- A message may carry project files (fbk_070): `chats.send` with `fileIds` of project files that the person may share. The rule is the one of
+  `files.share`: the file reads as missing when the person may not open it (a hidden project too), the sender needs the switch
+  `file.share`, and every other person of a direct chat or a group must be on the project (`recipient_not_on_project`). A project chat takes
+  only files of its own project. At most 10 files in a message (`MAX_ATTACHMENTS`). It needs `ai.messages`, as every send. `files.uploadContent`
+  keeps its 10 MB: the 500 MB of a project file is for the screens (a signed upload straight to R2). Tests: `chatInsertDocs.test.ts`,
+  `src/api/handlers/chatInsert.test.ts`. The tool list is at its 110 KB cap (`toolSize.test.ts`): a new tool word needs a cut elsewhere.
 - Chat files follow the rights of the person. The agent of a member reads the id, name and type, sends a file (`files.uploadContent` with
   `conversationId`, then `chats.send` with `fileIds`) and opens it with `files.link`. The agent of a non-member (an Admin too) gets
   `not_found` on every path, with no file name in the text. A read of a chat file (`files.link`, `files.get`, a cover) needs `ai.readChats`

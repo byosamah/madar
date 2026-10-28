@@ -10,7 +10,10 @@ import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
-import { AttachButton, PickedFiles, pastedPictures, useAttachments, useBlockFileDrop } from '../files/Attachments';
+import { AttachMenu } from '../files/AttachMenu';
+import { PickedFiles, pastedPictures, useAttachments, useBlockFileDrop } from '../files/Attachments';
+import { insertParts } from '../files/insertParts';
+import type { PickedProjectFile } from '../files/ProjectFilePicker';
 import { EmojiButton } from '../emoji/EmojiButton';
 import { insertAt } from '../emoji/insert';
 import { ChatDropArea, DropReceiver } from '../inbox/ChatDrop';
@@ -54,7 +57,7 @@ function CommentThreadFor({
 }: CommentThreadProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const attachments = useAttachments();
+  const attachments = useAttachments(undefined, undefined, { projectId });
   const [uploading, setUploading] = useState(false);
   const comments = useCall('comments.list', { targetType, targetId });
   useMarkTaskRead(targetType === 'task' ? targetId : null, comments.data, owner);
@@ -84,6 +87,16 @@ function CommentThreadFor({
       setReplyTo(null);
     },
   });
+  // Project files go in as comments at once, 10 in each comment, in the order of the picks (fbk_070). They are the project files
+  // themselves: no upload and no new storage. A comment on a project keeps to the files of that project (an office to-do has none).
+  const insertComment = useAction('comments.create');
+  const insert = projectId === null ? undefined : { projectId };
+  const insertFiles = (picked: PickedProjectFile[]) => {
+    insertParts(picked).forEach((part, index) => {
+      insertComment.mutate({ targetType, targetId, ...part, ...(index === 0 && replyTo ? { replyToId: replyTo.id } : {}) });
+    });
+    setReplyTo(null);
+  };
   // The files go up first, to the project of the comment. A comment on a task also links them to the task.
   const send = async (text: string) => {
     setUploading(true);
@@ -142,7 +155,7 @@ function CommentThreadFor({
       <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
-          {canAttach && <AttachButton onPick={attachments.add} />}
+          {(canAttach || insert) && <AttachMenu canUpload={canAttach} insert={insert} onPick={attachments.add} onInsert={insertFiles} />}
           <EmojiButton onPick={insertEmoji} returnTo={() => field.current} />
         </div>
         <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>

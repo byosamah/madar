@@ -174,6 +174,12 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   takes a chat file only for its own chat; every other carrier refuses it with reason `file_chat`. `files.delete` and
   `files.markDelivered` refuse it, and `search.query` and `files.list` never show one. Leak tests: `chatFiles.test.ts`,
   `server/calls/chatFiles.test.ts`.
+- **Project files in a chat** (fbk_070). A message of a direct chat or a group may carry project files (`chats.send` with `fileIds`, the way of the
+  screen "Insert from a project" and of an agent). `assertFilesForDirect` asks, in this order: the file reads as missing when the sender may not
+  open it (a hidden project too), a file of an office task, a meeting or another chat is refused, the sender needs `file.share` (as
+  `files.share` does), the sender and every other person of the chat must be on the project (`file_not_visible`, `recipient_not_on_project`).
+  A project chat and a to-do thread take only files of their own project (`file_other_project`). At most `MAX_ATTACHMENTS` (10) in a
+  message: the screen sends 10 in each message, in order. Tests: `chatInsert.test.ts`, `attachments.test.ts`.
 - A message view (`messageViewOf`) drops the file row of a file that the reader may not view (`mayViewFile`). The loader
   brings the office task of each file (`attachedFiles`), so the scoped load gives the same rows.
 - `search.query` has a `messages` group (`messageHits`, `messageSearch.ts`): the chats the person may open
