@@ -60,6 +60,19 @@ test('chips filter the list', async ({ page }) => {
   await expect.poll(() => list.getByRole('link').count()).toBe(all);
 });
 
+// tsk_448 (owner, 2026-10-28): the four Arabic chips share one row at 390 px. «قائمة المهام» was two words and pushed «الأشخاص» to a second row.
+test('the four Arabic kind chips sit on one row', async ({ page }) => {
+  await page.goto('/#/settings');
+  await page.getByRole('radio', { name: 'العربية' }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await page.goto('/#/inbox');
+  const chips = page.getByRole('radiogroup', { name: 'نوع المحادثة' }).getByRole('radio');
+  await expect(chips).toHaveCount(4);
+  await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(390);
+  const tops = await chips.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+  expect(new Set(tops).size, `tops ${tops.join(', ')}`).toBe(1);
+});
+
 // A 44 px box at a fractional place (the screen is still sliding in) reads 43.99998 in the box model of the browser. A half pixel is
 // the allowance for that float rounding. The box itself is exactly 44 px (offsetHeight 44, height 44px).
 const MIN_TOUCH = 43.5;

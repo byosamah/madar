@@ -541,3 +541,22 @@ describe("the What's new entry of the Needs first list for the maker (tsk_418)",
     for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
   });
 });
+
+// The Arabic Inbox chip with one word (tsk_448, owner 2026-10-28). Found by id, never by place.
+describe("the What's new entry of the short Arabic Inbox chip (tsk_448)", () => {
+  it('sits under the usage entry, above the Needs first entry, with no right and no link', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-135')).toEqual({ id: '2026-10-23-135', day: '2026-10-28' });
+    const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
+    expect(at('2026-10-23-135')).toBeGreaterThan(at('2026-10-23-102'));
+    expect(at('2026-10-23-135')).toBeGreaterThan(at('2026-10-23-136'));
+    expect(at('2026-10-23-135')).toBeLessThan(at('2026-10-23-131'));
+  });
+
+  it('names the To-dos filter in the words of the Inbox, in English and Arabic, with no dash', () => {
+    const word = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-135', part]));
+    expect(word(en, 'body')).toContain(String(wordAt(en, ['chatFilter', 'todos'])));
+    expect(word(ar, 'body')).toContain(`«${String(wordAt(ar, ['chatFilter', 'todos']))}»`);
+    expect(word(ar, 'body')).toContain(`«${String(wordAt(ar, ['chatFilter', 'people']))}»`);
+    for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
+  });
+});

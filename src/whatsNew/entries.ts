@@ -17,6 +17,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
   // The "Needs first" list shows to the maker with task.details, also without task.assign (tsk_418). The lead sets the real release day before the test deploy.
   { id: '2026-10-23-136', day: '2026-10-28' },
+  // The Arabic Inbox chip "To-dos" got one word, so the four chips fit one row at 390 px (tsk_448). The lead sets the real release day before the test deploy.
+  { id: '2026-10-23-135', day: '2026-10-28' },
   // The security scan of 2026-10-28: F2 (a 10-digit code in reset and invitation links), F3 (a report id must name a real report),
   // F1 (Madar refuses an AI app that hides a return address) and F4 (the History of a deleted project). The lead sets the real
   // release day before the test deploy.

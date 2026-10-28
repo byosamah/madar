@@ -37,3 +37,22 @@ describe('the screen word "to-do" (owner, 2026-10-20)', () => {
     expect(arabic['screens.myWork']).toBe('المهام');
   });
 });
+
+/** The four kind chips of the phone Inbox must fit one row at 390 px in Arabic (tsk_448, owner 2026-10-28). */
+describe('the Arabic kind chips of the Inbox (tsk_448)', () => {
+  const arabic = flatten(ar as unknown as Record<string, unknown>);
+  const english = flatten(en as unknown as Record<string, unknown>);
+
+  it('names the to-do chip with one word, like the English "To-dos"', () => {
+    expect(english['chatFilter.todos']).toBe('To-dos');
+    expect(arabic['chatFilter.todos']).toBe('المهام');
+    expect(arabic['chatFilter.todos']).not.toMatch(/\s/);
+  });
+
+  it('keeps the sentence of the desk button whole with each chip word', () => {
+    for (const kind of ['all', 'projects', 'todos', 'people']) {
+      const word = arabic[`chatFilter.${kind}`];
+      expect(arabic['chatFilter.label'].replace('{{kind}}', word)).toBe(`اعرض المحادثات: ${word}`);
+    }
+  });
+});

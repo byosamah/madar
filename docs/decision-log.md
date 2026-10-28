@@ -12,6 +12,9 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   no policy change.
 - PostHog names (tsk_489, owner): the event of a failed call (`madar_call_failed`) sends no `personId` and no `personName`. Only errors
   carry the person, as the rule of 2026-10-25 says.
+- Arabic Inbox chip (tsk_448, owner): the chip «قائمة المهام» of the four kind chips in the Inbox becomes «المهام», one word like the
+  English "To-dos". On a 390 px phone in Arabic, «الأشخاص» went to a second row. The key `chatFilter.todos` also names the option in the
+  menu of the desk Inbox and the sentence «اعرض المحادثات: المهام». One word for one meaning. The tab of a project keeps «قائمة المهام».
 
 
 History and provenance taken out of the guides of the group ops-data. Grouped by guide, then by section. The text is in the

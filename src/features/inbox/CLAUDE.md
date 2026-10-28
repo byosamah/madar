@@ -37,6 +37,8 @@ in a chat: `src/features/files/CLAUDE.md`. The chat inside Focus mode: `src/feat
   right) means no row. `RichText everyone` draws the words as a mention chip when the message named people.
 
 ## Inbox list and groups
+- The Arabic word of the To-dos kind is one word, «المهام» (`chatFilter.todos`), so the four chips fit one row at 390 px. A longer word sends
+  the last chip to a second row. `tests/e2e/inboxPhone.spec.ts` measures the row. The same key names the option of the desk menu.
 - The kind menu (`ChatList.tsx`, All, Projects, To-dos, People; a phone has `ChatKindChips`) lasts through `usePersistentChoice`
   (`madar.chatKind`). Search and "Archived (n)" look only in the chosen kind. A search in the main list looks in every chat. A group matches
   by its name. The line "unread messages are in other chats" with "Show all" (`inboxLine.*`) shows only for a kind other than All with no
