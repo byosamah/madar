@@ -2700,3 +2700,23 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   supabase, fileStore r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401; page 200 with the title Madar;
   /favicon.ico 200; madar.vado.sa serves `index-BRQcoQ7W.js` and `bootstrap-Dx2Z5ymP.js` of the deploy 9cfa40d4, and its
   `words.en-*.js` holds both new What's new titles. First load in production: 31 files, 293,546 B gzip.
+
+### Release record: production at 7e4ab880 (2026-10-28, two hidden-project leaks: the late push and the summary count)
+- What shipped. `rb/view-leaks` (3 commits, one Sonnet builder, tests first). 479a27db: the count of reviews that wait in the morning summary
+  joins `viewSql` on Postgres, as the SQLite form did (tsk_440). No person could see the gap: `rightsOf` gives every Admin every right, so the
+  Admin fallback reviewer always views; a leader always views. 64ba7e7b: a push that the server planned before a person lost the view of the
+  item sends nothing, also not the empty push (tsk_439). `line.ts` tells GONE (the read as the person answers not_found or forbidden, or the
+  item left the list of the person) apart from an error; the effect then posts to no device, keyed or keyless, and the row ends as done. A
+  keyless device now gets the same read as the person (2 to 3 read calls). The quiet end (`held.ts`) had the same gap: a gone notice no longer
+  counts as unread. A push for a notice whose item was deleted also sends nothing now. 4dba2bf9: What's new 123. 7e4ab880: TASKS.md ticks.
+- Gates. Builder, on d4c432b4: typecheck; the new tests failed before each fix (the summary SQL text pin; 9 of 15 in `viewLostPush.test.ts`);
+  npm test 12,280 passed; the old and the new summary SQL on a scratch Postgres 17 (an Admin without view rights: 2 reviews before, 0 after).
+  Lead, after the rebase on 2e5c9ff1: build:server, build, build:remote, test:lite and test:office passed. After the rebase on 16aa2507:
+  typecheck and the touched folders (src/whatsNew, src/i18n, server/push, server/mail, server/jobs: 507 tests); build:server, build,
+  build:remote; test:db 3,376 passed (53 skipped); test:it 350; test:mcp 613 (conformance: only the 27 expected failures). The rebases on
+  a77ddf06 and 726a1e18 changed no code (the release record and one comment line).
+- `all.sh test` by Claude (record 7e4ab880): quick checks passed (health from supabase, fileStore r2, 156 calls; database, lock and
+  asyncContext ok; /mcp with no token 401). The deploy suite did not run: the change has no screen except one What's new line.
+- `echo production | scripts/deploy/all.sh production` run by the owner with `!` (the check refused Claude's run). Live checks: the same
+  quick checks passed on production; madar.vado.sa answers 200 with the title Madar, and its `words.en-B89V_CBk.js` holds the What's new title
+  "No push about a project you cannot see".
