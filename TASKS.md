@@ -92,7 +92,6 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 - [x] N3: keep `office_deletes` rows for `OFFICE_DELETES_KEEP_DAYS` (7 days), and use C2's `loadJobs` (C2). Done by N3.1, merged 2026-10-04.
 - [x] E: an option in `serverEnvFrom` that skips the database check, so `worker.ts` no longer hands it a stand-in URL before it swaps in the Hyperdrive binding (C1). Done on main (42d3781): the `database` option.
 - [x] Docs: correct E1 fact 2 in `platform-facts.md`: the local pooler accepts `madar_server.pooler-dev` and runs as `madar_server` (C1). `npm run start:server` now needs `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB`. Done (3fc75b6): the fact lives in proof.md, section E1; platform-facts.md 1.5 has the local facts.
-- [ ] Z0b: one run of the parallel Workers case gave 200, 500, 500 and did not repeat in 4 runs and 47 requests; the cause is not proven (C1, proof.md). Measure `chats.unreadCount` too (C2, until A9 lands). Also (wave 4): remove the `probe-ip` stub on madar-test with the owner's OK. Done by Y (wave 5): S1's header probe is in proof.md Z0b, and the old P2 note (the x-forwarded-for rule and `forgot:all`) is corrected. The hosted projects (madar-test and madar) keep the Auth default "Email OTP Expiration" of 3600 s; never set 86400, because Auth has one life for every email link, so a reset link would also live a day (security fix 7). The forgot email window stays 1 hour.
 - [x] After the F merge (security reviews of F1 commits 0da0e79 and links.ts, 2026-10-04): the F1 repair already made inline an allowlist (`INLINE_SAFE` in `server/files/links.ts`: pictures, PDF, plain text, video, audio) and stores every other type as `application/octet-stream` (`storedMimeType`). The stored `content_type` still comes from the uploader's PUT header, so check that F2's preflight compares the stored type of the FINAL object with `storedMimeType(intent type)` and deletes on a mismatch, with a test: a PUT of `text/html` under an `application/pdf` intent never gets a link. Then bring the fake `linkType` in `serverFakes.ts` to the same allowlist, tests first. Done by F2: `confirm.ts` checks the final object (test in `confirm.test.ts`), and the fake allowlist matches (`links.test.ts`).
 - [x] Z (proof.md owner): add a C2 section with the C2 results (C2 left it out because Z owns the file). Done: proof.md section C2 ("Loaders and the office cache").
 - [x] Security review of P2 `server/auth/effects.ts` (2026-10-04): the auth.email effect writes a new email to Auth as confirmed at once, so whoever changes a person's email can take over the account with "Forgot password", and Management could do it to any person who is not an Admin. Fixed on main (6500fd2): only an Admin changes an email, never through an agent; the person form shows the email as read-only to Management, with a hint in English and Arabic.
@@ -157,7 +156,6 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
   - G: after `agents.revokeAll`, Auth still holds the grant, so the consent screen goes straight back to the AI app and Madar records nothing; that app gets 401 until the person removes it in Settings, Agents (proof.md G4). Decide whether revokeAll also revokes the grants in Auth. Done by H, wave 5: no Auth admin call removes one grant (Auth v2.197.0); revokeAll now also deletes the approvals of the person, so the next connection is refused until the person approves again (proof.md section H).
   - X: `scripts/seed-test-office.ts` does not touch the platform table `agent_approvals`, so approvals survive a reseed of madar-test while the links go. Empty it in the seed (and add it to the seed table test). Done by Y, wave 5.
   - X: Z0a case 3 (agents.spec) and the Preview as checks run only on madar-test, after Z1. Done 2026-10-05 (Z1 line).
-  - O / Z1: move madar-test into its own Supabase organization, or make a scoped token for madar-test only; add `TEST_SUPABASE_ACCESS_TOKEN` to GitHub only after that, and deploy the test screens from the Mac until then. Apply O3's `[remotes.test]` and `[remotes.production]` blocks of `supabase/config.toml` when the screen hosts are known (`config.sh` refuses until then).
   - O / Z5: `brew install age` on the Mac (test:it needs it, or set MADAR_AGE); make one commit (a README) in `byosamah/madar-backups` before the first release. Done 2026-10-05.
   - Plan: section 9 gains a residual risk: the Pages project `madar` serves both test (branch preview) and production (branch main); and plan 5.9 should say that deploy.yml deploys the functions only, not the screens (O3 repair). Done by Y, wave 5 (risk 21).
   - S (optional): add `auth.emailNotice` to the kinds comment in `server/core/effects.ts`. Done by Y, wave 5.
@@ -230,7 +228,7 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] Dashboard batch to production (owner OK, 2026-10-06): test copy at 2bb11f5 (164 passed, 1 network drop that passed 3 of 3 on repeat), then all.sh production; the quick check passes
 - [x] Tasks with no project (owner, 2026-10-06): "office tasks", built on branch office-tasks/2026-10-06 (design: docs/superpowers/specs/2026-10-06-office-tasks-design.md). Only the maker, the lead, the helpers and the Admin see one; New office task on the Tasks page; the word Office where a project shows; past-due, workload, reviews and gaps of the Dashboard count them, project numbers never. Waits for the merge Privacy review in 3 rounds (2026-10-06): a comment body after an undo of a deleted task, then existence leaks (error texts, the office signal, mixed undo), all fixed with tests; accepted limit: the sequential ids show that hidden records exist. Merged with npm test 3,978 passed, test:db 1,001, the prototype smoke 87 of 87
 - [x] Three layout fixes (owner, 2026-10-06): the Stale sign moves under a long project name on a phone; a sheet that opens closes the toasts with no Undo, and on a phone the toasts sit above the sheet; on a desk a sheet starts below the tab pill, so the bell count shows
-- [ ] Daftra link (study 2026-10-06, flow chosen 2026-10-26): the accountant keeps the books in Daftra. Owner decisions: Madar only reads Daftra and never writes to it (flow A). At the due date of a payment, Madar tells the accountant on the bell. The accountant makes the invoice in Daftra, as today, and Daftra sends it to the client. Madar finds the new Daftra invoice of the same client with the same amount and shows it on the payment; the accountant presses "Link" once (Accounting role only). The payment then shows "Invoiced", and "Received" ticks itself when Daftra marks the invoice paid. Each Madar client matches one Daftra client. A payment amount includes VAT, and each payment has one Daftra invoice. The accountant groups by client, not by work order or cost center: the link sits on the payment, so no group is necessary. The full Daftra key stays on the server only, never in the browser or for AI agents. The accountant joins the pilot as Accounting. He asked that Madar issue the invoice itself; the owner chose flow A and tells him. The read-only study on the Mazj test key is done (proof.md, "Daftra study on the Mazj account", 2026-10-26). Built on rb/daftra (2026-10-26, spec `docs/superpowers/specs/2026-10-26-daftra-link-design.md`): one Daftra account for each sub-company (Bunah, MAZJ, Tuba, Vado, Zuraa; keys `DAFTRA_<NAME>_KEY` and `DAFTRA_<NAME>_SITE`), the Link in the payment sheet, the due notice for Accounting only (not the Admin), the 15-minute job, and Madar's own read-only lock (`server/daftra/readOnly.ts`: Daftra has no read-only key).
+- [x] Daftra link (study 2026-10-06, flow chosen 2026-10-26): the accountant keeps the books in Daftra. Owner decisions: Madar only reads Daftra and never writes to it (flow A). At the due date of a payment, Madar tells the accountant on the bell. The accountant makes the invoice in Daftra, as today, and Daftra sends it to the client. Madar finds the new Daftra invoice of the same client with the same amount and shows it on the payment; the accountant presses "Link" once (Accounting role only). The payment then shows "Invoiced", and "Received" ticks itself when Daftra marks the invoice paid. Each Madar client matches one Daftra client. A payment amount includes VAT, and each payment has one Daftra invoice. The accountant groups by client, not by work order or cost center: the link sits on the payment, so no group is necessary. The full Daftra key stays on the server only, never in the browser or for AI agents. The accountant joins the pilot as Accounting. He asked that Madar issue the invoice itself; the owner chose flow A and tells him. The read-only study on the Mazj test key is done (proof.md, "Daftra study on the Mazj account", 2026-10-26). Built on rb/daftra (2026-10-26, spec `docs/superpowers/specs/2026-10-26-daftra-link-design.md`): one Daftra account for each sub-company (Bunah, MAZJ, Tuba, Vado, Zuraa; keys `DAFTRA_<NAME>_KEY` and `DAFTRA_<NAME>_SITE`), the Link in the payment sheet, the due notice for Accounting only (not the Admin), the 15-minute job, and Madar's own read-only lock (`server/daftra/readOnly.ts`: Daftra has no read-only key). Done (checked 2026-10-27): live since 2026-10-26 (production at 2c3d2018, release record 314a90eb). The five open Later lines below are the Madar to-do tsk_484.
   - [x] Test copy with the MAZJ test key, and the owner tried it (2026-10-26): match, suggestion, Link, Invoiced, Received set by Daftra. Released to production in 5bfb2df7 and 1f240dbb (dormant: no keys)
   - [x] Last step: the five real keys are in production (2026-10-26, production at 2c3d2018). Every key reads its own account
   - [x] Dropped by the owner (2026-10-26: "I don't mind"): the five keys stay without the Daftra role "Only Allow"; Madar's own read-only lock is the guard
@@ -238,7 +236,6 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
   - [ ] Later: the Daftra job step does nothing on the office object path (SQLite, `MADAR_DATA=office`) until a `NetApi` method exists
   - [x] The paid check reads the invoice read longest ago first, and the cache fills go first (code review fix, released 2026-10-26)
   - [x] Screenshots of the Daftra part of the payment sheet at desk width: English and Arabic, light and dark (test copy, 2026-10-26)
-  - [ ] The same at 390 px: the test copy refuses to load in a frame, so it needs a Playwright run with a test sign-in
   - [ ] Later: a rename of a sub-company's English name changes its Daftra account name (`DAFTRA_<NAME>_*`): rename the two secrets in the same step
   - [ ] Later (code review, low): a Link press in the same second as a sub-company change can store the old account; a person who loses "Link Daftra invoices" still sees old due notices
   - [ ] Later (owner may choose): Admin, Roles shows "No one yet" for each role while the people load; show nothing until they load
@@ -262,13 +259,11 @@ Branch feedback-notices. Owner decisions: in-app notices only (no email); the do
 - [x] Leak review as a non-Admin and as a former Admin (every read path, error texts, Realtime signals): round 1 found 3 (fixed with tests), round 2 no leak; record in proof.md
 - [x] Review (4 lenses) and repair: 2 medium (the page field link, the excerpt direction) and 10 low, all fixed and checked by adversarial verifiers
 - [x] Merge gate, screenshots (EN/AR, light/dark, 390 px), merge to main, test copy (a0ce0be) and production (owner OK, 2026-10-07). Skipped on the owner's word: the local walk (stopped at 56 of 168), the prototype smoke and the deploy suite on the test copy
-- [ ] The new walk step for requests and bugs (tests/e2e-deploy/walk.spec.ts, uncommitted in the main folder): review it and run the walk in its 4 variants
 - [ ] Later (proposed, 2026-10-07): report screenshots load at full size as thumbnails (up to 10 MB each; lazy loading only for now). A small picture made at upload would save Storage egress
 - [x] On a phone, the Mark done button of Requests and bugs took about 40% of the row. It now sits on its own line under the message (2026-10-12)
-- [ ] Later (proposed, 2026-10-07): an Admin's agent gets screenshot storage keys in report events (events.list, events.undo); strip them as feedback.list does. Also the general rule "an agent never gets a storage key" (files.list)
+- [x] Later (proposed, 2026-10-07): an Admin's agent gets screenshot storage keys in report events (events.list, events.undo); strip them as feedback.list does. Also the general rule "an agent never gets a storage key" (files.list) Done (checked 2026-10-27): `withoutStorageKeys` in `server/mcp/run.ts` strips the keys from every tool answer (3691c1e4, 616ff21b).
 - [ ] Later (proposed, 2026-10-07): the office Realtime signal shows that someone sent or changed a report, and when; give report rows the private part of the diff (the Admins and the sender)
 - [ ] Later (proposed, 2026-10-07): feedback.list has no page limit; the status filter keeps an agent answer small for now
-- [ ] Later (proposed, 2026-10-07): try the Supabase CLI native stack (no Docker, alpha since 2026-10-02): update the CLI, `[experimental] stack = true`, then test:db and test:it in one worktree, and compare the counts with Docker. The MinIO suites still need Docker (server/it/minio.ts). Check first that `config push` to the hosted projects ignores the experimental section
 
 ## Two team requests (owner, 2026-10-07)
 
@@ -406,15 +401,13 @@ of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main; on the test co
 - [x] Production at bf3fa9f (owner, 2026-10-08, `all.sh production` run by the owner): health 116 calls, page 200, `POST /mcp` with no token 401, `sw.js` 200 with no-cache. Record: proof.md
 - [ ] Not proven: a real push service. The first push on Chrome, Edge, Firefox, Safari and an iPhone (Home Screen) shows only on the test copy
 - [x] The hand-set `Content-Length: 0` header is removed from `server/push/send.ts`: a fetch POST with no body sends it by itself (2026-10-08)
-- [ ] Question: a plain comment on a task makes no bell notice and no chat message, so it sends no push. The Inbox shows it as a task thread. Add a push for it?
+- [x] Question: a plain comment on a task makes no bell notice and no chat message, so it sends no push. The Inbox shows it as a task thread. Add a push for it? Done (checked 2026-10-27): the chat design, item 19, answers it; built in bd5dd0ad (`server/push/chatRule.ts`), live at 5350647.
 - [x] A sign-out also unsubscribes the browser: kept (merge lead, 2026-10-08). Since 2026-10-09 the next sign-in on that browser turns push on again for that person, because the permission stays (see the default-on items below)
 - [x] Push on by default (owner, 2026-10-09), branch `rb/push-default-on`: a card on Home asks once for the Allow tap (`PushAskCard`), then `syncThisDevice` turns push on again by itself at each sign-in; a person who turned the switch off stays off on that browser (`madar.pushOff.<user id>`). Tests first in `push.test.ts`, `PushSync.test.tsx`, `PushSection.test.tsx`, `PushAskCard.test.tsx`
 - [x] Push on by default is on production at ef8e392 (owner's OK, 2026-10-09; test copy first, the owner ran `all.sh test` twice because the first run did not finish). Record: proof.md, "Browser push on by default"
-- [ ] Owner: try it on a real device on madar.vado.sa: sign in, tap the card on Home, Allow; sign out and in again (push is on without a new question); turn the switch off in Settings, reload (it stays off). An iPhone needs Madar on the Home Screen first, and shows no card before that
 - [x] The worktree `~/dev/madar-rb/push-default-on` and the branch `rb/push-default-on` are removed (owner's OK, 2026-10-12)
-- [ ] Not proven: the card and the silent turn on in a real browser with a real push service (jsdom tests and headless screenshots only)
 - [x] The endpoint must name a known push service (`PUSH_HOSTS`), so the server cannot be aimed at any host. A new browser vendor needs one line there: kept (merge lead, 2026-10-08)
-- [ ] Question for the owner: an Admin gets a push for every project chat message in the office, because the Inbox counts every project chat unread for an Admin. Limit it to the chats of the projects the Admin is on?
+- [x] Question for the owner: an Admin gets a push for every project chat message in the office, because the Inbox counts every project chat unread for an Admin. Limit it to the chats of the projects the Admin is on? Done (checked 2026-10-27): the chat design, items 21 and 23, answers it; built in bd5dd0ad, live at 5350647.
 
 ## 2026-10-12: team reports fbk_004, fbk_005 and fbk_006 (branch `rb/feedback-batch`)
 Faisal Al Howshani sent the three reports on 2026-10-11. The owner asked for all three on 2026-10-12. Guides: `src/CLAUDE.md`, `src/api/CLAUDE.md`.
@@ -442,7 +435,6 @@ The owner asked on 2026-10-12. Decisions: the name format "Osama Claude Agent"; 
 - [x] `users.remove` (new call, 117 calls): a turned-off person or agent leaves every list for good (`User.removed`). The record stays for the History. The agents of a person go with them. People screen: "Remove from the list" with a sheet that asks first, no Undo. MCP: deny list. Counts raised: `calls.test.ts`, `serverCallMap.test.ts`, `health.test.ts`, `worker.it.test.ts`
 - [x] Tests first for each part. Gates: typecheck; `npm test` 4,626 passed and 6 skipped (455 files); the RTL check; `npm run build` and `build:server` with their bundle checks. Screens: the People menu and the sheet in English dark at desktop width, and at 390 px with real touch emulation in English and Arabic, light and dark: no horizontal scroll, both sheet buttons inside the screen. After a removal the old tasks still show the name
 - [x] Test copy and production at fe3ac49 (2026-10-12): the migration applied on both; production by the owner with `!`. The 3 agents read "Osama Claude Agent", "Faisal Claude Agent" and "Tarek Claude Agent". Record: proof.md, "Agent names and Remove for a turned-off person"
-- [ ] Not run: `test:db`, `test:it` (Docker was off; the migration ran on pglite only), the prototype smoke, the deploy suite. `users.remove` is not tried on the live site
 - [ ] The name of an agent does not follow a later change of the first name of its person: a person who renames themselves renames the agent by hand (Edit)
 
 ## 2026-10-12: the MCP server names its release (branch `rb/mcp-version`)
@@ -782,7 +774,6 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] Gates: typecheck, npm test (7,943 passed; one deploy test timed out under load and passes alone), build, build:server
 - [ ] Not run (owner chose speed): test:db, test:it, the deploy suite, the screenshots (the Chrome extension was off)
 - [x] Test copy and production at 3cb6e144 (2026-10-20, the owner's "go production now"). Record: proof.md
-- [ ] Screenshots EN/AR, light/dark, 390 px of the four changes (after the release; needs the Chrome extension or a signed-in browser)
 
 ## 2026-10-20: owner batch of 7 items (branch `rb/batch-join` from `rb/small-fixes`, `rb/role-rights`, `rb/admin-reach`)
 Three Sonnet builders, one for each track, no separate checker. Owner rule for this batch: no test suite over 5 minutes; the owner
@@ -826,7 +817,6 @@ Owner: tasks and chat need notifications on the phone. These fixes serve the Hom
 - [x] Hand test on the test copy (owner's iPhone, 2026-10-21): three lines, each press opened its place. Production at e361e0cb
   (the owner said "deploy"; Claude ran it). Record: proof.md
 - [x] Android: the owner tried the line on production and it worked (2026-10-21)
-- [ ] Each phone gets the line after its first open of Madar after the release (the start check sends the keys)
 - [ ] Found: What's new shows the day "23 October" for the entries of 2026-10-20 (ids `2026-10-23-*`). Ask the owner before a change:
   a new id marks an entry as new again
 - [ ] Later, with the store app: the plan of 2026-10-20 (one code for both phones with Expo, the shared contract, a "phone" list for
@@ -858,7 +848,6 @@ the cover from the small picture that Madar keeps (up to 960 px), as data when i
   dark, AR light and AR dark at 390 px; a script check found no sideways scroll and no cut text in all 4
 - [x] Test copy at 716c0a2 (main), after the presence proof session took its migration off madar-test; the live check passed again
 - [x] Production at 716c0a29 (2026-10-21; the owner said "deploy" and ran it with `!`). Record: proof.md
-- [ ] What's new phone shots: EN dark, AR light and AR dark at 390 px (the auto-mode check refused the Playwright shots)
 
 ## Times in AM and PM (owner, 2026-10-21: "make the time in AM PM style not 24")
 
@@ -909,14 +898,14 @@ Sonnet builders, Claude leads (owner, 2026-10-21). What's new 2026-10-23-74.
   prerequisites is `task.any`, or the maker with `task.details` (`tasks.update`, `mayChangePrerequisites`). So a maker whose role has
   `task.assign` off sees no field, although the call would pass. Fix: a new additive flag `viewerCan.editPrerequisites` from the same rule
   (`src/api/views.ts`, `contract/views.ts`), read by the sheet. The parity record compares the old keys only, so a new key is safe.
-- [ ] **Step 2: "See every project" (owner chose it as a later step, 2026-10-21).** A switch that limits a role to the projects where the
+- [x] **Step 2: "See every project" (owner chose it as a later step, 2026-10-21).** A switch that limits a role to the projects where the
   person is on the team. A hidden project answers `not_found` on every path, as office to-dos do today. Read paths it touches:
   `projects.list`, `projects.get`, `deadlines.list` and loader `overview.ts`; `tasks.list` and `get`, `updates.list`, `files.list` and
   `link`, `tracker.list` and `export`, project `meetings.list` and `get`, project comments and chat threads; `search.query`,
   `dashboard.get` (tiles, workload, schedule, map), `reports.office`, `events.list`, the client counts; the `project.view` action and
   `mayViewTask`, `mayViewFile`, `mayViewMeeting`; the Realtime signals (`server/data/save.ts`), notices, push and the morning summary
   SQL; Home, the meeting form, the code fields, the new-project sheet, the Clients section, the project-by-code route, the template
-  follower counts; the MCP tools with a project id. It needs leak tests on every path (root CLAUDE.md rule). Size: about as big as step 1.
+  follower counts; the MCP tools with a project id. It needs leak tests on every path (root CLAUDE.md rule). Size: about as big as step 1. Done (checked 2026-10-27): the switch `project.seeAll` is live at 01af2203; the two D3 gaps stay open under "D3 open".
 - [ ] **Check not run before the release: the deploy suite on the test copy.** `npx playwright test -c playwright.deploy.config.ts`
   against the test copy, about 45 minutes, in a delegated Playwright subagent (Haiku). It seeds the sample office again at its end, so
   run it when nobody tests by hand on the test copy.
@@ -970,7 +959,6 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [x] Track 6 answer: the platform gives about 95 of 100 calls a new worker, also for a plain function: no code fix (proof.md)
 - [x] Merge of the six tracks into rb/perf2 (3f8dcbae); builds and bundle checks pass; first load 34 files, 286,908 B gzip
   (was 384 KB); limits lowered to 970,000 B, 296,000 B gzip, 35 files (fe3a0196)
-- [ ] Gap critic findings: a second wave if any holds
 - [x] Merge into rb/perf2, then the gates once: typecheck, npm test, test:lite, test:office, build, build:server,
   build:remote test, test:db, test:it, test:mcp, the prototype smoke: all green (one npm test failure fixed, see below)
 - [x] Screenshots (EN/AR, light/dark, 390 px), Chrome and WebKit iPhone, and the after numbers on the test copy: no breakage;
@@ -985,7 +973,6 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [x] Test copy and production at fbe8ac55 (owner: "deploy", then "deploy to production now", 2026-10-22); quick checks passed
 - [x] After the test deploy: the prototype smoke 87 of 87; one live save sends one request (10 of 10), CPU 175 to 287 ms; the phone
   load shows no time gain (busy Mac, load 10 to 14) but the idle download now starts after the rows and 15% less data loads by 5 s
-- [ ] A second phone measure at a low load (load average near 5); the prefetch limit counts screens, not files (proof.md)
 - [ ] Security note (automated review, 2026-10-22): the budget prices a one-person tasks.list (mine, review_for_me, workOf, ownerId)
   at 1. These lists are narrow in SQL (owner and helpers, or in review); measured 5 to 10 ms on the year office; the worst request
   the budget and MAX_BATCH allow stays near 0.5 s of the 2 s CPU limit. No change; look again if a person list grows a full scan
@@ -1008,13 +995,8 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [x] Prototype smoke once on 29170b22: 87 of 87 (7.6 minutes, delegated)
 - [x] Docker suites once on bb8d8527 (GP-1 touches none of their code), 2026-10-22: db reset; test:db 2,979 passed (27 skipped);
   test:it 332 of 332; test:mcp 330 passed, conformance 5 of 32 (the normal result); test:lite 2,979 passed; test:office 40 of 40
-- [ ] After the deploy, on a real iPhone: wait 11 minutes, press a tab, check that no OPTIONS reaches the function
 - [x] probe-reuse deleted from madar-test on the owner's word (2026-10-22); the test project holds api, mcp and jobs again
 - [ ] Not asked, recorded only: LV-1 one font preload (first visit of a new device only)
-- [ ] Safari on iPhone (owner, 2026-10-21: "we have safari users on iphone"). Every iPhone browser is WebKit, and every check
-  of this audit ran on Chromium. At the merge: no requestIdleCallback, scheduler or navigator.connection without the fallback
-  (the idle helper of src/app/screens.ts waits 200 ms in Safari). After the merge: the screenshots and the live numbers also on
-  WebKit with an iPhone profile (Playwright webkit 26.6 installed 2026-10-21): cold load, one save, chat delivery
 - [x] Wave 2, Safari: WebKit keeps a preflight 10 minutes (Chromium 2 h); WebKit uses the page's own /api; DF-14 falls back to
   a plain load when IndexedDB throws, fails or is missing (tests)
 
@@ -1072,7 +1054,7 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
 - [x] Gates: typecheck; npm test 10,311 passed (17 timing tests in 8 files failed under a load average of 25 to 39 from another program,
   224 of 224 alone); test:db 3,178; test:it 333; screenshots EN and AR, light and dark, 390 px, and the What's new page with 4 dates.
 - [x] Production at f90bd7e7 (owner: "Production now"; the first run hit a Supabase 500, the second passed). fbk_049 marked done.
-- [ ] Note: an office that already saved Work hours in Admin keeps its saved hours; the 8 to 5 default applies only where none is saved.
+- [x] Note: an office that already saved Work hours in Admin keeps its saved hours; the 8 to 5 default applies only where none is saved. Done (checked 2026-10-27): `src/lib/quietHours.ts` keeps a saved value (`src/lib/quietHours.test.ts`).
 
 ## fbk_050 and fbk_051 (owner, 2026-10-22; one release)
 - [x] fbk_050 (Anas Emam, "Download all attachments"): a quiet "Download all (N)" under every message, to-do comment and post comment with
@@ -1124,7 +1106,6 @@ Design: `docs/superpowers/specs/2026-10-25-madar-posthog-insight-design.md`. Pla
 - [x] Screenshots of the Settings and Me line (EN/AR, light/dark, 390 px)
 - [x] Production at 4df7db3d (2026-10-25 15:28), with the four team reports and the to-do fixes. PostHog check at 15:35: 2 production
   page views (`env` production) arrived; no production replay yet (the visit was about 10 s); look again in PostHog later
-- [ ] Speed check: Home and the Inbox as fast as before (desktop Chrome and iPhone Safari)
 - [ ] The office object logger (`server/office/parts.ts`) is not wired to PostHog
 - [ ] Later, by the owner, one feature at a time: the PostHog dashboards and the decisions to hide a feature
 - [ ] Connect the PostHog MCP server to Claude (personal API key in `.env.local` as `POSTHOG_PERSONAL_KEY`)
