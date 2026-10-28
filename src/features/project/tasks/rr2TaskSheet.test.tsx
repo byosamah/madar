@@ -51,6 +51,26 @@ describe.each(CASES)('$name', (item) => {
   });
 });
 
+describe('the Needs first list of the maker (tsk_418)', () => {
+  const remove = { name: 'Remove Reflected ceiling plans from the list' };
+
+  it('shows the X to the maker with task.assign off, on the desk', async () => {
+    await renderApp(OPEN('tsk_007'), (state) => {
+      as('usr_005', ['task.assign'])(state);
+      state.tasks.tsk_007.createdBy = 'usr_005';
+    });
+    const panel = await sheet('Stair details');
+    expect(await within(panel).findByRole('button', remove)).toBeInTheDocument();
+  });
+
+  it('hides the X from a team member who did not make the to-do', async () => {
+    await renderApp(OPEN('tsk_007'), as('usr_005'));
+    const panel = await sheet('Stair details');
+    await within(panel).findByText('Reflected ceiling plans');
+    expect(within(panel).queryByRole('button', remove)).toBeNull();
+  });
+});
+
 describe('Delete to-do (task.deleteOwn)', () => {
   it('shows for the lead who did not take the to-do, with the switch on', async () => {
     await renderApp(OPEN('tsk_007'), as('usr_002'));

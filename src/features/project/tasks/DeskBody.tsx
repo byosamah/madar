@@ -27,7 +27,7 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
   const lang = useLang();
   const nameOf = usePersonName();
   const {
-    data, detail, task, viewerCan, canDetails, canDates, mayChange, root, title, setTitle, patch, move, changeLead, statusOptions, ownerOptions,
+    data, detail, task, viewerCan, canDetails, canDates, canNeeds, mayChange, root, title, setTitle, patch, move, changeLead, statusOptions, ownerOptions,
     choices, teamIds, makerId, canUndoAgent, files, section, setSection, timingKey, failures, dates, back, checklistDraft,
   } = panel;
   const readOnly = readOnlyDates(task, lang, t);
@@ -104,7 +104,7 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
               hint={detail?.viewerCan.editTeam ? undefined : t('office.helpersHint')}
             />
             {/* An office task waits for no task. */}
-            {detail && <TaskNeeds data={data} canEdit={viewerCan.editAll && canDetails} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
+            {detail && <TaskNeeds data={data} canEdit={canNeeds} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
             {viewerCan.newVersion && <NewVersion key={task.version ?? 1} task={task} />}
             {canDates ? (
               <TaskTiming

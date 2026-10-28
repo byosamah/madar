@@ -143,7 +143,7 @@ function ThisTodo({ panel }: { panel: TaskPanel }) {
 
 /** The Details view of the task panel on a phone: groups of rows over the native pickers. */
 export function PhoneDetails({ panel }: { panel: TaskPanel }) {
-  const { data, detail, task, viewerCan, canDetails, patch, files, canUndoAgent } = panel;
+  const { data, detail, task, patch, files, canUndoAgent } = panel;
   // A new object on each render: the ages of the history read the clock on each key, as before the memo (RND-4).
   const refresh = {};
   return (
@@ -155,7 +155,7 @@ export function PhoneDetails({ panel }: { panel: TaskPanel }) {
       <Checklist rows key={panel.failures} task={panel.task} edit={panel.canDetails} tick={panel.viewerCan.contribute} onChange={(checklist) => panel.patch({ checklist })} draft={panel.checklistDraft} />
       <TaskFiles layout="rows" views={files} />
       {/* An office task waits for no task. */}
-      {detail && <TaskNeeds layout="rows" data={data} canEdit={viewerCan.editAll && canDetails} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
+      {detail && <TaskNeeds layout="rows" data={data} canEdit={panel.canNeeds} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
       <TaskVersions layout="rows" task={task} />
       <AgeRefresh.Provider value={refresh}>
         <History layout="rows" data={data} canUndoAgent={canUndoAgent} />

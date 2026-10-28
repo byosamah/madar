@@ -98,6 +98,8 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   new saved value on their own, and a field with unsaved typing keeps it (`TaskSheetTyping.test.tsx`). `nextStep(data, viewerCan, makerId)` in `nextStep.ts` picks one next step; `NextStepSlot.tsx` draws it. The
   file name differs in case from `nextStep.ts` on purpose, because macOS resolves `./NextStep` to the `.ts` file. At most one main button;
   in the Conversation view it is secondary (`demote`).
+- The "Needs first" field (`TaskNeeds`) reads `viewerCan.editPrerequisites` (`canNeeds` of `useTaskPanel`), not `editAll`. The flag and the call
+  `tasks.update` share `mayChangePrerequisites` (`taskGates.ts`): task.any, or the maker with task.details. The lead alone does not pass.
 - Hooks kept at 390 px for the browser specs: `#task-owner`, `#task-status`, `#task-review`, `#task-note`, `#task-title`,
   `#task-add-helper`, `#task-add-need`, the region Review, the buttons Approve and Send back, the role `tab` named Conversation, and the
   button Focus. Layout props on the shared parts (`layout="rows"`, `rows`, `docked`, `hideTitle`) are in `DetailRows.tsx` and its callers.

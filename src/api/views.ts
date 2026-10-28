@@ -9,7 +9,7 @@ import { computeHealth, isOverdue } from './health';
 import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectResource, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { ensureRights } from './rights';
 import { mayWriteMinutes } from './meetingGates';
-import { isTaskMaker, mayAssignTask, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
+import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
 import { lineKindOf } from '../lib/commentLine';
 import { diffDays } from '../lib/dates';
@@ -490,6 +490,8 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       // Role rights version 2: one flag for each gate of the task panel. A change of any to-do (task.any) passes every kind of change.
       editDetails: mayDetails,
       editDates: mayDates,
+      // The "waits for" field has its own rule: it needs the maker, not the lead. The call and this flag share one function (tsk_418).
+      editPrerequisites: mayChangePrerequisites(viewer, r),
       work: mayWork,
       comment: can(viewer, 'comment.create', r),
       upload: can(viewer, 'file.upload', r),

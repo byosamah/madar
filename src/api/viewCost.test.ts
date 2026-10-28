@@ -200,7 +200,7 @@ describe('the output of the read views stays the same (pins)', () => {
 
   it('tasks.get for every to-do', () => {
     const answers = people.map((id) => Object.keys(office.tasks).map((taskId) => runCall(office, id, 'tasks.get', { id: taskId })));
-    expect(digest(answers)).toBe('439f37ac8fb54a08');
+    expect(digest(answers)).toBe('a7f0bd1d2ac1ffd0');
   });
 
   it('projects.get for every project', () => {

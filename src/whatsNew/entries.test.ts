@@ -524,3 +524,20 @@ describe("the What's new entry of the marked tab on the to-do list (tsk_488)", (
     for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
   });
 });
+
+// The "Needs first" list for the maker of a to-do (tsk_418, owner 2026-10-28). Found by id, never by place.
+describe("the What's new entry of the Needs first list for the maker (tsk_418)", () => {
+  it('sits under the usage entry and above the security entries, with no right and no link', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-136')).toEqual({ id: '2026-10-23-136', day: '2026-10-28' });
+    const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
+    expect(at('2026-10-23-136')).toBeGreaterThan(at('2026-10-23-102'));
+    expect(at('2026-10-23-136')).toBeLessThan(at('2026-10-23-131'));
+  });
+
+  it('names the list in the words of the screen, in English and Arabic, with no dash', () => {
+    const word = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-136', part]));
+    expect(word(en, 'body')).toContain(`"${String(wordAt(en, ['taskSheet', 'needsFirst']))}"`);
+    expect(word(ar, 'body')).toContain(`«${String(wordAt(ar, ['taskSheet', 'needsFirst']))}»`);
+    for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
+  });
+});

@@ -230,6 +230,8 @@ export const TaskDetail = TaskRow.extend({
     editDetails: z.boolean().optional(),
     /** Changes the start and due dates: task.any, or task.dates on a to-do the viewer leads or made. */
     editDates: z.boolean().optional(),
+    /** Changes the "waits for" list: task.any, or task.details on a to-do the viewer made. The same function as the rule of tasks.update (tsk_418). */
+    editPrerequisites: z.boolean().optional(),
     /** Completes, moves and opens a new version: task.any, or task.work on a to-do the viewer leads or made. */
     work: z.boolean().optional(),
     /** Comments on the to-do and reacts: comment.create. */

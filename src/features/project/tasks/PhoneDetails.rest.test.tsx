@@ -78,6 +78,23 @@ describe('PhoneDetails, Needs first and Unlocks', () => {
     expect(await within(group).findByLabelText('Add a to-do it needs first')).toHaveAttribute('id', 'task-add-need');
   });
 
+  // tsk_418: the maker with task.details sees the list as an editor, also with task.assign off. The lead who did not make it does not.
+  it('gives the maker with task.assign off the X and the Add row, and gives the lead who did not make the to-do none', async () => {
+    const roles = (state: State) => { state.settings.roles = { off: { member: ['task.assign'] } }; };
+    await open('tsk_007', as('usr_005', (state) => { roles(state); state.tasks.tsk_007.createdBy = 'usr_005'; }));
+    const group = await screen.findByRole('region', { name: 'Needs first' });
+    expect(await within(group).findByRole('button', { name: 'Remove Reflected ceiling plans from the list' })).toBeInTheDocument();
+    expect(await within(group).findByLabelText('Add a to-do it needs first')).toBeInTheDocument();
+  });
+
+  it('hides the X and the Add row from a person who did not make the to-do', async () => {
+    await open('tsk_007', as('usr_005'));
+    const group = await screen.findByRole('region', { name: 'Needs first' });
+    await within(group).findByText('Reflected ceiling plans');
+    expect(within(group).queryByRole('button', { name: 'Remove Reflected ceiling plans from the list' })).toBeNull();
+    expect(within(group).queryByLabelText('Add a to-do it needs first')).toBeNull();
+  });
+
   it('hides the Add row at MAX_PREREQUISITES', async () => {
     await open('tsk_007', as('usr_002', (state) => {
       const ids: string[] = [];

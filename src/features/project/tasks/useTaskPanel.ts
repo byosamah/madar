@@ -129,6 +129,8 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
   // Role rights version 2: one flag for each kind of change. The details, the dates and the work are three switches.
   const canDetails = viewerCan.editDetails === true;
   const canDates = viewerCan.editDates === true;
+  // The "waits for" field has its own flag: the maker with task.details sees it, also without task.assign (tsk_418).
+  const canNeeds = viewerCan.editPrerequisites === true;
   const mayChange = mayChangeOf(viewerCan);
   // Escape, a tap outside on a phone, Back and another task close the panel before a field loses the focus. So the panel saves
   // what the person typed when it closes, by any way, as the X button always did (audit 2026-10-03, F-15).
@@ -197,7 +199,7 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
 
   return {
     data, detail, task, viewerCan, noteFirst,
-    canDetails, canDates, mayChange,
+    canDetails, canDates, canNeeds, mayChange,
     root, reviewBlock,
     title, setTitle, description, setDescription, unsaved, note, setNote,
     patch,
