@@ -53,7 +53,7 @@ const version = (o: Record<string, unknown> = {}) => ({
   letter: 'A', blobKey: 'chat/cnv-001/upl-c/file', mimeType: 'image/jpeg', size: 10, uploadedBy: 'usr_002', uploadedAt: '2026-10-04T09:00:00+03:00', ...o,
 });
 
-function setup() {
+function setup(o: { kind?: 'supabase' | 'r2' } = {}) {
   const db = fakeFilesDb({
     users: USERS,
     files: {
@@ -63,7 +63,7 @@ function setup() {
       fil_062: { id: 'fil_062', projectId: null, taskId: null, conversationId: 'cnv_002', name: 'Direct.pdf', versions: [version({ blobKey: 'chat/cnv-002/upl-e/file', mimeType: 'application/pdf' })] },
     },
   });
-  const deps = fakeDeps({ db });
+  const deps = fakeDeps({ db, config: o.kind === 'r2' ? { fileStore: 'r2', limits: { maxFileBytes: 500 * 1024 * 1024, filesTotalBytes: 10 * 1024 * 1024 * 1024 } } : {} });
   deps.clock.set(NOW);
   const gets: { key: string; disposition: string }[] = [];
   const presignGet = deps.files.presignGet.bind(deps.files);
@@ -79,6 +79,33 @@ function setup() {
 
 const START = { name: 'photo.jpg', size: 1200, mimeType: 'image/jpeg', conversationId: 'cnv_001' };
 const LINK = { variant: 'full', disposition: 'inline' } as const;
+
+describe('the file limit of a chat (fbk_070)', () => {
+  const MB = 1024 * 1024;
+
+  it('stays 250 MB for a direct chat or a group, also when the store takes 500 MB', async () => {
+    const { db, ctx } = setup({ kind: 'r2' });
+    await expect(filesUploadStart({ ...START, size: 250 * MB }, ctx('usr_002'))).resolves.toBeDefined();
+    await expect(filesUploadStart({ ...START, size: 250 * MB + 1 }, ctx('usr_002'))).rejects.toMatchObject({
+      code: 'invalid_input', details: { fields: ['size'], reason: 'file_too_large', limit: 250 * MB },
+    });
+    await expect(filesUploadStart({ ...START, conversationId: 'cnv_002', size: 300 * MB }, ctx('usr_002'))).rejects.toMatchObject({ details: { reason: 'file_too_large', limit: 250 * MB } });
+    // The refusal comes before any intent: only the first call wrote one.
+    expect(db.intents.size).toBe(1);
+  });
+
+  it('checks the stored object of a chat upload against 250 MB, not 500 MB', async () => {
+    const s = setup({ kind: 'r2' });
+    const size = 300 * MB;
+    await insertIntents(s.db, [{
+      id: 'upl_big', actorId: 'usr_002', projectId: null, stagingKey: 'up/upl-big/file', key: 'chat/cnv-001/upl-big/file', thumbKey: null, size,
+      mimeType: 'application/pdf', expiresAt: new Date('2026-10-04T08:00:00Z'), usedAt: null,
+    }]);
+    s.deps.files.objects.set('up/upl-big/file', { size, mimeType: 'application/pdf' });
+    const input = { uploadId: 'upl_big', name: 'Big.pdf', stageId: null, taskId: null, asCover: false, receivedFromClient: false, conversationId: 'cnv_001' };
+    await expect(filesUploadHooks.preflight!(input, { actorId: 'usr_002', now: NOW, deps: s.deps })).rejects.toMatchObject({ details: { reason: 'file_too_large', limit: 250 * MB } });
+  });
+});
 
 describe('files.uploadStart for a chat', () => {
   it('writes an intent with no project and a final key under chat/<chat>, and signs the file and its small picture', async () => {

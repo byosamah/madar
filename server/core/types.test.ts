@@ -60,8 +60,8 @@ describe('the file store setting (plan 2b, point 1)', () => {
     expect(() => fileStoreKind('s3')).toThrow(/MADAR_FILE_STORE/);
   });
 
-  it('has 50 MB a file and 1 GB in all on Supabase Storage, 250 MB a file on R2', () => {
+  it('has 50 MB a file and 1 GB in all on Supabase Storage, 500 MB a file on R2', () => {
     expect(FILE_STORE_LIMITS.supabase).toEqual({ maxFileBytes: 50 * 1024 * 1024, totalBytes: 1024 * 1024 * 1024 });
-    expect(FILE_STORE_LIMITS.r2.maxFileBytes).toBe(250 * 1024 * 1024);
+    expect(FILE_STORE_LIMITS.r2.maxFileBytes).toBe(500 * 1024 * 1024);
   });
 });

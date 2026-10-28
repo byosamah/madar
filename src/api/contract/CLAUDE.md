@@ -28,6 +28,11 @@ The rules of all parts (additive contract, a table for a new collection) are in 
 - `limits.ts` holds the limits and marks that need no zod (`MAX_FILE_BYTES`, `MAX_ATTACHMENTS`, `MAX_HELPERS`,
   `MAX_PREREQUISITES`, `REACTIONS`, `PICTURE_DATA`, `GROUP_LOG_MAX`, `MAX_PROJECT_VIEWERS` and others). `entities.ts` and
   `server.ts` export them again under the same names.
+- Two file limits (fbk_070, owner 2026-10-27): `MAX_PROJECT_FILE_BYTES` 500 MB for the files of a project (also `MAX_FILE_BYTES`, the
+  ceiling that `FileVersion.size` checks) and `MAX_CHAT_FILE_BYTES` 250 MB for a direct chat, a group, a meeting with no project and an
+  office to-do. `fileLimitOf(place, storeMax)` gives the number for a place; `isProjectUpload` says which place is a project (it names a
+  project and no chat and no meeting). The store limit only lowers it. A project chat upload lands in the files of its project, so it has
+  500 MB.
 - A screen file of the first load (the shell, Home, the sign-in gate and what they import) takes a plain limit from
   `limits.ts`, never from `entities.ts` or `server.ts`: those load the zod schemas. The bundle check fails a first load that
   holds `$ZodObject` (`ZOD_MARKER`, `scripts/check-bundles.ts`).

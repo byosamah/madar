@@ -272,9 +272,9 @@ function uploadSuites(v: Variant): void {
       expect((await intentOf(begin.uploadId)).used_at).toBeNull();
     });
 
-    it('refuses an upload over the limit of the store (50 MB on Storage, 250 MB on R2) with file_too_large, before it signs', async () => {
+    it('refuses an upload over the limit of the store (50 MB on Storage, 500 MB on R2) with file_too_large, before it signs', async () => {
       const limit = store.maxFileBytes;
-      expect(limit).toBe(v.kind === 'r2' ? 250 * 1024 * 1024 : 50 * 1024 * 1024);
+      expect(limit).toBe(v.kind === 'r2' ? 500 * 1024 * 1024 : 50 * 1024 * 1024);
       const before = signed.length;
       expect(await call(leader, 'files.uploadStart', { projectId: 'prj_001', name: 'big.zip', size: limit + 1, mimeType: 'application/zip' })).toMatchObject({
         ok: false, error: { code: 'invalid_input', details: { reason: 'file_too_large', limit } },

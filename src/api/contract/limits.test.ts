@@ -7,7 +7,7 @@ import * as server from './server';
 describe('the plain limits of the contract (performance audit BND-6)', () => {
   it('keep each name and value in entities.ts or server.ts, so every importer of the contract sees no change', () => {
     const names = Object.keys(limits).sort();
-    expect(names).toEqual(['DAFTRA_ACCOUNT_PATTERN', 'DEFAULT_STALE_DAYS', 'GROUP_LOG_MAX', 'GROUP_MAX', 'GROUP_NAME_MAX', 'MAX_ATTACHMENTS', 'MAX_FILE_BYTES', 'MAX_HELPERS', 'MAX_PREREQUISITES', 'MAX_PROJECT_VIEWERS', 'MAX_SHOT_BYTES', 'MEETING_KINDS', 'MEETING_LIMITS', 'NOTIFY_LEVELS', 'PASSWORD_SET_MARK', 'PICTURE_DATA', 'REACTIONS']);
+    expect(names).toEqual(['DAFTRA_ACCOUNT_PATTERN', 'DEFAULT_STALE_DAYS', 'GROUP_LOG_MAX', 'GROUP_MAX', 'GROUP_NAME_MAX', 'MAX_ATTACHMENTS', 'MAX_CHAT_FILE_BYTES', 'MAX_FILE_BYTES', 'MAX_HELPERS', 'MAX_PREREQUISITES', 'MAX_PROJECT_FILE_BYTES', 'MAX_PROJECT_VIEWERS', 'MAX_SHOT_BYTES', 'MEETING_KINDS', 'MEETING_LIMITS', 'NOTIFY_LEVELS', 'PASSWORD_SET_MARK', 'PICTURE_DATA', 'REACTIONS', 'fileLimitOf', 'isProjectUpload']);
     const contract: Record<string, unknown> = { ...entities, ...server };
     for (const name of names) expect(contract[name], name).toBe((limits as Record<string, unknown>)[name]);
   });
@@ -18,12 +18,29 @@ describe('the plain limits of the contract (performance audit BND-6)', () => {
     expect(limits.MAX_HELPERS).toBe(10);
     expect(limits.MAX_PROJECT_VIEWERS).toBe(50);
     expect(limits.MAX_ATTACHMENTS).toBe(10);
-    expect(limits.MAX_FILE_BYTES).toBe(250 * 1024 * 1024);
+    expect(limits.MAX_FILE_BYTES).toBe(500 * 1024 * 1024);
     expect(limits.MAX_SHOT_BYTES).toBe(10 * 1024 * 1024);
     expect(limits.PASSWORD_SET_MARK).toBe('madar_password_set');
     expect(limits.DEFAULT_STALE_DAYS).toBe(30);
     expect(limits.PICTURE_DATA.test('data:image/webp;base64,AAAA')).toBe(true);
     expect(limits.PICTURE_DATA.test('data:image/gif;base64,AAAA')).toBe(false);
+  });
+
+  it('has two file limits (fbk_070): 500 MB for the files of a project, 250 MB for a chat, a meeting and an office to-do', () => {
+    const MB = 1024 * 1024;
+    expect([limits.MAX_PROJECT_FILE_BYTES, limits.MAX_CHAT_FILE_BYTES]).toEqual([500 * MB, 250 * MB]);
+    expect(limits.fileLimitOf({ projectId: 'prj_001' })).toBe(500 * MB);
+    expect(limits.fileLimitOf({ projectId: 'prj_001', conversationId: undefined, meetingId: null })).toBe(500 * MB);
+    expect(limits.fileLimitOf({ conversationId: 'cnv_001' })).toBe(250 * MB);
+    expect(limits.fileLimitOf({ projectId: null, conversationId: 'cnv_001' })).toBe(250 * MB);
+    expect(limits.fileLimitOf({ meetingId: 'mtg_001' })).toBe(250 * MB);
+    // An office to-do names no project.
+    expect(limits.fileLimitOf({})).toBe(250 * MB);
+    // The store limit only lowers the number.
+    expect(limits.fileLimitOf({ projectId: 'prj_001' }, 50 * MB)).toBe(50 * MB);
+    expect(limits.fileLimitOf({ conversationId: 'cnv_001' }, 400 * MB)).toBe(250 * MB);
+    expect(limits.isProjectUpload({ projectId: 'prj_001' })).toBe(true);
+    expect(limits.isProjectUpload({ projectId: 'prj_001', conversationId: 'cnv_001' })).toBe(false);
   });
 
   it('keep the group limits of 2026-10-18: 50 people at most, and a name of 60 letters at most', () => {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, FileVersion, FolderId, MAX_FILE_BYTES, MeetingId, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version, type Task } from '../contract/entities';
+import { fileLimitOf } from '../contract/limits';
+import { ConversationId, FileId, FileVersion, FolderId, MeetingId, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version, type Task } from '../contract/entities';
 import { FileView, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
@@ -185,7 +186,8 @@ export const filesUpload = defineCall({
   input: UploadFields.extend({ blob: z.instanceof(Blob).optional(), uploadId: z.string().min(1).max(80).optional() })
     .refine((value) => value.blob !== undefined || value.uploadId !== undefined, { path: ['blob'], message: 'Choose a file.' })
     .refine((value) => value.blob === undefined || value.uploadId === undefined, { path: ['uploadId'], message: 'Send the file or its upload, not both.' })
-    .refine((value) => value.blob === undefined || value.blob.size <= MAX_FILE_BYTES, { path: ['blob'], message: 'Files must be 250 MB or smaller.' }),
+    // 500 MB for the files of a project, 250 MB for the files of a chat, a meeting and an office to-do (fbk_070).
+    .refine((value) => value.blob === undefined || value.blob.size <= fileLimitOf(value), { path: ['blob'], message: 'This file is larger than the limit of its place.' }),
   output: FileView,
   wire: { input: UploadFields.extend({ uploadId: z.string().min(1).max(80) }).strict() },
   async prepare(input, p): Promise<UploadPrepared> {

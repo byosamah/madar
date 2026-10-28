@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import type { MadarApi } from '../api/calls';
-import { MAX_FILE_BYTES } from '../api/contract/limits';
+import { MAX_FILE_BYTES, fileLimitOf, type UploadPlace } from '../api/contract/limits';
 import { ApiError } from '../api/errors';
 import { feedbackAdapter } from '../api/remote/feedback';
 import { uploadAdapter } from '../api/remote/upload';
@@ -243,12 +243,15 @@ export function remoteFileAdapters(): { 'files.upload': Adapter; 'feedback.send'
 }
 
 /**
- * The largest file that the office takes: the limit of the active store from session.get (50 MB on Supabase Storage, 250 MB on
- * R2, plan 2b, point 1), never above the ceiling of the contract. The prototype names no limit, so it keeps the ceiling.
+ * The largest file that a place takes: the limit of the active store from session.get (50 MB on Supabase Storage, 500 MB on
+ * R2, plan 2b, point 1), never above the ceiling of the contract. A file of a project may reach the ceiling (500 MB). A file of a
+ * direct chat, a group, a meeting or an office to-do stops at 250 MB (fbk_070). Without a place, the files of a project count.
+ * The prototype names no store limit, so it keeps the ceiling of the place.
  */
-export function useFileLimit(): number {
+export function useFileLimit(place?: UploadPlace): number {
   const limit = useCall('session.get', {}).data?.limits?.maxFileBytes;
-  return limit ? Math.min(limit, MAX_FILE_BYTES) : MAX_FILE_BYTES;
+  const store = limit ? Math.min(limit, MAX_FILE_BYTES) : MAX_FILE_BYTES;
+  return place ? fileLimitOf(place, store) : store;
 }
 
 /** A limit in plain words: "50 MB". */

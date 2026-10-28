@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { addGroupConversation } from '../chatState';
 import { fileCalls } from './files';
 import { serverFakes } from './serverFakes';
 import { MAX_FILE_BYTES } from '../contract/entities';
@@ -49,6 +50,17 @@ describe('the fake server calls', () => {
     await expect(t.api.call('files.uploadStart', { projectId: 'prj_404', name: 'a.pdf', size: 1, mimeType: 'application/pdf' })).rejects.toMatchObject({ code: 'not_found' });
     t.as('usr_004');
     await expect(t.api.call('files.uploadStart', { projectId: 'prj_001', name: 'a.pdf', size: 1, mimeType: 'application/pdf' })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('files.uploadStart takes 500 MB for a project and 250 MB for a chat (fbk_070)', async () => {
+    const t = testApi(CALLS);
+    t.as('usr_003');
+    const MB = 1024 * 1024;
+    await expect(t.api.call('files.uploadStart', { projectId: 'prj_001', name: 'a.dwg', size: 500 * MB, mimeType: 'application/octet-stream' })).resolves.toBeDefined();
+    const group = addGroupConversation(t.store.state, 'Team', 'usr_003', ['usr_003', 'usr_002', 'usr_006'], '2026-09-30T09:00:00.000+03:00');
+    await expect(t.api.call('files.uploadStart', { conversationId: group.id, name: 'a.dwg', size: 250 * MB + 1, mimeType: 'application/octet-stream' })).rejects.toMatchObject({
+      code: 'invalid_input', details: { fields: ['size'], reason: 'file_too_large', limit: 250 * MB },
+    });
   });
 
   it('files.link gives one cached blob: URL for each stored file, with the name, type and size', async () => {

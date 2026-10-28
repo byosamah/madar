@@ -68,14 +68,16 @@ export function useBlockFileDrop(): void {
 
 /**
  * The files a person picked for a post, a comment or a message. The files upload when the person sends,
- * and a file that went up before a failed send is not sent a second time.
+ * and a file that went up before a failed send is not sent a second time. `place` is where the files will go: it sets the size limit
+ * (a project 500 MB, a chat 250 MB). Without a place, the limit of a project applies.
  */
-export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = []) {
+export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = [], place?: UploadTarget) {
   const { t } = useTranslation();
   const lang = useLang();
   const { api } = useRuntime();
   const toast = useToast();
-  const limit = useFileLimit();
+  // The place sets the limit (fbk_070): 500 MB for the files of a project, 250 MB for a chat, a meeting and an office to-do.
+  const limit = useFileLimit(place);
   const [files, setFiles] = useState<File[]>(initial);
   const uploaded = useRef(new Map<File, string>());
   // The whole percent of each file that is on its way (0 to 100). A file with no entry shows no bar.

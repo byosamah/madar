@@ -53,12 +53,12 @@ describe('the Files tab', () => {
     await waitFor(() => expect(Object.values(store.state.files).find((f) => f.name === 'Site notes.txt')?.versions.map((v) => v.letter)).toEqual(['A', 'B']));
   });
 
-  it('refuses a file over 250 MB before any upload', async () => {
+  it('refuses a file over 500 MB before any upload', async () => {
     const { store } = await renderApp(FILES, as('usr_005'));
     const big = new File(['x'], 'Huge model.rvt', { type: 'application/octet-stream' });
-    Object.defineProperty(big, 'size', { value: 251 * 1024 * 1024 });
+    Object.defineProperty(big, 'size', { value: 501 * 1024 * 1024 });
     await userEvent.upload(await screen.findByLabelText('Upload files'), big);
-    expect(await screen.findByText('Huge model.rvt is larger than 250 MB.')).toBeInTheDocument();
+    expect(await screen.findByText('Huge model.rvt is larger than 500 MB.')).toBeInTheDocument();
     expect(Object.values(store.state.files).some((f) => f.name === 'Huge model.rvt')).toBe(false);
   });
 
@@ -198,7 +198,7 @@ async function renderReal(o: { language?: 'en' | 'ar'; wrap?: (call: (n: string,
   return { store, api };
 }
 
-/** A file over the 50 MB limit of the store and under the 250 MB ceiling of the contract. */
+/** A file over the 50 MB limit of the store and under the 500 MB ceiling of the contract. */
 function bigFile(): File {
   const file = new File(['x'], 'Site model.rvt', { type: 'application/octet-stream' });
   Object.defineProperty(file, 'size', { value: 60 * MB });

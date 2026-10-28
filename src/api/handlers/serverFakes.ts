@@ -1,5 +1,5 @@
 import { defineCall } from '../registry';
-import { MAX_FILE_BYTES, type FileVersion, type User } from '../contract/entities';
+import { fileLimitOf, type FileVersion, type User } from '../contract/entities';
 import { UPLOAD_LIFE_MS, serverContracts as c, type SignedPut } from '../contract/server';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
@@ -83,8 +83,9 @@ const filesUploadStart = defineCall({
       if (input.stageId) requireStage(ctx, project.id, input.stageId);
       if (input.taskId && ctx.state.tasks[input.taskId]?.projectId !== project.id) throw invalid('taskId', 'This task is not in the project.');
     }
-    if (input.size > MAX_FILE_BYTES) {
-      throw new ApiError('invalid_input', 'This file is larger than the limit.', { fields: ['size'], reason: 'file_too_large', limit: MAX_FILE_BYTES });
+    const limit = fileLimitOf(input);
+    if (input.size > limit) {
+      throw new ApiError('invalid_input', 'This file is larger than the limit.', { fields: ['size'], reason: 'file_too_large', limit });
     }
     const id = uploadId();
     return {

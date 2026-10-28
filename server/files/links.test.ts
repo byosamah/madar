@@ -106,9 +106,9 @@ describe('the link life of each store (proof.md, Z0a item 6)', () => {
 });
 
 describe('the size limit of the active store (plan 2b, point 1)', () => {
-  it('is 50 MB on Supabase Storage and 250 MB on R2, on each port', () => {
+  it('is 50 MB on Supabase Storage and 500 MB on R2, on each port', () => {
     expect(supabaseStorageFilesPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x', bucket: 'madar-files' }).maxFileBytes).toBe(50 * 1024 * 1024);
-    expect(r2FilesPort({ accountId: 'a', accessKeyId: 'k', secretAccessKey: 's', bucket: 'madar-files' }).maxFileBytes).toBe(250 * 1024 * 1024);
+    expect(r2FilesPort({ accountId: 'a', accessKeyId: 'k', secretAccessKey: 's', bucket: 'madar-files' }).maxFileBytes).toBe(500 * 1024 * 1024);
   });
 
   it('is the same number in the port and in config.limits, which session.get returns as limits.maxFileBytes', () => {

@@ -1,4 +1,4 @@
-import { MAX_FILE_BYTES, MAX_SHOT_BYTES } from '../contract/limits';
+import { MAX_FILE_BYTES, MAX_SHOT_BYTES, fileLimitOf } from '../contract/limits';
 import type { SignedPut } from '../contract/server';
 import { ApiError } from '../errors';
 import type { Adapter, AdapterCtx } from './wire';
@@ -100,7 +100,7 @@ export async function finalCall(ctx: AdapterCtx, name: string, input: unknown, s
   }
 }
 
-/** The file limit of the active store from session.get. Without one, the ceiling of the contract; when the call fails, none. */
+/** The file limit of the active store from session.get. Without one, the ceiling of the contract; when the call fails, none. The place lowers it (fileLimitOf). */
 async function sessionLimit(ctx: AdapterCtx): Promise<number | undefined> {
   try {
     const session = (await ctx.call('session.get', {})) as { limits?: { maxFileBytes?: number } } | null;
@@ -143,7 +143,7 @@ async function thumbOf(blob: Blob, makeThumb: (file: Blob) => Promise<Blob | nul
 export function uploadAdapter(o: {
   makeThumb: (file: Blob) => Promise<Blob | null>;
   put?: PutSender;
-  /** The limit for the size refusal. The default asks session.get. */
+  /** The limit of the store for the size refusal. The default asks session.get. The place of the file (fbk_070) lowers it for a chat. */
   limit?: (ctx: AdapterCtx) => Promise<number | undefined>;
 }): Adapter {
   const send = o.put ?? xhrPut;
@@ -181,7 +181,10 @@ export function uploadAdapter(o: {
     thumbSent?.catch(() => undefined);
     const result = await fileSent;
     const failure = putFailure(result);
-    if (failure === 'too_large') throw tooLarge('blob', await limitOf(ctx));
+    if (failure === 'too_large') {
+      const store = await limitOf(ctx);
+      throw tooLarge('blob', store === undefined ? undefined : fileLimitOf(input, store));
+    }
     if (failure) throw uploadFailed(result.status);
     // The small picture is extra: when it does not arrive, the server saves the version without one.
     if (thumbSent) await thumbSent;

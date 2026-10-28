@@ -7,8 +7,11 @@ Commands: `npx vitest run server/files` runs the unit tests. `MADAR_IT=1 npx vit
 needs MinIO (`server/it/minio.ts`; CI starts it in `ci-stack.yml`).
 
 ## Stores
-- R2 behind the S3 interface (`r2.ts`) is the live store for both copies: 250 MB for each file, 10 GB in total.
-  `MADAR_FILE_STORE=r2` picks it.
+- R2 behind the S3 interface (`r2.ts`) is the live store for both copies: 500 MB for each file (the ceiling of the contract), 10 GB in
+  total. `MADAR_FILE_STORE=r2` picks it. The owner accepted the 10 GB total with the 500 MB file (fbk_070, 2026-10-27). One signed PUT
+  takes up to 5 GiB (platform-facts.md, 8.2), so a 500 MB file needs no multipart upload. The browser sends it straight to R2
+  (`*.r2.cloudflarestorage.com`), never through a Worker or a function body, so no 100 MB request limit of a zone applies.
+  Not measured on the live bucket: one 500 MB upload and its copy on the test copy.
 - Supabase Storage (`supabaseStorage.ts`): the private bucket `madar-files`, 50 MB for each file. It keeps the old files only,
   as a frozen copy. No delete without the owner's OK.
 - The buckets: `madar-files-test` (test copy) and `madar-files` (production), both in the EU jurisdiction, path style on
@@ -44,6 +47,11 @@ needs MinIO (`server/it/minio.ts`; CI starts it in `ci-stack.yml`).
   direct chat or a group of its person with `conversationId`, as that person does.
 
 ## Rules
+- The file limit follows the place (`fileLimitOf`, `src/api/contract/limits.ts`; fbk_070): 500 MB for a file of a project (it names a
+  project and no chat and no meeting: the Files tab, a project chat, a comment or a to-do of a project, a post, the Tracker, the minutes
+  of a project meeting), 250 MB for a file of a direct chat, a group, a meeting with no project and an office to-do. The store limit only
+  lowers the number (Supabase Storage 50 MB). `files.uploadStart` checks the declared size, and the preflight of `files.upload` checks
+  the stored object, both by the place of the call. A person who needs a larger file in a chat inserts the project file (no copy).
 - Object keys hold only `[a-z0-9/-]` (`keys.ts`), so a key never leaves its folder. Each upload is a folder with `file`
   and, for a picture, `thumb`.
 - A file has one owner, and the owner picks the key folder and the intent rule. The preflight takes an intent only for the

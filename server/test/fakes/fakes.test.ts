@@ -40,7 +40,7 @@ describe('the test fakes of the server ports', () => {
     const started = Date.now();
     await slow.head('x');
     expect(Date.now() - started).toBeGreaterThanOrEqual(25);
-    expect(fakeFiles({ kind: 'r2' }).maxFileBytes).toBe(250 * 1024 * 1024);
+    expect(fakeFiles({ kind: 'r2' }).maxFileBytes).toBe(500 * 1024 * 1024);
   });
 
   it('fakeFiles refuses a copy onto a key that holds an object, as Storage does', async () => {

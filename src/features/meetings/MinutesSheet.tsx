@@ -37,7 +37,9 @@ export function MinutesSheet({ meeting, minutes, onClose }: {
   const [since] = useState(minutes?.updatedAt ?? null);
   // The files that stand (a deleted one shows as removed and is dropped), and the files that the person picks.
   const [kept, setKept] = useState<Attachment[]>((minutes?.files ?? []).filter((file) => file.name !== null));
-  const attachments = useAttachments(MAX_ATTACHMENTS - kept.length);
+  // The files of a meeting with a project join the files of the project (500 MB). A meeting with no project keeps its own files (250 MB).
+  const target = meeting.projectId ? { projectId: meeting.projectId } : { projectId: null, meetingId: meeting.id };
+  const attachments = useAttachments(MAX_ATTACHMENTS - kept.length, undefined, target);
   const [problem, setProblem] = useState('');
   const [uploading, setUploading] = useState(false);
   const save = useUndoable('meetings.saveMinutes', {
@@ -49,7 +51,6 @@ export function MinutesSheet({ meeting, minutes, onClose }: {
       return true;
     },
   });
-  const target = meeting.projectId ? { projectId: meeting.projectId } : { projectId: null, meetingId: meeting.id };
   const busy = save.isPending || uploading;
   // A file dropped on the screen outside the frame never opens in the browser tab (fbk_047).
   useBlockFileDrop();

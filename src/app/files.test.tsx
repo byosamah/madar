@@ -257,9 +257,9 @@ describe('report screenshot links (spec 4.3)', () => {
 });
 
 describe('the file limit (plan 2b, point 1)', () => {
-  function Limit() {
+  function Limit({ place }: { place?: { projectId?: string | null; conversationId?: string } }) {
     const { t } = useTranslation();
-    const limit = useFileLimit();
+    const limit = useFileLimit(place);
     return <p>{limitText(limit, t, 'en')}</p>;
   }
 
@@ -269,9 +269,24 @@ describe('the file limit (plan 2b, point 1)', () => {
     expect(await screen.findByText('50 MB')).toBeInTheDocument();
   });
 
-  it('uses the 250 MB ceiling in the prototype, which names no limit', async () => {
+  it('uses the 500 MB ceiling in the prototype, which names no limit', async () => {
     await renderWithRuntime(<Limit />);
+    expect(await screen.findByText('500 MB')).toBeInTheDocument();
+  });
+
+  it('gives 500 MB for the files of a project and 250 MB for a chat, also when the store takes 500 MB (fbk_070)', async () => {
+    const { api } = remoteApi({ limit: 500 * MB });
+    const project = renderRemote(<Limit place={{ projectId: 'prj_001' }} />, api);
+    expect(await screen.findByText('500 MB')).toBeInTheDocument();
+    project.unmount();
+    renderRemote(<Limit place={{ projectId: null, conversationId: 'cnv_001' }} />, api);
     expect(await screen.findByText('250 MB')).toBeInTheDocument();
+  });
+
+  it('keeps a lower store limit for every place', async () => {
+    const { api } = remoteApi({ limit: 50 * MB });
+    renderRemote(<Limit place={{ projectId: 'prj_001' }} />, api);
+    expect(await screen.findByText('50 MB')).toBeInTheDocument();
   });
 
   it('names the limit in plain words in English and in Arabic', () => {

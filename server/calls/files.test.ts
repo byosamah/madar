@@ -58,7 +58,7 @@ function setup(o: { kind?: 'supabase' | 'r2' } = {}) {
       fil_002: { id: 'fil_002', projectId: 'prj_001', name: 'page.html', versions: [version('A', { mimeType: 'text/html', blobKey: 'prj-001/upl-h/file' })] },
     },
   });
-  const deps = fakeDeps({ db, config: o.kind === 'r2' ? { fileStore: 'r2', limits: { maxFileBytes: 250 * MB, filesTotalBytes: 10 * 1024 * MB } } : {} });
+  const deps = fakeDeps({ db, config: o.kind === 'r2' ? { fileStore: 'r2', limits: { maxFileBytes: 500 * MB, filesTotalBytes: 10 * 1024 * MB } } : {} });
   deps.clock.set(NOW);
   const gets: { key: string; disposition: string; filename: string; mimeType: string }[] = [];
   const presignGet = deps.files.presignGet.bind(deps.files);
@@ -145,6 +145,27 @@ describe('files.uploadStart', () => {
     const r2 = setup({ kind: 'r2' });
     await expect(filesUploadStart({ ...START, size: MAX_FILE_BYTES + 1 }, r2.ctx('usr_002'))).rejects.toMatchObject({ details: { reason: 'file_too_large', limit: MAX_FILE_BYTES } });
     expect(db.intents.size).toBe(1);
+  });
+
+  it('takes a project file up to 500 MB on R2 and signs it straight to the store (fbk_070)', async () => {
+    const r2 = setup({ kind: 'r2' });
+    expect(MAX_FILE_BYTES).toBe(500 * MB);
+    const { output } = await filesUploadStart({ ...START, name: 'Model.dwg', mimeType: 'application/octet-stream', size: 500 * MB }, r2.ctx('usr_002'));
+    // The browser sends the file to the store with the signed link: the server never holds the bytes.
+    expect(output.put.url).toContain(`up/${output.uploadId.replace('_', '-')}/file`);
+    await expect(filesUploadStart({ ...START, size: 500 * MB + 1 }, r2.ctx('usr_002'))).rejects.toMatchObject({ details: { reason: 'file_too_large', limit: 500 * MB } });
+  });
+
+  it('checks the stored object of a project upload against 500 MB on R2, and a small file stays under the limit of its store', async () => {
+    const r2 = setup({ kind: 'r2' });
+    const big = 400 * MB;
+    await insertIntents(r2.db, [{
+      id: 'upl_big', actorId: 'usr_002', projectId: 'prj_001', stagingKey: 'up/upl-big/file', key: 'prj-001/upl-big/file', thumbKey: null, size: big,
+      mimeType: 'application/pdf', expiresAt: new Date('2026-10-04T08:00:00Z'), usedAt: null,
+    }]);
+    r2.deps.files.objects.set('up/upl-big/file', { size: big, mimeType: 'application/pdf' });
+    const input = { uploadId: 'upl_big', projectId: 'prj_001', name: 'Big.pdf', stageId: null, taskId: null, asCover: false, receivedFromClient: false };
+    await expect(filesUploadHooks.preflight!(input, { actorId: 'usr_002', now: NOW, deps: r2.deps })).resolves.toMatchObject({ blobKey: 'prj-001/upl-big/file', size: big });
   });
 
   it('refuses a small picture that is not an inline-safe picture', async () => {

@@ -121,6 +121,19 @@ describe('the upload adapter (plan 5.2)', () => {
       .then(() => null, (e: unknown) => e);
     expect(error).toMatchObject({ code: 'invalid_input', details: { reason: 'file_too_large', limit: MAX_FILE_BYTES } });
   });
+  it('names 250 MB for a file of a chat and 500 MB for a file of a project, when the store takes 500 MB (fbk_070)', async () => {
+    const refusal = { status: 400, body: '{"code":"EntityTooLarge"}' };
+    const chat = wire({ limit: 500 * MB });
+    const { projectId: _project, stageId: _stage, taskId: _task, asCover: _cover, ...rest } = SCREEN_INPUT;
+    const chatError = await uploadAdapter({ makeThumb: async () => null, put: sender(chat.steps, () => refusal).put })({ ...rest, conversationId: 'cnv_001', blob: picture() }, chat.ctx)
+      .then(() => null, (e: unknown) => e);
+    expect(chatError).toMatchObject({ code: 'invalid_input', details: { reason: 'file_too_large', limit: 250 * MB } });
+    const project = wire({ limit: 500 * MB });
+    const projectError = await uploadAdapter({ makeThumb: async () => null, put: sender(project.steps, () => refusal).put })({ ...SCREEN_INPUT, blob: picture() }, project.ctx)
+      .then(() => null, (e: unknown) => e);
+    expect(projectError).toMatchObject({ details: { reason: 'file_too_large', limit: 500 * MB } });
+  });
+
   it('a Retry after a lost answer of files.upload sends the same upload ID with the same key, and uploads nothing again (plan 4.10)', async () => {
     const steps: string[] = [];
     const saves: { input: unknown; key?: string }[] = [];

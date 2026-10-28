@@ -56,7 +56,7 @@ describe('the stubs', () => {
     const supabase = supabaseStorageFilesPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x', bucket: 'madar-files' });
     expect([supabase.kind, supabase.maxFileBytes]).toEqual(['supabase', 50 * 1024 * 1024]);
     const r2 = r2FilesPort({ accountId: 'a', accessKeyId: 'k', secretAccessKey: 's', bucket: 'madar-files' });
-    expect([r2.kind, r2.maxFileBytes]).toEqual(['r2', 250 * 1024 * 1024]);
+    expect([r2.kind, r2.maxFileBytes]).toEqual(['r2', 500 * 1024 * 1024]);
   });
 
   it('the jobs app is built (N3): with no secret it refuses, and it never runs the job', async () => {

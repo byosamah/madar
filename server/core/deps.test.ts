@@ -137,7 +137,7 @@ describe('the real Deps from the environment', () => {
     expect(missingOf({ ...FULL, MADAR_FILE_STORE: 'r2' })).toEqual(['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET']);
     const r2 = { ...FULL, MADAR_FILE_STORE: 'r2', R2_ACCOUNT_ID: 'a', R2_ACCESS_KEY_ID: 'k', R2_SECRET_ACCESS_KEY: 's', R2_BUCKET: 'madar-files' };
     const deps = buildDeps(reader(r2));
-    expect([deps.files.kind, deps.config.fileStore, deps.config.limits.maxFileBytes]).toEqual(['r2', 'r2', 250 * 1024 * 1024]);
+    expect([deps.files.kind, deps.config.fileStore, deps.config.limits.maxFileBytes]).toEqual(['r2', 'r2', 500 * 1024 * 1024]);
     expect(() => configFromEnv(reader({ ...FULL, MADAR_FILE_STORE: 'disk' }))).toThrow(/MADAR_FILE_STORE/);
   });
 

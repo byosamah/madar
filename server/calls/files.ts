@@ -1,4 +1,4 @@
-import { MAX_FILE_BYTES, type FileRec, type Task } from '../../src/api/contract/entities';
+import { fileLimitOf, type FileRec, type Task, type UploadPlace } from '../../src/api/contract/entities';
 import { forbidden, invalid, notFound } from '../../src/api/errors';
 import type { UploadPrepared } from '../../src/api/handlers/files';
 import { can, taskResource } from '../../src/api/permissions';
@@ -25,8 +25,11 @@ import { assertMayPost, assertMayUploadToChat, assertMayUploadToMeeting, assertM
 /** Every small picture passed isPictureType at the start and in the preflight, so its link follows the screen's choice. */
 const THUMB_LINK_TYPE = 'image/webp';
 
-/** The largest file of the active store, never above the shared ceiling (plan 2b, point 1). */
-const fileLimit = (deps: Deps) => Math.min(deps.files.maxFileBytes, MAX_FILE_BYTES);
+/**
+ * The largest file for a place (plan 2b, point 1; fbk_070): 500 MB for the files of a project, 250 MB for a direct chat, a group, a meeting
+ * and an office to-do, never above the limit of the active store.
+ */
+const fileLimit = (deps: Deps, place: UploadPlace) => fileLimitOf(place, deps.files.maxFileBytes);
 
 /**
  * files.uploadStart: the rights and the size first, then a signed PUT for the staging key (and one for the small picture), then
@@ -62,7 +65,7 @@ export const filesUploadStart: ServerCall<'files.uploadStart'> = async (input, c
     if (input.taskId && (await projectOfTask(deps.db, input.taskId)) !== project.id) throw invalid('taskId', 'This task is not in the project.');
     place = { projectId: project.id, key: (intent) => uploadKey(project.id, intent), thumb: (intent) => uploadThumbKey(project.id, intent) };
   }
-  const limit = fileLimit(deps);
+  const limit = fileLimit(deps, input);
   if (input.size > limit) throw fileTooLarge('size', limit);
   if (input.thumb && !isPictureType(input.thumb.mimeType)) throw invalid('thumb', 'The small picture must be a PNG, JPEG, GIF, WebP or AVIF picture.');
 
@@ -169,7 +172,7 @@ export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
     // replays the stored answer of the key, and without one prepare refuses with conflict.
     if (intent.usedAt !== null) return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(intent.thumbKey ? { thumbKey: intent.thumbKey } : {}) };
     const remove = (keys: string[]) => removeNowOrLater(deps, keys);
-    await confirmUpload(deps.files, { staging: intent.stagingKey, final: intent.key, field: 'uploadId', want: intent, maxBytes: fileLimit(deps), remove });
+    await confirmUpload(deps.files, { staging: intent.stagingKey, final: intent.key, field: 'uploadId', want: intent, maxBytes: fileLimit(deps, { projectId, conversationId, meetingId }), remove });
     const thumb = intent.thumbKey !== null && (await confirmThumb(deps.files, { staging: stagingThumbKey(intent.id), final: intent.thumbKey, field: 'uploadId', remove }));
     return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(thumb && intent.thumbKey ? { thumbKey: intent.thumbKey } : {}) };
   },

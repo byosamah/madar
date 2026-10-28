@@ -29,10 +29,10 @@ describe('files', () => {
     expect(await t.api.call('files.list', { projectId: 'prj_001' })).toHaveLength(1);
   });
 
-  it('refuses a file over 250 MB, from its declared size', async () => {
+  it('refuses a file over 500 MB, from its declared size', async () => {
     const t = testApi(fileCalls);
     t.as('usr_003');
-    // A real 250 MB blob would slow the test, so the blob declares its size (test map 8.3).
+    // A real 500 MB blob would slow the test, so the blob declares its size (test map 8.3).
     class BigBlob extends Blob {
       override get size(): number {
         return MAX_FILE_BYTES + 1;
@@ -42,6 +42,19 @@ describe('files', () => {
     await expect(t.api.call('files.upload', { projectId: 'prj_001', name: 'huge.zip', blob: big })).rejects.toMatchObject({
       code: 'invalid_input', details: { fields: ['blob'] },
     });
+  });
+
+  it('takes a project file up to 500 MB and a file of a chat up to 250 MB only (fbk_070)', async () => {
+    const t = testApi(fileCalls);
+    t.as('usr_003');
+    const sized = (bytes: number) => new (class extends Blob { override get size(): number { return bytes; } })(['x'], { type: 'application/pdf' });
+    const MB = 1024 * 1024;
+    // The shadow run (test:lite) puts the files on a 50 MB store, so only the prototype takes the full 500 MB here. server/calls/files.test.ts pins R2.
+    if (!process.env.MADAR_LITE) await expect(t.api.call('files.upload', { projectId: 'prj_001', name: 'ok.pdf', blob: sized(500 * MB) })).resolves.toBeDefined();
+    await expect(t.api.call('files.upload', { projectId: 'prj_001', name: 'big.pdf', blob: sized(500 * MB + 1) })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['blob'] } });
+    // A chat file over 250 MB fails the size check before the chat is read.
+    await expect(t.api.call('files.upload', { conversationId: 'cnv_001', name: 'chat.pdf', blob: sized(250 * MB + 1) })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['blob'] } });
+    await expect(t.api.call('files.upload', { meetingId: 'mtg_001', name: 'm.pdf', blob: sized(250 * MB + 1) })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['blob'] } });
   });
 
   it('takes exactly one of a blob and an upload ID; the prototype has no uploads, so it refuses the ID', async () => {

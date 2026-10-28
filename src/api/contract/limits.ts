@@ -37,8 +37,39 @@ export const GROUP_MAX = 50;
 /** The most letters of a group name. */
 export const GROUP_NAME_MAX = 60;
 
-/** The absolute ceiling for one file (spec 2, section 8). The active file store of the real build can set a lower limit (plan 2b, point 1). */
-export const MAX_FILE_BYTES = 250 * 1024 * 1024;
+/**
+ * The most bytes of one file in the files of a project (fbk_070, owner 2026-10-27): 500 MB. It is the absolute ceiling of the contract
+ * too. The file store of the real build can set a lower limit (plan 2b, point 1: 50 MB on Supabase Storage).
+ */
+export const MAX_PROJECT_FILE_BYTES = 500 * 1024 * 1024;
+
+/**
+ * The most bytes of one file of a direct chat, a group, an office to-do or a meeting: 250 MB (fbk_070). A person who needs a larger file
+ * in a chat inserts the project file instead (no new upload, no new storage).
+ */
+export const MAX_CHAT_FILE_BYTES = 250 * 1024 * 1024;
+
+/** The absolute ceiling for one file (spec 2, section 8), whatever its place. The file store can set a lower limit. */
+export const MAX_FILE_BYTES = MAX_PROJECT_FILE_BYTES;
+
+/**
+ * The place of an upload, as the screens and the calls name it: a project (projectId), a direct chat or a group (conversationId), a
+ * meeting (meetingId), or an office to-do (taskId alone).
+ */
+export type UploadPlace = { projectId?: string | null; conversationId?: string | null; meetingId?: string | null };
+
+/** True for an upload that lands in the files of a project: it names a project and no chat and no meeting. */
+export function isProjectUpload(place: UploadPlace): boolean {
+  return place.projectId != null && place.conversationId == null && place.meetingId == null;
+}
+
+/**
+ * The largest file for a place (fbk_070): 500 MB for the files of a project, 250 MB for every other place. `storeMax` is the limit of the
+ * active file store (session.get, limits.maxFileBytes); the result never goes above it.
+ */
+export function fileLimitOf(place: UploadPlace, storeMax: number = MAX_FILE_BYTES): number {
+  return Math.min(storeMax, isProjectUpload(place) ? MAX_PROJECT_FILE_BYTES : MAX_CHAT_FILE_BYTES);
+}
 
 /** One feedback screenshot is at most 10 MB. */
 export const MAX_SHOT_BYTES = 10 * 1024 * 1024;

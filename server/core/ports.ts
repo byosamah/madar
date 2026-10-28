@@ -39,12 +39,13 @@ export interface Clock {
 /**
  * Where the files live (plan 2b, point 1): Supabase Storage first (MADAR_FILE_STORE=supabase, the default), R2 after the switch
  * (MADAR_FILE_STORE=r2; owner, 2026-10-16: the test copy first, then production). The limits come from the active store;
- * MAX_FILE_BYTES in the contract stays the ceiling.
+ * MAX_FILE_BYTES in the contract stays the ceiling, and fileLimitOf (limits.ts) lowers it for a file of a chat.
  */
 export type FileStoreKind = 'supabase' | 'r2';
 export const FILE_STORE_LIMITS: Record<FileStoreKind, { maxFileBytes: number; totalBytes: number }> = {
   supabase: { maxFileBytes: 50 * 1024 * 1024, totalBytes: 1024 * 1024 * 1024 },
-  r2: { maxFileBytes: 250 * 1024 * 1024, totalBytes: 10 * 1024 * 1024 * 1024 },
+  // 500 MB is the file ceiling of the contract (MAX_FILE_BYTES). A file of a chat is held to 250 MB by place (fileLimitOf), not by the store.
+  r2: { maxFileBytes: 500 * 1024 * 1024, totalBytes: 10 * 1024 * 1024 * 1024 },
 };
 
 export function fileStoreKind(value: string | undefined): FileStoreKind {

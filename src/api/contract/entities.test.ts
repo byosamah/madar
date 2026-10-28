@@ -84,8 +84,8 @@ describe('entity schemas', () => {
       expect(FileVersion.parse({ ...version, thumbKey: 'prj-001/fil-001/1/thumb' }).thumbKey).toBe('prj-001/fil-001/1/thumb');
     });
 
-    it('allows files up to 250 MB, the absolute ceiling', () => {
-      expect(MAX_FILE_BYTES).toBe(250 * 1024 * 1024);
+    it('allows files up to 500 MB, the absolute ceiling (fbk_070)', () => {
+      expect(MAX_FILE_BYTES).toBe(500 * 1024 * 1024);
       expect(FileVersion.safeParse({ ...version, size: MAX_FILE_BYTES }).success).toBe(true);
       expect(FileVersion.safeParse({ ...version, size: MAX_FILE_BYTES + 1 }).success).toBe(false);
     });
