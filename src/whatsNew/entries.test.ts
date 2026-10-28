@@ -76,7 +76,7 @@ describe("What's new entries", () => {
   });
 
   it('name a real right and a real address when they have them (chats-14)', () => {
-    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink', 'ai.readChats', 'people.turnOff'];
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink', 'ai.readChats', 'people.turnOff', 'feedback.manage', 'ai.connect'];
     for (const entry of WHATS_NEW) {
       if (entry.right) expect(rights, entry.id).toContain(entry.right);
       if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
@@ -466,7 +466,8 @@ describe("the What's new entries of the chat files (fbk_070)", () => {
 describe("the What's new entry of the PDF preview (tsk_485)", () => {
   it('sits under the usage entry and above the entry of the project files in a chat, with no right and no link', () => {
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-127')).toEqual({ id: '2026-10-23-127', day: '2026-10-28' });
-    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-127')).toBe(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-102') + 1);
+    // The entries of the security scan (2026-10-23-131 to 134) came after it, so it is under the usage entry, not right under it.
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-127')).toBeGreaterThan(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-102'));
     expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-126')).toBe(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-127') + 1);
   });
 
@@ -475,5 +476,32 @@ describe("the What's new entry of the PDF preview (tsk_485)", () => {
     expect(word(en, 'body')).toContain(`"${String(wordAt(en, ['files', 'download']))}"`);
     expect(word(ar, 'body')).toContain(`«${String(wordAt(ar, ['files', 'download']))}»`);
     for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
+  });
+});
+
+// The four fixes of the security scan of 2026-10-28 (F2, F3, F1, F4). Found by id, never by place.
+describe("the What's new entries of the security scan (2026-10-28)", () => {
+  const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
+  const word = (tree: Parameters<typeof wordAt>[0], id: string, part: string) => String(wordAt(tree, ['whatsNew', 'items', id, part]));
+  const ids = ['2026-10-23-131', '2026-10-23-132', '2026-10-23-133', '2026-10-23-134'];
+
+  it('sit under the usage entry, newest first, each shown only to the people it concerns', () => {
+    for (const id of ids) expect(at(id), id).toBeGreaterThan(at('2026-10-23-102'));
+    expect(ids.map(at)).toEqual([...ids.map(at)].sort((a, b) => a - b));
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-131')).toEqual({ id: '2026-10-23-131', day: '2026-10-28' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-132')?.right).toBe('feedback.manage');
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-133')?.right).toBe('ai.connect');
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-134')?.right).toBe('admin.manage');
+  });
+
+  it('name the 10 digits, the forgot link and See every project in the words of the screens, with no dash', () => {
+    expect(word(en, '2026-10-23-131', 'body')).toContain('10 digits');
+    expect(word(en, '2026-10-23-131', 'body')).toContain(`"${String(wordAt(en, ['auth', 'signIn', 'forgot']))}"`);
+    expect(word(ar, '2026-10-23-131', 'body')).toContain(`«${String(wordAt(ar, ['auth', 'signIn', 'forgot']))}»`);
+    expect(word(ar, '2026-10-23-131', 'body')).toContain('10 أرقام');
+    expect(word(ar, '2026-10-23-134', 'body')).toContain(String(wordAt(ar, ['roleRights', 'powers', 'projectSeeAll', 'label'])));
+    for (const id of ids) {
+      for (const text of [word(en, id, 'title'), word(en, id, 'body'), word(ar, id, 'title'), word(ar, id, 'body')]) expect(text, id).not.toMatch(/[–—]|undefined/);
+    }
   });
 });

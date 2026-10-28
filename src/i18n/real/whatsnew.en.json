@@ -3,6 +3,22 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-131": {
+        "title": "Reset links are harder to guess",
+        "body": "The code inside each \"Forgot your password?\" link and each invitation link now has 10 digits, not 6. A guess now has almost no chance. Your links work as before."
+      },
+      "2026-10-23-132": {
+        "title": "A stricter check of report ids",
+        "body": "Madar now refuses an id that names no real request or bug report, before it changes anything. A security scan found this gap."
+      },
+      "2026-10-23-133": {
+        "title": "Madar refuses an AI app that hides an address",
+        "body": "When you connect an AI app, Madar now checks every address that the app can send you back to. If the app hides an address on another site, Madar refuses it. Known AI apps such as Claude and ChatGPT connect as before."
+      },
+      "2026-10-23-134": {
+        "title": "A deleted project's History stays with its team",
+        "body": "If a role cannot see every project, its people now read the History of a deleted project only when they led it, were on its team, or were chosen to see it. Before, they could read the History of any deleted project that was not hidden."
+      },
       "2026-10-23-127": {
         "title": "See a PDF before you download it",
         "body": "Press a PDF in a chat or a comment. It opens a preview. Press \"Download\" inside it to save the file."

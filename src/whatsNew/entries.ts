@@ -15,6 +15,13 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // The security scan of 2026-10-28: F2 (a 10-digit code in reset and invitation links), F3 (a report id must name a real report),
+  // F1 (Madar refuses an AI app that hides a return address) and F4 (the History of a deleted project). The lead sets the real
+  // release day before the test deploy.
+  { id: '2026-10-23-131', day: '2026-10-28' },
+  { id: '2026-10-23-132', day: '2026-10-28', right: 'feedback.manage' },
+  { id: '2026-10-23-133', day: '2026-10-28', right: 'ai.connect' },
+  { id: '2026-10-23-134', day: '2026-10-28', right: 'admin.manage' },
   // A PDF in a chat or a comment opens a preview before it downloads (tsk_485). The lead sets the real release day before the test deploy.
   { id: '2026-10-23-127', day: '2026-10-28' },
   // Insert a project file into a chat (fbk_070, tsk_482) and 500 MB for the files of a project (tsk_483). The lead sets the real release day before the test deploy.
