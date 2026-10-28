@@ -25,6 +25,11 @@ pure handlers, an additive contract, a table for a new collection, a test count 
 - The output is checked inside the change, so a wrong shape rolls it back (`execute.ts`).
 - One permission function: `can()`. No screen and no handler checks a right another way. An agent acts with its owner's
   rights (`resolveAuthority`).
+- A list view that builds a row for each project or each to-do (`projects.list`, `tasks.list`) makes one `viewIndexOf(state)` for the
+  call and passes it to `summaryOf` or `taskRowOf`. The lookups hold the tasks, members, stages, deadlines, posts and feed changes of a
+  project, so no row scans the office (`viewCost.test.ts` counts the scans and pins the output). A write never keeps the lookups: a change
+  makes them old. `feedFor` labels only the newest `limit` rows; keep its tie order (time, then id) when you change it.
+- `leadTookTask` takes the changes of the task as its third argument when the caller has them (`taskDetailOf`).
 
 ## Office rights and roles
 - The catalog JSON `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json` is the one source. `rightsCatalog.ts`

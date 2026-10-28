@@ -15,7 +15,7 @@ import { sentToReviewOn } from '../review';
 import { can, leadTookTask, mayViewTask, principalOf } from '../permissions';
 import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from '../taskGates';
 import { nextId, taskTemplatesOf } from '../store';
-import { stagesOf, taskDetailOf, taskRowOf } from '../views';
+import { taskDetailOf, taskRowOf, viewIndexOf } from '../views';
 import { everyoneCountOfTask } from './everyone';
 import { arrangeRanks } from '../../lib/arrange';
 import { stampDay } from '../../lib/dates';
@@ -245,11 +245,13 @@ export const tasksList = defineCall({
     });
     // Time order (owner, 2026-10-02): start date, then due date, then the stage's place in time, then the title.
     const rank = new Map<string, number>();
+    // One set of lookups for the whole list, so a row that waits on others scans no more than its project (speed review 2026-10-28).
+    const lookups = viewIndexOf(state);
     for (const projectKey of new Set(tasks.map((task) => task.projectId))) {
-      if (projectKey !== null) stagesChrono(stagesOf(state, projectKey)).forEach((stage, index) => rank.set(stage.id, index));
+      if (projectKey !== null) stagesChrono(lookups.stagesOf(projectKey)).forEach((stage, index) => rank.set(stage.id, index));
     }
     tasks.sort((a, b) => compareTasks(a, b, (id) => (id === null ? 0 : rank.get(id) ?? 0)));
-    return tasks.map((task) => taskRowOf(state, task, today, authority));
+    return tasks.map((task) => taskRowOf(state, task, today, authority, lookups));
   },
 });
 

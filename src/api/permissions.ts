@@ -188,12 +188,13 @@ const sideOf = (side: unknown): Record<string, unknown> => (side && typeof side 
 /**
  * True when the lead of a task got it with their own take of a task with no lead (tasks.take): the newest change of its lead that
  * still stands is the lead's own take. Such a lead does not delete the task, so a take never opens a delete (fbk_034, security
- * review 2026-10-20). It reads the history of the task, which the server loads with the task (taskTail).
+ * review 2026-10-20). It reads the history of the task, which the server loads with the task (taskTail). A caller that has the changes of
+ * the task already passes them as "events", so the check does not scan the events of the office again (taskDetailOf).
  */
-export function leadTookTask(state: State, task: Pick<Task, 'id' | 'ownerId'>): boolean {
+export function leadTookTask(state: State, task: Pick<Task, 'id' | 'ownerId'>, events: Iterable<State['events'][string]> = Object.values(state.events)): boolean {
   if (task.ownerId === null) return false;
   let newest: State['events'][string] | undefined;
-  for (const event of Object.values(state.events)) {
+  for (const event of events) {
     if (event.targetType !== 'task' || event.targetId !== task.id || event.undoneBy || !('ownerId' in sideOf(event.after))) continue;
     if (!newest || event.seq > newest.seq) newest = event;
   }

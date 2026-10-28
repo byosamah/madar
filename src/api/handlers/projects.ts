@@ -14,7 +14,7 @@ import { notify, notifyIn, projectPeople } from '../notify';
 import { peopleFilter, teamFilter } from '../pause';
 import { can, projectRoleOf } from '../permissions';
 import { meetingsOf, memberKey, nextId, paymentsOf, projectTemplatesOf, subCompaniesOf, teamsOf, trackerOf, type State } from '../store';
-import { detailOf, stagesOf, summaryOf } from '../views';
+import { detailOf, stagesOf, summaryOf, viewIndexOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import {
   buildProjectCode, CLASSIFICATIONS, codeMonth, contractClash, contractOf, FREE_CODE_MAX, FREE_CODE_PATTERN, INTERNAL_PREFIX, isProjectCode, nextSeries, projectKey, TYPE_MAX,
@@ -361,19 +361,21 @@ export const projectsList = defineCall({
   run(input, ctx) {
     const { state, today, authority } = ctx;
     const inTeam = teamFilter(state, input.teamId, authority);
+    // One set of lookups for the whole list, so no project scans the tasks, members, stages or feed of the office (speed review 2026-10-28).
+    const index = viewIndexOf(state);
     // The filters that read only the project come first, so the summary is built only for the projects that stay. teamFilter holds the view
     // rule too (hidden projects, owner 2026-10-22): a project that the person does not see never gets a summary.
     return Object.values(state.projects)
       .filter((p) => input.status === 'all' || p.status === input.status)
       .filter((p) => input.filter !== 'mine' || projectRoleOf(state, p.id, authority.id) !== 'other')
       .filter((p) => input.filter !== 'no_area' || (p.areaM2 === null && !isInternal(p)))
-      .filter((p) => input.filter !== 'stage_no_end' || (!p.continuous && stagesOf(state, p.id).some((stage) => stage.endDate === null)))
+      .filter((p) => input.filter !== 'stage_no_end' || (!p.continuous && index.stagesOf(p.id).some((stage) => stage.endDate === null)))
       .filter((p) => input.filter !== 'no_sub_company' || (!p.subCompanyId && !isInternal(p)))
       .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
       .filter((p) => !input.clientId || p.clientId === input.clientId)
       .filter((p) => !input.subCompanyId || p.subCompanyId === input.subCompanyId)
       .filter(inTeam)
-      .map((p) => summaryOf(state, p, today, authority))
+      .map((p) => summaryOf(state, p, today, authority, index))
       .filter((s) => input.filter !== 'at_risk' || (s.health !== null && s.health.value !== 'on_track'))
       .filter((s) => !input.stageName || s.currentStage.name === input.stageName)
       .filter((s) => !input.health || s.health?.value === input.health)

@@ -1,4 +1,4 @@
-import { PICTURE_DATA, type Comment, type Deadline, type Event, type FileRec, type MeetingMinutes, type Payment, type Project, type Stage, type Task, type TrackerEntry, type Update, type User } from './contract/entities';
+import { PICTURE_DATA, type Comment, type Deadline, type Event, type FileRec, type MeetingMinutes, type Payment, type Project, type ProjectMember, type Stage, type Task, type TrackerEntry, type Update, type User } from './contract/entities';
 import type {
   Attachment, CommentView, EventView, FeedItem, FileView, MinutesView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
@@ -45,7 +45,65 @@ export function cardOf(state: State, userId: string): UserCard {
 
 /** The stages in the order the office gave them. */
 export function stagesOf(state: State, projectId: string): Stage[] {
-  return Object.values(state.stages).filter((s) => s.projectId === projectId).sort((a, b) => a.order - b.order);
+  return Object.values(state.stages).filter((s) => s.projectId === projectId).sort(byOrder);
+}
+
+const byOrder = (a: Stage, b: Stage): number => a.order - b.order;
+const byDate = (a: Deadline, b: Deadline): number => a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
+
+/**
+ * The rows of a project, found without a scan of the whole office for each project (speed review 2026-10-28). A view that works on
+ * many projects or many to-dos builds this once for the call and passes it down. Each group is built on its first use, in one pass over
+ * the collection, and keeps the order of Object.values, so a view gives the same answer with the lookups as without them. The lookups
+ * belong to one call on one state: a write changes the rows, so a write never keeps them. Treat every list as read only.
+ */
+export type ViewIndex = {
+  /** The tasks of a project, in the order of the state. */
+  tasksOf(projectId: string): Task[];
+  membersOf(projectId: string): ProjectMember[];
+  /** The stages of a project in the order the office gave them, as stagesOf. */
+  stagesOf(projectId: string): Stage[];
+  /** The deadlines of a project by date, as deadlinesOf. */
+  deadlinesOf(projectId: string): Deadline[];
+  updatesOf(projectId: string): Update[];
+  /** The changes of a project that the feed may show: not undone, and a verb of FEED_VERBS. */
+  feedEventsOf(projectId: string): Event[];
+};
+
+/** A lookup by project: one pass over the rows on the first use, and "finish" runs once on a group when it is first read. */
+function lookupBy<T>(rows: () => T[], projectOf: (row: T) => string | null, finish?: (group: T[]) => void): (projectId: string) => T[] {
+  let groups: Map<string, T[]> | undefined;
+  const finished = new Set<string>();
+  return (projectId) => {
+    if (!groups) {
+      groups = new Map();
+      for (const row of rows()) {
+        const key = projectOf(row);
+        if (key === null) continue;
+        const group = groups.get(key);
+        if (group) group.push(row);
+        else groups.set(key, [row]);
+      }
+    }
+    const group = groups.get(projectId);
+    if (!group) return [];
+    if (finish && !finished.has(projectId)) {
+      finish(group);
+      finished.add(projectId);
+    }
+    return group;
+  };
+}
+
+export function viewIndexOf(state: State): ViewIndex {
+  return {
+    tasksOf: lookupBy(() => Object.values(state.tasks), (task) => task.projectId),
+    membersOf: lookupBy(() => Object.values(state.members), (member) => member.projectId),
+    stagesOf: lookupBy(() => Object.values(state.stages), (stage) => stage.projectId, (group) => { group.sort(byOrder); }),
+    deadlinesOf: lookupBy(() => Object.values(state.deadlines), (deadline) => deadline.projectId, (group) => { group.sort(byDate); }),
+    updatesOf: lookupBy(() => Object.values(state.updates), (update) => update.projectId),
+    feedEventsOf: lookupBy(() => Object.values(state.events), (event) => (event.undoneBy || !FEED_VERBS.has(event.verb) ? null : event.projectId)),
+  };
 }
 
 /** The stages in time order, which is how every screen lists them (owner, 2026-10-02). */
@@ -54,9 +112,7 @@ export function stagesInTime(state: State, projectId: string): Stage[] {
 }
 
 export function deadlinesOf(state: State, projectId: string): Deadline[] {
-  return Object.values(state.deadlines)
-    .filter((d) => d.projectId === projectId)
-    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  return Object.values(state.deadlines).filter((d) => d.projectId === projectId).sort(byDate);
 }
 
 /** A count from State.counts when a loader put one there, else a scan of the comments in the state (plan 4.13, A4). */
@@ -177,23 +233,48 @@ function newestFirst(a: FeedItem, b: FeedItem): number {
   return b.id.localeCompare(a.id);
 }
 
-/** mayUndo comes from the history rules, so the feed offers Undo exactly when events.undo accepts it. */
+/** The order of newestFirst on the raw rows: the time, then the id. Posts and changes both carry createdAt and id. */
+function newestRow(a: { id: string; createdAt: string }, b: { id: string; createdAt: string }): number {
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+  return b.id.localeCompare(a.id);
+}
+
+/** The "limit" newest of the rows, in newestRow order: the same rows as a sort of all of them cut to "limit". It sorts the array it gets. */
+function newestOf<T extends { id: string; createdAt: string }>(rows: T[], limit: number): T[] {
+  // A long limit, or a short list, gains nothing from the walk below.
+  if (!Number.isInteger(limit) || limit < 1 || limit > 32 || rows.length <= limit) return rows.sort(newestRow).slice(0, limit);
+  const kept: T[] = [];
+  for (const row of rows) {
+    if (kept.length === limit && newestRow(row, kept[limit - 1]) >= 0) continue;
+    let at = kept.length;
+    while (at > 0 && newestRow(row, kept[at - 1]) < 0) at -= 1;
+    kept.splice(at, 0, row);
+    if (kept.length > limit) kept.pop();
+  }
+  return kept;
+}
+
+/**
+ * mayUndo comes from the history rules, so the feed offers Undo exactly when events.undo accepts it. It picks the newest "limit" posts and the
+ * newest "limit" changes before it labels any (eventLabel and mayUndo run for those rows only): the newest "limit" rows of both together are
+ * among them. "index" gives the rows of the project without a scan of the office, for a view of many projects.
+ */
 export function feedFor(
   state: State, projectId: string, filter: 'all' | 'posts' | 'decisions' | 'tasks' | 'files', limit: number, viewer: User,
-  mayUndo: (event: Event) => boolean = () => false,
+  mayUndo: (event: Event) => boolean = () => false, index?: ViewIndex,
 ): FeedItem[] {
   const items: FeedItem[] = [];
   if (filter === 'all' || filter === 'posts' || filter === 'decisions') {
-    for (const update of Object.values(state.updates)) {
-      if (update.projectId !== projectId || (filter === 'decisions' && !update.decision)) continue;
-      items.push(updateItemOf(state, update, viewer));
-    }
+    const updates = (index ? index.updatesOf(projectId) : Object.values(state.updates).filter((update) => update.projectId === projectId))
+      .filter((update) => filter !== 'decisions' || update.decision);
+    for (const update of newestOf(updates, limit)) items.push(updateItemOf(state, update, viewer));
   }
   if (filter !== 'posts' && filter !== 'decisions') {
-    for (const event of Object.values(state.events)) {
-      if (event.projectId !== projectId || event.undoneBy || !FEED_VERBS.has(event.verb)) continue;
-      if (filter === 'tasks' && !event.verb.startsWith('task.')) continue;
-      if (filter === 'files' && !event.verb.startsWith('file.')) continue;
+    const events = (index ? index.feedEventsOf(projectId) : Object.values(state.events).filter((event) => event.projectId === projectId))
+      .filter((event) => !event.undoneBy && FEED_VERBS.has(event.verb))
+      .filter((event) => filter !== 'tasks' || event.verb.startsWith('task.'))
+      .filter((event) => filter !== 'files' || event.verb.startsWith('file.'));
+    for (const event of newestOf(events, limit)) {
       const { label, detail } = eventLabel(state, event);
       items.push({
         kind: 'event', id: event.id, at: event.createdAt, author: cardOf(state, event.actorId), verb: event.verb,
@@ -263,13 +344,16 @@ function withoutBase(project: Project): Project {
   return { ...shown, templateLink: rest };
 }
 
-/** "viewer" is the person whose rights apply: the user, or the person an agent acts for. */
-export function summaryOf(state: State, project: Project, today: string, viewer: User): ProjectSummary {
-  const stages = stagesInTime(state, project.id);
-  const tasks = Object.values(state.tasks).filter((t) => t.projectId === project.id);
-  const deadlines = deadlinesOf(state, project.id);
+/**
+ * "viewer" is the person whose rights apply: the user, or the person an agent acts for. "index" holds the lookups of the call: a list of
+ * many projects passes one, so no project scans the whole office. Without it the lookups are built here, for this one project.
+ */
+export function summaryOf(state: State, project: Project, today: string, viewer: User, index: ViewIndex = viewIndexOf(state)): ProjectSummary {
+  const stages = stagesChrono(index.stagesOf(project.id));
+  const tasks = index.tasksOf(project.id);
+  const deadlines = index.deadlinesOf(project.id);
   const next = deadlines.find((d) => d.date >= today) ?? [...deadlines].reverse().find((d) => d.date < today) ?? null;
-  const latest = feedFor(state, project.id, 'all', 2, viewer);
+  const latest = feedFor(state, project.id, 'all', 2, viewer, undefined, index);
   const newest = latest[0]?.at;
   const health = computeHealth({ project, stages, tasks }, today);
   const viewerRole = projectRoleOf(state, project.id, viewer.id);
@@ -294,8 +378,8 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
     // A pin of its own (a point, or null for a removed pin) wins. Old data has none: its location link gives the place (PRJ-04).
     geo: project.geo === undefined ? pinFromLinks(project.links) : project.geo,
     leader: project.leaderId ? cardOf(state, project.leaderId) : null,
-    team: Object.values(state.members)
-      .filter((m) => m.projectId === project.id && m.userId !== project.leaderId)
+    team: index.membersOf(project.id)
+      .filter((m) => m.userId !== project.leaderId)
       .map((m) => cardOf(state, m.userId))
       .sort((a, b) => a.name.localeCompare(b.name)),
     openTasks: tasks.filter((t) => t.status !== 'done').length,
@@ -307,14 +391,14 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
 }
 
 
-export function detailOf(state: State, project: Project, today: string, viewer: User): ProjectDetail {
-  const summary = summaryOf(state, project, today, viewer);
+export function detailOf(state: State, project: Project, today: string, viewer: User, index: ViewIndex = viewIndexOf(state)): ProjectDetail {
+  const summary = summaryOf(state, project, today, viewer, index);
   // A person leads a task or helps on it. Both count, as in members.remove and the Overview (audit 2026-10-03, PRJ-3).
-  const openBy = (userId: string) =>
-    Object.values(state.tasks).filter((t) => t.projectId === project.id && involves(t, userId) && t.status !== 'done').length;
+  const projectTasks = index.tasksOf(project.id);
+  const openBy = (userId: string) => projectTasks.filter((t) => involves(t, userId) && t.status !== 'done').length;
   // A person who was removed from the lists (owner, 2026-10-12) is not in the team either; their work keeps their name.
-  const members = Object.values(state.members)
-    .filter((m) => m.projectId === project.id && !state.users[m.userId]?.removed)
+  const members = index.membersOf(project.id)
+    .filter((m) => !state.users[m.userId]?.removed)
     .map((m) => ({
       user: cardOf(state, m.userId), discipline: m.discipline, isLeader: m.userId === project.leaderId, openTasks: openBy(m.userId),
       active: state.users[m.userId]?.active ?? false,
@@ -323,7 +407,7 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
   // The project chat, when the viewer may open it (an outsider gets null, and no id of the chat).
   const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === project.id);
   const chatId = room && canSeeConversation(state, room, viewer) ? room.id : null;
-  return { ...summary, members, deadlines: deadlinesOf(state, project.id), chatId, folders: structuredClone(project.folders ?? []) };
+  return { ...summary, members, deadlines: [...index.deadlinesOf(project.id)], chatId, folders: structuredClone(project.folders ?? []) };
 }
 
 export function eventViewOf(state: State, event: Event): EventView {
@@ -331,18 +415,19 @@ export function eventViewOf(state: State, event: Event): EventView {
 }
 
 /** What an open task waits for. A done task waits for nothing, and a task with no prerequisites skips the scan. An office task waits for nothing. */
-function waitingOf(state: State, task: Task): TaskRow['waitingFor'] {
+function waitingOf(state: State, task: Task, index: ViewIndex): TaskRow['waitingFor'] {
   if (task.projectId === null || task.stageId === null) return { tasks: [], stages: [] };
   const stage = state.stages[task.stageId];
   if (task.status === 'done' || ((task.prerequisiteIds ?? []).length === 0 && (stage?.prerequisiteIds ?? []).length === 0)) return { tasks: [], stages: [] };
-  const tasks = Object.values(state.tasks).filter((t) => t.projectId === task.projectId);
+  const tasks = index.tasksOf(task.projectId);
   return {
     tasks: openPrerequisites(task, tasks).map((t) => ({ id: t.id, title: t.title })),
-    stages: openPrerequisiteStages(task, stagesOf(state, task.projectId), tasks).map((s) => ({ id: s.id, name: s.name })),
+    stages: openPrerequisiteStages(task, index.stagesOf(task.projectId), tasks).map((s) => ({ id: s.id, name: s.name })),
   };
 }
 
-export function taskRowOf(state: State, task: Task, today: string, viewer: User): TaskRow {
+/** "index" holds the lookups of the call: a list of many rows passes one, so a row that waits on others scans no more than its project. */
+export function taskRowOf(state: State, task: Task, today: string, viewer: User, index: ViewIndex = viewIndexOf(state)): TaskRow {
   const project = task.projectId === null ? undefined : state.projects[task.projectId];
   const stage = task.stageId === null ? undefined : state.stages[task.stageId];
   const resource = taskResource(state, task, viewer.id);
@@ -358,27 +443,27 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
     overdue: isOverdue(task, today),
     canMove: mayChangeTask(viewer, 'work', resource),
     canEditPeople: mayAssignTask(viewer, resource),
-    waitingFor: waitingOf(state, task),
+    waitingFor: waitingOf(state, task, index),
   };
 }
 
 export function taskDetailOf(state: State, task: Task, today: string, viewer: User): TaskDetail {
   const r = taskResource(state, task, viewer.id);
-  const history = Object.values(state.events)
-    .filter((e) => e.targetType === 'task' && e.targetId === task.id)
-    .sort((a, b) => b.seq - a.seq)
-    .map((e) => eventViewOf(state, e));
+  // The changes of this task are read once. The history and the take check of the delete flag both use them.
+  const taskEvents = Object.values(state.events).filter((e) => e.targetType === 'task' && e.targetId === task.id);
+  const history = [...taskEvents].sort((a, b) => b.seq - a.seq).map((e) => eventViewOf(state, e));
   const link = (t: Task) => ({ id: t.id, title: t.title, status: t.status });
+  const index = viewIndexOf(state);
   // An office task needs no task and unlocks none (owner, 2026-10-06).
-  const inProject = task.projectId === null ? [] : Object.values(state.tasks).filter((t) => t.projectId === task.projectId);
-  const stages = task.projectId === null ? [] : stagesOf(state, task.projectId);
+  const inProject = task.projectId === null ? [] : index.tasksOf(task.projectId);
+  const stages = task.projectId === null ? [] : index.stagesOf(task.projectId);
   const ids = new Set(task.prerequisiteIds ?? []);
   // Each kind of change is asked once. Six flags below read these three answers.
   const mayDetails = mayChangeTask(viewer, 'details', r);
   const mayDates = mayChangeTask(viewer, 'dates', r);
   const mayWork = mayChangeTask(viewer, 'work', r);
   return {
-    ...taskRowOf(state, task, today, viewer),
+    ...taskRowOf(state, task, today, viewer, index),
     needsFirst: tasksChrono(inProject.filter((t) => ids.has(t.id)), stages).map(link),
     unlocks: tasksChrono(inProject.filter((t) => (t.prerequisiteIds ?? []).includes(task.id)), stages).map(link),
     viewerCan: {
@@ -389,7 +474,7 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       review: can(viewer, 'task.review', r) && task.status === 'in_review',
       setNeedsReview: can(viewer, 'task.review', r),
       // A lead who took the task themselves does not delete it (security review 2026-10-20).
-      delete: mayDeleteTask(viewer, r) && (can(viewer, 'task.any', r) || isTaskMaker(viewer, r) || !leadTookTask(state, task)),
+      delete: mayDeleteTask(viewer, r) && (can(viewer, 'task.any', r) || isTaskMaker(viewer, r) || !leadTookTask(state, task, taskEvents)),
       contribute: mayTickChecklist(viewer, r),
       newVersion: task.status === 'done' && mayWork,
       // A template belongs to a stage, so an office task never becomes one. It serves the whole office, so the leader and the
