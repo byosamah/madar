@@ -9,6 +9,8 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   page stays as it was. Reason given: the worker runs the Arabic text plugin with eval(), and the page policy blocked it, so PostHog
   recorded an unhandled error 11 times for 6 people. Note of the builder: MapLibre 6.11.2 shapes Arabic itself, so the map drew the
   same pixels before and after (see `src/features/map/CLAUDE.md`). Removing the plugin is open for the owner.
+- PostHog names (tsk_489, owner): the event of a failed call (`madar_call_failed`) sends no `personId` and no `personName`. Only errors
+  carry the person, as the rule of 2026-10-25 says.
 
 
 History and provenance taken out of the guides of the group ops-data. Grouped by guide, then by section. The text is in the

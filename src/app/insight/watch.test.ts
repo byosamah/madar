@@ -57,12 +57,11 @@ describe('watchRoutes', () => {
 });
 
 describe('watchCalls', () => {
-  const person = () => ({ id: 'usr_1', name: 'Alice' });
-  function setup(who: typeof person | (() => null) = person) {
+  function setup() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     const client = { track: vi.fn(), exception: vi.fn(), stop: vi.fn() } as InsightClient & { track: ReturnType<typeof vi.fn>; exception: ReturnType<typeof vi.fn> };
     let t = 1_000_000;
-    const stop = watchCalls(queryClient, client, who, () => t);
+    const stop = watchCalls(queryClient, client, () => t);
     return { queryClient, client, stop, advance: (ms: number) => { t += ms; } };
   }
   const failQuery = async (queryClient: QueryClient, key: unknown[], error: unknown) => {
@@ -92,14 +91,15 @@ describe('watchCalls', () => {
     expect(client.track).not.toHaveBeenCalled();
   });
 
-  it('a failed call gives madar_call_failed with the person', async () => {
+  it('a failed call gives madar_call_failed with the call name only, and no person (owner, 2026-10-28, tsk_489)', async () => {
     const { queryClient, client } = setup();
     await failMutation(queryClient, ['api', 'chats.send'], new ApiError('failed', 'The call failed. Try again.'));
-    expect(client.track).toHaveBeenCalledWith('madar_call_failed', { call: 'chats.send', personId: 'usr_1', personName: 'Alice' });
+    expect(client.track).toHaveBeenCalledWith('madar_call_failed', { call: 'chats.send' });
+    expect(JSON.stringify(client.track.mock.calls)).not.toMatch(/usr_1|Alice|person/);
   });
 
-  it('a failed call with no known person carries no person', async () => {
-    const { queryClient, client } = setup(() => null);
+  it('a failed query gives the same record: the call name only', async () => {
+    const { queryClient, client } = setup();
     await failQuery(queryClient, ['api', 'tasks.list', {}], new ApiError('failed', 'x'));
     expect(client.track).toHaveBeenCalledWith('madar_call_failed', { call: 'tasks.list' });
   });

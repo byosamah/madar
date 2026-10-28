@@ -167,7 +167,7 @@ export function createInsightClient(o: ClientOptions): InsightClient {
   };
   const stops: (() => void)[] = [];
   try {
-    stops.push(watchRoutes(o.router, client.track), watchCalls(o.queryClient, client, o.person));
+    stops.push(watchRoutes(o.router, client.track), watchCalls(o.queryClient, client));
   } catch {
     // A watcher that fails to start leaves the others running.
   }

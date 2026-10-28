@@ -64,7 +64,7 @@ the build version (`VITE_MADAR_BUILD`).
 | Sheet open, save, close without save | the main sheets: new project, new task, new office task, payment, meeting, Tracker log, feedback (the builder may add more) | no |
 | Slow step | a batch request of `RemoteApi` that takes 2 s or more, with the call names and the time; plus the PostHog web vitals | no |
 | Refusal | the server says no with a reason (for example `needs_lead`, `week_locked`); the call name, the code and the reason only | no |
-| Call failure | a call that ends with the code `failed` (a server fault, a lost network, a timeout) | yes |
+| Call failure | a call that ends with the code `failed` (a server fault, a lost network, a timeout); the call name only (owner, 2026-10-28) | no |
 | Screen error | `window.onerror`, `unhandledrejection`, and the error of `RouteError` | yes |
 | Server error | each `error` line of the server logger, on the Supabase functions and on the Worker | the person id (and the agent id for an MCP call), when the line has one |
 | Replay | the screen of each visit after sign-in | no name tag; an error in the same visit links to it |

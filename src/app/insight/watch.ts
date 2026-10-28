@@ -3,7 +3,7 @@ import { ApiError } from '../../api/errors';
 import { scrubUrl } from '../../lib/urlScrub';
 import { screensAt } from '../routes';
 import type { AppRouter } from './index';
-import type { InsightClient, InsightPerson } from './notes';
+import type { InsightClient } from './notes';
 
 /** The watchers of the screens (insight design, section 4). Each returns the function that stops it. */
 
@@ -43,12 +43,12 @@ const REFUSAL_CODES: readonly string[] = ['forbidden', 'invalid_input', 'conflic
 /**
  * Watches every call that fails, in the query cache and in the mutation cache:
  *  - a refusal with a reason (`week_locked`, `needs_lead`): the call name, the code and the reason only, no person;
- *  - a call that ends with `failed` (a server fault, a lost network, a timeout): the call name and the person;
+ *  - a call that ends with `failed` (a server fault, a lost network, a timeout): the call name only, no person;
  *  - `unauthenticated`: nothing (a sign-out is no error);
- *  - any other error (a bug in a screen or in a handler): an exception record, which carries the person through `before_send`.
+ *  - any other error (a bug in a screen or in a handler): an exception record, which gets the person in `before_send`.
  * It never reads the input of a call, so a name, a title or a message a person wrote never leaves the browser.
  */
-export function watchCalls(queryClient: QueryClient, client: InsightClient, person: () => InsightPerson | null, now: () => number = Date.now): () => void {
+export function watchCalls(queryClient: QueryClient, client: InsightClient, now: () => number = Date.now): () => void {
   const failedAt = new Map<string, number>();
   const note = (key: readonly unknown[], error: unknown) => {
     try {
@@ -63,8 +63,8 @@ export function watchCalls(queryClient: QueryClient, client: InsightClient, pers
         const last = failedAt.get(call);
         if (last !== undefined && at - last < FAILED_GAP_MS) return;
         failedAt.set(call, at);
-        const who = person();
-        client.track('madar_call_failed', who ? { call, personId: who.id, personName: who.name } : { call });
+        // An action, so it carries no person (owner, 2026-10-25 and 2026-10-28). Only an $exception record does.
+        client.track('madar_call_failed', { call });
       } else if (REFUSAL_CODES.includes(error.code) && typeof error.details.reason === 'string') {
         client.track('madar_refused', { call, code: error.code, reason: error.details.reason });
       }

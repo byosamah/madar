@@ -12,6 +12,9 @@ The owner sees how the team uses Madar, which errors they hit and replays of the
   an address behind the gate (`screensAt(path, true).gated`). A sign-out stops it (`stop()`); the next sign-in starts it for the new person
   (`init` runs once). A failed import stays quiet and never reloads the page. `check-bundles.ts` fails when `$snapshot_data` reaches the
   first load, or `$snapshot_data` or `eu.i.posthog.com` reaches the prototype.
+- Names (owner, 2026-10-25 and 2026-10-28): only an `$exception` record carries `personId` and `personName` (added in `before_send`). An
+  action carries none: screen views, clicks, slow steps, refusals, failed calls (`madar_call_failed`) and sheets. `eventFields.test.ts`
+  pins the fields of every event that `src/app/insight/` captures; a new event needs its line there.
 - `harmlessError` (`client.ts`) drops two kinds of error record: the ResizeObserver warning and the failure of the Arabic text plugin
   of the map (tsk_486).
 - `posthogOptions` (`client.ts`) holds the privacy rules and `client.test.ts` pins them. `before_send` runs `scrubEvent` (`scrub.ts`), which
