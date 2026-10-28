@@ -23,3 +23,10 @@ The owner sees how the team uses Madar, which errors they hit and replays of the
 - A new main sheet adds its name to `SheetName` and calls `useSheetSteps(name, open)` (`sheetWiring.test.ts`).
 - No proxy through the Pages Functions (the replay packets could use the free request quota). The CSP names only the two `eu` PostHog hosts
   in `connect-src`. The team sees one line in Settings (`UsageDataSection`) and in the Me hub (`UsageDataNote`).
+- Read a web vitals row with care (tsk_487, 2026-10-28). `$web_vitals` CLS is the worst 5 s burst of the whole tab, and the row carries the
+  path at the moment of the report, not the screen that shifted. A tab that stays open keeps one `$web_vitals_CLS_event.id` across days
+  (the 0.82 row of `/work` shared its id with a row of the day before, and `navigationURL` was `/`). The events hold no element name, so a
+  poor score cannot name a screen. Measured on 2026-10-28 (Playwright, `PerformanceObserver` `layout-shift`, 1280 and 1423 px): the
+  prototype and the real build on the local office show 0 shift on `/work` for a cold load, a load from Home, a 300 ms network delay,
+  a row hover, a task panel, the List and Board views, a hidden and visible tab and the 60 s pass. To name the element, a later task may set
+  the web vitals attribution option of posthog-js, after a check of the privacy rules (`client.test.ts`).
