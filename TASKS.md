@@ -1261,10 +1261,10 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] tsk_483 (fbk_070): a project file takes up to 500 MB; a direct chat, a group, a meeting with no project and an office to-do keep 250 MB. A project chat file lands in the Files tab, so it takes 500 MB (owner, 2026-10-28) (d12c7ad4, 2772a7a0). What's new 125. Done 2026-10-28: production at d0cd32ad. Not yet seen: one real 500 MB upload to R2.
 - [x] tsk_482 (fbk_070): the attach button of a chat opens "Upload a file" and "Insert from a project"; the picker lists only the projects that hold every person of the chat (owner, 2026-10-28), sends 10 files in each message, and stores no second copy. chats.send now needs "Share files" for a project file in a direct chat or a group (b56d1929, 687268ee). What's new 126. Done 2026-10-28: production at d0cd32ad.
 - [x] tsk_485: a PDF in a chat or a comment opens the preview before the download (d90880ea). What's new 127. Done 2026-10-28: production at d0cd32ad.
-- [ ] tsk_486: the map worker blocks the Arabic text plugin (eval under the CSP). Owner (2026-10-28): only the map worker file gets its own policy. Root cause in the comment of the to-do.
-- [ ] tsk_487: the Work screen jumps while it loads on a computer (CLS 0.459).
-- [ ] tsk_488: in Arabic the Tasks screen marks Dashboard in the top bar.
-- [ ] tsk_489: the PostHog event of a failed call sends the name of the person; remove it.
+- [x] tsk_486: the map worker blocked the Arabic text plugin (eval under the CSP), an unhandled error in PostHog. MapLibre 6 shapes Arabic by itself, so the owner chose to remove the plugin (2026-10-28): no eval and no policy change (a935fcea). The worker rule of 25d58b72 is reverted (fe397f19). Open: drop `'wasm-unsafe-eval'` after a check that no file of the build runs WebAssembly (`client-*.js` still names it).
+- [x] tsk_487: closed by the owner (2026-10-28): no jump on a cold load of /work. The PostHog score came from one tab open for more than a day (a CLS row holds the worst burst of the tab life). The guide `src/app/insight/CLAUDE.md` says how to read such a row (e9cdb754).
+- [x] tsk_488: the To-do list (/tasks) marked Dashboard in the top bar, in English and Arabic, since 2026-10-01. It now marks Tasks; the Deadlines list still marks Dashboard (3ceacd67). What's new 130.
+- [x] tsk_489: `madar_call_failed` sends only the call name, no `personId` and no `personName`. `eventFields.test.ts` pins the fields of every PostHog event of Madar (a713d766).
 
 ## Security scan fixes (Claude Security scan of 2026-10-28; owner: "test copy, then production", "check production, then fix", "fix it properly")
 Report and patches: `CLAUDE-SECURITY-20261028-093704/` in the main folder (git-ignored). Branches `rb/sec-small`, `rb/sec-approval`, `rb/sec-history`.
