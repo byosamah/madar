@@ -10,13 +10,14 @@ import { recordApproval } from './approval';
 import { liteAgentOf } from './oauth/agent';
 
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
+const ATTACKER = 'https://attacker.example/cb';
 
-async function approvedClient(t: TestOffice, ownerId = 'usr_002') {
+async function approvedClient(t: TestOffice, ownerId = 'usr_002', o: { uris?: string[]; seen?: string | null } = {}) {
   const authId = await addSignIn(t, ownerId, { password: 'a good password' });
   const clientId = crypto.randomUUID();
   const now = t.deps.clock.now().toISOString();
-  t.raw.prepare('insert into oauth_clients (id, name, redirect_uris, created_at) values (?, ?, ?, ?)').run(clientId, 'Claude', JSON.stringify([CALLBACK]), now);
-  t.raw.prepare('insert into agent_approvals (client_id, owner_user_id, approved_at) values (?, ?, ?)').run(clientId, ownerId, now);
+  t.raw.prepare('insert into oauth_clients (id, name, redirect_uris, created_at) values (?, ?, ?, ?)').run(clientId, 'Claude', JSON.stringify(o.uris ?? [CALLBACK]), now);
+  t.raw.prepare('insert into agent_approvals (client_id, owner_user_id, approved_at, redirect_uri) values (?, ?, ?, ?)').run(clientId, ownerId, now, o.seen ?? null);
   t.raw.prepare("insert into auth_sessions (id, auth_id, client_id, amr, refresh_hash, expires_at, created_at) values (?, ?, ?, 'oauth', ?, '2026-11-17T06:00:00.000Z', ?)").run(`s-${clientId}`, authId, clientId, `h-${clientId}`, now);
   return { authId, clientId, sessionId: `s-${clientId}` };
 }
@@ -159,5 +160,85 @@ describe('the agent rows and the switch Connect AI assistants (role rights versi
     await connect(t, false);
     expect(await t.call('usr_002', 'agents.list', {})).toMatchObject({ ok: true, output: [{ agentId, clientIds: [clientId] }] });
     expect(await t.call('usr_002', 'agents.remove', { agentId })).toMatchObject({ ok: true, output: { removed: true } });
+  });
+});
+
+describe('the addresses that the person did not see on the consent screen (CWE-863; SQLite end to end)', () => {
+  const request = (t: TestOffice, id: string, clientId: string, authId: string, redirectUri: string) =>
+    t.raw.prepare("insert into oauth_requests (id, client_id, redirect_uri, code_challenge, auth_id, expires_at) values (?, ?, ?, 'ch', ?, '2026-10-17T06:10:00.000Z')").run(id, clientId, redirectUri, authId);
+  const clientOf = (t: TestOffice, uris: string[]) => {
+    const id = crypto.randomUUID();
+    t.raw.prepare('insert into oauth_clients (id, name, redirect_uris) values (?, ?, ?)').run(id, 'Claude', JSON.stringify(uris));
+    return id;
+  };
+  const approve = (t: TestOffice, id: string, authId: string, ownerId = 'usr_002') =>
+    t.db.tx('write', (q) => recordApproval(q, { authorizationId: id, authUserId: authId, ownerId, now: t.deps.clock.now() }));
+  const approvals = (t: TestOffice) => t.raw.prepare('select client_id, redirect_uri from agent_approvals').all();
+
+  it('refuses the approval of the finding (a known address seen, an address of its own beside it) and writes nothing', async () => {
+    const t = await signinOffice();
+    const authId = await addSignIn(t, 'usr_002', { password: 'a good password' });
+    const clientId = clientOf(t, [CALLBACK, ATTACKER]);
+    request(t, 'req1', clientId, authId, CALLBACK);
+    await expect(approve(t, 'req1', authId)).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'agent_redirect_hidden' } });
+    expect(approvals(t)).toEqual([]);
+  });
+
+  it('approves the real apps and stores the address that the person saw', async () => {
+    const t = await signinOffice();
+    const authId = await addSignIn(t, 'usr_002', { password: 'a good password' });
+    for (const [seen, uris] of [['https://myapp.example/cb', ['https://myapp.example/cb', 'http://localhost:8080/cb']], ['myapp://callback', ['myapp://callback', CALLBACK]]] as const) {
+      const clientId = clientOf(t, [...uris]);
+      request(t, `req-${seen}`, clientId, authId, seen);
+      expect(await approve(t, `req-${seen}`, authId)).toEqual({ clientId });
+      expect(t.raw.prepare('select redirect_uri from agent_approvals where client_id = ?').get(clientId)).toEqual({ redirect_uri: seen });
+    }
+  });
+
+  it('refuses to link a client that holds a hidden address, before it writes a user or a link', async () => {
+    const t = await signinOffice();
+    const { clientId } = await approvedClient(t, 'usr_002', { uris: [CALLBACK, ATTACKER], seen: CALLBACK });
+    const deps = t.deps as unknown as Deps;
+    const usersBefore = (await officeOf(t)()).lists.users;
+    await expect(ensureAgentUser(deps, { ownerId: 'usr_002', clientId, data: liteData(deps) })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'agent_redirect_hidden' } });
+    expect(t.raw.prepare('select count(*) as n from agent_links').get()).toEqual({ n: 0 });
+    expect(Object.keys((await officeOf(t)()).lists.users)).toEqual(Object.keys(usersBefore));
+  });
+
+  it('uses the strict form for an approval with no seen address: two places stop, one place links', async () => {
+    const t = await signinOffice();
+    const deps = t.deps as unknown as Deps;
+    const bad = await approvedClient(t, 'usr_002', { uris: [CALLBACK, ATTACKER] });
+    await expect(ensureAgentUser(deps, { ownerId: 'usr_002', clientId: bad.clientId, data: liteData(deps) })).rejects.toMatchObject({ details: { reason: 'agent_redirect_hidden' } });
+    const good = await approvedClient(t, 'usr_003', { uris: [ATTACKER] });
+    expect((await ensureAgentUser(deps, { ownerId: 'usr_003', clientId: good.clientId, data: liteData(deps) })).created).toBe(true);
+  });
+
+  it('stops a link that was made before the fix on its next call, and a person can approve it again with the address that was seen', async () => {
+    const t = await signinOffice();
+    const { authId, clientId, sessionId } = await linkedAgent(t);
+    const deps = t.deps as unknown as Deps;
+    const token = { token: 'x', authUserId: authId, clientId, sessionId };
+    expect(await liteAgentOf(deps, token, officeOf(t))).toMatchObject({ linked: false });
+    // Before the fix a client could hold an address of its own beside the known one, and the approval row had no seen address.
+    t.raw.prepare('update oauth_clients set redirect_uris = ? where id = ?').run(JSON.stringify([CALLBACK, ATTACKER]), clientId);
+    await expect(liteAgentOf(deps, token, officeOf(t))).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'agent_redirect_hidden' } });
+    // Still refused with the seen address of the known app: the address of its own is hidden.
+    t.raw.prepare('update agent_approvals set redirect_uri = ? where client_id = ?').run(CALLBACK, clientId);
+    await expect(liteAgentOf(deps, token, officeOf(t))).rejects.toMatchObject({ details: { reason: 'agent_redirect_hidden' } });
+    // The app that shows its own address and lists a known one is fine.
+    t.raw.prepare('update agent_approvals set redirect_uri = ? where client_id = ?').run(ATTACKER, clientId);
+    t.raw.prepare('update oauth_clients set redirect_uris = ? where id = ?').run(JSON.stringify([ATTACKER, CALLBACK]), clientId);
+    expect(await liteAgentOf(deps, token, officeOf(t))).toMatchObject({ linked: false });
+  });
+
+  it('writes the seen address over the null of an old approval', async () => {
+    const t = await signinOffice();
+    const authId = await addSignIn(t, 'usr_002', { password: 'a good password' });
+    const clientId = clientOf(t, ['https://myapp.example/cb', 'http://localhost:8080/cb']);
+    t.raw.prepare('insert into agent_approvals (client_id, owner_user_id) values (?, ?)').run(clientId, 'usr_002');
+    request(t, 'req2', clientId, authId, 'https://myapp.example/cb');
+    await approve(t, 'req2', authId);
+    expect(approvals(t)).toEqual([{ client_id: clientId, redirect_uri: 'https://myapp.example/cb' }]);
   });
 });

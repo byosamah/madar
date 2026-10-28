@@ -111,7 +111,8 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
 - anon and authenticated have no grant. The Data API (PostgREST, GraphQL) is off.
 - New functions get no default EXECUTE. Grant each one by name.
 - `madar_private` security definer functions: `current_madar_user_id`, `agent_session_ok`, `agent_session_at`,
-  `agent_client`, `agent_authorization`, `storage_bytes`. Public: `madar_access_token_hook`.
+  `agent_client`, `agent_authorization` (kept for the deploy window; no code calls it), `agent_pending`, `storage_bytes`.
+  Public: `madar_access_token_hook`.
 
 ## SQL rules
 - Only `set local` on the pooler: `sql.ts` refuses a plain SET.

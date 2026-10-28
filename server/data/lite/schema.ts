@@ -38,8 +38,11 @@ import type { SqlHost } from './host';
  *
  * Version 12 (the email code guard of an agent, owner 2026-10-26): the server table agent_confirms and its two indexes. Its step is in
  * LITE_STEPS (supabase/migrations/20261026000200_agent_confirms.sql).
+ *
+ * Version 13 (CWE-863, the address that the person saw): the column redirect_uri of agent_approvals. Null for an approval from before the
+ * step. Its step is in LITE_STEPS (supabase/migrations/20261028000100_platform_agent_redirect.sql).
  */
-export const LITE_SCHEMA_VERSION = 12;
+export const LITE_SCHEMA_VERSION = 13;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -142,7 +145,7 @@ const SERVER_SQL: readonly string[] = [
   `create table outbox (id integer primary key, kind text not null, payload text not null, attempts integer not null default 0, claimed_until text, done_at text, error text, created_at text not null default (${NOW}))`,
   `create table upload_intents (id text primary key, actor_id text not null, project_id text, staging_key text not null, key text not null, thumb_key text, size integer not null check (size >= 0), mime_type text not null, expires_at text not null, used_at text, created_at text not null default (${NOW}))`,
   `create table agent_links (client_id text primary key, owner_user_id text not null, agent_user_id text not null, client_name text not null, redirect_host text not null, approved_at text not null default (${NOW}), last_used_at text, revoked_at text)`,
-  `create table agent_approvals (client_id text not null, owner_user_id text not null, approved_at text not null default (${NOW}), primary key (client_id, owner_user_id))`,
+  `create table agent_approvals (client_id text not null, owner_user_id text not null, approved_at text not null default (${NOW}), redirect_uri text, primary key (client_id, owner_user_id))`,
   `create table mail_log (id integer primary key, utc_day text not null, kind text not null, user_id text, ref text not null, resend_id text, created_at text not null default (${NOW}), unique (utc_day, ref))`,
   `create table mail_outbox (id integer primary key, to_email text not null, tag text not null, idempotency_key text not null unique, mail text not null, created_at text not null default (${NOW}))`,
   'create table usage_month (month text primary key, calls integer not null default 0, bytes_read integer not null default 0, backup_bytes integer, signals_failed integer not null default 0, signals_failed_at text)',
@@ -199,6 +202,8 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 10 adds the index chat_reads_conversation (chat presence design C4), as in liteSchemaSql.
  * Version 11 adds the two server tables of the Daftra link and the index daftra_invoices_client, as in liteSchemaSql.
  * Version 12 adds the server table agent_confirms and its two indexes (the email code guard of an agent), as in liteSchemaSql.
+ * Version 13 adds the column redirect_uri to agent_approvals (the address that the person saw, CWE-863). SQLite puts the new column before
+ * the table constraint, so the table text of a stepped office equals the text of a new office, which names the column before its key.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -218,6 +223,7 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   10: ['create index chat_reads_conversation on chat_reads (conversation_id)'],
   11: [...DAFTRA_SQL, ...DAFTRA_INDEXES.map(indexSql)],
   12: [AGENT_CONFIRMS_SQL, ...CONFIRM_INDEXES.map(indexSql)],
+  13: ['alter table agent_approvals add column redirect_uri text'],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

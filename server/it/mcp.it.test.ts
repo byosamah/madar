@@ -171,7 +171,8 @@ describe('suite 12: MCP on the local stack', () => {
   });
 
   it('gives a client with the same name and first host but one more redirect address a new agent user', async () => {
-    const other = await registerClient(appName, ['http://127.0.0.1:33418/callback', 'https://other.example/cb']);
+    // The extra address is a known AI app: an address of an unknown host beside the seen one is refused now (CWE-863, agent_redirect_hidden).
+    const other = await registerClient(appName, ['http://127.0.0.1:33418/callback', 'https://claude.ai/api/mcp/auth_callback']);
     const token = (await connect('usr_001', other)).access_token;
     expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(200);
     const link = await linkOf(other);

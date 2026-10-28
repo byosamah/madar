@@ -210,6 +210,7 @@ is an agent, the person of the agent must give a code that Madar emails to that 
 - The MCP token: ES256, `aud` = `MCP_URL` (set by the token hook from `platform_config.mcp_url`), `client_id` required, read only from the
   Authorization header. Every 401 carries `WWW-Authenticate` with `resource_metadata`.
 - Madar records its own approval before Auth approves (`approval.ts`), because Auth lets an agent token approve a client itself.
+- The approval stores the one redirect address that the screen showed (`agent_approvals.redirect_uri`). A client with a warned address (not loopback, not a known AI app) on another scheme or host than the seen one is refused with `agent_redirect_hidden` (`hiddenAddresses`, `approval.ts`), because Auth and the own OAuth server give a code at once on any registered address of a known client. `ensureAgentUser` and the per-call check (`AGENT_SQL`, `AGENT_LITE`) run the same rule, and an approval with no seen address (null, from before the fix) uses the strict form: a warned address beside another place stops.
 - The consent screen is `src/features/oauth/`. `safeRedirect` (`knownHosts.ts`) refuses script schemes. An unknown host gets a warning.
 - An agent user is reused only for the same person, the same app name and the same sorted set of redirect addresses (`agentUser.ts`). It is
   named after its person and app (`agentNamesOf`, `src/lib/agentName.ts`). `agent_links.client_name` keeps the plain app name: the match of a

@@ -14,7 +14,7 @@ import { readLiteOffice } from '../../data/lite/office';
 import { userIdOfAuth } from '../../data/officeCache';
 import { assertMayConnect } from '../aiSwitches';
 import { notApproved } from '../agentUser';
-import { agentRemoved, APPROVAL_DELETE_LITE, APPROVAL_LITE, recordApproval, REMOVED_LINK_LITE } from '../approval';
+import { addressListOf, agentRemoved, APPROVAL_DELETE_LITE, APPROVAL_LITE, assertAddressesSeen, hiddenAddresses, recordApproval, REMOVED_LINK_LITE } from '../approval';
 import { redirectAllowed, registrable, withQuery } from './redirects';
 import {
   CLIENT_BY_ID, CLIENT_INSERT, GRANT_REVOKE, GRANTS_LITE, REQUEST_APPROVE, REQUEST_BIND, REQUEST_BY_CODE, REQUEST_BY_ID, REQUEST_DENY,
@@ -111,7 +111,8 @@ const open = (request: RequestRow | undefined, authId: string, now: Date): reque
 /**
  * GET /api/oauth/authorizations/:id (the consent screen). The first person who opens a request owns it; for anyone else it reads as
  * an unknown request, with no client name. A client that this person approved before, whose link Madar did not remove, gets its
- * code at once (as Supabase gave the redirect of a known client, proof.md G3).
+ * code at once (as Supabase gave the redirect of a known client, proof.md G3), unless the client holds an address that the person
+ * did not see when they approved (CWE-863, hiddenAddresses in approval.ts): then the consent screen shows again.
  */
 export async function authorizationDetails(deps: SigninDeps, input: { authId: string; id: string }): Promise<DetailsAnswer> {
   const code = randomToken();
@@ -125,13 +126,14 @@ export async function authorizationDetails(deps: SigninDeps, input: { authId: st
     // Connect AI assistants off: a new connection is refused, also for an AI app that the person approved before (role rights version 2).
     assertMayConnect(office, ownerId);
     if (request.auth_id === null) await q(REQUEST_BIND, [request.id, input.authId]);
-    const [approved] = await q(APPROVAL_LITE, [request.client_id, ownerId]);
+    const [approved] = await q<{ redirect_uri: string | null }>(APPROVAL_LITE, [request.client_id, ownerId]);
     const [removed] = await q(REMOVED_LINK_LITE, [request.client_id, ownerId]);
-    if (approved && !removed) {
+    const [client] = await q<ClientRow>(CLIENT_BY_ID, [request.client_id]);
+    // An approval from before the fix has no seen address (null): the strict form reads it.
+    if (approved && !removed && hiddenAddresses(addressListOf(client?.redirect_uris, true), approved.redirect_uri ?? null).length === 0) {
       await q(REQUEST_APPROVE, [request.id, codeHash, new Date(now.getTime() + CODE_LIFE_MS).toISOString()]);
       return { redirect_url: withQuery(request.redirect_uri, { code, state: request.state }) };
     }
-    const [client] = await q<ClientRow>(CLIENT_BY_ID, [request.client_id]);
     return { authorization_id: request.id, client: { id: request.client_id, name: client?.name?.trim() ?? '' }, redirect_uri: request.redirect_uri };
   });
 }
@@ -165,7 +167,10 @@ export async function answerConsent(deps: SigninDeps, input: { authId: string; i
     assertMayConnect(office, ownerId);
     // An old approval of an AI app that the person removed gives no code: the link can never link again.
     if ((await q(REMOVED_LINK_LITE, [request.client_id, ownerId])).length > 0) throw agentRemoved();
-    if ((await q(APPROVAL_LITE, [request.client_id, ownerId])).length === 0) throw notApproved();
+    const [approval] = await q<{ redirect_uri: string | null }>(APPROVAL_LITE, [request.client_id, ownerId]);
+    if (!approval) throw notApproved();
+    const [client] = await q<ClientRow>(CLIENT_BY_ID, [request.client_id]);
+    assertAddressesSeen(addressListOf(client?.redirect_uris, true), approval.redirect_uri ?? null);
     await q(REQUEST_APPROVE, [request.id, codeHash, new Date(now.getTime() + CODE_LIFE_MS).toISOString()]);
     return { redirect_url: withQuery(request.redirect_uri, { code, state: request.state }) };
   });

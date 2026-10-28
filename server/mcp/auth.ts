@@ -5,6 +5,7 @@ import { issuerOf } from '../auth/verify';
 import { env } from '../env';
 import { userIdOfAuth } from '../data/officeCache';
 import type { OfficeSnapshot, Principal } from '../core/types';
+import { addressListOf, assertAddressesSeen } from './approval';
 
 /**
  * The token check of the mcp function (plan 5.6; plan section 2, change 6; proof.md Z0a item 2 and G1).
@@ -27,6 +28,9 @@ import type { OfficeSnapshot, Principal } from '../core/types';
  *   approved again (Auth can remember an earlier consent, and an agent token can approve at Auth). A removed client never links
  *   again (security review of G3, 2026-10-04): the AI app registers a new client, and the person approves that one in Madar.
  * - A session that is gone: 401, so the agent signs in again.
+ * - The addresses (CWE-863): the same statement reads the redirect addresses of the client and the address that the person saw
+ *   (agent_approvals.redirect_uri). A client with an address that the person did not see is refused with 403 agent_redirect_hidden,
+ *   on the linked path too, so a link made before the fix for such a client stops on its next call (assertAddressesSeen, approval.ts).
  * - A live link whose check fails: the person or the agent is off (unauthenticated with the reason account_off, 403), or the
  *   session belongs to another person than the one who approved the client (401).
  */
@@ -103,7 +107,9 @@ export function authIssuerOf(supabaseUrl: string, mcpUrl?: string): string {
 export const AGENT_SQL = [
   'select l.agent_user_id, l.owner_user_id, l.revoked_at,',
   ' madar_private.agent_session_at($1::uuid, $2::uuid) as session_at,',
-  ' madar_private.agent_session_ok($1::uuid, $2::uuid) as ok',
+  ' madar_private.agent_session_ok($1::uuid, $2::uuid) as ok,',
+  ' (select c.redirect_uris from madar_private.agent_client($2::uuid) c) as redirect_uris,',
+  ' (select p.redirect_uri from agent_approvals p where p.client_id = $2::uuid and p.owner_user_id = l.owner_user_id) as seen_uri',
   ' from (values (1)) as one(x) left join agent_links l on l.client_id = $2::uuid',
 ].join('');
 
@@ -114,11 +120,16 @@ export const AGENT_SQL = [
 export const AGENT_LITE = [
   'select l.agent_user_id as agent_user_id, l.owner_user_id as owner_user_id, l.revoked_at as revoked_at,',
   ' case when s.revoked_at is null and s.expires_at > ?3 then s.created_at end as session_at,',
-  ' case when s.revoked_at is null and s.expires_at > ?3 and s.client_id = ?2 and a.banned = 0 and a.user_id = l.owner_user_id and l.revoked_at is null then 1 else 0 end as ok',
+  ' case when s.revoked_at is null and s.expires_at > ?3 and s.client_id = ?2 and a.banned = 0 and a.user_id = l.owner_user_id and l.revoked_at is null then 1 else 0 end as ok,',
+  ' c.redirect_uris as redirect_uris, p.redirect_uri as seen_uri',
   ' from (select 1) as one left join auth_sessions s on s.id = ?1 left join auth_users a on a.id = s.auth_id left join agent_links l on l.client_id = ?2',
+  ' left join oauth_clients c on c.id = ?2 left join agent_approvals p on p.client_id = ?2 and p.owner_user_id = l.owner_user_id',
 ].join('');
 
-export type AgentRow = { agent_user_id: string | null; owner_user_id: string | null; revoked_at: Date | string | null; session_at: Date | string | null; ok: boolean | number };
+export type AgentRow = { agent_user_id: string | null; owner_user_id: string | null; revoked_at: Date | string | null; session_at: Date | string | null; ok: boolean | number;
+  /** The redirect addresses of the client (Auth: one text with commas; SQLite: a JSON list), and the address that the person saw (null before the fix). */
+  redirect_uris?: string | null; seen_uri?: string | null;
+};
 export type AgentQuery = <R>(text: string, values?: unknown[]) => Promise<R[]>;
 export type EnsureAgent = (o: { ownerId: string; clientId: string }) => Promise<void>;
 export type AgentPrincipal = { principal: Principal; ownerId: string; linked: boolean };
@@ -133,6 +144,8 @@ export function agentPrincipalResolver(o: { query: AgentQuery; office: () => Pro
     // SQLite gives ok as 1 or 0.
     return { ...row, ok: Boolean(row.ok) };
   };
+  // CWE-863: a client with an address that the person did not see on the consent screen is refused on every call.
+  const assertSeen = (row: AgentRow) => assertAddressesSeen(addressListOf(row.redirect_uris, Boolean(o.lite)), row.seen_uri ?? null);
   const principalOf = (row: AgentRow, token: AgentToken, linked: boolean): AgentPrincipal => ({
     principal: { userId: row.agent_user_id!, agent: { clientId: token.clientId } }, ownerId: row.owner_user_id!, linked,
   });
@@ -142,6 +155,7 @@ export function agentPrincipalResolver(o: { query: AgentQuery; office: () => Pro
     if (row.session_at === null) throw signInAgain('This sign-in ended. Connect Madar again in your AI app.');
     if (row.agent_user_id !== null) {
       if (row.revoked_at !== null) throw signInAgain('This agent was removed in Madar. Connect it again in your AI app.');
+      assertSeen(row);
       // Postgres: agent_session_ok checked that the person and the agent are on. The path of today stays as it is.
       if (row.ok && !o.lite) return principalOf(row, token, false);
       const office = await o.office();
@@ -161,6 +175,8 @@ export function agentPrincipalResolver(o: { query: AgentQuery; office: () => Pro
     if (!owner.active) throw accountOff();
     await o.ensure({ ownerId: owner.id, clientId: token.clientId });
     const linked = await read(token);
+    // Another request may have made the link while this one waited (ensureAgentUser keeps an existing link): check it here too.
+    if (linked.agent_user_id !== null) assertSeen(linked);
     if (!linked.ok || linked.agent_user_id === null) throw signInAgain('Madar could not link this agent. Connect it again in your AI app.');
     return principalOf(linked, token, true);
   };

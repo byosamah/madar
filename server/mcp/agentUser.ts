@@ -12,7 +12,7 @@ import { resolveStory } from '../core/story';
 import { isLite } from '../data/dialect';
 import { loadFor } from '../data/loaders/index';
 import { assertMayConnect } from './aiSwitches';
-import { APPROVAL_LITE, APPROVAL_SQL } from './approval';
+import { addressListOf, APPROVAL_LITE, APPROVAL_SQL, assertAddressesSeen } from './approval';
 import { signInAgain } from './auth';
 
 /**
@@ -23,6 +23,9 @@ import { signInAgain } from './auth';
  * - The approval: the person must have approved this client on the Madar consent screen (agent_approvals, approval.ts; task G4).
  *   Else forbidden with the reason agent_not_approved, and no link: Auth lets an agent token approve a client that the agent
  *   registered itself (proof.md G4), but the api function refuses agent tokens, so only the person records an approval.
+ * - The addresses (CWE-863): the client may hold only addresses that the person saw on the consent screen. The stored seen address
+ *   (agent_approvals.redirect_uri, null before the fix) and the client's current addresses go through assertAddressesSeen
+ *   (approval.ts) before anything is written. Else forbidden, reason agent_redirect_hidden, and no link.
  * - The AI app: its name and the host of its first redirect address, from Auth (madar_private.agent_client,
  *   20261004000401_platform_agents.sql).
  * - The agent user of (person, app name, set of redirect addresses): an active agent of the person that an earlier link of the
@@ -134,12 +137,14 @@ export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId
     if (link) return { agentUserId: link.agent_user_id, created: false };
     // Only a client that the person approved on the Madar consent screen links (task G4, approval.ts). An agent token can
     // approve a client of its own at Auth (proof.md G4), but the api function refuses it, so it cannot record an approval.
-    const [approval] = await t.q(lite ? APPROVAL_LITE : APPROVAL_SQL, [o.clientId, o.ownerId]);
+    const [approval] = await t.q<{ redirect_uri?: string | null }>(lite ? APPROVAL_LITE : APPROVAL_SQL, [o.clientId, o.ownerId]);
     if (!approval) throw notApproved();
 
     const [client] = await t.q<{ client_name: string | null; redirect_uris: string }>(lite ? CLIENT_LITE : CLIENT_SQL, [o.clientId]);
     if (!client) throw signInAgain('Madar does not know this AI app. Connect it again in your AI app.');
     const uris = urisText(client.redirect_uris, lite);
+    // Nothing is written before this line (CWE-863): an address that the person did not see on the screen stops the link.
+    assertAddressesSeen(addressListOf(client.redirect_uris, lite), approval.redirect_uri ?? null);
     const name = agentNameOf(client.client_name);
     const host = redirectHostOf(uris);
 

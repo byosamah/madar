@@ -152,6 +152,25 @@ describe('G4: the approval that the person records in Madar', () => {
     await expect(port.recordApproval(authorizationId)).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'authorization_ended' } });
   });
 
+  it('refuses the approval of a client with an address that the screen did not show, and stores the seen address of one that is fine (CWE-863)', async () => {
+    const known = 'https://claude.ai/api/mcp/auth_callback';
+    const loopback = 'http://127.0.0.1:33418/callback';
+    const port = portFor(person.token);
+    // The screen shows the known address, the client also holds an address of its own: the finding. Auth would give the code at once later.
+    const hidden = await registerClient(`Hidden address ${randomUUID().slice(0, 6)}`, [known, 'https://attacker.example/cb']);
+    const first = await authorize(hidden, known);
+    await port.details(first.authorizationId);
+    await expect(port.recordApproval(first.authorizationId)).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'agent_redirect_hidden' } });
+    expect(await approvalOf(hidden)).toEqual([]);
+    // A client with loopback and a known app is fine, and the row keeps the address that the person saw.
+    const fine = await registerClient(`Two safe addresses ${randomUUID().slice(0, 6)}`, [loopback, known]);
+    const second = await authorize(fine, loopback);
+    await port.details(second.authorizationId);
+    await port.recordApproval(second.authorizationId);
+    const row = await office.admin.query<{ redirect_uri: string | null }>('select redirect_uri from public.agent_approvals where client_id = $1', [fine]);
+    expect(row.rows).toEqual([{ redirect_uri: loopback }]);
+  });
+
   it('Deny gives the AI app no token, and Madar records nothing', async () => {
     const client = await registerClient(`Denied app ${randomUUID().slice(0, 6)}`);
     const { authorizationId } = await authorize(client, 'http://127.0.0.1:33418/callback');

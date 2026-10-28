@@ -5,7 +5,7 @@ import { buildSeed } from '../../src/data/seed';
 import type { State } from '../../src/api/store';
 import { snapshotOf } from '../data/officeCache';
 import type { OfficeSnapshot } from '../core/types';
-import { AGENT_SQL, agentPrincipalResolver, agentTokenChecker, type AgentRow, type AgentToken } from './auth';
+import { AGENT_LITE, AGENT_SQL, agentPrincipalResolver, agentTokenChecker, type AgentRow, type AgentToken } from './auth';
 
 /**
  * The agent token check of the mcp function (plan 5.6; plan section 2, change 6; proof.md Z0a item 2 and G1). Real ES256 keys
@@ -116,7 +116,7 @@ describe('the agent principal: the link, the first call of a new approval, and t
     return {
       seen,
       query: async <R>(text: string, values?: unknown[]): Promise<R[]> => {
-        expect(text).toBe(AGENT_SQL);
+        expect([AGENT_SQL, AGENT_LITE]).toContain(text);
         seen.push(values ?? []);
         const row = rows.shift();
         if (!row) throw new Error('No more answers.');
@@ -124,7 +124,7 @@ describe('the agent principal: the link, the first call of a new approval, and t
       },
     };
   }
-  const row = (o: Partial<AgentRow>): AgentRow => ({ agent_user_id: null, owner_user_id: null, revoked_at: null, session_at: null, ok: false, ...o });
+  const row = (o: Partial<AgentRow>): AgentRow => ({ agent_user_id: null, owner_user_id: null, revoked_at: null, session_at: null, ok: false, redirect_uris: null, seen_uri: null, ...o });
 
   it('gives the agent user of a live link, with one statement', async () => {
     const db = answers([row({ agent_user_id: 'usr_009', owner_user_id: 'usr_001', session_at: new Date(), ok: true })]);
@@ -191,5 +191,71 @@ describe('the agent principal: the link, the first call of a new approval, and t
       const error = await resolve(tokenOf({ authUserId })).then(() => null, (e: unknown) => e as ApiError);
       expect(error!.code).toBe('unauthenticated');
     }
+  });
+
+  describe('the addresses of the client on every call (CWE-863)', () => {
+    const CLAUDE = 'https://claude.ai/api/mcp/auth_callback';
+    const ATTACKER = 'https://attacker.example/cb';
+    const live = (o: Partial<AgentRow>) => row({ agent_user_id: 'usr_009', owner_user_id: 'usr_001', session_at: new Date(), ok: true, ...o });
+    const run = (rows: AgentRow[], lite = false) => {
+      const resolve = agentPrincipalResolver({
+        query: answers(rows).query, office: async () => office, ensure: async () => undefined, ...(lite ? { lite: { now: () => new Date() } } : {}),
+      });
+      return resolve(tokenOf()).then((p) => p, (e: unknown) => e as ApiError);
+    };
+
+    it('reads the client addresses and the stored seen address in the same one statement as the session check', () => {
+      expect(AGENT_SQL).toContain('madar_private.agent_client($2::uuid)');
+      expect(AGENT_SQL).toContain('from agent_approvals');
+      expect(AGENT_SQL).not.toContain(';');
+    });
+
+    it('stops a link made before the fix: a hidden address beside the seen one, or a null seen address with two places', async () => {
+      for (const answer of [
+        live({ redirect_uris: `${CLAUDE},${ATTACKER}`, seen_uri: CLAUDE }),
+        live({ redirect_uris: `${CLAUDE},${ATTACKER}`, seen_uri: null }),
+        live({ redirect_uris: `http://127.0.0.1:5/cb,${ATTACKER}` }),
+      ]) {
+        const error = (await run([answer])) as ApiError;
+        expect([error.code, error.details.reason]).toEqual(['forbidden', 'agent_redirect_hidden']);
+      }
+    });
+
+    it('names the hidden address before the person and agent check decides', async () => {
+      const error = (await run([live({ ok: false, redirect_uris: `${CLAUDE},${ATTACKER}`, seen_uri: CLAUDE })])) as ApiError;
+      expect(error.details.reason).toBe('agent_redirect_hidden');
+    });
+
+    it('keeps a live link of a client with one place, a known address, a loopback address, or the seen address with loopback', async () => {
+      for (const answer of [
+        live({ redirect_uris: ATTACKER, seen_uri: null }),
+        live({ redirect_uris: `${CLAUDE},https://chatgpt.com/x`, seen_uri: CLAUDE }),
+        live({ redirect_uris: 'http://127.0.0.1:5/cb,http://localhost:8080/cb' }),
+        live({ redirect_uris: 'https://myapp.example/cb,http://localhost:8080/cb', seen_uri: 'https://myapp.example/cb' }),
+        live({ redirect_uris: null, seen_uri: null }),
+      ]) {
+        expect(await run([answer])).toMatchObject({ principal: { userId: 'usr_009' }, linked: false });
+      }
+    });
+
+    it('reads the JSON list of SQLite', async () => {
+      const hidden = (await run([live({ redirect_uris: JSON.stringify([CLAUDE, ATTACKER]), seen_uri: CLAUDE })], true)) as ApiError;
+      expect(hidden.details.reason).toBe('agent_redirect_hidden');
+      expect(await run([live({ redirect_uris: JSON.stringify([CLAUDE]), seen_uri: CLAUDE })], true)).toMatchObject({ linked: false });
+    });
+
+    it('checks the link that the first call just made, so a request that raced past the first check stops too', async () => {
+      const resolve = agentPrincipalResolver({
+        query: answers([row({ session_at: new Date() }), live({ redirect_uris: `${CLAUDE},${ATTACKER}`, seen_uri: CLAUDE })]).query, office: async () => office, ensure: async () => undefined,
+      });
+      expect(await resolve(tokenOf()).then(() => null, (e: unknown) => (e as ApiError).details.reason)).toBe('agent_redirect_hidden');
+    });
+
+    it('keeps the older refusals first: a removed link and a session that is gone', async () => {
+      const removed = (await run([live({ revoked_at: new Date(), redirect_uris: `${CLAUDE},${ATTACKER}` })])) as ApiError;
+      expect(removed.code).toBe('unauthenticated');
+      const gone = (await run([live({ session_at: null, redirect_uris: `${CLAUDE},${ATTACKER}` })])) as ApiError;
+      expect(gone.code).toBe('unauthenticated');
+    });
   });
 });

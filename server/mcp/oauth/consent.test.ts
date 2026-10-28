@@ -151,6 +151,72 @@ describe('the consent with the Madar approval inside (server/mcp/oauth/ops.ts)',
   });
 });
 
+describe('the consent and the addresses that the person did not see (CWE-863)', () => {
+  const KNOWN = 'https://claude.ai/api/mcp/auth_callback';
+  const ATTACKER = 'https://attacker.example/cb';
+  const MY_APP = 'https://myapp.example/cb';
+  const LOCAL = 'http://localhost:8080/cb';
+
+  /** A client with these addresses, and a function that starts an authorize step on one of them (what the AI app does). */
+  async function appWith(w: Awaited<ReturnType<typeof world>>['w'], uris: string[]) {
+    const made = (await (await w.root.request('/mcp/oauth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'Claude', redirect_uris: uris }) })).json()) as { client_id: string };
+    const start = async (redirect: string) => new URL((await w.root.request(`/mcp/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: made.client_id, redirect_uri: redirect, code_challenge: CHALLENGE, code_challenge_method: 'S256' })}`)).headers.get('location')!).searchParams.get('authorization_id')!;
+    return { clientId: made.client_id, start };
+  }
+
+  it('the finding: the approval through the known address is refused, so a later authorize to the address of the attacker shows the consent again', async () => {
+    const { w, person, call } = await world();
+    const hala = await person('usr_002');
+    const app = await appWith(w, [KNOWN, ATTACKER]);
+    const seen = await app.start(KNOWN);
+    expect(await call(`/oauth/authorizations/${seen}`, hala.token, { method: 'GET' })).toMatchObject({ status: 200, body: { authorization_id: seen, redirect_uri: KNOWN } });
+    expect(await call('/agents/approve', hala.token, { body: { authorizationId: seen } })).toMatchObject({ status: 403, body: { error: { code: 'forbidden', details: { reason: 'agent_redirect_hidden' } } } });
+    expect(w.t.raw.prepare('select count(*) as n from agent_approvals').get()).toEqual({ n: 0 });
+    expect(await call(`/oauth/authorizations/${seen}/consent`, hala.token, { body: { action: 'approve' } })).toMatchObject({ status: 403, body: { error: { details: { reason: 'agent_not_approved' } } } });
+    // The attacker sends the browser of the person to the authorize step with its own address: no code, the consent screen again.
+    const later = await app.start(ATTACKER);
+    const answer = await call(`/oauth/authorizations/${later}`, hala.token, { method: 'GET' });
+    expect(answer).toMatchObject({ status: 200, body: { authorization_id: later, redirect_uri: ATTACKER } });
+    expect(answer.body.redirect_url).toBeUndefined();
+    expect(answer.text).not.toContain('code=');
+    expect(w.t.raw.prepare("select count(*) as n from oauth_requests where status = 'approved'").get()).toEqual({ n: 0 });
+  });
+
+  it('keeps the real apps: a seen address of its own with loopback or a known app beside it is approved, and the loopback address then gives its code at once', async () => {
+    const { w, person, call } = await world();
+    const hala = await person('usr_002');
+    const app = await appWith(w, [MY_APP, LOCAL, KNOWN]);
+    const seen = await app.start(MY_APP);
+    await call(`/oauth/authorizations/${seen}`, hala.token, { method: 'GET' });
+    expect(await call('/agents/approve', hala.token, { body: { authorizationId: seen } })).toMatchObject({ status: 200, body: { approved: true } });
+    expect(w.t.raw.prepare('select redirect_uri from agent_approvals').get()).toEqual({ redirect_uri: MY_APP });
+    expect((await call(`/oauth/authorizations/${seen}/consent`, hala.token, { body: { action: 'approve' } })).body.redirect_url).toMatch(/^https:\/\/myapp\.example\/cb\?code=/);
+    expect((await call(`/oauth/authorizations/${await app.start(LOCAL)}`, hala.token, { method: 'GET' })).body.redirect_url).toMatch(/^http:\/\/localhost:8080\/cb\?code=/);
+    expect((await call(`/oauth/authorizations/${await app.start(KNOWN)}`, hala.token, { method: 'GET' })).body.redirect_url).toMatch(/^https:\/\/claude\.ai\/api\/mcp\/auth_callback\?code=/);
+  });
+
+  it('an approval from before the fix (no seen address) of a client with a hidden address gives no code at once, and the consent refuses it', async () => {
+    const { w, person, call } = await world();
+    const hala = await person('usr_002');
+    const app = await appWith(w, [KNOWN, ATTACKER]);
+    w.t.raw.prepare("insert into agent_approvals (client_id, owner_user_id) values (?, 'usr_002')").run(app.clientId);
+    const id = await app.start(ATTACKER);
+    const answer = await call(`/oauth/authorizations/${id}`, hala.token, { method: 'GET' });
+    expect(answer).toMatchObject({ status: 200, body: { authorization_id: id } });
+    expect(answer.body.redirect_url).toBeUndefined();
+    expect(await call(`/oauth/authorizations/${id}/consent`, hala.token, { body: { action: 'approve' } })).toMatchObject({ status: 403, body: { error: { details: { reason: 'agent_redirect_hidden' } } } });
+    expect(w.t.raw.prepare('select status from oauth_requests where id = ?').get(id)).toEqual({ status: 'pending' });
+  });
+
+  it('an old approval of a client with one place only still gives its code at once', async () => {
+    const { w, person, call } = await world();
+    const hala = await person('usr_002');
+    const app = await appWith(w, [ATTACKER]);
+    w.t.raw.prepare("insert into agent_approvals (client_id, owner_user_id) values (?, 'usr_002')").run(app.clientId);
+    expect((await call(`/oauth/authorizations/${await app.start(ATTACKER)}`, hala.token, { method: 'GET' })).body.redirect_url).toMatch(/^https:\/\/attacker\.example\/cb\?code=/);
+  });
+});
+
 describe('the consent and the switch Connect AI assistants (role rights version 2)', () => {
   /** The Admin turns ai.connect off for the Member role (the other AI switches go with it), or on again. The office object is the writer. */
   const setConnect = async (w: Awaited<ReturnType<typeof world>>['w'], on: boolean) => {

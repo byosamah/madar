@@ -314,6 +314,7 @@ describe('the database guards on the local stack', () => {
       // The agent functions of track G (20261004000401_platform_agents.sql, 20261004000402_platform_agent_approvals.sql): the server only.
       { name: 'madar_private.agent_authorization(text,uuid)', anon: false, authenticated: false, server: true },
       { name: 'madar_private.agent_client(uuid)', anon: false, authenticated: false, server: true },
+      { name: 'madar_private.agent_pending(text,uuid)', anon: false, authenticated: false, server: true },
       { name: 'madar_private.agent_session_at(uuid,uuid)', anon: false, authenticated: false, server: true },
       { name: 'madar_private.agent_session_ok(uuid,uuid)', anon: false, authenticated: false, server: true },
       { name: 'madar_private.current_madar_user_id()', anon: false, authenticated: true, server: true },

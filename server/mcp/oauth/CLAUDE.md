@@ -22,6 +22,8 @@ grants of Settings, Agents. The tools, the token check and the approval are in `
 - A remove in Settings, Agents (`oauth.revoke`) ends the agent sessions and the approval of that AI app. Its next connection shows the
   consent screen and needs the Madar approval again. The consent refuses an app whose link the person removed (`agent_removed`), also
   when an old approval stays.
+- The consent gives no code at once, and refuses the approve, for a client with an address that the person did not see (`agent_redirect_hidden`, `hiddenAddresses` in
+  `approval.ts`; `authorizationDetails` and `answerConsent` in `ops.ts`). An approval from before the fix has no seen address and uses the strict form.
 - On SQLite, `agents.revokeAll` runs inside the transaction of the turn-off (no outbox row), and `agents.remove` ends the agent sessions
   with the links. `liteAgentOf` (`agent.ts`) is the agent check of the office object.
 - On the office path the object runs the whole MCP app for each request (`Office.mcp`, `server/office/parts.ts`): the own issuer, the own
