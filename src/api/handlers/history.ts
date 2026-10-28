@@ -3,13 +3,13 @@ import { defineCall, type Ctx } from '../registry';
 import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Meeting, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
-import { DERIVED, FOLLOW_ON, lastProjectCopy, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
+import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { noticeProjectHidden } from '../hiddenNotice';
 import { feedbackNoticeHidden } from '../notify';
-import { eventProjectViewer } from '../projectView';
+import { eventProjectViewer, goneProjectsOf, viewsGoneProject } from '../projectView';
 import { ensureRights, withRights } from '../rights';
-import { can, holdsAdminRights, holdsRight, mayViewMeeting, mayViewProject, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
+import { can, holdsAdminRights, mayViewMeeting, mayViewProject, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { mayEditMeeting, mayWriteMinutes } from '../meetingGates';
 import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayDeleteTask, mayTickChecklist } from '../taskGates';
@@ -76,15 +76,16 @@ export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = c
 }
 
 /**
- * The view rule for the changes of one project: a project that the person sees shows its changes. A deleted project that was hidden
- * shows its changes only to the holders of "See hidden projects"; a deleted open project keeps the old rule (everyone). The copy of a
- * deleted project comes from its delete event, so a state that does not hold the event reads the project as open.
+ * The view rule for the changes of one project: a project that the person sees shows its changes. A deleted project reads its delete event
+ * (viewsGoneProject, projectView.ts): one that was hidden shows to the holders of "See hidden projects" only, and one that was open shows
+ * to its former leader, team and chosen people and to the holders of "See every project" (security review F4). A state that does not hold
+ * the delete event reads the project as open, so a loader must bring that event, and the member changes when the event holds no team list.
  */
 function seesProjectEvent(ctx: Ctx, projectId: string, viewer: User): boolean {
   const project = ctx.state.projects[projectId];
   if (project) return mayViewProject(ctx.state, project, viewer);
-  const copy = lastProjectCopy(ctx.state, projectId);
-  return copy?.access?.hidden !== true || holdsRight(ensureRights(ctx.state, viewer), 'project.hidden');
+  const gone = goneProjectsOf(Object.values(ctx.state.events).filter((event) => event.projectId === projectId)).get(projectId);
+  return gone === undefined || viewsGoneProject(ensureRights(ctx.state, viewer), viewer.id, gone);
 }
 
 export const eventsList = defineCall({

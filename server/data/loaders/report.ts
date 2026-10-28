@@ -44,7 +44,7 @@ export async function reportsOffice(L: Load, input: Input): Promise<void> {
 
   // The events of the period: created on or after the first instant of the first day, and before the first instant of the day after.
   const time: Cond[] = [{ col: 'created_at', atOrAfter: from }, { col: 'created_at', atBefore: until }];
-  // The office count leaves out the projects that the person does not see, and the projects deleted while hidden (the handler: eventProjectViewer).
+  // The office count leaves out the projects that the person does not see, and the deleted projects that the person did not see (the handler: eventProjectViewer).
   await L.countWhere({ c: 'events', per: 'verb', where: [{ col: 'verb', in: [REPORT_STAGE_VERB] }, ...time, ...await eventProjectConds(L)] }, [REPORT_STAGE_VERB], () => REPORT_KEYS.stageMoves);
   // The stage moves of each project, only when the report names a sub-company: the office count above covers every project.
   if (input.subCompanyId) {

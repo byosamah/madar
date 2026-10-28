@@ -1874,6 +1874,48 @@ describe('hidden projects on the scoped load (wave D2, owner 2026-10-22)', () =>
     expect(await ids('usr_001')).toEqual(expect.arrayContaining([gone.id, open.id]));
   });
 
+  it('gives the same answers as the whole office for a deleted open project, for a role without "See every project" (security finding F4)', async () => {
+    const office = hiddenTraps(traps(), 'seeAll');
+    // The Member role also reads the office report, so the count of stage moves runs for a person without "See every project".
+    office.settings.roles = { ...(office.settings.roles ?? {}), rights: { ...(office.settings.roles?.rights ?? {}), member: ['report.office'] } };
+    const stageMoves = (id: string) => Object.values(office.events).filter((e) => e.projectId === id && e.verb === 'project.stage_changed');
+    // prj_001 is deleted with a recorded team list. prj_003 is deleted as an old event would be (no list): its team reads from the member changes.
+    const added = Object.values(office.users).find((u) => u.kind === 'human' && u.active && u.systemRole === 'member'
+      && !Object.values(office.members).some((m) => m.projectId === 'prj_003' && m.userId === u.id) && office.projects.prj_003.leaderId !== u.id)!.id;
+    expect(stageMoves('prj_001').length).toBeGreaterThan(0);
+    const leaders = [office.projects.prj_001.leaderId, office.projects.prj_003.leaderId];
+    apply(office, 'members.add', { projectId: 'prj_003', userId: added }, ADMIN, { story: 'cor_gone_add' });
+    for (const id of ['prj_001', 'prj_003']) apply(office, 'projects.delete', { id, confirm: true }, ADMIN, { story: `cor_gone_${id}` });
+    const deletes = Object.values(office.events).filter((e) => e.verb === 'project.deleted' && ['prj_001', 'prj_003'].includes(e.targetId));
+    const recorded = deletes.find((e) => e.targetId === 'prj_001')!;
+    const old = deletes.find((e) => e.targetId === 'prj_003')!;
+    expect(recorded.teamIds?.length).toBeGreaterThan(1);
+    delete old.teamIds;
+    const task = Object.values(office.events).find((e) => e.projectId === 'prj_001' && e.verb === 'task.created')!;
+    const oldTask = Object.values(office.events).find((e) => e.projectId === 'prj_003' && e.verb === 'task.created')!;
+    const range = { period: 'range', from: '2025-12-01', to: '2026-12-31' };
+    const people = Object.values(office.users).filter((u) => u.active).map((u) => u.id);
+    for (const actor of people) {
+      for (const input of [{ limit: 500 }, { limit: 3 }, { limit: 500, projectId: 'prj_001' }, { limit: 500, projectId: 'prj_003' }, { limit: 2, since: '2020-01-01T00:00:00.000+03:00' }]) {
+        await same(office, 'events.list', input, actor);
+      }
+      await same(office, 'reports.office', range, actor);
+      for (const event of [task, recorded, oldTask, old]) {
+        await same(office, 'events.undo', { eventId: event.id }, actor);
+        await same(office, 'events.undoStory', { correlationId: event.correlationId }, actor);
+      }
+    }
+    const read = async (actor: string, projectId: string) => ((await same(office, 'events.list', { limit: 500, projectId }, actor)).outcome.output as { event: { verb: string } }[]).map((row) => row.event.verb);
+    const outsider = people.find((id) => office.users[id].systemRole === 'member' && office.users[id].kind === 'human' && id !== added
+      && !recorded.teamIds!.includes(id) && !leaders.includes(id))!;
+    const member = recorded.teamIds!.find((id) => office.users[id].systemRole === 'member' && office.users[id].active)!;
+    expect(await read(outsider, 'prj_001')).toEqual([]);
+    expect(await read(outsider, 'prj_003')).toEqual([]);
+    expect(await read(member, 'prj_001')).toContain('project.deleted');
+    expect(await read(added, 'prj_003')).toContain('project.deleted');
+    expect(await read(ADMIN, 'prj_001')).toContain('project.deleted');
+  }, 180_000);
+
   it('keeps the visible threads when the newest 100 threads are threads of a hidden project', async () => {
     const office = hiddenTraps(traps(), 'hidden');
     const rows = async (actor: string) => (await same(office, 'chats.list', {}, actor)).outcome.output as { id: string; kind: string }[];

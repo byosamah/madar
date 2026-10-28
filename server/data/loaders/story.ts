@@ -3,7 +3,7 @@ import { REFERENCES } from '../../../src/api/references';
 import { OFFICE_COLLECTIONS } from '../../core/types';
 import type { TableCollection } from '../tables';
 import type { Load } from './build';
-import { eventTargets, tasksOf } from './steps';
+import { eventTargets, goneProjects, tasksOf } from './steps';
 
 /**
  * The story loader (plan 4.6): events.undo and events.undoStory. An Undo decides on absence in many places (AM 6, rows 3 to 6),
@@ -46,6 +46,8 @@ export async function storyCall(L: Load, input: Input): Promise<void> {
   const events = L.list<Event>('events');
   await eventTargets(L, events);
   await tasksOf(L, events.flatMap((event) => (event.projectId ? [event.projectId] : [])));
+  // The view rule of a project that is gone reads its delete event, and the member changes when that event holds no team list (history.ts, seesProjectEvent).
+  await goneProjects(L, events.flatMap((event) => (event.projectId ? [event.projectId] : [])));
 
   // The Undo of a folder change reads the files of the project: a file that points at a folder that is gone goes back to the root (fbk_066).
   const folderProjects = [...new Set(story.flatMap((event) => (event.verb === 'project.folders_changed' && event.projectId ? [event.projectId] : [])))];

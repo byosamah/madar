@@ -1129,6 +1129,12 @@ export const Event = z.object({
    * that meeting read the event, the Admin too only when invited. Absent on every other event.
    */
   officeMeetingId: MeetingId.optional(),
+  /**
+   * On a project.deleted event: the ids of the people on the team of the project at the delete (security review F4). The delete drops the
+   * team rows, and the History of an open project that is gone shows to its former team, so the event keeps the list. Absent on every other
+   * event, and on a delete event written before this field: its team then comes from the member changes (projectView.ts).
+   */
+  teamIds: z.array(UserId).max(1000).optional(),
 });
 export type Event = z.infer<typeof Event>;
 

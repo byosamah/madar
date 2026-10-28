@@ -1,4 +1,4 @@
-import type { Event, EventTarget, Preferences, Project, Task, User } from './contract/entities';
+import type { Event, EventTarget, Preferences, Task, User } from './contract/entities';
 import { ApiError, notFound } from './errors';
 import { isReferenced } from './references';
 import { nextId, type State } from './store';
@@ -85,19 +85,6 @@ export function lastTaskCopy(state: State, taskId: string): Task | undefined {
 }
 
 /**
- * The last copy of a deleted project, from its newest delete event that stands (hidden projects, owner 2026-10-22). The History uses it:
- * the changes of a deleted project that was hidden show only to the holders of "See hidden projects". Undefined when the state holds no
- * such event.
- */
-export function lastProjectCopy(state: State, projectId: string): Project | undefined {
-  let found: Event | undefined;
-  for (const event of Object.values(state.events)) {
-    if (event.verb === 'project.deleted' && event.targetId === projectId && !event.undoneBy && (!found || event.seq > found.seq)) found = event;
-  }
-  return found && found.before !== null && typeof found.before === 'object' ? (found.before as Project) : undefined;
-}
-
-/**
  * Away by hand (chat presence design A2) is a private choice, and the History is open to every signed-in person, so no event of a person
  * holds the switch: it is taken out of any preferences in the before and the after of an event about a person.
  */
@@ -125,7 +112,7 @@ export function savePreferences(ec: EventContext, me: User, next: Preferences, m
  * task of the event it undoes), else the one its record shows. The same for a meeting with no project (officeMeetingId).
  */
 export function writeEvent(
-  ec: EventContext, input: EventMeta & { before: unknown; after: unknown; undoes?: string; officeTaskId?: string; officeMeetingId?: string },
+  ec: EventContext, input: EventMeta & { before: unknown; after: unknown; undoes?: string; officeTaskId?: string; officeMeetingId?: string; teamIds?: string[] },
 ): Event {
   const officeTaskId = input.officeTaskId ?? officeTaskOf(ec.state, input);
   const officeMeetingId = input.officeMeetingId ?? officeMeetingOf(ec.state, input);
@@ -143,6 +130,7 @@ export function writeEvent(
     ...(input.undoes ? { undoes: input.undoes } : {}),
     ...(officeTaskId ? { officeTaskId } : {}),
     ...(officeMeetingId ? { officeMeetingId } : {}),
+    ...(input.teamIds ? { teamIds: [...input.teamIds] } : {}),
   };
   ec.state.events[id] = event;
   return event;
@@ -152,7 +140,7 @@ export function recordCreate(ec: EventContext, meta: EventMeta & { entity: unkno
   return writeEvent(ec, { ...meta, before: null, after: structuredClone(meta.entity) });
 }
 
-export function recordDelete(ec: EventContext, meta: EventMeta & { entity: unknown }): Event {
+export function recordDelete(ec: EventContext, meta: EventMeta & { entity: unknown; teamIds?: string[] }): Event {
   return writeEvent(ec, { ...meta, before: structuredClone(meta.entity), after: null });
 }
 

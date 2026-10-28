@@ -214,7 +214,7 @@ export async function eventsList(L: Load, input: Input): Promise<void> {
   const mine = (await privateMeetingsOf(L)).map((meeting) => meeting.id);
   where.push({ or: [{ field: 'officeMeetingId', null: true }, { field: 'officeMeetingId', in: mine }] });
   // A change of a project that the person does not see is not in the list, so the limit counts only the changes the person reads
-  // (hidden projects, owner 2026-10-22). The changes of a project deleted while hidden show to a holder of "See hidden projects" only.
+  // (hidden projects, owner 2026-10-22). A deleted project shows its changes to the people who saw it (viewsGoneProject).
   where.push(...await eventProjectConds(L));
   const events = (await L.select({ c: 'events', where, order: { col: 'seq', desc: true }, limit: (input.limit as number | undefined) ?? 50 })) as Event[];
   await eventTargets(L, events);

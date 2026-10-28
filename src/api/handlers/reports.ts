@@ -71,7 +71,7 @@ function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guid
   const trackerRows = Object.values(trackerOf(state)).filter((entry) => clientScope.has(entry.projectId));
   const payments = Object.values(paymentsOf(state)).filter((payment) => clientScope.has(payment.projectId));
   const events = Object.values(state.events);
-  // The stage moves of the whole office leave out the projects that the person does not see, a deleted hidden project too.
+  // The stage moves of the whole office leave out the projects that the person does not see, and the deleted projects that the person did not see.
   const eventSees = eventProjectViewer(state, actor);
 
   const madeIn = (task: Task) => inDays(stampDay(task.createdAt));

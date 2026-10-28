@@ -319,6 +319,65 @@ describe('files, meetings, the History and notices of a hidden project', () => {
     expect(JSON.stringify(await feed(AGENT_OF_ADMIN))).toContain('Secret tower');
   });
 
+  describe('a deleted open project, for a role without See every project (security finding F4)', () => {
+    const OPEN = 'prj_001';
+    const NO_SEE_ALL: RoleSettings = { ...NARROW_ROLES, off: { member: ['project.seeAll'] } };
+    /** prj_001 is open: leader usr_002, team usr_003 (a team row with no member change), chosen usr_006. It holds one to-do, then Hala deletes it. */
+    async function deletedOpen() {
+      const w = await world(NO_SEE_ALL);
+      await as(w, LEADER, () => w.t.api.call('projects.setAccess', { id: OPEN, hidden: false, viewerIds: [CHOSEN] }));
+      const task = await as(w, LEADER, () => w.t.api.call('tasks.create', { projectId: OPEN, title: 'Open plan', ownerId: TEAM, stageId: 'stg_002' }));
+      const created = Object.values(w.t.store.state.events).find((e) => e.projectId === OPEN && e.verb === 'task.created' && e.targetId === task.task.id)!;
+      expect(Object.values(w.t.store.state.events).some((e) => e.projectId === OPEN && e.verb === 'member.added')).toBe(false);
+      await as(w, ADMIN, () => w.t.api.call('projects.delete', { id: OPEN, confirm: true }));
+      return { w, created };
+    }
+    const rowsOf = (w: World, person: string, input: Record<string, unknown> = {}) => as(w, person, () => w.t.api.call('events.list', { limit: 500, ...input }));
+
+    it('shows nothing of it to a person who never worked on it, and its Undo answers as a missing story', async () => {
+      const { w, created } = await deletedOpen();
+      for (const person of [OUTSIDER, AGENT_OF_OUTSIDER, NARROW]) {
+        expect(JSON.stringify(await rowsOf(w, person)), person).not.toMatch(/Test Tower|Open plan|prj_001/);
+        expect(await rowsOf(w, person, { projectId: OPEN }), person).toEqual([]);
+        const hidden = await as(w, person, () => failure(() => w.t.api.call('events.undo', { eventId: created.id })));
+        const missing = await as(w, person, () => failure(() => w.t.api.call('events.undo', { eventId: 'evt_999' })));
+        expect(hidden, person).not.toBeNull();
+        expect(shape(hidden, created.id), person).toEqual(shape(missing, 'evt_999'));
+        const story = await as(w, person, () => failure(() => w.t.api.call('events.undoStory', { correlationId: created.correlationId })));
+        const none = await as(w, person, () => failure(() => w.t.api.call('events.undoStory', { correlationId: 'cor_nope' })));
+        expect(shape(story, created.correlationId), person).toEqual(shape(none, 'cor_nope'));
+      }
+    });
+
+    it('keeps the History for the leader, the team (also a team row with no member change), a chosen person and a holder of See every project', async () => {
+      const { w } = await deletedOpen();
+      for (const person of [LEADER, TEAM, AGENT_OF_TEAM, CHOSEN, ADMIN, AGENT_OF_ADMIN, MANAGEMENT]) {
+        const rows = await rowsOf(w, person, { projectId: OPEN });
+        const verbs = rows.map((row) => row.event.verb);
+        expect(verbs, person).toContain('project.deleted');
+        expect(verbs, person).toContain('task.created');
+        expect(JSON.stringify(await rowsOf(w, person)), person).toContain('Open plan');
+      }
+    });
+
+    it('reads the team of an old delete event (no list) from its member changes', async () => {
+      const w = await world(NO_SEE_ALL);
+      await as(w, ADMIN, () => w.t.api.call('projects.delete', { id: w.ids.open3, confirm: true }));
+      const event = Object.values(w.t.store.state.events).find((e) => e.verb === 'project.deleted' && e.targetId === w.ids.open3)!;
+      expect(event.teamIds).toEqual(expect.arrayContaining([LEADER, NARROW]));
+      delete event.teamIds;
+      expect(Object.values(await rowsOf(w, NARROW, { projectId: w.ids.open3 })).map((row) => row.event.verb)).toContain('project.deleted');
+      expect(await rowsOf(w, OUTSIDER, { projectId: w.ids.open3 })).toEqual([]);
+    });
+
+    it('still hides a project that was deleted while hidden, also from its former team', async () => {
+      const w = await world(NO_SEE_ALL);
+      await as(w, ADMIN, () => w.t.api.call('projects.delete', { id: w.ids.project, confirm: true }));
+      for (const person of [LEADER, TEAM, CHOSEN, OUTSIDER]) expect(JSON.stringify(await rowsOf(w, person)), person).not.toContain('Secret tower');
+      expect(JSON.stringify(await rowsOf(w, ADMIN))).toContain('Secret tower');
+    });
+  });
+
   it('sends no notice of the project to a person who does not see it', async () => {
     const w = await world();
     const state = w.t.store.state;

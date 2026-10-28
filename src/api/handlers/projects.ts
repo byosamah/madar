@@ -890,6 +890,8 @@ export const projectsDelete = defineCall({
     drop(state.tasks);
     drop(state.updates);
     drop(state.files);
+    // The delete event keeps who was on the team: the History of an open project that is gone shows to its former team (security review F4).
+    const teamIds = Object.values(state.members).filter((member) => member.projectId === pid).map((member) => member.userId);
     drop(state.members);
     drop(paymentsOf(state));
     // A Tracker entry has no meaning without its project (audit 2026-10-03, API-17). A meeting of the project goes with it (fbk_022).
@@ -909,7 +911,7 @@ export const projectsDelete = defineCall({
     }
     dropProjectConversation(state, pid);
     delete state.projects[pid];
-    recordDelete(ctx, { projectId: pid, verb: 'project.deleted', targetType: 'project', targetId: pid, entity: project });
+    recordDelete(ctx, { projectId: pid, verb: 'project.deleted', targetType: 'project', targetId: pid, entity: project, teamIds });
     return { deleted: true as const };
   },
 });

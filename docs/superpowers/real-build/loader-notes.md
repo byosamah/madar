@@ -20,8 +20,10 @@ The view rule of a project in SQL is `visibleProjects`, `visibleIds` and `projec
 projects takes its ids from them: `projects.list`, the Dashboard, `tasks.list` (through `peopleFilter`), the search (tasks,
 files, comments; each kind keeps its own limit), `reports.office`, `meetingConds`. `eventProjectConds` (`steps.ts`) is the
 condition of `events.list` and of the office stage-move count: `project_id notIn` the projects the person does not see and the
-projects deleted while hidden. A holder of `project.hidden` needs no pre-read. Any other person costs one read of the
-`project.deleted` events (a few rows) before the main read. The task threads of the Inbox take `ThreadsArgs.seen` (the visible
+deleted projects the person did not see (`goneProjects`, `viewsGoneProject`: hidden at the delete, or open and the person was not its
+leader, team, chosen person or a holder of `project.seeAll`). A holder of `project.hidden` needs no pre-read. Any other person costs one
+read of the `project.deleted` events (a few rows), and of the member changes of a project whose delete event has no team list, before the
+main read. The story loader (`events.undo`, `events.undoStory`) calls `goneProjects` for the projects of its events. The task threads of the Inbox take `ThreadsArgs.seen` (the visible
 ids): `threadsSql`, `memorySource` and `lite/source.ts` keep a thread of a project task only when its project is in `seen`, so
 the cut by `limit` never counts a thread that the handler drops. `hiddenTraps` and `hiddenSweep` (`sweep.ts`) fill each SQL limit
 with rows of a hidden project, and the tests of `loaders.test.ts` check that the visible rows stay.
