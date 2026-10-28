@@ -357,7 +357,7 @@ describe("the What's new entry of the continuous project", () => {
 describe("the What's new entry of the context rule of the AI assistant", () => {
   it('is in its day, under the usage entry and the two fixes of 2026-10-28, for the holders of the switch "AI reads chats"', () => {
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-120')).toEqual({ id: '2026-10-23-120', day: '2026-10-27', right: 'ai.readChats' });
-    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-120')).toBe(3);
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-120')).toBe(4);
   });
 
   it('names the project chat and the to-do thread in the screen words, and says to start a new chat', () => {
@@ -377,8 +377,8 @@ describe("the What's new entry of the context rule of the AI assistant", () => {
 // The two fixes of the cleanup of the project page and of Settings (code review 2026-10-27). The note about who changes the leader
 // is only for the people who may turn people off, because only they open the warning.
 describe("the What's new entries of the fixes of 2026-10-28", () => {
-  it('are the newest, under the usage entry: the Tracker weeks for everyone, and the warning before Deactivate for its holders', () => {
-    expect(WHATS_NEW.slice(1, 3)).toEqual([
+  it('sit under the usage entry and the entry of the late push: the Tracker weeks for everyone, and the warning before Deactivate for its holders', () => {
+    expect(WHATS_NEW.slice(2, 4)).toEqual([
       { id: '2026-10-23-122', day: '2026-10-28', to: '/projects' },
       { id: '2026-10-23-121', day: '2026-10-28', right: 'people.turnOff' },
     ]);
@@ -396,5 +396,21 @@ describe("the What's new entries of the fixes of 2026-10-28", () => {
     for (const id of ['2026-10-23-121', '2026-10-23-122']) {
       for (const text of [...words(en, id), ...words(ar, id)]) expect(text).not.toMatch(/[–—]|undefined/);
     }
+  });
+});
+
+// A push that was planned before a person lost the view of a project no longer reaches the person (owner, 2026-10-28, task tsk_439).
+describe("the What's new entry of the late push from a project that the person cannot see", () => {
+  it('is the newest entry, under the usage entry, and has no right and no link', () => {
+    expect(WHATS_NEW[1]).toEqual({ id: '2026-10-23-123', day: '2026-10-28' });
+  });
+
+  it('says that no push comes from a project that the person cannot see, in English and Arabic', () => {
+    const word = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-123', part]));
+    expect(word(en, 'title')).toContain('push');
+    expect(word(en, 'body')).toContain('You have something new in Madar.');
+    expect(word(ar, 'title')).toContain('إشعارات');
+    expect(word(ar, 'body')).toContain('لديك جديد في مدار.');
+    for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
   });
 });

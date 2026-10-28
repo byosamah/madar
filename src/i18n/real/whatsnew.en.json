@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-123": {
+        "title": "No push about a project you cannot see",
+        "body": "Madar now sends you no push about a project you can no longer see. Before, a push that was already on its way could still arrive. It said \"You have something new in Madar.\""
+      },
       "2026-10-23-122": {
         "title": "The week names in the Tracker history stay right",
         "body": "The Tracker history now changes its week names, such as \"This week\" and \"Last week\", on time. This also works when a project stays open on your screen into a new week."
