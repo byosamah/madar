@@ -186,11 +186,12 @@ export class Load {
    * The number of rows for each value, under the key that views.ts reads (commentCountKey, fileCountKey). Only a read keeps counts;
    * a write reads the rows instead.
    */
-  async counts(c: TableCollection, col: string, values: readonly string[], keyOf: (value: string) => string): Promise<void> {
+  async counts(c: TableCollection, col: string, values: readonly string[], keyOf: (value: string) => string): Promise<ReadonlyMap<string, number>> {
     if (this.write) throw new Error('A write reads rows, never counts.');
     const want = [...new Set(values)];
     const found = await this.#src.count(c, col, want);
     for (const value of want) this.#counts[keyOf(value)] = found.get(value) ?? 0;
+    return found;
   }
 
   /**

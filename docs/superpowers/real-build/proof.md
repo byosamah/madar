@@ -2720,3 +2720,17 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` run by the owner with `!` (the check refused Claude's run). Live checks: the same
   quick checks passed on production; madar.vado.sa answers 200 with the title Madar, and its `words.en-B89V_CBk.js` holds the What's new title
   "No push about a project you cannot see".
+
+### tasks.list unread number: rows read on the office path (tsk_481, 2026-10-28)
+- Cause. Commit 629298a4 gave each row of `tasks.list` the unread number of its chat icon. The count (`taskRowsUnread`, `loaders/chat.ts`) reads the
+  unread comments of each listed to-do on top of the total that `commentCount` already reads. On the year office, 12 threads hold 126 comments each, so
+  the list reads about one more scan of them. The rows pins of `server/office/test/pins.ts` failed: `mine` as usr_005 3,835 > 2,444 and `review_for_me`
+  as usr_002 5,341 > 2,536 (measured before the unread number: 2,222 and 2,305).
+- Cuts. A to-do with no comment is no thread, so it reads nothing (`tasks.list` loader, from the counts of the comment total). One read of the
+  newest own comment of each to-do replaces two (one for "commented", one for the bound of the count); only a person whose newest comment is a quiet line
+  reads the newest message in a third round. Measured after: `mine` 3,745 and `review_for_me` 3,817 (statements of the Postgres path: 27 to 26 in
+  `roundTrips.test.ts`).
+- What stays. The unread count must scan the comments after the read mark of the person, and the year office has no read marks, so each of the 12
+  threads is scanned once. A stored unread count (written by `chats.send` and `chats.markRead`) would remove it; it needs its own plan. Ceilings: the
+  measured rows plus 10%: 4,120 and 4,199.
+

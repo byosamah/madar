@@ -126,10 +126,11 @@ export async function tasksList(L: Load, input: Input): Promise<void> {
   // The first read held every task of its projects when it had no narrowing condition, so a waiting task finds its project held (DB-11, perf2).
   const held = new Set<string | null>(where.length === 0 ? ids : []);
   await tasksOf(L, waiting.map((t) => t.projectId).filter((id) => !held.has(id)));
-  await L.counts('comments', 'target_id', tasks.map((t) => t.id), commentCountKey);
+  const commentCounts = await L.counts('comments', 'target_id', tasks.map((t) => t.id), commentCountKey);
   await L.counts('files', 'task_id', tasks.map((t) => t.id), fileCountKey);
-  // The unread number of each row: two rounds for the whole list, never one read for each row (fbk_071).
-  await taskRowsUnread(L, tasks);
+  // The unread number of each row: two rounds for the whole list, never one read for each row (fbk_071). A to-do with no comment is no
+  // thread and has nothing unread, so it costs no read (the rows pins of test:office, tsk_481).
+  await taskRowsUnread(L, tasks.filter((t) => (commentCounts.get(t.id) ?? 0) > 0));
 }
 
 /** search.query: the first 5 tasks of active projects and the first 5 files whose search text holds the query (AM 4.9). */

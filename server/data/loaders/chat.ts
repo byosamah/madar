@@ -6,6 +6,7 @@ import type { Load } from './build';
 import type { Bound } from './query';
 import { AROUND_BEFORE } from '../../../src/api/chatAround';
 import { isLiveMessage } from '../../../src/api/chatNaming';
+import { isLine } from '../../../src/lib/commentLine';
 import { MESSAGE_PAGE_MAX } from '../../../src/api/chatState';
 import type { ThreadRow, ThreadsArgs } from './source';
 import { attachedFiles, LIVE, newestMessagesRead, officeState, visibleIds } from './steps';
@@ -174,20 +175,25 @@ export async function taskRowsUnread(L: Load, tasks: readonly Task[]): Promise<v
   };
   const known = new Map(tasks.map((task) => [task.id, own(task)]));
   const ids = tasks.filter((task) => known.get(task.id) !== undefined).map((task) => task.id);
-  const askOwn = ids.filter((id) => known.get(id) === false);
   if (ids.length === 0) return;
   const onTasks = (list: readonly string[]) => [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: list }] as const;
-  const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1, pick: THREAD_COMMENT_FIELDS };
+  const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1 };
+  // ONE read of the own comments for each to-do: U's newest comment of any kind. It tells whether U commented (a person who wrote only a
+  // line of a reason is part of the thread), and, when it is a message, it is the bound of the count: a line that U wrote is no reply
+  // (fbk_027). A scan of a long thread that U never wrote in is the dear part, so it runs once, never once for "commented" and once for the bound.
   const answers = await L.batch([
     { byKey: { c: 'chatReads', keys: ids.map((id) => chatReadKey(id, userId)) } },
-    // Only a to-do that U does not lead needs to know whether U commented in it.
-    askOwn.length > 0 ? { select: { c: 'comments', where: [...onTasks(askOwn), { field: 'authorId', in: me }], ...newest } } : undefined,
-    // The bound of the count is the newest message of U: a line that U wrote is no reply (fbk_027).
-    { select: { c: 'comments', where: [...onTasks(ids), { field: 'authorId', in: me }, ...MESSAGES_ONLY], ...newest } },
+    { select: { c: 'comments', where: [...onTasks(ids), { field: 'authorId', in: me }], ...newest, pick: [...THREAD_COMMENT_FIELDS, 'kind', 'dates'] } },
   ] as const);
-  const commented = new Set(((answers[1] ?? []) as Comment[]).map((comment) => comment.targetId));
-  const part = ids.filter((id) => known.get(id) === true || commented.has(id));
-  const count = threadsCount(L, userId, me, part.map((id) => ({ id })), (answers[2] ?? []) as Comment[], {});
+  const lastAny = new Map(((answers[1] ?? []) as Comment[]).map((comment) => [comment.targetId, comment]));
+  // U's newest comment is a quiet line: only then the newest message of U needs a read of its own (rare, so the common load stays at two rounds).
+  const lineFirst = [...lastAny.values()].filter(isLine).map((comment) => comment.targetId);
+  const messages = lineFirst.length === 0 ? [] : (await L.batch([
+    { select: { c: 'comments', where: [...onTasks(lineFirst), { field: 'authorId', in: me }, ...MESSAGES_ONLY], ...newest, pick: THREAD_COMMENT_FIELDS } },
+  ] as const))[0] as Comment[];
+  const own2 = [...[...lastAny.values()].filter((comment) => !isLine(comment)), ...messages];
+  const part = ids.filter((id) => known.get(id) === true || lastAny.has(id));
+  const count = threadsCount(L, userId, me, part.map((id) => ({ id })), own2, {});
   await L.batch([count] as const);
 }
 

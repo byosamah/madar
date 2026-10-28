@@ -108,6 +108,30 @@ describe('tasks.list unread numbers on the scoped load', () => {
     expect(await statements(big)).toBe(await statements(small));
   });
 
+  it('read nothing for a to-do with no comment: it is no thread and has nothing unread (rows of the office object, tsk_481)', async () => {
+    const { state } = talk();
+    const commented = new Set(Object.values(state.comments).map((c) => c.targetId));
+    const quiet = Object.values(state.tasks).filter((t) => t.projectId !== null && !commented.has(t.id)).map((t) => t.id);
+    expect(quiet.length).toBeGreaterThan(3);
+    const reads: unknown[] = [];
+    const base = memorySource(state);
+    const src: Source = {
+      ...base,
+      select: async (s: Select) => (reads.push(s), base.select(s)),
+      countWhere: async (s: CountSelect) => (reads.push(s), base.countWhere(s)),
+      batch: undefined,
+    };
+    await loadFor('tasks.list', sharedCalls['tasks.list'].input.parse({}), { src, office: snapshotOf(state, 1), actorId: 'usr_001', write: false, now: NOW });
+    // No read mark, no comment read and no count names a to-do with no comment.
+    const text = JSON.stringify(reads);
+    for (const id of quiet) expect(text, id).not.toContain(id);
+    // The row of such a to-do still gives 0 unread and 0 comments.
+    const rows = (await runBoth(state, 'tasks.list', {}, 'usr_001', { now: NOW, correlationId: 'cor_test' })).scoped.outcome.output as { task: { id: string }; unreadCount: number; commentCount: number }[];
+    const shown = rows.filter((row) => quiet.includes(row.task.id));
+    expect(shown.length).toBeGreaterThan(3);
+    for (const row of shown) expect(row, row.task.id).toMatchObject({ unreadCount: 0, commentCount: 0 });
+  });
+
   it('count only the to-dos of the threads that the person is part of', async () => {
     const { state, taskIds } = talk();
     const outsider = Object.values(state.users).find((u) => u.kind === 'human' && u.active && !taskIds.some((id) => state.tasks[id].ownerId === u.id)

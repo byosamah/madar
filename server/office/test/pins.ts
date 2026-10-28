@@ -18,8 +18,12 @@ export const READ_PINS: readonly ReadPin[] = [
   { name: 'chats.waiting', input: {}, actorId: 'usr_001', rowsRead: 48_725 },
   { name: 'notifications.count', input: {}, actorId: 'usr_005', rowsRead: 2 },
   { name: 'notifications.list', input: {}, actorId: 'usr_005', rowsRead: 118 },
-  { name: 'tasks.list', input: { filter: 'mine' }, actorId: 'usr_005', rowsRead: 2_444 },
-  { name: 'tasks.list', input: { filter: 'review_for_me' }, actorId: 'usr_002', rowsRead: 2_536 },
+  // tasks.list gives each row the unread number of its chat icon (tsk_481, fbk_071). The count reads the unread comments of each listed to-do
+  // once more, on top of the total that commentCount reads, so the year office reads about one more scan of its comments (126 comments in each of
+  // 12 threads). Before: 2,222 and 2,305 rows read (ceilings 2,444 and 2,536). After the cuts of tsk_481 (a to-do with no comment reads nothing, and one
+  // read of the own comments of a row where there were two): 3,745 and 3,817, plus 10%. The reason and the numbers are in proof.md, "tasks.list unread number".
+  { name: 'tasks.list', input: { filter: 'mine' }, actorId: 'usr_005', rowsRead: 4_120 },
+  { name: 'tasks.list', input: { filter: 'review_for_me' }, actorId: 'usr_002', rowsRead: 4_199 },
   { name: 'projects.list', input: { status: 'all' }, actorId: 'usr_001', rowsRead: 2_028 },
   { name: 'dashboard.get', input: {}, actorId: 'usr_001', rowsRead: 4_510 },
   // search.query reads the chat messages and the task comments too (chat design 2026-10-19, item 16): the office path scans both with instr. The ceilings
