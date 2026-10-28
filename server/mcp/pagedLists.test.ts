@@ -158,7 +158,10 @@ describe('tasks.list over MCP', () => {
     const result = await call(admin, 'tasks.list', { limit: 2, full: true, projectId: 'prj_001' });
     const rows = result.structuredContent.output as Record<string, unknown>[];
     expect(rows).toHaveLength(2);
-    expect(Object.keys(rows[0])).toEqual(expect.arrayContaining(['task', 'owner', 'helpers', 'project', 'stage', 'commentCount', 'overdue', 'canMove', 'waitingFor']));
+    expect(Object.keys(rows[0])).toEqual(expect.arrayContaining(['task', 'owner', 'helpers', 'project', 'stage', 'commentCount', 'unreadCount', 'overdue', 'canMove', 'waitingFor']));
+    // The unread number is the comments that the person of the agent has not read (fbk_071), and the tool text says so.
+    for (const row of rows) expect(row.unreadCount).toEqual(expect.any(Number));
+    expect(TOOL_DOCS['tasks.list'].description).toContain('unreadCount');
     expect(result.structuredContent.page).toMatchObject({ limit: 2, offset: 0, next: 2 });
   });
 

@@ -53,6 +53,9 @@ export type RowDrag = {
   listeners?: Pick<HTMLAttributes<HTMLElement>, 'onMouseDown' | 'onTouchStart'>;
 };
 
+/** The most that the chat icon shows: a larger number reads "99+", so the small badge never grows wide. */
+const MAX_UNREAD_SHOWN = 99;
+
 // A row that a finger can hold: it lets the page scroll, keeps the text from selecting, and shows no callout menu of the browser.
 const HOLDABLE = 'touch-manipulation pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]';
 // The lift of a held row. The CSS `scale` property does not clash with the `transform` of dnd-kit. The curve is the drop curve of the Board.
@@ -77,6 +80,8 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
   const [ticking, setTicking] = useState(false);
   const complete = useCompleteTask();
   const { task } = row;
+  // The unread comments of the person (tasks.list). A row from an older answer has none, so it shows no number.
+  const unread = row.unreadCount ?? 0;
   // A helper cannot finish the task, so the row says that they help and who leads it (audit 2026-10-03, V-35).
   const helping = Boolean(me && task.ownerId !== me.id && helpersOf(task).includes(me.id));
   const done = task.status === 'done';
@@ -175,16 +180,17 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
             {showProject && (row.project ? <bdi className="truncate">{shownName(row.project, lang)}</bdi> : <span>{t('office.word')}</span>)}
           </span>
         </button>
-        {/* The task's conversation, one press away (owner, 2026-10-01). The count shows when there are comments. */}
+        {/* The task's conversation, one press away (owner, 2026-10-01). The icon stays. A number shows only for the comments that the person
+            has not read, and none when all are read (fbk_071, owner 2026-10-27). Opening the thread reads it, so the number goes at once. */}
         <button
           type="button"
           onClick={() => onOpen(row, true)}
-          aria-label={row.commentCount > 0 ? `${t('tasks.openConversation', { title: task.title })}, ${t('tasks.comments', { n: row.commentCount })}` : t('tasks.openConversation', { title: task.title })}
+          aria-label={unread > 0 ? `${t('tasks.openConversation', { title: task.title })}, ${t('tasks.unreadComments', { count: unread })}` : t('tasks.openConversation', { title: task.title })}
           className="pressable relative grid size-11 shrink-0 place-items-center rounded-full text-ink-2 transition-colors hover:bg-fill hover:text-ink"
         >
           <AnimatedIcon icon={MessageCircleIcon} size={18} aria-hidden />
-          {row.commentCount > 0 && (
-            <span aria-hidden className="tabular absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[10px] font-semibold leading-none text-panel">{row.commentCount}</span>
+          {unread > 0 && (
+            <span aria-hidden className="tabular absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[10px] font-semibold leading-none text-panel">{unread > MAX_UNREAD_SHOWN ? `${MAX_UNREAD_SHOWN}+` : unread}</span>
           )}
         </button>
         {showProject && row.project

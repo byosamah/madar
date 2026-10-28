@@ -185,7 +185,10 @@ describe('the round trips before the answer (performance audit SRV-1, SRV-4, SRV
     // Before the audit: 37 before the answer. The sign-in read 4, each entry 4 plus its 3 loader reads, the meter 5.
     // Then: the sign-in read 3, each entry 3 plus its loader reads. The usage meter (3 after the answer) went with the usage feature (owner, 2026-10-23).
     // Now (SV-5): the first entry runs in the transaction of the sign-in read, so its begin, office_meta and commit go (27 - 3).
-    expect(read).toMatchObject({ beforeAnswer: 24, total: 24 });
+    // The unread numbers of the rows of tasks.list (fbk_071) add 3 reads here (24 to 27): the read marks and the own comments of the rows,
+    // then one grouped count. This source sends each read alone; the real source (sqlSource.batch) sends the first two rounds as one
+    // statement each, so the real list adds 2 statements, never one for each row (taskRowUnread.test.ts keeps that).
+    expect(read).toMatchObject({ beforeAnswer: 27, total: 27 });
   });
 
   it('a task save that mails one person: the notice mail goes after the answer', async () => {

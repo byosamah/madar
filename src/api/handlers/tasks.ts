@@ -16,6 +16,7 @@ import { can, leadTookTask, mayViewTask, principalOf } from '../permissions';
 import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from '../taskGates';
 import { nextId, taskTemplatesOf } from '../store';
 import { taskDetailOf, taskRowOf, viewIndexOf } from '../views';
+import { taskRowUnread } from '../taskUnread';
 import { everyoneCountOfTask } from './everyone';
 import { arrangeRanks } from '../../lib/arrange';
 import { stampDay } from '../../lib/dates';
@@ -251,7 +252,8 @@ export const tasksList = defineCall({
       if (projectKey !== null) stagesChrono(lookups.stagesOf(projectKey)).forEach((stage, index) => rank.set(stage.id, index));
     }
     tasks.sort((a, b) => compareTasks(a, b, (id) => (id === null ? 0 : rank.get(id) ?? 0)));
-    return tasks.map((task) => taskRowOf(state, task, today, authority, lookups));
+    // The unread number of each row is the Inbox rule for the person who looks (fbk_071). It comes from the lookups, so no row scans.
+    return tasks.map((task) => ({ ...taskRowOf(state, task, today, authority, lookups), unreadCount: taskRowUnread(state, task, authority, lookups.taskCommentsOf) }));
   },
 });
 

@@ -1,0 +1,18 @@
+{
+  "tasks": {
+    "unreadComments": "{{count}} تعليق جديد",
+    "unreadComments_one": "تعليق جديد",
+    "unreadComments_two": "تعليقان جديدان",
+    "unreadComments_few": "{{count}} تعليقات جديدة",
+    "unreadComments_many": "{{count}} تعليقًا جديدًا",
+    "unreadComments_other": "{{count}} تعليق جديد"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-124": {
+        "title": "أيقونة المحادثة تعرض الجديد فقط",
+        "body": "الرقم على أيقونة المحادثة في المهمة يعدّ التعليقات التي لم تقرأها فقط. إذا قرأتها يختفي الرقم. وإذا كتب زميلك تعليقًا جديدًا يرجع الرقم."
+      }
+    }
+  }
+}

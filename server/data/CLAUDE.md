@@ -88,8 +88,9 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   projectId, ownerId, helperIds, createdBy). `chats.list`, `chats.markRead` and the notification writes keep whole rows.
   `pickedByKey` (`steps.ts`) is only for a read that never saves and loads nothing else of that table, because a later `byKey`
   keeps the picked copy.
-- A change to the unread count of a task thread changes `taskUnread` and `waitingThread` (`src/api/handlers/chats.ts`) too (the
-  loader reads messages only: `MESSAGES_ONLY`). A change to `unreadIn` (`src/api/chatState.ts`) changes `countsNamedOnly` in the
+- A change to the unread count of a task thread changes `taskUnread` and `waitingThread` (`src/api/handlers/chats.ts`) and the row rule of
+  `src/api/taskUnread.ts` too (the loader reads messages only: `MESSAGES_ONLY`). `tasks.list` counts the unread comments of its rows with
+  `taskRowsUnread` (`loaders/chat.ts`): two rounds for the whole list, a count only for the threads of the person. A change to `unreadIn` (`src/api/chatState.ts`) changes `countsNamedOnly` in the
   loader. The choice of the Admin (`adminReachOf`) reaches the loader through `chatsOf` and `listed(L)`: `loaders.test.ts` keeps
   the whole office and the scoped load equal for each choice.
 - `atBefore` (a Cond on a stamp column) is the upper bound of a period: a timestamp test in SQL, in memorySource and in the

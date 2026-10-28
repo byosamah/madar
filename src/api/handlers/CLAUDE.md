@@ -131,6 +131,18 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   `start_date`, `shifted`, `reopened`). A line is never unread and never waits for a reply: `taskUnread` and `waitingThread`
   read the messages only, and the loader does the same (`MESSAGES_ONLY`, `server/data/loaders/chat.ts`). `tasks.newVersion`
   writes the `reopened` line, so `comments` is in its `WRITE_KINDS` line.
+- **Unread number on a to-do row** (`TaskRow.unreadCount`, fbk_071, owner 2026-10-27). The chat icon of a row shows a number only for
+  the comments that the person has not read, and none when all are read. Only `tasks.list` gives it (`tasks.get` leaves it out: the
+  panel has no icon); the field is optional and `commentCount` stays. The rule is one (`src/api/taskUnread.ts`): `newCommentsOf`,
+  `inTaskThread` (the lead, the leader of the project, the maker of an office task, or a person who commented) and `threadUnread`
+  (a thread marked unread counts at least 1). The Inbox (`taskThreads`, `taskUnread` in `chats.ts`) and the row both call it, so the two
+  numbers never differ. A person who is no part of the thread gets 0. One difference: the Inbox keeps only the newest
+  `TASK_THREAD_LIMIT` threads, and the row has no cap. The list builds one lookup of the comments for the call (`ViewIndex.taskCommentsOf`),
+  never a scan for each row (`viewCost.test.ts`). The loader (`taskRowsUnread`, `server/data/loaders/chat.ts`) reads the marks and the
+  own comments of all rows in one round and counts in a second round, and it puts a count only for a thread that the person is part of: a
+  loaded read with no count for a to-do reads as 0. `tasks.list` reads `chatReads` in `readMap.ts`, so a read mark reloads the lists of
+  to-dos. Tests: `taskRowUnread.test.ts` (rule and leaks), `server/data/loaders/taskRowUnread.test.ts` (parity and statements),
+  `ChatIconUnread.test.tsx` (the icon).
 - **Remove a person** (`users.remove`). `User.removed` is true. The record stays, so the History keeps the name (`cardOf`),
   and the email stays reserved (`assertEmailFree`). `users.list` and `detailOf` leave removed users out; `users.update`
   and `users.reactivate` refuse them (reason `removed`); `users.get` still gives the record. The agents of a removed person

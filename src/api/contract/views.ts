@@ -180,6 +180,12 @@ export const TaskRow = z.object({
   /** Null for an office task. */
   stage: z.object({ id: StageId, name: z.string() }).nullable(),
   commentCount: z.number().int().min(0),
+  /**
+   * The comments of this to-do that the viewer has not read (fbk_071, owner 2026-10-27): the unread number of its Inbox thread, by the one
+   * rule of chats.list. 0 when all are read, and for a person who is no part of the thread. Only `tasks.list` gives it: the chat icon of a
+   * row shows it, and no number when it is 0. Optional, so older answers still parse.
+   */
+  unreadCount: z.number().int().min(0).optional(),
   fileCount: z.number().int().min(0),
   overdue: z.boolean(),
   canMove: z.boolean(),

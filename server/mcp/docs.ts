@@ -359,7 +359,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.list': {
     title: 'List tasks',
-    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead, no_date), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId, subCompanyId. workOf: open tasks a person leads or helps on, and tasks in review that the person reviews. An office task (project null) shows only with no project filter. Gives a page of short rows (id, title, status, project, stage, owner, dueDate, flagged): limit (50, at most 200), offset, page.next. full: true gives full rows.',
+    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead, no_date), status, date ranges, and the project filters of dashboard.get: leaderId, clientId, teamId, subCompanyId. workOf: open tasks a person leads or helps on, and tasks in review that the person reviews. An office task (project null) shows only with no project filter. Gives a page of short rows (id, title, status, project, stage, owner, dueDate, flagged): limit (50, at most 200), offset, page.next. full: true gives full rows, with unreadCount: the comments your person has not read.',
   },
   'tasks.move': {
     title: 'Move a task',

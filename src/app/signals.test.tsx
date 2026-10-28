@@ -996,6 +996,32 @@ describe('the reads that a write will change (performance audit FET-3)', () => {
   });
 });
 
+describe('the unread number on the chat icon of a to-do row (fbk_071)', () => {
+  const ROW = (id: string) => ({ task: { id, projectId: 'prj_001' } });
+
+  it('goes after the read mark of a thread: the list that shows the to-do loads with the write, and a signal of the person reloads the others', async () => {
+    const app = setup();
+    app.show('tasks.list', { projectId: 'prj_001' }, [ROW('tsk_002')]);
+    app.show('tasks.list', { filter: 'mine' }, [ROW('tsk_001')]);
+    await settle();
+    // The open of the thread of tsk_001 marks it read: the list that holds its row comes first, and every list of to-dos follows.
+    const chosen = readsAfterWrite(app.client, 'chats.markRead', { conversationId: 'tsk_001' }, ME).map((q) => q.queryKey[2]);
+    expect(chosen).toEqual([{ filter: 'mine' }, { projectId: 'prj_001' }]);
+    // The read mark of the person on another screen of the same person reloads the lists of to-dos, and the mark of another person does not.
+    const mine = emptyMerge();
+    mergeSignals(mine, sig({ kinds: ['chatReads'], channel: `person:${ME}`, people: [ME] }));
+    expect(affects(['api', 'tasks.list', { projectId: 'prj_001' }], [ROW('tsk_002')], mine, ME)).toBe(true);
+    const theirs = emptyMerge();
+    mergeSignals(theirs, sig({ kinds: ['chatReads'], channel: `person:${OTHER}`, people: [OTHER] }));
+    expect(affects(['api', 'tasks.list', { projectId: 'prj_001' }], [ROW('tsk_002')], theirs, ME)).toBe(false);
+    // A new comment of another person reloads the list of its project.
+    const comment = emptyMerge();
+    mergeSignals(comment, sig({ kinds: ['comments'], projects: ['prj_001'] }));
+    expect(affects(['api', 'tasks.list', { projectId: 'prj_001' }], [ROW('tsk_002')], comment, ME)).toBe(true);
+    app.stop();
+  });
+});
+
 describe('the runtime and its change source (plan R2)', () => {
   it('keeps the answers of the real build until a signal names them, except the reads that never reload', () => {
     const remote = createQueryClient({ remote: true });

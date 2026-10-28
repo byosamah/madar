@@ -357,7 +357,8 @@ describe("the What's new entry of the continuous project", () => {
 describe("the What's new entry of the context rule of the AI assistant", () => {
   it('is in its day, under the usage entry and the two fixes of 2026-10-28, for the holders of the switch "AI reads chats"', () => {
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-120')).toEqual({ id: '2026-10-23-120', day: '2026-10-27', right: 'ai.readChats' });
-    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-120')).toBe(4);
+    // Under the usage entry (the first one) and under the fixes of 2026-10-28, whatever new entries sit above it.
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-120')).toBeGreaterThan(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-121'));
   });
 
   it('names the project chat and the to-do thread in the screen words, and says to start a new chat', () => {
@@ -378,7 +379,9 @@ describe("the What's new entry of the context rule of the AI assistant", () => {
 // is only for the people who may turn people off, because only they open the warning.
 describe("the What's new entries of the fixes of 2026-10-28", () => {
   it('sit under the usage entry and the entry of the late push: the Tracker weeks for everyone, and the warning before Deactivate for its holders', () => {
-    expect(WHATS_NEW.slice(2, 4)).toEqual([
+    const at = WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-122');
+    expect(at).toBeGreaterThan(0);
+    expect(WHATS_NEW.slice(at, at + 2)).toEqual([
       { id: '2026-10-23-122', day: '2026-10-28', to: '/projects' },
       { id: '2026-10-23-121', day: '2026-10-28', right: 'people.turnOff' },
     ]);
@@ -401,8 +404,9 @@ describe("the What's new entries of the fixes of 2026-10-28", () => {
 
 // A push that was planned before a person lost the view of a project no longer reaches the person (owner, 2026-10-28, task tsk_439).
 describe("the What's new entry of the late push from a project that the person cannot see", () => {
-  it('is the newest entry, under the usage entry, and has no right and no link', () => {
-    expect(WHATS_NEW[1]).toEqual({ id: '2026-10-23-123', day: '2026-10-28' });
+  it('is under the usage entry, and has no right and no link', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-123')).toEqual({ id: '2026-10-23-123', day: '2026-10-28' });
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-123')).toBeGreaterThan(0);
   });
 
   it('says that no push comes from a project that the person cannot see, in English and Arabic', () => {
@@ -411,6 +415,26 @@ describe("the What's new entry of the late push from a project that the person c
     expect(word(en, 'body')).toContain('You have something new in Madar.');
     expect(word(ar, 'title')).toContain('إشعارات');
     expect(word(ar, 'body')).toContain('لديك جديد في مدار.');
+    for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
+  });
+});
+
+// The chat icon of a to-do shows only the comments that the person has not read (fbk_071, owner 2026-10-27). It sits under the usage entry
+// and above the entry of the late push, and its link opens the Work screen, where the to-dos are.
+describe("the What's new entry of the unread number on the chat icon", () => {
+  it('is in its day, under the usage entry and above the entry of the late push, with a link and no right', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-124')).toEqual({ id: '2026-10-23-124', day: '2026-10-28', to: '/work' });
+    const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
+    expect(at('2026-10-23-124')).toBeGreaterThan(0);
+    expect(at('2026-10-23-124')).toBeLessThan(at('2026-10-23-123'));
+  });
+
+  it('names the chat icon and the unread comments in the screen words, in English and Arabic', () => {
+    const word = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-124', part]));
+    expect(word(en, 'title')).toContain('chat icon');
+    expect(word(en, 'body')).toContain('not read');
+    expect(word(ar, 'title')).toContain('أيقونة المحادثة');
+    expect(word(ar, 'body')).toContain('لم تقرأها');
     for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
   });
 });

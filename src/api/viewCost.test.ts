@@ -17,7 +17,7 @@ import { NOW, TODAY } from '../test/factories';
  */
 
 /** A state whose collections count how often a view lists their keys (Object.values, Object.keys, filter over values). */
-function counted(state: State, names: ('tasks' | 'members' | 'stages' | 'deadlines' | 'updates' | 'events')[]): { state: State; scans: Record<string, number> } {
+function counted(state: State, names: ('tasks' | 'members' | 'stages' | 'deadlines' | 'updates' | 'events' | 'comments')[]): { state: State; scans: Record<string, number> } {
   const scans: Record<string, number> = Object.fromEntries(names.map((name) => [name, 0]));
   const copy: State = { ...state };
   for (const name of names) {
@@ -134,10 +134,29 @@ describe('tasks.list reads the to-dos and stages once, not once for each waiting
     expect(scans.stages).toBeLessThanOrEqual(2);
   });
 
+  it('scans the comments at most twice for the comment count and the unread number of all rows (fbk_071)', () => {
+    // Give the lead of each to-do a comment of another person, so every row has a number to count.
+    const withTalk: State = structuredClone(office);
+    let n = 0;
+    for (const task of Object.values(withTalk.tasks)) {
+      n += 1;
+      const id = `cmt_${800 + n}`;
+      withTalk.comments[id] = {
+        id, targetType: 'task', targetId: task.id, authorId: task.ownerId === 'usr_002' ? 'usr_003' : 'usr_002', body: `Talk ${n}`,
+        reactions: {}, fileIds: [], createdAt: `2026-09-29T11:${String(n % 60).padStart(2, '0')}:00.000+03:00`, editedAt: null,
+      } as never;
+    }
+    const { state, scans } = counted(withTalk, ['comments']);
+    const rows = runCall(state, 'usr_001', 'tasks.list', {}) as { unreadCount?: number }[];
+    expect(rows.length).toBeGreaterThan(20);
+    expect(rows.some((row) => (row.unreadCount ?? 0) > 0)).toBe(true);
+    expect(scans.comments).toBeLessThanOrEqual(2);
+  });
+
   it('gives a row the same waiting lists as taskRowOf on its own', () => {
     const viewer = office.users[office.session.currentUserId];
     const rows = runCall(office, viewer.id, 'tasks.list', {}) as { task: { id: string } }[];
-    for (const row of rows) expect(row).toEqual(taskRowOf(office, office.tasks[row.task.id], TODAY, viewer));
+    for (const row of rows) expect(row).toEqual({ ...taskRowOf(office, office.tasks[row.task.id], TODAY, viewer), unreadCount: (row as { unreadCount?: number }).unreadCount });
   });
 });
 
@@ -173,7 +192,10 @@ describe('the output of the read views stays the same (pins)', () => {
     const answers = people.flatMap((id) => [
       runCall(office, id, 'tasks.list', {}), runCall(office, id, 'tasks.list', { filter: 'mine' }), runCall(office, id, 'tasks.list', { projectId: 'prj_001' }),
     ]);
-    expect(digest(answers)).toBe('bbb89cb24534d52c');
+    // The row has one new field (fbk_071). Without it the answers are the old ones: the pin of before the field stands.
+    const withoutUnread = JSON.parse(JSON.stringify(answers, (key, value) => (key === 'unreadCount' ? undefined : value)));
+    expect(digest(withoutUnread)).toBe('bbb89cb24534d52c');
+    expect(digest(answers)).toBe('2c07c4f14258ec7b');
   });
 
   it('tasks.get for every to-do', () => {

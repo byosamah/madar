@@ -136,7 +136,7 @@ function threadsMiddle(userId: string, me: readonly string[], threads: readonly 
 }
 
 /** Round 3 of the task threads: the unread comments of each thread, after the read mark and U's last own message. */
-function threadsCount(L: Load, userId: string, me: readonly string[], threads: readonly ThreadRow[], own: readonly Comment[], mode: Mode) {
+function threadsCount(L: Load, userId: string, me: readonly string[], threads: readonly Pick<ThreadRow, 'id'>[], own: readonly Comment[], mode: Mode) {
   if (threads.length === 0) return undefined;
   const ids = threads.map((thread) => thread.id);
   const lastOwn = new Map(own.map((comment) => [comment.targetId, { at: comment.createdAt, id: comment.id }]));
@@ -153,6 +153,42 @@ function threadsCount(L: Load, userId: string, me: readonly string[], threads: r
       values: ids, keyOf: (id: string) => unreadCountKey(id, userId), ...inWriteOf(mode),
     },
   } as const;
+}
+
+/**
+ * The unread number on the rows of the to-dos of tasks.list (fbk_071, owner 2026-10-27), with the rule of the Inbox threads and no
+ * statement for each row: round 1 reads the read marks of U for all the to-dos, and U's newest comment and newest message on them.
+ * Round 2 counts the comments by other people after the mark and after U's last message, for the to-dos that U is part of (taskRowUnread,
+ * inTaskThread: the lead, the leader of the project, the maker of an office task, or a person who commented). A to-do that U is no part
+ * of gets no count, and the handler reads that as 0. Only a read keeps counts, so tasks.list is the one caller.
+ */
+export async function taskRowsUnread(L: Load, tasks: readonly Task[]): Promise<void> {
+  if (!L.authority || !L.authority.active || tasks.length === 0) return;
+  const userId = L.authority.id;
+  const me = meOf(L, userId);
+  // A to-do that U leads, or whose project U leads (for an office task, that U made), is U's thread with no read of the comments.
+  const own = (task: Task): boolean | undefined => {
+    const project = task.projectId === null ? null : L.office.projects[task.projectId];
+    if (project === undefined) return undefined;
+    return task.ownerId === userId || (project ? project.leaderId === userId : me.includes(task.createdBy));
+  };
+  const known = new Map(tasks.map((task) => [task.id, own(task)]));
+  const ids = tasks.filter((task) => known.get(task.id) !== undefined).map((task) => task.id);
+  const askOwn = ids.filter((id) => known.get(id) === false);
+  if (ids.length === 0) return;
+  const onTasks = (list: readonly string[]) => [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: list }] as const;
+  const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1, pick: THREAD_COMMENT_FIELDS };
+  const answers = await L.batch([
+    { byKey: { c: 'chatReads', keys: ids.map((id) => chatReadKey(id, userId)) } },
+    // Only a to-do that U does not lead needs to know whether U commented in it.
+    askOwn.length > 0 ? { select: { c: 'comments', where: [...onTasks(askOwn), { field: 'authorId', in: me }], ...newest } } : undefined,
+    // The bound of the count is the newest message of U: a line that U wrote is no reply (fbk_027).
+    { select: { c: 'comments', where: [...onTasks(ids), { field: 'authorId', in: me }, ...MESSAGES_ONLY], ...newest } },
+  ] as const);
+  const commented = new Set(((answers[1] ?? []) as Comment[]).map((comment) => comment.targetId));
+  const part = ids.filter((id) => known.get(id) === true || commented.has(id));
+  const count = threadsCount(L, userId, me, part.map((id) => ({ id })), (answers[2] ?? []) as Comment[], {});
+  await L.batch([count] as const);
 }
 
 /** The chats U may open, from the office. */

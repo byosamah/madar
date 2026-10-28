@@ -461,7 +461,6 @@
     "empty": "No to-dos here yet.",
     "emptyFiltered": "No to-dos match this filter.",
     "flagged": "Flagged",
-    "comments": "Comments: {{n}}",
     "files": "Files: {{n}}",
     "column": "{{status}}: {{n}}",
     "count": "To-dos: {{n}}",

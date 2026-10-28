@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // The chat icon of a to-do shows only the unread comments (fbk_071). The lead sets the real release day before the test deploy.
+  { id: '2026-10-23-124', day: '2026-10-28', to: '/work' },
   // A push that was planned before a person lost the view of a project no longer reaches the person (task tsk_439). The lead sets the real release day before the test deploy.
   { id: '2026-10-23-123', day: '2026-10-28' },
   // The two fixes of the cleanup of the project page and of Settings (code review 2026-10-27). The lead sets the real release day before the test deploy.

@@ -11,6 +11,7 @@ import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNa
 import { readCopiesOf } from '../adminCopies';
 import { notifyIn } from '../notify';
 import { projectViewer } from '../projectView';
+import { inTaskThread, newCommentsOf, threadUnread } from '../taskUnread';
 import { can, mayViewTask, principalOf, projectRoleOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
@@ -122,18 +123,8 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
 function taskUnread(state: State, taskId: string, comments: Comment[], viewerId: string): number {
   const key = chatReadKey(taskId, viewerId);
   const counted = state.counts?.[unreadCountKey(taskId, viewerId)];
-  const count = counted ?? newCommentsOf(state, key, comments, viewerId);
-  // A thread that the person marked unread (chats.markUnread, fbk_028) counts at least 1 until the person opens it again.
-  return markedUnread(state, key) ? Math.max(count, 1) : count;
-}
-
-/** The comments by other people after the last read mark and after the viewer's own last message. */
-function newCommentsOf(state: State, readKey: string, comments: Comment[], viewerId: string): number {
-  const lastRead = state.chatReads[readKey]?.lastReadAt ?? '';
-  // A quiet line of a reason is no message: it is never unread, and a line that the viewer wrote does not count as a reply (fbk_027).
-  const talk = comments.filter((c) => !isLine(c));
-  const mine = talk.findLastIndex((c) => principalOf(state, c.authorId) === viewerId);
-  return talk.filter((c, i) => i > mine && c.createdAt > lastRead && principalOf(state, c.authorId) !== viewerId).length;
+  // The rule is shared with the chat icon of a to-do row (taskUnread.ts, fbk_071).
+  return threadUnread(state, taskId, counted ?? newCommentsOf(state, key, comments, viewerId), viewerId);
 }
 
 /** project is null for an office task. */
@@ -165,10 +156,7 @@ function taskThreads(state: State, viewer: User): TaskThread[] {
     const project = task.projectId === null ? null : state.projects[task.projectId];
     // Every task is checked: an office task by its people, a project task by the view of its project (hidden projects, owner 2026-10-22).
     if (project === undefined || !mayViewTask(state, viewer, task) || (project !== null && !sees(project))) continue;
-    const leads = project ? project.leaderId === viewer.id : principalOf(state, task.createdBy) === viewer.id;
-    const involved = task.ownerId === viewer.id || leads
-      || comments.some((c) => principalOf(state, c.authorId) === viewer.id);
-    if (!involved) continue;
+    if (!inTaskThread(state, task, project, viewer, comments)) continue;
     comments.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
     threads.push({ task, project, comments });
   }

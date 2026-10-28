@@ -68,6 +68,8 @@ export type ViewIndex = {
   updatesOf(projectId: string): Update[];
   /** The changes of a project that the feed may show: not undone, and a verb of FEED_VERBS. */
   feedEventsOf(projectId: string): Event[];
+  /** The comments of one to-do, in the order of the state: one pass over the comments on the first use (fbk_071). */
+  taskCommentsOf(taskId: string): Comment[];
 };
 
 /** A lookup by project: one pass over the rows on the first use, and "finish" runs once on a group when it is first read. */
@@ -103,6 +105,7 @@ export function viewIndexOf(state: State): ViewIndex {
     deadlinesOf: lookupBy(() => Object.values(state.deadlines), (deadline) => deadline.projectId, (group) => { group.sort(byDate); }),
     updatesOf: lookupBy(() => Object.values(state.updates), (update) => update.projectId),
     feedEventsOf: lookupBy(() => Object.values(state.events), (event) => (event.undoneBy || !FEED_VERBS.has(event.verb) ? null : event.projectId)),
+    taskCommentsOf: lookupBy(() => Object.values(state.comments), (comment) => (comment.targetType === 'task' ? comment.targetId : null)),
   };
 }
 
@@ -438,7 +441,8 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User,
     // An office task has no project and no stage (owner, 2026-10-06).
     project: task.projectId === null ? null : projectRef({ id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', nameAr: project?.nameAr, mark: project?.mark, shape: project?.shape }),
     stage: task.stageId === null ? null : { id: task.stageId, name: stage?.name ?? '' },
-    commentCount: countComments(state, 'task', task.id),
+    // A loaded count first; else one lookup for the whole list, so no row scans the comments of the office (fbk_071).
+    commentCount: state.counts?.[commentCountKey(task.id)] ?? index.taskCommentsOf(task.id).length,
     fileCount: countFiles(state, task.id),
     overdue: isOverdue(task, today),
     canMove: mayChangeTask(viewer, 'work', resource),

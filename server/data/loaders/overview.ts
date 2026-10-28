@@ -9,6 +9,7 @@ import { searchesMessages, searchWords } from '../../../src/lib/searchMatch';
 import { normalizeForSearch } from '../../../src/lib/text';
 import type { Cond } from './query';
 import type { Load } from './build';
+import { taskRowsUnread } from './chat';
 import { privateMeetingsOf } from './meetings';
 import { covers, eventProjectConds, eventTargets, feed, LIVE, officeState, officeTasks, projectConds, tasksOf, visibleIds, visibleProjects } from './steps';
 
@@ -127,6 +128,8 @@ export async function tasksList(L: Load, input: Input): Promise<void> {
   await tasksOf(L, waiting.map((t) => t.projectId).filter((id) => !held.has(id)));
   await L.counts('comments', 'target_id', tasks.map((t) => t.id), commentCountKey);
   await L.counts('files', 'task_id', tasks.map((t) => t.id), fileCountKey);
+  // The unread number of each row: two rounds for the whole list, never one read for each row (fbk_071).
+  await taskRowsUnread(L, tasks);
 }
 
 /** search.query: the first 5 tasks of active projects and the first 5 files whose search text holds the query (AM 4.9). */

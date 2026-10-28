@@ -79,6 +79,9 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   list. The three loaders and their swaps stay written out in each part: one shared loader file (`lazyLayer.ts`, 2026-10-27) split the
   first load of the remote build from 30 into 48 files, and `check-bundles.ts` refused it. A dnd-kit keyboard drag in jsdom needs `getBoundingClientRect`
   mocked for each row (`features/work/WorkOrder.test.tsx`), and the test awaits the place message after Space and after each arrow key.
+- The chat icon of a row (`TaskRowItem.tsx`, all lists use this one row) shows `row.unreadCount` and never `commentCount`: no number when all
+  comments are read, `99+` above 99 (fbk_071). Opening the thread marks it read (`useMarkTaskRead`), and the read mark reloads the lists of to-dos
+  (`readMap.ts`), so the number goes at once. The words are `tasks.unreadComments` in `real/todo-unread.*.json`.
 - `TaskPeople.tsx` loads `TaskPeopleList.tsx` through `lazyOverlay`, so vaul stays out of the first load. A failed import reloads the page
   once (`reloadOnFailedImport`). A second failure shows the toast of a failed step through `ListGuard`. A test of a failed import needs its
   own file for each step (`TaskPeopleFirstFailure.test.tsx`, `TaskPeopleFailedChunk.test.tsx`): a lazy part keeps its first answer for the

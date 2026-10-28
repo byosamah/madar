@@ -1,0 +1,15 @@
+{
+  "tasks": {
+    "unreadComments": "{{count}} new comments",
+    "unreadComments_one": "1 new comment",
+    "unreadComments_other": "{{count}} new comments"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-124": {
+        "title": "The chat icon shows only new comments",
+        "body": "The number on the chat icon of a to-do now counts only the comments that you have not read. When you read them, the number goes. A new comment from a colleague brings it back."
+      }
+    }
+  }
+}
