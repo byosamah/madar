@@ -62,6 +62,28 @@ describe('checkRemoteConfig', () => {
     expect(checkRemoteConfig(remoteLong, 'test', TEST, [HOOK]).join('\n')).toMatch(/jwt_expiry/);
   });
 
+  it('refuses an email code that is not 10 digits: a guesser with many addresses can find a 6-digit reset code in its hour (F2)', () => {
+    const email = (toml: string) => toml.slice(toml.indexOf('[auth.email]'), toml.indexOf('[auth.sms]'));
+    expect(email(base)).toMatch(/^otp_length = 10$/m);
+    const short = base.replace(/^otp_length = 10$/m, 'otp_length = 6');
+    expect(email(short)).toMatch(/^otp_length = 6$/m);
+    expect(checkRemoteConfig(short + remote('test', TEST), 'test', TEST, [HOOK]).join('\n')).toMatch(/otp_length/);
+    // Auth sets a value above 10 back to 6.
+    const long = base.replace(/^otp_length = 10$/m, 'otp_length = 12');
+    expect(email(long)).toMatch(/^otp_length = 12$/m);
+    expect(checkRemoteConfig(long + remote('test', TEST), 'test', TEST, [HOOK]).join('\n')).toMatch(/otp_length/);
+    // With no value, Auth uses its default of 6.
+    const noValue = base.replace(/^otp_length = 10\n/m, '');
+    expect(email(noValue)).not.toMatch(/^otp_length/m);
+    expect(checkRemoteConfig(noValue + remote('test', TEST), 'test', TEST, [HOOK]).join('\n')).toMatch(/otp_length/);
+    // A remote block replaces the local value.
+    const remoteShort = `${base + remote('test', TEST)}\n[remotes.test.auth.email]\notp_length = 6\n`;
+    expect(checkRemoteConfig(remoteShort, 'test', TEST, [HOOK]).join('\n')).toMatch(/otp_length/);
+    // The 6-digit code of [auth.mfa.phone] (off) is not the email code.
+    expect(base).toMatch(/\[auth\.mfa\.phone\][^[]*^otp_length = 6$/m);
+    expect(checkRemoteConfig(base + remote('test', TEST), 'test', TEST, [HOOK])).toEqual([]);
+  });
+
   it('refuses vector buckets: the free plan has none, and the config push stops with 402 (2026-10-05)', () => {
     const on = base.replace(/\[storage\.vector\]\nenabled = false/, '[storage.vector]\nenabled = true');
     expect(on).not.toBe(base);

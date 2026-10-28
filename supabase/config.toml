@@ -243,7 +243,10 @@ secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.
-otp_length = 6
+# Madar: 10, the most that Auth takes (Auth sets a value below 6 or above 10 back to 6). The token hash of a link comes from
+# this code, and /auth/v1/verify also takes the code itself, so 6 digits let a guesser with many addresses find a live reset
+# code in its 1 hour. Madar mails only the token hash, so no screen changes. scripts/deploy/config-check.ts refuses another value.
+otp_length = 10
 # Number of seconds before the email OTP expires (defaults to 1 hour). Madar keeps 1 hour: Auth has one life for every email
 # link, so a longer one also keeps a reset link alive (security fix 7). An out-of-date invitation asks for a new link on Welcome.
 otp_expiry = 3600

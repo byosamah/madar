@@ -15,6 +15,9 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
 ## Rules
 - `otp_expiry = 3600` in `supabase/config.toml`. Never 86400: Auth has one life for every email link, so a reset link
   would live a day too.
+- `otp_length = 10` in `[auth.email]`, the most that Auth takes. The token hash of a link comes from this code, and Auth also
+  takes the code itself, so 6 digits let a guesser with many addresses find a live reset code. Madar mails only the token
+  hash. `config-check.ts` refuses another value.
 - `jwt_expiry = 900`. The API checks no Auth session for a browser token, so after a sign-out elsewhere (for example a
   password change) an open browser keeps working until its token expires: 15 minutes at most. An agent token stops at once
   (`agent_session_ok`). `config-check.ts` refuses a longer life; `signin.spec.ts` checks it.

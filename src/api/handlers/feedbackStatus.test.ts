@@ -410,3 +410,20 @@ describe('the reason never reaches another person', () => {
     expect(JSON.stringify(await t.api.call('notifications.list', {}))).toContain('SECRET-REASON-4471');
   });
 });
+
+describe('an id that only an inherited key of a plain object matches', () => {
+  const KEYS = ['status', 'rejectReason', 'doneBy', 'doneAt'] as const;
+  it.each(['__proto__', 'constructor', 'toString', 'hasOwnProperty'])('finds no report for %s, and changes no shared object (security review F3)', async (id) => {
+    const t = world();
+    const report = await send(t);
+    const targets = [Object.prototype, Object, Function.prototype];
+    try {
+      await expect(mark(t, 'usr_001', id, 'rejected', 'x')).rejects.toMatchObject({ code: 'not_found', message: `Report ${id} does not exist.` });
+      for (const target of targets) for (const key of KEYS) expect(Object.hasOwn(target, key), `${String(target)} ${key}`).toBe(false);
+      expect(stored(t, report.id).status).toBe('new');
+    } finally {
+      // A failed run must not leave the change on the shared objects for the next tests.
+      for (const target of targets) for (const key of KEYS) delete (target as unknown as Record<string, unknown>)[key];
+    }
+  });
+});

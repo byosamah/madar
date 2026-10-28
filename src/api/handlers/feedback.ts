@@ -22,8 +22,13 @@ export const isAppPath = (page: string): boolean => page.startsWith('/') && !pag
 /** One report as the Admin reads it: the sender and how many screenshots it carries. */
 export const FeedbackRow = z.object({ item: Feedback, sender: UserCard, screenshots: z.number().int().min(0) });
 
+/**
+ * The id is a free string, and the reports are a plain object. Only an own key is a report: "__proto__" or "constructor" names a shared
+ * object, and a write to it would change every object of the server (security review F3).
+ */
 function requireFeedback(ctx: Ctx, id: string): Feedback {
-  const item = feedbackOf(ctx.state)[id];
+  const reports = feedbackOf(ctx.state);
+  const item = Object.hasOwn(reports, id) ? reports[id] : undefined;
   if (!item) throw notFound('Report', id);
   return item;
 }

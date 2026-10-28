@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
  *   node scripts/deploy/config-check.ts <test|production> <ref>
  * supabase/config.toml holds the values of the local stack. A push sends them to the hosted project unless a [remotes.<env>]
  * block for that project replaces them, so the check wants that block, https sign-in addresses, a token life of 15 minutes or
- * less, the Data API off, and the function of the token hook in a migration (supabase/seed.sql never runs on a hosted project).
+ * less, a 10-digit email code, the Data API off, and the function of the token hook in a migration (supabase/seed.sql never
+ * runs on a hosted project).
  */
 
 type Tables = Map<string, Map<string, string>>;
@@ -34,6 +35,9 @@ function tablesOf(toml: string): Tables {
 /** The longest life of an Auth token: 15 minutes (owner, 2026-10-06, Z7). */
 export const MAX_TOKEN_SECONDS = 900;
 
+/** The digits of the email code of an Auth link: 10, the most that Auth takes (security finding F2, 2026-10-28). */
+export const EMAIL_CODE_DIGITS = 10;
+
 const strings = (value: string | undefined): string[] => [...(value ?? '').matchAll(/"([^"]*)"/g)].map((match) => match[1]);
 const goodAddress = (url: string) => /^https:\/\/[^/\s]+/.test(url) && !/^https:\/\/(127\.0\.0\.1|localhost)([:/]|$)/.test(url);
 
@@ -57,6 +61,14 @@ export function checkRemoteConfig(toml: string, target: string, ref: string, mig
   const expiry = Number(auth?.get('jwt_expiry') ?? tables.get('auth')?.get('jwt_expiry') ?? 3600);
   if (!(expiry > 0 && expiry <= MAX_TOKEN_SECONDS)) {
     errors.push(`[auth] needs jwt_expiry = ${MAX_TOKEN_SECONDS} or less: a browser token stays good after a sign-out elsewhere until it expires.`);
+  }
+
+  // The token hash of a reset or invitation link comes from the email code, and /auth/v1/verify also takes the code itself.
+  // 6 digits (the Auth default) let a guesser with many addresses find a live code in its 1 hour. Auth sets a value below 6
+  // or above 10 back to 6, so the check wants 10 exactly.
+  const codeDigits = Number(tables.get(`${block}.auth.email`)?.get('otp_length') ?? tables.get('auth.email')?.get('otp_length') ?? 6);
+  if (codeDigits !== EMAIL_CODE_DIGITS) {
+    errors.push(`[auth.email] needs otp_length = ${EMAIL_CODE_DIGITS}: a shorter email code lets a guesser with many addresses find a live reset link.`);
   }
 
   for (const table of ['api', `${block}.api`]) {
