@@ -108,6 +108,20 @@ describe('the warning before Deactivate (owner, 2026-10-03, API-7)', () => {
     await waitFor(() => expect(store.state.users.usr_004.active).toBe(false));
   });
 
+  // The note follows the right to change the leader of each project, not the built-in role (code review 2026-10-27).
+  it('gives no note about who changes the leader to a custom role that may change the leader of any project', async () => {
+    await renderApp('/admin', (state) => {
+      state.settings.roles = { custom: [{ id: 'rol_001', name: 'Coordinator', nameAr: 'منسق', rights: ['people.turnOff', 'project.seeAll', 'project.leader.lead', 'project.leader.all'] }] };
+      state.users.usr_003.roleId = 'rol_001';
+      state.session.currentUserId = 'usr_003';
+    });
+    await pressDeactivate('Omar Haddad');
+    const sheet = await screen.findByRole('dialog', { name: 'Deactivate Omar Haddad?' });
+    const led = within(sheet).getByRole('region', { name: 'Projects they lead' });
+    expect(within(led).getAllByRole('link')).toHaveLength(2);
+    expect(within(led).queryByText('An Admin changes the leader.')).toBeNull();
+  });
+
   it('speaks Arabic with the feminine form for a woman, and Arabic plural forms for the counts', async () => {
     await renderApp('/admin', (state) => {
       state.users.usr_001.preferences.language = 'ar';

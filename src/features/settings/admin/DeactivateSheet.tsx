@@ -6,7 +6,7 @@ import type { ProjectSummary, TaskRow } from '../../../api/contract/views';
 import type { MadarApi } from '../../../api/calls';
 import { useUndoable } from '../../../app/actions';
 import { usePersonName } from '../../../app/personName';
-import { useCall, useRuntime } from '../../../app/runtime';
+import { useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { Sheet } from '../../../components/Sheet';
@@ -75,10 +75,9 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
   const projectName = useProjectName();
   const context = actorContext(user);
   const more = work.tasks.length - SHOWN;
-  // Only an Admin or the project's own leader changes a leader. The leader is the person here, so any other viewer, Management
-  // too, reads who does it. The links stay, to see the team (audit 2026-10-03, warn repair).
-  const session = useCall('session.get', {});
-  const adminChangesLeader = session.data !== undefined && session.data.authority.systemRole !== 'admin';
+  // A viewer who may not change the leader of a listed project, Management too, reads who does it. The right of each project
+  // decides, so a custom role with the right reads no note. The links stay, to see the team (audit 2026-10-03, code review 2026-10-27).
+  const adminChangesLeader = work.projects.some((summary) => !summary.viewerCan.changeLeader);
   return (
     <Sheet
       open
