@@ -44,6 +44,9 @@ export const viewSql = (all: number, hidden: number): string => `($${hidden}::bo
  * $1 the person, $2 the day "YYYY-MM-DD", $3 the active people who hold the right to review the projects they lead (task.review.lead
  * or more, role rights version 2): a leader outside the list is no reviewer, so the Admins review that project, as for a project with
  * no leader (summaryReviewers). $4 the person holds "See every project", $5 the person holds "See hidden projects" (summaryViews).
+ * The review of a project to-do counts only when the person also views the project (viewSql), as the SQLite form does (liteVisible).
+ * Today the reviewer always views it: the leader leads it, and the Admin holds every right. The view rule stays in the statement, so
+ * a change of those two facts never counts the to-do of a hidden project. A review of an office to-do has no project.
  */
 export const SUMMARY_COUNTS_SQL = `select
   (select count(*)::integer from tasks t left join projects p on p.id = t.project_id
@@ -51,7 +54,7 @@ export const SUMMARY_COUNTS_SQL = `select
       and (t.owner_id = $1 or t.doc->'helperIds' ? $1)) as due_today,
   (select count(*)::integer from tasks t join projects p on p.id = t.project_id
     left join users l on l.id = p.leader_id and l.active and l.id = any($3::text[])
-    where p.status = 'active' and t.status = 'in_review'
+    where p.status = 'active' and ${viewSql(4, 5)} and t.status = 'in_review'
       and case when l.id is not null then l.id = $1
         else exists (select 1 from users a where a.id = $1 and a.active and a.doc->>'systemRole' = 'admin') end)
   + (select count(*)::integer from tasks t

@@ -93,4 +93,17 @@ describe('the Postgres statements', () => {
     }
     expect(viewSql(4, 5)).toContain('$5::boolean');
   });
+
+  // The count of the reviews that wait is a sum of two parts: the reviews of project to-dos, then the reviews of office to-dos. An
+  // office to-do has no project, so only the first part joins the view rule. The reviewer is the leader or the Admin fallback, and
+  // both view the project today, but the SQL must still say it: the SQLite form (liteSummary) filters with mayViewProject.
+  it('joins the view rule in the part of the count that holds the reviews of project to-dos', () => {
+    const [, reviews] = SUMMARY_COUNTS_SQL.split('as due_today,');
+    const [projectPart, officePart] = reviews.split(/\n  \+ \(select/);
+    expect(officePart, 'the count has an office part').toBeDefined();
+    expect(projectPart).toContain("t.status = 'in_review'");
+    expect(projectPart).toContain(viewSql(4, 5));
+    // The office part has no project, so it has no view rule.
+    expect(officePart).not.toContain(viewSql(4, 5));
+  });
 });

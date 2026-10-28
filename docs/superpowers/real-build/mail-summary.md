@@ -32,9 +32,11 @@ those three fields: a template reads only the fields of its data type.
 
 ## Hidden projects
 A line of the morning summary never names a to-do of a project that the person does not view, though the person leads or helps on
-it, and the count of the tasks due today leaves it out. `SUMMARY_COUNTS_SQL` (`$4` "See every project", `$5` "See hidden
-projects") and `SUMMARY_TASKS_SQL` (`$3`, `$4`) join `viewSql`: the holder of `project.hidden`, the leader, a team member, a chosen
-person (`access.viewerIds`), and the holder of `project.seeAll` when the project is open. `summaryViews` reads the two rights from
-the roles of `SUMMARY_REVIEWERS_SQL`. The SQLite forms (`liteVisible`) call `mayViewProject`. The reviews that wait are not
-filtered: the reviewer is the leader or an Admin, and both view the project. Notice mail follows `notify`.
-Test: `hiddenProjectSummary.test.ts`.
+it, and the counts leave it out. `SUMMARY_COUNTS_SQL` (`$4` "See every project", `$5` "See hidden projects") joins `viewSql` in the
+tasks due today and in the reviews of project to-dos. `SUMMARY_TASKS_SQL` (`$3`, `$4`) joins it in the lines. `viewSql` holds: the
+holder of `project.hidden`, the leader, a team member, a chosen person (`access.viewerIds`), and the holder of `project.seeAll` when the
+project is open. `summaryViews` reads the two rights from the roles of `SUMMARY_REVIEWERS_SQL`. The SQLite forms (`liteVisible`) call
+`mayViewProject`. A review of an office to-do has no project, so it has no view rule. The reviewer of a project is its leader or an
+Admin, and both view the project today (the leader leads it, and the Admin holds every right). The review count still joins `viewSql`,
+so a change of those facts never counts the to-do of a hidden project (2026-10-28). Notice mail follows `notify`.
+Test: `hiddenProjectSummary.test.ts`. It pins the join as text for the Postgres form, because the unit tests run only the SQLite form.

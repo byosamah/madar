@@ -59,8 +59,9 @@ Each rule here has a test. A new notice type also goes into this list (`src/api/
   open tasks of its reader with only the task title, the project key and the due day. Resend keeps the content, so a template
   reads only the fields of its data type. The summary rules (send time, groups, the 8 lines, reviewers, hidden projects):
   `docs/superpowers/real-build/mail-summary.md`.
-- Hidden projects: the summary never names a to-do of a project that the person does not view (`SUMMARY_COUNTS_SQL` and
-  `SUMMARY_TASKS_SQL` join `viewSql`; the SQLite forms call `mayViewProject`). Test: `hiddenProjectSummary.test.ts`.
+- Hidden projects: the summary never names a to-do of a project that the person does not view. `SUMMARY_COUNTS_SQL` (the tasks
+  due today and the reviews of project to-dos) and `SUMMARY_TASKS_SQL` join `viewSql`; the SQLite forms call `mayViewProject`.
+  Test: `hiddenProjectSummary.test.ts`.
 - Arabic mail is right to left and uses the `_female` forms for a woman.
 - A mail names a person in the language of the person who gets it (`personName` of `src/lib/personName.ts`).
 - Every word comes from the word files, in English and Arabic. Never use an em-dash.
