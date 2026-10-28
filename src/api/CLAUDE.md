@@ -110,9 +110,10 @@ pure handlers, an additive contract, a table for a new collection, a test count 
   `project.hidden`. A project deleted while open shows to a holder of `project.hidden` or `project.seeAll`, to `before.leaderId`,
   to `before.access.viewerIds` and to the people of the team list `teamIds` that `projects.delete` records on the event (the rule
   of a live project, `can('project.view')`, decides the last step, so a person who left the office sees it only if that person
-  worked on it). A delete event with no `teamIds` (written before the list) takes its team from the `member.added` and
-  `member.removed` events before it. A state with no delete event of the project reads it as open, so a loader must bring the
-  delete event and, for an old one, the member changes (`goneProjects`, `steps.ts`; `events.list` and the story loader call it).
+  worked on it). A delete event with no `teamIds` (written before the list) takes its team from every change of a team row before
+  it (target type `member`: the adds, the removes and their undos, by their shape). A state with no delete event of the project
+  reads it as open, so a loader must bring the delete event and, for an old one, the member changes (`goneProjects`, `steps.ts`;
+  `events.list` and the story loader call it).
 - `notify` skips a person who does not see the project of the target (`projectOfTarget`, `targetProject.ts`). A notice whose
   item belongs to a hidden project reads as gone (`noticeProjectHidden`). An Undo keeps such a notice. A meeting of a project
   needs attendees who see it (`not_in_project_audience`). Realtime, push, the morning summary and Google Calendar skip a person
