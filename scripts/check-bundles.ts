@@ -164,6 +164,11 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
       report("a relative './assets/' path in index.html", /(src|href)=["']\.\/assets\//.test(index.text) ? ['index.html'] : []);
       // Browser push (owner, 2026-10-08): the Settings switch registers /sw.js, so the build must carry it.
       rule('the push service worker', names.includes('sw.js') ? [] : ['dist has no sw.js'], 'sw.js is in the build');
+      // The map worker needs its own policy (owner decision A, 2026-10-28): config/headers.template matches /assets/map-worker/*.
+      // A build that moves the worker file leaves the Arabic place names unjoined again, so a build with the map holds one there.
+      const hasMap = texts.some((f) => f.text.includes(MAP_LIBRARY_MARKER));
+      const workers = names.filter((name) => /^assets\/map-worker\/[^/]+\.js$/.test(name));
+      rule('the map worker file', hasMap && workers.length === 0 ? ['the build holds the map library but no script file under assets/map-worker/'] : [], hasMap ? workers.join(', ') : 'no map library, so no worker file is needed');
       if (options.firstLoad) {
         checkFirstLoad();
         checkEarlyLinks(options.firstLoad);

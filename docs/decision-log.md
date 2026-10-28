@@ -4,6 +4,12 @@ The owner decisions and the history that the CLAUDE.md guides held until 2026-10
 keep each decision that still sets a rule, as a rule. This file is the record of when and why. Newest wins.
 Sections follow the guide that held the text. Line numbers and counts in this file are from that day and can be old.
 
+## 2026-10-28
+- Map worker (tsk_486, owner, option A): only the one map worker file gets its own policy that allows `'unsafe-eval'`. The policy of every
+  page stays as it was. Reason given: the worker runs the Arabic text plugin with eval(), and the page policy blocked it, so PostHog
+  recorded an unhandled error 11 times for 6 people. Note of the builder: MapLibre 6.11.2 shapes Arabic itself, so the map drew the
+  same pixels before and after (see `src/features/map/CLAUDE.md`). Removing the plugin is open for the owner.
+
 
 History and provenance taken out of the guides of the group ops-data. Grouped by guide, then by section. The text is in the
 original words, trimmed where it repeated itself. Dates are the dates of the owner or of the probe.

@@ -73,6 +73,23 @@ describe('posthogOptions', () => {
     expect(send(result('$pageview', { note: 'ResizeObserver loop' }))).not.toBeNull();
   });
 
+  it('drops the failure of the Arabic text plugin of the map in every browser, and keeps a real error (tsk_486, 2026-10-28)', () => {
+    const send = beforeSend();
+    const error = (value: string) => result('$exception', { $exception_list: [{ type: 'Error', value }] });
+    // Chrome, Safari and Firefox word the refusal of eval() each in their own way. The plugin is the only code of Madar that runs eval().
+    expect(send(error('Evaluating a string as JavaScript violates the following Content Security Policy directive because \'unsafe-eval\' is not an allowed source of script'))).toBeNull();
+    expect(send(error('Refused to evaluate a string as JavaScript because \'unsafe-eval\' or \'trusted-types-eval\' is not an allowed source of script'))).toBeNull();
+    expect(send(error('call to eval() blocked by CSP'))).toBeNull();
+    // A weak network: the worker cannot fetch the plugin file.
+    expect(send(error('Failed to load https://madar.vado.sa/assets/mapbox-gl-rtl-text-DosxTATq.js: 503'))).toBeNull();
+    expect(send(result('$exception', { $exception_message: 'Failed to load https://madar.vado.sa/assets/mapbox-gl-rtl-text-DosxTATq.js: 404' }))).toBeNull();
+    // Any other error stays visible, also a failed load of another file.
+    expect(send(error('Failed to load https://madar.vado.sa/assets/Home-abc.js: 503'))).not.toBeNull();
+    expect(send(error('Cannot read properties of undefined (reading \'map\')'))).not.toBeNull();
+    // An action that only mentions the text is no error record.
+    expect(send(result('$pageview', { note: 'call to eval() blocked by CSP' }))).not.toBeNull();
+  });
+
   it('adds no person to an error when no person is known', () => {
     const out = beforeSend(options(() => null))(result('$exception'));
     expect(out?.properties).not.toHaveProperty('personId');

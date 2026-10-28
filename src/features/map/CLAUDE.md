@@ -12,6 +12,15 @@ of coordinates. The Dashboard Map tab is `src/features/dashboard/DashboardMap.ts
   with the chunk request. A pointer down on the Dashboard Map tab calls `warmMap()`. The map never joins the idle prefetch.
 - The worker is a `?worker&url` import (it needs its own imports bundled). `releaseUrl` adds `VITE_MADAR_BUILD` to the worker address:
   a browser keeps an assets file for a year, and the worker obeys the policy header of its own file.
+- The worker file is written to `assets/map-worker/` (`worker.rolldownOptions` in `vite.config.ts`). `config/headers.template` gives that
+  one path its own policy with `'unsafe-eval'` (owner, 2026-10-28, tsk_486): MapLibre 6 loads the Arabic text plugin in the worker and
+  runs it with `eval()`. Chrome and Safari both take the policy of the worker file, not the one of the page (proved with Playwright
+  Chromium and WebKit on `wrangler pages dev`: plugin status `loaded`). Never move the file out of that folder.
+- MapLibre 6.11 shapes Arabic and orders two-way text itself. A map with the plugin blocked, loaded or absent draws the same pixels
+  (three shots of 2026-10-28 are byte for byte equal). The plugin only replaces the built-in code, and `setRTLTextPlugin` is marked
+  deprecated. If the owner agrees, remove the plugin, its file and `'wasm-unsafe-eval'`, and then the worker rule is not needed.
+- The failure of the plugin (a browser that refuses eval(), a network error) is an unhandled rejection that MapLibre raises inside its
+  own code. `src/app/insight/client.ts` (`PLUGIN_FAILURE`) keeps it out of PostHog. Another error of the map stays visible.
 - The Arabic text plugin is a file of this build. `MapCanvas.tsx` imports `@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url` by a
   path into `node_modules`. Its WebAssembly needs `'wasm-unsafe-eval'` in `script-src` (`config/headers.template`). Never load it from a CDN.
 - A test that runs the loader sets the flag and mocks the library: `vi.mock('maplibre-gl', () => import('<path>/test/fakeMapLib'))`. The
