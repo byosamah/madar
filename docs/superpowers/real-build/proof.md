@@ -2779,3 +2779,22 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` by Claude, on the owner's OK ("right after the gates pass"). The migration and
   `auth.email.otp_length` reached production. Live checks: health from supabase, fileStore r2, 157 calls; /mcp with no token 401;
   madar.vado.sa answers 200 with the title Madar, `/favicon.ico` 200, and its `words.en-cguOeVOL.js` holds the four new What's new titles.
+
+### Release record: production at 8169cbd9 (2026-10-28, the PostHog to-dos: no map plugin, the top bar, no name on failed calls)
+- What shipped (`rb/map-insight` and `rb/screen-fixes`, Sonnet builders, tests first). 24c7db77: Madar loads no Arabic text plugin of the map
+  (tsk_486). MapLibre 6 shapes Arabic by itself (the map drew the same pixels with the plugin loaded, blocked and absent); the plugin ran
+  with eval() in the worker, the policy blocked it, and PostHog got an unhandled error 11 times for 6 people. The worker rule with
+  `'unsafe-eval'` of ba3a1392 is reverted (cf033025) before the release: a security review found that a missing path under its folder
+  would get the app page with that policy (no 404 page on Pages). The page policy stays `script-src 'self' 'wasm-unsafe-eval'`.
+  e96a8120: `madar_call_failed` sends only the call name (tsk_489); `eventFields.test.ts` pins the fields of every PostHog event.
+  a733c305: the To-do list (/tasks) marks Tasks in the top bar, not Dashboard, in English and Arabic (tsk_488); What's new 130.
+  994d7fd2: the guide says how to read a web vitals CLS row; tsk_487 closed (no jump on a cold load of /work).
+- Gates on main 9ade9ea1 plus the batch (after the security release of madar-68): typecheck; build, build:server, build:remote; npm test
+  12,512 passed and 1 failed (`focusInert.test.tsx`, which fails the same way on main alone under a load average of about 11; a TASKS.md
+  item); test:lite 3,421; test:office 40; test:db 3,421 (after a db reset for migration 20261028000100); test:it 351; test:mcp 649
+  (conformance: only the 27 expected failures); smoke 135. The rebase on 3685e86d changed only guides.
+- `all.sh test` by Claude (record 8169cbd9): quick checks passed (157 calls); the page policy of the test copy has no 'unsafe-eval'.
+- `echo production | scripts/deploy/all.sh production` run by the owner with `!`. Live checks: health from supabase, fileStore r2, 157
+  calls; database, lock and asyncContext ok; /mcp with no token 401; the page policy has `script-src 'self' 'wasm-unsafe-eval'`;
+  `words.en-Db91DShz.js` holds the What's new title "The top bar shows where you are". To check in PostHog after a day: no new eval
+  error on a project page with a map, and no name on a `madar_call_failed` event.
