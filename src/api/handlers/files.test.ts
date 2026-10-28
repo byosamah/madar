@@ -49,8 +49,10 @@ describe('files', () => {
     t.as('usr_003');
     const sized = (bytes: number) => new (class extends Blob { override get size(): number { return bytes; } })(['x'], { type: 'application/pdf' });
     const MB = 1024 * 1024;
-    // The shadow run (test:lite) puts the files on a 50 MB store, so only the prototype takes the full 500 MB here. server/calls/files.test.ts pins R2.
-    if (!process.env.MADAR_LITE) await expect(t.api.call('files.upload', { projectId: 'prj_001', name: 'ok.pdf', blob: sized(500 * MB) })).resolves.toBeDefined();
+    // The local store of the shadow run (test:lite) and of the database run (test:db, MADAR_DB=1) refuses a file over 50 MB (reason
+    // file_too_large, limit 52428800), so only the prototype takes the full 500 MB here. The product limit stays. server/calls/files.test.ts pins R2.
+    const localStore = Boolean(process.env.MADAR_LITE) || process.env.MADAR_DB === '1';
+    if (!localStore) await expect(t.api.call('files.upload', { projectId: 'prj_001', name: 'ok.pdf', blob: sized(500 * MB) })).resolves.toBeDefined();
     await expect(t.api.call('files.upload', { projectId: 'prj_001', name: 'big.pdf', blob: sized(500 * MB + 1) })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['blob'] } });
     // A chat file over 250 MB fails the size check before the chat is read.
     await expect(t.api.call('files.upload', { conversationId: 'cnv_001', name: 'chat.pdf', blob: sized(250 * MB + 1) })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['blob'] } });
