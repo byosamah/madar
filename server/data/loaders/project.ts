@@ -41,6 +41,24 @@ export async function foldersDelete(L: Load, input: Input): Promise<void> {
   if (project) await L.select({ c: 'files', where: [{ col: 'project_id', in: [project.id] }] });
 }
 
+/**
+ * folders.setLock: the files of the project (what the folder holds) and the Tracker lines of the project, because a folder that holds a file named on
+ * the Tracker cannot be locked (fbk_074).
+ */
+export async function foldersLock(L: Load, input: Input): Promise<void> {
+  await foldersDelete(L, input);
+  const id = str(input.id) ?? '';
+  const project = Object.values(L.office.projects).find((item) => item.folders?.some((folder) => folder.id === id));
+  if (project) await L.select({ c: 'tracker', where: [{ col: 'project_id', in: [project.id] }] });
+}
+
+/** files.move: the file by id, and the Tracker lines of its project, because a file that a Tracker line names cannot go in a locked folder (fbk_074). */
+export async function filesMove(L: Load, input: Input): Promise<void> {
+  const file = await fileById(L, str(input.id) ?? '');
+  if (file?.projectId) await L.select({ c: 'tracker', where: [{ col: 'project_id', in: [file.projectId] }] });
+  await fileCall(L, input);
+}
+
 /** projects.create: a new project has nothing in the database yet. The office lists hold the codes, marks and people. */
 export async function projectsCreate(): Promise<void> {}
 

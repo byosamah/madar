@@ -64,8 +64,9 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
     is safe. The Contract preset needs `folder.locked`, and the switch is asked before any check of other folders.
   - A locked folder holds no file of a to-do, no cover, and no file that the Tracker names (`folder_locked_task_file`,
     `folder_locked_cover`, `folder_locked_tracker`); such a folder cannot be locked while it holds one (`folder_lock_task_file`,
-    `folder_lock_cover`). A locked folder with files is not deleted (`folder_locked_has_files`): the person moves the files out or
-    unlocks it. A file of a locked folder is not shared and not attached (`file_locked`).
+    `folder_lock_cover`, `folder_lock_tracker_file`: a Tracker line that names the file; `assertFitsLockedFolder` refuses the move of such a file).
+    A locked folder is not deleted (`folder_locked`): the holder unlocks it first, which is the deliberate act that shows its files, so the
+    History never shows the name of a file that came back to the root. A file of a locked folder is not shared and not attached (`file_locked`).
 - **Tracker type Government.** The stored value stays `balady`. The screens call it Government. The `TOOL_DOCS` of
   `tracker.log` and `tracker.list` say what it means.
 - `projects.pause` with a restart date: `pause.resumeOn` is a reminder. Madar never restarts a project. `projects.setRestart`

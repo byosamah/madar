@@ -137,7 +137,8 @@ pure handlers, an additive contract, a table for a new collection, a test count 
 - A locked folder hides its whole past: an event about a folder that is locked now stays hidden, also from the days when it was open.
 - Write paths: `requireFolder` and `checkPlace` read a locked folder as missing for a person without the switch; `addVersion` skips a
   locked file that the person cannot see, so an upload of the same name makes a new file and tells nothing; `updates.create` and
-  `assertFilesInProject` refuse a locked file. A new door that takes a file id, a folder id or a folder list must ask `folderLock.ts`.
+  `assertFilesInProject` refuse a locked file; `folders.delete` refuses a locked folder. The id lists of a post, a comment and a Tracker line
+  (`shownFileIds`) and their attachments leave out a locked file. A new door that takes a file id, a folder id or a folder list must ask `folderLock.ts`.
 - `ViewerCan.lockFolders` (the switch with the upload right) is the flag of the lock control. Leak tests: `handlers/lockedFolderLeaks.test.ts`,
   `server/calls/lockedFolderFiles.test.ts`, `server/data/lockedFolderSignals.test.ts`, `server/mcp/folderTools.test.ts`.
 

@@ -8,7 +8,7 @@ import { inboxCount, inboxList } from './inbox';
 import { meetingCall, meetingCancel, meetingChange, meetingExtend, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
-  fileCall, filesList, filesUpload, foldersDelete, paymentCall, paymentLinkCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
+  fileCall, filesList, filesMove, filesUpload, foldersDelete, foldersLock, paymentCall, paymentLinkCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
   trackerList, trackerLog, updatesList,
 } from './project';
 import { projectsDelete } from './projectDelete';
@@ -155,11 +155,11 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'files.markDelivered': project(fileCall),
   'files.share': chat(filesShare),
   // A move reads the file by id; the folders live in the project, which is in the office (fbk_066).
-  'files.move': project(fileCall),
+  'files.move': project(filesMove),
   'folders.create': office,
   'folders.rename': office,
   // A lock reads the files of the folder (a to-do file or the cover cannot be locked in), as the delete does (fbk_074).
-  'folders.setLock': project(foldersDelete),
+  'folders.setLock': project(foldersLock),
   'folders.delete': project(foldersDelete),
 
   'events.list': overview(eventsList),

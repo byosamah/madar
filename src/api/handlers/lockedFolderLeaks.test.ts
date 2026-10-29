@@ -250,3 +250,34 @@ describe('a locked folder and its file answer a person without the switch as mis
     expect(w.t.store.state.projects[w.ids.project].folders!.map((item) => item.id)).toEqual([folder.id]);
   });
 });
+
+describe('the lists of ids that a post, a comment and a Tracker line keep', () => {
+  it('leave out the id of a file in a locked folder for a person without the switch', async () => {
+    const w = await world();
+    const open = await as(w, ADMIN, () => w.t.api.call('folders.create', { projectId: w.ids.project, name: 'Reports' }));
+    const upload = await as(w, ADMIN, () => w.t.api.call('files.upload', { projectId: w.ids.project, name: 'report.pdf', blob: pdf('r'), folderId: open.id }));
+    const id = upload.file.id;
+    const post = await as(w, ADMIN, () => w.t.api.call('updates.create', { projectId: w.ids.project, body: 'The report.', fileIds: [id] }));
+    const task = await as(w, ADMIN, () => w.t.api.call('tasks.create', { projectId: w.ids.project, title: 'Read it', stageId: w.ids.stage }));
+    await as(w, ADMIN, () => w.t.api.call('comments.create', { targetType: 'task', targetId: task.task.id, body: 'See it.', fileIds: [id] }));
+    const entry = await as(w, ADMIN, () => w.t.api.call('tracker.log', { projectId: w.ids.project, type: 'file', direction: 'in', title: 'Report', fileIds: [id] }));
+    // The lock is refused while a Tracker line names the file; a line that names it later (an old line) is set by hand here.
+    w.t.store.state.tracker![entry.entry.id].fileIds = [];
+    await as(w, ADMIN, () => w.t.api.call('folders.setLock', { id: open.id, locked: true }));
+    w.t.store.state.tracker![entry.entry.id].fileIds = [id];
+    const reads: [string, unknown][] = [
+      ['updates.list', { projectId: w.ids.project }],
+      ['comments.list', { targetType: 'task', targetId: task.task.id }],
+      ['tracker.list', { projectId: w.ids.project }],
+    ];
+    for (const person of WITHOUT) {
+      for (const [name, input] of reads) {
+        const body = await text(w, person, () => w.t.api.call(name as 'updates.list', input as never));
+        expect(body, `${person} ${name}`).not.toContain(id);
+        expect(body, `${person} ${name}`).not.toContain('report.pdf');
+      }
+    }
+    for (const [name, input] of reads) expect(await text(w, ADMIN, () => w.t.api.call(name as 'updates.list', input as never)), name).toContain(id);
+    void post;
+  });
+});

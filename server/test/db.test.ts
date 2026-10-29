@@ -120,7 +120,9 @@ describe('the setup file of the db project', () => {
     expect(staticGraph('server/core/runCall.ts')).toContain('src/api/permissions.ts');
     const setup = staticGraph('server/test/db.ts');
     const factories = staticGraph('src/test/factories.ts');
-    expect([...setup].filter((file) => file.startsWith('src/api/') && !factories.has(file))).toEqual([]);
+    // folderLock.ts is a pure rule with no state and no call (locked folders, fbk_074): the change signals of save.ts read it, and no test mocks it.
+    const PURE = new Set(['src/api/folderLock.ts']);
+    expect([...setup].filter((file) => file.startsWith('src/api/') && !factories.has(file) && !PURE.has(file))).toEqual([]);
     expect(setup).not.toContain('server/core/runCall.ts');
     expect(setup).not.toContain('server/core/serverCallMap.ts');
   });

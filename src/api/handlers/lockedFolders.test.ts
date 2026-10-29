@@ -224,11 +224,23 @@ describe('the switch "Locked folders"', () => {
     await expect(w.t.api.call('comments.create', { targetType: 'task', targetId: task.task.id, body: 'see it', fileIds: [w.file] })).rejects.toMatchObject({ details: { reason: 'file_locked' } });
   });
 
-  it('does not delete a locked folder that still holds files, and does not let Undo do it', async () => {
+  it('does not delete a locked folder, empty or not: a holder unlocks it first, which is the deliberate act that shows its files', async () => {
     const w = await world();
     w.t.as(ADMIN);
-    await expect(w.t.api.call('folders.delete', { id: w.contract })).rejects.toMatchObject({ details: { reason: 'folder_locked_has_files' } });
+    await expect(w.t.api.call('folders.delete', { id: w.contract })).rejects.toMatchObject({ details: { reason: 'folder_locked' } });
     await w.t.api.call('files.move', { id: w.file, stageId: null, folderId: null });
+    await expect(w.t.api.call('folders.delete', { id: w.contract })).rejects.toMatchObject({ details: { reason: 'folder_locked' } });
+    await w.t.api.call('folders.setLock', { id: w.contract, locked: false });
     await expect(w.t.api.call('folders.delete', { id: w.contract })).resolves.toEqual({ deleted: true });
+  });
+
+  it('keeps a file that a Tracker line names out of a locked folder, and refuses to lock a folder that holds such a file', async () => {
+    const w = await world();
+    w.t.as(ADMIN);
+    const folder = await w.t.api.call('folders.create', { projectId: w.project, name: 'Pictures' });
+    const upload = await w.t.api.call('files.upload', { projectId: w.project, name: 'site.pdf', blob: pdf('s'), folderId: folder.id });
+    await w.t.api.call('tracker.log', { projectId: w.project, type: 'file', direction: 'in', title: 'Site file', fileIds: [upload.file.id] });
+    await expect(w.t.api.call('folders.setLock', { id: folder.id, locked: true })).rejects.toMatchObject({ details: { reason: 'folder_lock_tracker_file' } });
+    await expect(w.t.api.call('files.move', { id: upload.file.id, stageId: null, folderId: w.contract })).rejects.toMatchObject({ details: { reason: 'folder_locked_tracker' } });
   });
 });

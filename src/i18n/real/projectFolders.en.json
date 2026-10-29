@@ -25,8 +25,10 @@
       "folder_locked_tracker": "A file in a locked folder cannot go on the Tracker.",
       "folder_lock_task_file": "This folder holds a file of a to-do. Move the file out first.",
       "folder_lock_cover": "This folder holds the cover of the project. Change the cover first.",
-      "folder_locked_has_files": "This folder is locked and holds files. Move the files out, or unlock the folder.",
-      "file_locked": "A file in a locked folder stays in its folder."
+      "folder_locked_has_files": "This folder is locked and holds files. Unlock the folder first.",
+      "file_locked": "A file in a locked folder stays in its folder.",
+      "folder_locked": "A locked folder cannot be deleted. Unlock it first.",
+      "folder_lock_tracker_file": "A Tracker line names a file in this folder. Change the line first."
     }
   },
   "whatsNew": {

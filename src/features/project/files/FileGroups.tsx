@@ -76,7 +76,7 @@ function FolderMenu({ data, zipName, actions, onRename, onDeleted }: {
     { label: t('folders.rename'), onSelect: onRename, hidden: !actions.canUpload },
     { label: folder.locked === true ? t('folders.unlock') : t('folders.lock'), onSelect: () => actions.setLock(folder.id, folder.locked !== true), hidden: !actions.canLock },
     { label: zip.progress ? t('zip.preparing', zip.progress) : t('zip.all', { count: files.length }), onSelect: () => void zip.run(), hidden: files.length < 2 },
-    { label: t('folders.delete'), onSelect: () => { actions.deleteFolder(folder.id); onDeleted?.(); }, hidden: !actions.canUpload, destructive: true },
+    { label: t('folders.delete'), onSelect: () => { actions.deleteFolder(folder.id); onDeleted?.(); }, hidden: !actions.canUpload || folder.locked === true, destructive: true },
   ];
   return items.some((item) => !item.hidden) ? <Menu label={t('folders.actions', { name: label })} items={items} sheetOnPhone /> : null;
 }

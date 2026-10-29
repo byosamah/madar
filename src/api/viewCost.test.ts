@@ -185,7 +185,7 @@ describe('the output of the read views stays the same (pins)', () => {
 
   it('projects.list', () => {
     const answers = people.map((id) => runCall(office, id, 'projects.list', { status: 'all' }));
-    expect(digest(answers)).toBe('8a1334223eb1e065');
+    expect(digest(answers)).toBe('cf1a6a367e440281');
   });
 
   it('tasks.list, for the whole office, the mine filter and one project', () => {
@@ -205,6 +205,6 @@ describe('the output of the read views stays the same (pins)', () => {
 
   it('projects.get for every project', () => {
     const answers = people.map((id) => Object.keys(office.projects).map((projectId) => runCall(office, id, 'projects.get', { id: projectId })));
-    expect(digest(answers)).toBe('8c5d9ebc6d54f471');
+    expect(digest(answers)).toBe('23117f6ebf241926');
   });
 });

@@ -51,7 +51,8 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   select and "Received from the client" hide. The section waits for `files.list`. A file in such a folder counts for its folder, never for
   "No stage" (`projectFoldersOf`). A standard folder (`preset`) shows the word of the viewer's language (`folderLabel`).
 - A locked folder shows only to a holder of `folder.locked` (the API sends no other person the folder or its files). The holder sees the lock
-  mark (`HiddenMark` with the label "Locked folder") and "Lock" or "Unlock" in the menu of the folder (`viewerCan.lockFolders`). The row menu of a
+  mark (`HiddenMark` with the label "Locked folder") and "Lock" or "Unlock" in the menu of the folder (`viewerCan.lockFolders`). The menu of a locked folder
+  has no Delete (unlock it first). The row menu of a
   file in a locked folder hides Share, Mark delivered and Set as cover, because the API refuses them. The picker of a chat leaves such files out.
 - "Move to" is in the "..." menu of every file for `viewerCan.upload`, on a desk and a phone (`MoveFileSheet`, `files.move`). The list is the
   folders of the whole project first, then each stage with its folders, then "No stage".

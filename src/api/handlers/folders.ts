@@ -4,7 +4,7 @@ import { FOLDER_NAME_MAX, FOLDER_PRESET_NAMES, FolderId, FolderPreset, MAX_FOLDE
 import { invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
 import { folderHiddenFrom, foldersFor } from '../folderLock';
-import { nextId } from '../store';
+import { nextId, trackerOf } from '../store';
 import { assertCan, requireProject, requireStage, roleIn, seesProject } from './shared';
 
 /** The folder name as the folders compare it: trimmed, and with no difference of capital letters. */
@@ -51,6 +51,10 @@ export function assertFitsLockedFolder(ctx: Ctx, project: Project, file: Pick<Fi
   if (!folderId || project.folders?.find((item) => item.id === folderId)?.locked !== true) return;
   if (file.taskId) throw invalid('folderId', 'A file of a to-do cannot go in a locked folder.', 'folder_locked_task_file');
   if (project.coverFileId === file.id) throw invalid('folderId', 'The cover of the project cannot go in a locked folder.', 'folder_locked_cover');
+  // A Tracker line names its files, and the Tracker shows to the whole project (fbk_074).
+  if (file.id && Object.values(trackerOf(ctx.state)).some((entry) => entry.projectId === project.id && entry.fileIds.includes(file.id))) {
+    throw invalid('folderId', 'A file that a Tracker line names cannot go in a locked folder.', 'folder_locked_tracker');
+  }
 }
 
 /** Organizing is no news: the change leaves the "last update" of the project as it is (no touch). */
@@ -150,6 +154,10 @@ export const foldersSetLock = defineCall({
       const inside = Object.values(ctx.state.files).filter((file) => file.projectId === project.id && file.folderId === folder.id);
       if (inside.some((file) => file.taskId)) throw invalid('id', 'A folder that holds a file of a to-do cannot be locked.', 'folder_lock_task_file');
       if (inside.some((file) => file.id === project.coverFileId)) throw invalid('id', 'A folder that holds the cover of the project cannot be locked.', 'folder_lock_cover');
+      const named = new Set(inside.map((file) => file.id));
+      if (Object.values(trackerOf(ctx.state)).some((entry) => entry.projectId === project.id && entry.fileIds.some((id) => named.has(id)))) {
+        throw invalid('id', 'A folder that holds a file named on the Tracker cannot be locked.', 'folder_lock_tracker_file');
+      }
     }
     const { locked: _locked, ...rest } = folder;
     const next: ProjectFolder = input.locked ? { ...rest, locked: true } : rest;
@@ -165,9 +173,9 @@ export const foldersDelete = defineCall({
     const { project, folder } = requireFolder(ctx, input.id);
     assertMayOrganize(ctx, project);
     const inside = Object.values(ctx.state.files).filter((file) => file.projectId === project.id && file.folderId === folder.id);
-    // The files of a deleted folder go back to the root, where everyone sees them. So a locked folder with files is not deleted: the person
-    // moves the files out, or unlocks the folder, on purpose.
-    if (folder.locked === true && inside.length > 0) throw invalid('id', 'Move the files out of a locked folder first, or unlock it.', 'folder_locked_has_files');
+    // The files of a deleted folder go back to the root, where everyone sees them, and the History would then show their names. So a locked folder
+    // is not deleted at all: the holder unlocks it first, which is the deliberate act that shows its files.
+    if (folder.locked === true) throw invalid('id', 'Unlock a locked folder before you delete it.', 'folder_locked');
     // No file is deleted: each file goes back to the root of its place (its stage, or no stage). The file changes come first and the folder list
     // last, so one Undo of the story brings the folder back before it puts the files in it again.
     for (const file of inside) {

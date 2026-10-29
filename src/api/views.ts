@@ -226,7 +226,7 @@ function canEditContent(state: State, projectId: string, authorId: string, viewe
 export function updateItemOf(state: State, update: Update, viewer: User): FeedItem {
   return {
     kind: 'update', id: update.id, at: update.createdAt, author: cardOf(state, update.authorId), body: update.body,
-    fileIds: update.fileIds, attachments: attachmentsOf(state, update.fileIds, viewer), editedAt: update.editedAt, commentCount: countComments(state, 'update', update.id),
+    fileIds: shownFileIds(state, update.fileIds, viewer), attachments: attachmentsOf(state, update.fileIds, viewer), editedAt: update.editedAt, commentCount: countComments(state, 'update', update.id),
     canEdit: canEditContent(state, update.projectId, update.authorId, viewer),
     ...(update.decision ? { decision: true as const } : {}),
   };
@@ -506,9 +506,13 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
 }
 
 /** The files of a comment or a message. A deleted file keeps its place with no name and no type. */
+/** The file ids that a person may see: a file in a locked folder leaves the list of a person without the switch (fbk_074), as a file that the person may not view leaves a chat message. */
+export function shownFileIds(state: State, fileIds: string[] | undefined, viewer: User): string[] {
+  return (fileIds ?? []).filter((id) => { const file = state.files[id]; return !file || !fileHiddenByLock(state, viewer, file); });
+}
+
 export function attachmentsOf(state: State, fileIds: string[] | undefined, viewer?: User): Attachment[] {
-  // A file in a locked folder leaves the list of a person without the switch (fbk_074), as a file that the person may not view leaves a chat message.
-  const shown = viewer ? (fileIds ?? []).filter((id) => { const file = state.files[id]; return !file || !fileHiddenByLock(state, viewer, file); }) : fileIds;
+  const shown = viewer ? shownFileIds(state, fileIds, viewer) : fileIds;
   return (shown ?? []).map((id) => {
     const file = state.files[id];
     return file ? { id, name: file.name, mimeType: file.versions[file.versions.length - 1].mimeType } : { id, name: null };
@@ -528,7 +532,7 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
   const target = comment.targetType === 'task' ? state.tasks[comment.targetId] : state.updates[comment.targetId];
   const authorId = principalOf(state, comment.authorId);
   return {
-    comment,
+    comment: { ...comment, fileIds: shownFileIds(state, comment.fileIds, viewer) },
     author: cardOf(state, comment.authorId),
     canEdit: !target ? false : target.projectId === null
       ? can(viewer, 'post.editOwn', { ...officeResource(state, target.id, viewer.id), authorId })
@@ -641,7 +645,7 @@ export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): T
     canEditMinutes: meeting !== undefined && meeting.status === 'scheduled' && mayWriteMinutes(viewer, meetingResource(state, meeting, viewer.id)),
   } : {};
   return {
-    entry,
+    entry: { ...entry, fileIds: shownFileIds(state, entry.fileIds, viewer) },
     createdBy: cardOf(state, entry.createdBy),
     closedBy: entry.closedBy ? cardOf(state, entry.closedBy) : null,
     people: entry.peopleIds.map((id) => cardOf(state, id)),
