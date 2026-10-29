@@ -4,3 +4,10 @@
  */
 export const PROJECT_SORTS = ['updated', 'deadline', 'name'] as const;
 export const PROJECT_SORT_KEY = 'madar.projects.sort';
+
+/**
+ * The group that the Projects list shows first when it holds client and internal projects (fbk_075, owner 2026-10-29). The browser keeps
+ * the choice, like the sort.
+ */
+export const PROJECT_FIRSTS = ['projects', 'internal'] as const;
+export const PROJECT_FIRST_KEY = 'madar.projects.first';

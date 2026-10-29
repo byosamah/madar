@@ -403,6 +403,21 @@ describe("the What's new entries of the fixes of 2026-10-28", () => {
   });
 });
 
+// The Projects list shows two groups, Projects and Internal (fbk_075, owner 2026-10-29).
+describe("the What's new entry of the two groups of the Projects list", () => {
+  it('is under the usage entry, for everyone, and opens the Projects list', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-140')).toEqual({ id: '2026-10-23-140', day: '2026-10-29', to: '/projects' });
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-140')).toBeGreaterThan(0);
+  });
+
+  it('names the group and the Show first choice in English and Arabic', () => {
+    const word = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-140', part]));
+    expect(word(en, 'body')).toContain('Show first');
+    expect(word(ar, 'body')).toContain('«اعرض أولًا»');
+    expect(word(ar, 'body')).toContain('«الداخلية»');
+  });
+});
+
 // The Schedule of the Dashboard shows the leader on each project row (fbk_073, owner 2026-10-29).
 describe("the What's new entry of the leader on the Schedule", () => {
   it('is under the usage entry, for the holders of dashboard.view, and opens the Schedule', () => {

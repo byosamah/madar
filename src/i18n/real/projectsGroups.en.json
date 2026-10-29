@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "groups": {
+      "projects": "Projects",
+      "internal": "Internal"
+    },
+    "first": "Show first"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-140": {
+        "title": "Internal projects in their own group",
+        "body": "When you see internal projects, the Projects list shows them in their own group, Internal. To put that group on top, press Filter and choose Show first."
+      }
+    }
+  }
+}

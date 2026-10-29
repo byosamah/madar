@@ -9,6 +9,9 @@ The Projects screen, the New and Edit project sheets, the form fields, the templ
   sheet that reads data follows the same rule.
 - A project row prefetches `projects.get` on pointerdown, never on hover. Never put a router hook in a row body: a row part that needs one is
   its own small component, as `RowMenu` in `ProjectListRow.tsx`.
+- The list shows two groups, "Projects" and "Internal" (`ProjectsBody`), only while it holds both kinds; else it is one list with no
+  titles (fbk_075). "Show first" in the Filter sheet shows only while the list holds an internal project; the browser keeps it
+  (`PROJECT_FIRST_KEY`, `sort.ts`), like the sort. The search of the phone filters first, then the rows group.
 - The New project sheet starts with one choice, "Client project" or "Internal project" (`ProjectFormValues.kind`, Client at first). Internal
   hides the code group, client, location, area, sub-company and contract date (`ProjectFields`, flag `internal`). The sheet sends
   `kind: 'internal'` and none of the client fields. `validateProjectForm` skips the code and the sub-company. The edit sheet reads `kind` from
