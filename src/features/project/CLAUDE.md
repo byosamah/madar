@@ -124,5 +124,8 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
 - `usePostDraft` (`overview/postDraft.ts`) keeps the update draft in memory and in the draft store key `post:<project>`. `PhoneHeader` reads
   only `useHasPostDraft` (a boolean from the same store), so a key in the update box does not render the header. The Project chat
   link and the file-share "Open" action send `state.from = pathname + search` for Back.
+- The Files tab previews a picture, a PDF, a Word file (.docx) and an Excel file (.xlsx): the "Preview" item of the row menu (`canPreview(type, name)`
+  in `files/PreviewSheet.tsx`), and on a phone the press of the name. Word and Excel are drawn in the sheet, on a desk and on a phone
+  (`src/features/files/CLAUDE.md`, "Word and Excel preview"). PowerPoint, .doc and .xls have no Preview item.
 - The Tracker log form is a `Sheet` that stays mounted, so the type and the side stay for the next line. A PDF opens a sheet with a real
   `<a target="_blank">` made after the signed link loads (the Arabic word is «افتح الملف»: `src/i18n/arabic.test.ts` refuses Latin letters).

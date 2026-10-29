@@ -19,7 +19,7 @@ import { AttachmentList } from './PictureAttachments';
  */
 const file = (id: string, name: string | null, mimeType?: string): Attachment => ({ id, name, ...(mimeType ? { mimeType } : {}) });
 const PLAN = file('fil_004', 'Plan.pdf', 'application/pdf');
-const SHEET = file('fil_005', 'Quantities.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+const SLIDES = file('fil_005', 'Deck.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
 
 type Call = { name: string; input: Record<string, unknown> };
 
@@ -57,11 +57,23 @@ afterEach(() => {
 
 describe('a PDF in a message or a comment (tsk_485)', () => {
   it('shows a PDF as a chip that previews, asks for no link before the press, and leaves every other type as a download chip', async () => {
-    const { calls } = renderList([PLAN, SHEET]);
+    const { calls } = renderList([PLAN, SLIDES]);
     expect(await screen.findByRole('button', { name: 'Preview Plan.pdf' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Download Plan.pdf' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Download Quantities.xlsx' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Preview Quantities.xlsx' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Download Deck.pptx' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Preview Deck.pptx' })).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  it('shows a Word file and an Excel file as chips that preview too (tsk_495), and keeps PowerPoint, .doc and .xls as downloads', async () => {
+    const DOCX = file('fil_011', 'Brief.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    const XLSX = file('fil_012', 'Quantities.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    const NAME_ONLY = file('fil_013', 'Costs.xlsx', 'application/octet-stream');
+    const OLD_DOC = file('fil_014', 'Old.doc', 'application/msword');
+    const OLD_XLS = file('fil_015', 'Old.xls', 'application/vnd.ms-excel');
+    const { calls } = renderList([DOCX, XLSX, NAME_ONLY, OLD_DOC, OLD_XLS, SLIDES]);
+    for (const name of ['Brief.docx', 'Quantities.xlsx', 'Costs.xlsx']) expect(await screen.findByRole('button', { name: `Preview ${name}` })).toBeInTheDocument();
+    for (const name of ['Old.doc', 'Old.xls', 'Deck.pptx']) expect(screen.getByRole('button', { name: `Download ${name}` })).toBeInTheDocument();
     expect(calls).toEqual([]);
   });
 

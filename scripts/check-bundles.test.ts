@@ -230,7 +230,7 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   });
 
   it('fail when the first load holds a marker of code that must stay lazy (FL-11)', () => {
-    expect(LAZY_MARKERS.map((entry) => entry.marker)).toEqual(['[data-new-line]', 'data-vaul-drawer', 'StorageUnknownError', '$snapshot_data']);
+    expect(LAZY_MARKERS.map((entry) => entry.marker)).toEqual(['[data-new-line]', 'data-vaul-drawer', 'StorageUnknownError', '$snapshot_data', 'Could not find main document part', 'InvalidSpreadsheetError', 'DOMPurify']);
     for (const { label, marker } of LAZY_MARKERS) {
       const result = checkRemote((files) => { files['assets/bootstrap-b1.js'] += `const m="${marker}";`; });
       expect(result.ok, label).toBe(false);

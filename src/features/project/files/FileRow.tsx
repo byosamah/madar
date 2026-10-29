@@ -54,7 +54,7 @@ export function FileRow({ view, detail, onPreview, onShare, onMove }: {
   const size = fileSizeText(latest.size, t, lang);
   const download = useDownloadFile();
   const items: MenuItem[] = [
-    { label: t('files.preview'), onSelect: onPreview, hidden: !canPreview(latest.mimeType) },
+    { label: t('files.preview'), onSelect: onPreview, hidden: !canPreview(latest.mimeType, file.name) },
     { label: t('files.download'), onSelect: () => download(file.id) },
     { label: t('files.share'), onSelect: onShare, hidden: !mayShare || inLocked },
     { label: t('files.markDelivered'), onSelect: () => delivered.mutate({ id: file.id }), hidden: !detail.viewerCan.deliver || inLocked },
@@ -86,7 +86,7 @@ export function FileRow({ view, detail, onPreview, onShare, onMove }: {
           From sm up it is one line again (audit 2026-10-03, V-33). */}
       <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-2 sm:flex sm:gap-3">
         {/* On a phone the picture and the name are one press target that opens the preview (phone D). */}
-        {phone && canPreview(latest.mimeType) ? (
+        {phone && canPreview(latest.mimeType, file.name) ? (
           <button type="button" aria-label={t('picture.view', { name: file.name })} onClick={onPreview} className="pressable col-span-2 flex min-h-11 min-w-0 items-center gap-3 text-start">
             {identity}
           </button>

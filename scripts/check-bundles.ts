@@ -63,13 +63,18 @@ export const EMOJI_MARKER = 'grinning face';
  * Text that only code which must stay lazy holds (FL-11). Each marker is a string that the minifier keeps. The first load never holds it:
  * the log of chat messages (`[data-new-line]` of MessageLog), the drawer package of the sheets (`data-vaul-drawer`, in the overlay
  * chunk), the Supabase storage client (`StorageUnknownError`, which the stand-in of FL-5 keeps out of the build) and the PostHog
- * library (`$snapshot_data`, a name of its replay packets: it loads in its own chunk after the first screen, insight design).
+ * library (`$snapshot_data`, a name of its replay packets: it loads in its own chunk after the first screen, insight design). The three
+ * libraries of the Word and Excel preview (tsk_495) load only when a person opens such a file: mammoth ('Could not find main document
+ * part'), read-excel-file ('InvalidSpreadsheetError') and DOMPurify ('DOMPurify').
  */
 export const LAZY_MARKERS = [
   { label: "chat message log ('[data-new-line]')", marker: '[data-new-line]' },
   { label: "sheet drawer package ('data-vaul-drawer')", marker: 'data-vaul-drawer' },
   { label: "Supabase storage client ('StorageUnknownError')", marker: 'StorageUnknownError' },
   { label: "PostHog library ('$snapshot_data')", marker: '$snapshot_data' },
+  { label: "Word reader ('Could not find main document part')", marker: 'Could not find main document part' },
+  { label: "Excel reader ('InvalidSpreadsheetError')", marker: 'InvalidSpreadsheetError' },
+  { label: "HTML cleaner ('DOMPurify')", marker: 'DOMPurify' },
 ] as const;
 /** Text that only the PostHog library and its client file hold (insight design, section 6). The prototype build never holds either. */
 export const POSTHOG_MARKERS = ['$snapshot_data', 'eu.i.posthog.com'] as const;

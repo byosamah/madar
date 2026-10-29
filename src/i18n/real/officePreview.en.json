@@ -1,0 +1,23 @@
+{
+  "officePreview": {
+    "note": "This view is close to the file, not exact. Download the file to see the exact layout.",
+    "loading": "The file opens in a moment.",
+    "tooBig": "This file is too big to show here. Download it to open it.",
+    "tooMany": "This file has too many cells to show here. Download it to open it.",
+    "failed": "Madar cannot show this file. Download it to open it.",
+    "emptyDoc": "This file has no text to show.",
+    "emptySheet": "This sheet is empty.",
+    "sheets": "Sheets",
+    "cut": "Madar shows the first {{rows}} rows and {{columns}} columns of this sheet. Download the file to see the rest.",
+    "moreSheets": "Madar shows the first {{count}} sheets. Download the file to see the rest.",
+    "docFrame": "Page of {{name}}"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-141": {
+        "title": "Open Word and Excel files without a download",
+        "body": "Press a Word (.docx) or Excel (.xlsx) file in Files & Links, a chat or a comment. It opens as a page or a table. You do not need to download it first. The view is close to the file, not exact."
+      }
+    }
+  }
+}

@@ -32,11 +32,35 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
   (`features/project/files/PreviewSheet.tsx`), the preview of the Files tab: a frame on a desk, and on a phone a sheet with one real link
   (Safari for iPhone blocks a window that opens after a wait; do not change this). The chip list takes the `preview` prop
   (`FileChip`, `FileChips`). Posts and the Tracker pass none, so their PDF chips still download.
-- The file saves only from the "Download" button inside the preview (`PdfFoot` in `PreviewSheet.tsx`, desk and phone). The preview asks
+- The file saves only from the "Download" button inside the preview (`DownloadFoot` in `PreviewSheet.tsx`, desk and phone). The preview asks
   `files.link` as the person, as the download does. A refused link shows no frame and no link.
 - `PreviewSheet` takes `PreviewView` (id, name, type, optional letter), so a message gives no version letter and the newest version
   opens. The preview loads in its own chunk (`lazyOverlay`, warmed at the first touch of the chip).
 - Tests: `PdfPreview.test.tsx`. Words: `attachments.preview` in `src/i18n/real/chat-insert.*`.
+
+## Word and Excel preview (tsk_495)
+- A Word file (.docx) and an Excel file (.xlsx) open in the same preview, in the same places: the Files tab (desk and phone), the file
+  chips of chats and of comments, and the to-do files. PowerPoint, .doc and .xls stay a download, and so do posts and the Tracker. Madar draws
+  the file itself in the browser. No outside viewer, no upload of the file: never add one (owner, 2026-10-29).
+- `office/officeKind.ts` decides (`officeKindOf`): the type first, the file name only when the type says nothing (octet-stream, zip, empty).
+  It is small and sits in the first load (the chip and `canPreview` import it). It also holds the limits (`OFFICE_MAX_BYTES` 15 MB,
+  `SHEET_LIMITS`). The drawing code loads in chunks of its own: `PreviewSheet` loads `OfficeBody` (`lazyOverlay`), and `OfficeBody` loads
+  `docxHtml` (mammoth + DOMPurify, 330 kB) or `xlsxSheets` (read-excel-file, 53 kB) only for the kind that opens. `scripts/check-bundles.ts`
+  keeps the three libraries out of the first load (`LAZY_MARKERS`). Keep `SHEET_LIMITS` out of `xlsxSheets.ts`: a screen file that imports
+  a value from it pulls the library into its own chunk.
+- The bytes: the real build asks `files.link` as the person (the rights, and the locked folder rule, are the same as a download) and reads the
+  signed link with `fetch` and `credentials: 'omit'`. This needs `GET` in `config/r2-cors.*.json` and the store in `connect-src` of the
+  CSP, as "Download all" does. The prototype reads `files.get`. A signed link is never opened in a window. A file above 15 MB is not read:
+  the size of the version decides first, else the Content-Length of the store. `zipGuard.ts` reads the ZIP directory first and refuses a
+  file that declares more than 80 MB for one part, 150 MB in all or 4,000 parts (a small file can unpack to a huge one).
+- Word: mammoth makes HTML (no outside file, pictures only as `data:` of png, jpeg, gif, webp or bmp), `sanitize.ts` cleans it with an
+  allowlist (no style, class, id, event handler or link: a link keeps its text only), and `OfficeDoc.tsx` draws it in a frame with
+  `sandbox=""` and its own CSP (`default-src 'none'; img-src data:`). Each block gets `dir="auto"`, so an Arabic and an English paragraph each
+  read right. Excel: `xlsxSheets.ts` returns plain data, and every cell is React text (`OfficeSheets.tsx`), never HTML. The cut is 1,000
+  rows, 50 columns, 30 sheets and 400,000 cells. One quiet line says that the layout is close, not exact.
+- Never add a second way to read a file: the preview must ask the same call as the download. A change to the allowlist or to the frame
+  needs a hostile test in `sanitize.test.ts` or `docxHtml.test.ts` first (`officeFixtures.ts` builds a hostile Word file).
+- Tests: `office/*.test.ts(x)`, `PdfPreview.test.tsx` (the chips). Words: `officePreview.*` in `src/i18n/real/officePreview.*`.
 
 ## Download all
 - `AttachmentList` ends with one quiet text button "Download all (N)" (`DownloadAll.tsx`, never a main button) when two or more files can be

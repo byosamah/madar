@@ -164,7 +164,7 @@ export const TaskFiles = memo(function TaskFiles({ views, layout = 'plain' }: { 
   const download = useDownloadFile();
   const [preview, setPreview] = useState<FileView | null>(null);
   const open = (view: FileView) => {
-    if (canPreview(view.latest.mimeType)) setPreview(view);
+    if (canPreview(view.latest.mimeType, view.file.name)) setPreview(view);
     else download(view.file.id);
   };
   const sheet = preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />;

@@ -19,6 +19,7 @@ import { setNow } from '../../../lib/dates';
 import { NOW, TODAY } from '../../../test/factories';
 import { renderApp } from '../../../test/render';
 import { ApiError } from '../../../api/errors';
+import { sampleDocx, sampleXlsx } from '../../files/office/officeFixtures';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -52,6 +53,33 @@ describe('the Files tab', () => {
     await userEvent.upload(input, new File(['notes 2'], 'Site notes.txt', { type: 'text/plain' }));
     await waitFor(() => expect(Object.values(store.state.files).find((f) => f.name === 'Site notes.txt')?.versions.map((v) => v.letter)).toEqual(['A', 'B']));
   });
+
+  it('previews an uploaded Word file and Excel file from the row menu, and gives no Preview item to a PowerPoint file (tsk_495)', async () => {
+    await renderApp(FILES);
+    const input = await screen.findByLabelText('Upload files');
+    const type = (kind: 'word' | 'sheet') => (kind === 'word' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    await userEvent.upload(input, [
+      new File([await sampleDocx()], 'Site report.docx', { type: type('word') }),
+      new File([await sampleXlsx([{ name: 'Quantities', rows: [['Item', 'Count'], ['Columns', 12]] }])], 'Quantities.xlsx', { type: type('sheet') }),
+      new File(['x'], 'Deck.pptx', { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }),
+    ]);
+    expect(await screen.findByText('Files uploaded: 3.')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Site report.docx' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Preview' }));
+    const page = await screen.findByRole('dialog', { name: 'Site report.docx' });
+    await waitFor(() => expect(page.querySelector('iframe')?.getAttribute('srcdoc')).toContain('Site report'));
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Site report.docx' })).toBeNull());
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Quantities.xlsx' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Preview' }));
+    const table = await screen.findByRole('dialog', { name: 'Quantities.xlsx' });
+    expect(await within(table).findByRole('cell', { name: 'Columns' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Quantities.xlsx' })).toBeNull());
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Deck.pptx' }));
+    expect(await screen.findByRole('menuitem', { name: 'Download' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Preview' })).toBeNull();
+  }, 60_000);
 
   it('refuses a file over 500 MB before any upload', async () => {
     const { store } = await renderApp(FILES, as('usr_005'));

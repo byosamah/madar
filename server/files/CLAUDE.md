@@ -24,8 +24,10 @@ needs MinIO (`server/it/minio.ts`; CI starts it in `ci-stack.yml`).
   scripts of the switch: `scripts/deploy/CLAUDE.md`, "Switch the files to R2".
 - The CSP of the screens follows the same setting (`scripts/deploy/headers.ts`). The R2 CORS rules are
   `config/r2-cors.<env>.json`: the browser upload (PUT with Content-Type) needs them, and so does "Download all". That button
-  reads each file with a `fetch` GET of a signed link from the page, and the browser makes the ZIP file (`src/CLAUDE.md`). Keep
-  `PUT` and `GET` in `AllowedMethods`: without `GET`, "Download all" fails on the real store.
+  reads each file with a `fetch` GET of a signed link from the page, and the browser makes the ZIP file (`src/CLAUDE.md`). The preview of a
+  Word or Excel file reads its bytes the same way (`src/features/files/CLAUDE.md`). Keep `PUT` and `GET` in `AllowedMethods`: without `GET`,
+  "Download all" and the Word and Excel preview fail on the real store. The link of such a file is a download (`downloadOnly`), and `fetch`
+  reads it all the same.
 - The 10 GB R2 free tier is one for both buckets. No meter counts the storage.
 - The file backup is paused (`.github/CLAUDE.md`).
 

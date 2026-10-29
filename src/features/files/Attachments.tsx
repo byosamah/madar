@@ -10,6 +10,7 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { XIcon } from '../../components/icons/animated/x';
 import { IconButton } from '../../components/IconButton';
 import { AttachFileIcon } from '../../components/icons/animated/attach-file';
+import { officeKindOf } from './office/officeKind';
 
 /**
  * Where the new files go. A task comment also links the file to its task. An office task has no project (projectId null). A direct chat
@@ -244,13 +245,14 @@ export function UploadList({ files, progress }: { files: File[]; progress: Reado
   );
 }
 
-/** What a PDF chip does on a press (tsk_485): open the preview, and load its code early at the first touch. */
+/** What a chip of a PDF, a Word file or an Excel file does on a press (tsk_485, tsk_495): open the preview, and load its code early at the first touch. */
 export type ChipPreview = { open: (file: Attachment & { name: string }) => void; warm: () => void };
 const PDF = 'application/pdf';
 
 /**
- * One file as a chip. A press saves the file. A deleted file shows as removed. With `preview`, a PDF is a chip that previews: a press
- * opens the preview, and the file saves only from the Download button inside it (tsk_485). Any other type keeps the download.
+ * One file as a chip. A press saves the file. A deleted file shows as removed. With `preview`, a PDF, a Word file (.docx) or an Excel file
+ * (.xlsx) is a chip that previews: a press opens the preview, and the file saves only from the Download button inside it (tsk_485,
+ * tsk_495). Any other type keeps the download, PowerPoint, .doc and .xls too.
  */
 export function FileChip({ file, preview }: { file: Attachment; preview?: ChipPreview }) {
   const { t } = useTranslation();
@@ -266,7 +268,7 @@ export function FileChip({ file, preview }: { file: Attachment; preview?: ChipPr
     );
   }
   const name = file.name;
-  const previews = preview !== undefined && file.mimeType === PDF;
+  const previews = preview !== undefined && (file.mimeType === PDF || officeKindOf(file.mimeType, name) !== null);
   return (
     <button
       type="button"

@@ -13,7 +13,7 @@ import { FileChips, type ChipPreview } from './Attachments';
 import { DownloadAllButton } from './DownloadAll';
 import { ZipTitleContext } from './zipTitle';
 
-/** The preview of a PDF loads in its own chunk at the first touch, so a chat that holds no PDF never pays for it (tsk_485). */
+/** The preview of a PDF, a Word file or an Excel file loads in its own chunk at the first touch, so a chat that holds none never pays for it (tsk_485, tsk_495). */
 const pdfPreview = lazyOverlay(() => import('../project/files/PreviewSheet').then((m) => m.PreviewSheet));
 
 /**
@@ -171,7 +171,7 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
       <DownloadAllButton items={downloadable} zipName={() => `${title ?? t('zip.defaultName')} ${todayISO()}`} />
       {pdf && (
         <pdfPreview.Overlay
-          views={[{ file: { id: pdf.id, name: pdf.name }, latest: { mimeType: pdf.mimeType ?? 'application/pdf' } }]}
+          views={[{ file: { id: pdf.id, name: pdf.name }, latest: { mimeType: pdf.mimeType ?? '' } }]}
           index={0}
           onIndex={() => undefined}
           onClose={() => setPdf(null)}

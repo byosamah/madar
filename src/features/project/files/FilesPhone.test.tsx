@@ -1,9 +1,10 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { State } from '../../../api/store';
 import { phoneMedia } from '../../../test/phoneMedia';
 import { renderApp } from '../../../test/render';
+import { sampleDocx } from '../../files/office/officeFixtures';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -44,6 +45,17 @@ describe('the Files & Links tab on a phone (phone D, P9)', () => {
     expect(link).toHaveAttribute('target', '_blank');
     expect(link.getAttribute('rel')).toContain('noopener');
   });
+
+  it('opens a Word file from the name, and draws it inside the sheet, with no link out (tsk_495)', async () => {
+    phoneMedia(true);
+    await renderApp(FILES, as('usr_002'));
+    await userEvent.upload(await screen.findByLabelText('Upload files'), new File([await sampleDocx()], 'Site report.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'View Site report.docx' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Site report.docx' });
+    await waitFor(() => expect(sheet.querySelector('iframe')?.getAttribute('srcdoc')).toContain('Site report'));
+    expect(within(sheet).queryByRole('link')).toBeNull();
+    expect(within(sheet).getByRole('button', { name: 'Download' })).toBeInTheDocument();
+  }, 60_000);
 
   it('keeps Preview in the row menu, as a sheet of rows', async () => {
     phoneMedia(true);
