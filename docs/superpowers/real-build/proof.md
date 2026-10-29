@@ -2831,3 +2831,26 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` by Claude after the owner chose "Production now" (2026-10-29). Live checks: health
   from supabase, fileStore r2, 157 calls; database, lock and asyncContext ok; /mcp with no token 401; madar.vado.sa answers 200, and its
   `words.en-DKp1Cz6I.js` holds the What's new title "See who leads each project on the Schedule".
+
+### Release record: production at d2f2fc5e (2026-10-29, fbk_074: project folders, the default folders, locked folders)
+- What shipped (`rb/project-folders`, one Sonnet builder, tests first; joined by the lead as `rb/folders-join` on main 190b134c, one What's
+  new conflict). 67fe51ff: `ProjectFolder.stageId` may be null (a folder of the whole project), `preset` (`client_documents`, `contract`),
+  `locked`; the switch `folder.locked` (Admin only by default) and the call `folders.setLock`; `projects.create` gives each client project
+  the two folders, Contract locked. 91c54632: the Files tab (Project folders first, a folder opens in place). bd44e3ed: a 44 px press area
+  for the back step, the Move list stays in the window. 90b58b5e: the four fixes of the automatic security review (no delete of a locked
+  folder; no Tracker file in a locked folder, and no lock while a Tracker line names a file inside; the id lists of posts, comments and
+  Tracker lines drop locked files). 98a034f9: change signals of a lock reach everyone, a change inside a locked folder only the holders.
+  1ebf3ebd and d2f2fc5e: What's new 138 (everyone) and 139 (holders of `folder.locked`). The Admin tools/list stays under 110,000 bytes
+  (detail moved from TOOL_DOCS into INSTRUCTIONS).
+- Gates. Builder: typecheck; each new leak test failed before its fix; npm test once (7 failures, each fixed or a load flake); test:lite
+  3,463; test:office 40; builds; test:db 3,463 (187 files); test:mcp 652. Lead after the join: typecheck; the fast gate with the touched
+  screen folders (559 files, 7,705 tests); build, build:server, build:remote. Not run: `test:it`, the smoke and the deploy suite.
+- `all.sh test` by Claude (record d2f2fc5e): quick checks passed (158 calls). On the test copy (Chrome, sample admin) the lead made a
+  project folder, locked it, moved a file in, saw no Delete in the menu of the locked folder, unlocked it, opened it in place, moved the
+  file back and deleted the folder: each call answered on the real database.
+- `echo production | scripts/deploy/all.sh production` by Claude after the owner said "deploy to production too" (2026-10-29). Live checks:
+  health from supabase, fileStore r2, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; `words.en-CoFGDaO2.js` holds
+  "Folders for the whole project".
+- Backfill through the MCP as the owner's agent: `folders.create` with a preset on the 11 client projects (prj_001 to prj_010, prj_012;
+  the completed prj_001 too), 22 folders fld_003 to fld_024, every Contract folder locked; the internal projects got none. The MCP client
+  of the session still had the old tool list; the server took the new fields.
