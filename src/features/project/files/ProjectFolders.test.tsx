@@ -113,6 +113,8 @@ describe('a folder of the project that is open in place', () => {
     expect(screen.queryByRole('region', { name: 'Project folders' })).toBeNull();
     expect(screen.queryByLabelText('Upload to stage')).toBeNull();
     expect(window.location.hash).toContain('folder=fld_011');
+    // The back step has a press area of 44 px (the owner rule for a new control), also on a phone.
+    expect(within(open).getByRole('button', { name: 'Back to all files' })).toHaveClass('min-h-11');
     await userEvent.click(within(open).getByRole('button', { name: 'Back to all files' }));
     expect(await screen.findByRole('region', { name: 'Project folders' })).toBeInTheDocument();
     expect(window.location.hash).not.toContain('folder=');

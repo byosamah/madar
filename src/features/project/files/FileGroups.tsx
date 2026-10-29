@@ -207,7 +207,7 @@ export function OpenFolder({ data, detail, actions, onBack }: { data: FolderData
   const place: Place = { stageId: null, folderId: folder.id };
   return (
     <Zone place={place} as="section" aria-labelledby={id} className="surface rounded-card p-2" {...actions.zoneOf(place)}>
-      <button type="button" aria-label={t('folders.backLabel')} onClick={onBack} className={`${QUIET} ms-1 gap-1`}>
+      <button type="button" aria-label={t('folders.backLabel')} onClick={onBack} className="pressable relative ms-1 inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-footnote font-medium text-link">
         <AnimatedIcon icon={ChevronLeftIcon} size={14} className="rtl:-scale-x-100" aria-hidden />
         {t('folders.back')}
       </button>

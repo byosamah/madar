@@ -151,6 +151,24 @@ describe('a folder for the whole project', () => {
   });
 });
 
+describe('a file of the same name', () => {
+  it('stays in its place: an upload into a locked folder never adds a version to an open file, and the other way round', async () => {
+    const w = await world();
+    w.t.as(ADMIN);
+    const open = await w.t.api.call('files.upload', { projectId: w.project, name: 'plan.pdf', blob: pdf('1') });
+    const locked = await w.t.api.call('files.upload', { projectId: w.project, name: 'plan.pdf', blob: pdf('2'), folderId: w.contract });
+    expect(locked.file.id).not.toBe(open.file.id);
+    expect(locked.file).toMatchObject({ folderId: w.contract });
+    expect(w.t.store.state.files[open.file.id].versions).toHaveLength(1);
+    // The same name outside the folder is a new file again, and a second upload into the folder adds a version to the locked one.
+    const outside = await w.t.api.call('files.upload', { projectId: w.project, name: 'plan.pdf', blob: pdf('3') });
+    expect(outside.file.id).toBe(open.file.id);
+    const again = await w.t.api.call('files.upload', { projectId: w.project, name: 'plan.pdf', blob: pdf('4'), folderId: w.contract });
+    expect(again.file.id).toBe(locked.file.id);
+    expect(again.file.versions).toHaveLength(2);
+  });
+});
+
 describe('the switch "Locked folders"', () => {
   it('lets the Admin and a holder lock and unlock any folder, and nobody else', async () => {
     const w = await world();

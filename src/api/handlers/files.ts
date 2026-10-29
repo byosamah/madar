@@ -101,8 +101,12 @@ const UploadFields = z.object({
 /** A new file or a new version: the same name on the same place (a project, or one office task) adds the next letter. */
 function addVersion(ctx: Ctx, place: { projectId: string | null; stageId: string | null; taskId: string | null; folderId?: string | null }, name: string, version: Version): FileRec {
   // A file in a locked folder that the person may not see is not a match: the upload makes a new file, and so tells nothing about the locked one (fbk_074).
+  // A locked folder keeps its own files: a file of the same name in another place is no match for an upload into the folder, and a locked file is no
+  // match for an upload outside it (fbk_074).
+  const lockedPlace = fileInLockedFolder(ctx.state, { projectId: place.projectId, folderId: place.folderId });
   const same = Object.values(ctx.state.files).find((f) => f.projectId === place.projectId
-    && (place.projectId !== null || f.taskId === place.taskId) && f.name.toLowerCase() === name.toLowerCase() && !fileHiddenByLock(ctx.state, ctx.authority, f));
+    && (place.projectId !== null || f.taskId === place.taskId) && f.name.toLowerCase() === name.toLowerCase() && !fileHiddenByLock(ctx.state, ctx.authority, f)
+    && ((!lockedPlace && !fileInLockedFolder(ctx.state, f)) || (f.folderId ?? null) === (place.folderId ?? null)));
   if (same) {
     version.letter = nextLetter(same.versions[same.versions.length - 1].letter);
     const before = { versions: structuredClone(same.versions) };

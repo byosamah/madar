@@ -52,11 +52,11 @@ export function MoveFileSheet({ view, detail, anchor, onPick, onClose }: {
     );
   };
   return (
-    <SheetOrPopover open onOpenChange={(open) => { if (!open) onClose(); }} anchor={anchor} title={t('folders.moveTitle', { name: view.file.name })}>
-      <div className="flex flex-col gap-2">
+    <SheetOrPopover open onOpenChange={(open) => { if (!open) onClose(); }} anchor={anchor} title={t('folders.moveTitle', { name: view.file.name })} fit>
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
         {/* The sheet of a phone draws the title itself. */}
-        {!phone && <p dir="auto" className="truncate text-headline text-ink">{t('folders.moveTitle', { name: view.file.name })}</p>}
-        <ul className="-mx-1 flex max-h-[60vh] flex-col overflow-y-auto">
+        {!phone && <p dir="auto" className="shrink-0 truncate text-headline text-ink">{t('folders.moveTitle', { name: view.file.name })}</p>}
+        <ul className="-mx-1 flex max-h-[60vh] min-h-0 flex-1 flex-col overflow-y-auto">
           {projectFolders.length > 0 && (
             <>
               <li key="project" className="px-2 pt-1 text-subheadline font-semibold text-ink">{t('folders.projectTitle')}</li>
