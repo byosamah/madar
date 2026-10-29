@@ -76,7 +76,7 @@ describe("What's new entries", () => {
   });
 
   it('name a real right and a real address when they have them (chats-14)', () => {
-    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink', 'ai.readChats', 'people.turnOff', 'feedback.manage', 'ai.connect'];
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink', 'ai.readChats', 'people.turnOff', 'feedback.manage', 'ai.connect', 'folder.locked'];
     for (const entry of WHATS_NEW) {
       if (entry.right) expect(rights, entry.id).toContain(entry.right);
       if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
@@ -573,5 +573,17 @@ describe("the What's new entry of the short Arabic Inbox chip (tsk_448)", () => 
     expect(word(ar, 'body')).toContain(`«${String(wordAt(ar, ['chatFilter', 'todos']))}»`);
     expect(word(ar, 'body')).toContain(`«${String(wordAt(ar, ['chatFilter', 'people']))}»`);
     for (const text of [word(en, 'title'), word(en, 'body'), word(ar, 'title'), word(ar, 'body')]) expect(text).not.toMatch(/[–—]|undefined/);
+  });
+});
+
+// Folders for the whole project, and locked folders (fbk_074, owner 2026-10-29). Only the holders of the switch read the second entry.
+describe("the What's new entries of the folders of 2026-10-29", () => {
+  const words = (tree: Parameters<typeof wordAt>[0], id: string) => ['title', 'body'].map((part) => String(wordAt(tree, ['whatsNew', 'items', id, part])));
+  it('names the folders of the project for everyone, and the locked folders for the holders of the switch', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-138')).toEqual({ id: '2026-10-23-138', day: '2026-10-29' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-139')).toEqual({ id: '2026-10-23-139', day: '2026-10-29', right: 'folder.locked' });
+    expect(words(en, '2026-10-23-138')[1]).toContain('Client documents');
+    expect(words(en, '2026-10-23-139')[1]).toContain('Contract');
+    expect(words(ar, '2026-10-23-139')[1]).toContain('العقد');
   });
 });

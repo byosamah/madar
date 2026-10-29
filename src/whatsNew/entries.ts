@@ -15,6 +15,10 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // Folders for the whole project and the Client documents folder (fbk_074, tsk_491, tsk_492). The lead sets the real release day before the test deploy.
+  { id: '2026-10-23-138', day: '2026-10-29' },
+  // Locked folders and the locked Contract folder (fbk_074, tsk_492, tsk_493): only the holders of the switch read the entry. The lead sets the real release day before the test deploy.
+  { id: '2026-10-23-139', day: '2026-10-29', right: 'folder.locked' },
   // The Schedule of the Dashboard shows the leader on each project row (fbk_073). The lead sets the real release day before the test deploy.
   { id: '2026-10-23-137', day: '2026-10-29', right: 'dashboard.view', to: '/dashboard?view=schedule' },
   // The "Needs first" list shows to the maker with task.details, also without task.assign (tsk_418). The lead sets the real release day before the test deploy.
