@@ -76,7 +76,8 @@ needs MinIO (`server/it/minio.ts`; CI starts it in `ci-stack.yml`).
 - A project file may sit in a folder (`FileRec.folderId`; the folders live in the project, `src/api/handlers/CLAUDE.md`). `files.upload`
   takes `folderId` next to the signed upload: the intent and the object keys know nothing of folders. `files.uploadStart` needs
   no folder, and the upload adapter sends `folderId` only on `files.upload`. A move changes the record only, never the stored
-  object.
+  object. A file in a locked folder reads as a missing file for a person without the switch "Locked folders": `files.link` checks it
+  right before it signs (`fileHiddenByLock`, `server/calls/files.ts`; `src/api/CLAUDE.md`, "Locked folders"). Test: `server/calls/lockedFolderFiles.test.ts`.
 - Inline only for pictures, PDF, plain text, video and audio (`INLINE_SAFE`). Every other type is stored as
   `application/octet-stream`.
 - Check `project.view`, and that the person is active, right before you sign any link (`rights.ts`). The start of an upload asks

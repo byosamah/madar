@@ -371,7 +371,7 @@ const trackerExport = defineCall({
         date: event.createdAt.slice(0, 10), time: event.createdAt.slice(11, 19), event: kind, waiting: shown.waiting,
         ...namesUnder('by', ctx.state.users[event.actingForId]), byAgent: event.actorKind === 'agent',
         type: shown.type, direction: shown.direction, title: shown.title, note: shown.note,
-        files: attachmentsOf(ctx.state, shown.fileIds).flatMap((file) => (file.name ? [file.name] : [])), auto: shown.auto,
+        files: attachmentsOf(ctx.state, shown.fileIds, ctx.authority).flatMap((file) => (file.name ? [file.name] : [])), auto: shown.auto,
       } });
     }
     // Newest first by the moment of the event. An entry saved before the export has its events written later, so the order of writing is not the order of time.

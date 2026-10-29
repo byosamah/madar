@@ -12,6 +12,7 @@ import { reviewersOfTask } from '../notify';
 import { can, mayViewTask } from '../permissions';
 import { isInternal } from '../internalProject';
 import { assertCan } from './shared';
+import { fileHiddenByLock } from '../folderLock';
 import { projectViewer } from '../projectView';
 import { sentToReviewOn } from '../review';
 import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
@@ -387,7 +388,7 @@ export const searchQuery = defineCall({
       // A file of a direct chat or a group is found by no search, even by its members: it shows only in its messages (owner, 2026-10-19).
       // The same for a file of a meeting: it shows only in the minutes of its meeting (wave 2).
       files: Object.values(state.files)
-        .filter((f) => f.conversationId === undefined && f.meetingId === undefined && (f.projectId !== null ? sees({ id: f.projectId }) : mayViewFile(state, ctx.authority, f)) && hit(f.name))
+        .filter((f) => f.conversationId === undefined && f.meetingId === undefined && (f.projectId !== null ? sees({ id: f.projectId }) && !fileHiddenByLock(state, ctx.authority, f) : mayViewFile(state, ctx.authority, f)) && hit(f.name))
         .slice(0, 5)
         .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId), taskId: f.taskId })),
       // An agent reads chat messages only when its person holds the switch for chats (ai.readChats). A person at the screen reads their own chats.

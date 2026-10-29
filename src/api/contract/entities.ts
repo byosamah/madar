@@ -193,7 +193,7 @@ export const SystemRole = z.enum(['admin', 'management', 'accounting', 'member']
 export type SystemRole = z.infer<typeof SystemRole>;
 
 /**
- * The office rights (owner, 2026-10-18, fbk_014). Role rights version 2 (owner, 2026-10-21): 121 switches in 13 sections, one id for each
+ * The office rights (owner, 2026-10-18, fbk_014). Role rights version 2 (owner, 2026-10-21): 122 switches in 13 sections, one id for each
  * switch (rightsCatalog.ts, the plain copy of the catalog JSON in docs). A switch opens one power for a person. The Admin holds every
  * switch. A power with scopes has one id for each scope: `<power>.<scope>`.
  * permissions.ts and rightsCatalog.ts hold the same names as plain constants, because they load with the screens and take no zod.
@@ -202,14 +202,14 @@ export const OfficeRight = z.enum(CATALOG_RIGHT_IDS);
 export type OfficeRight = z.infer<typeof OfficeRight>;
 
 /**
- * A right as a stored list holds it: the 121 ids, and the 17 old ids of 2026-10-23 (project.editAny, people.manage, payment.manage and
+ * A right as a stored list holds it: the 122 ids, and the 17 old ids of 2026-10-23 (project.editAny, people.manage, payment.manage and
  * so on). Only RoleSettings.rights, CustomRole.rights and the roles.* inputs take it, so old stored data still parses. rightsOf and the
- * roles calls expand an old id to its new ids (expandRights). Every output gives the 121 ids only.
+ * roles calls expand an old id to its new ids (expandRights). Every output gives the 122 ids only.
  */
 export const StoredRight = z.enum(STORED_RIGHT_IDS);
 export type StoredRight = z.infer<typeof StoredRight>;
 
-/** The most rights in one stored list: the 121 ids, with room for old ids. */
+/** The most rights in one stored list: the 122 ids, with room for old ids. */
 export const MAX_STORED_RIGHTS = 127;
 /** The most `off` ids in one stored list: the 68 basic switches, with room. */
 export const MAX_OFF_RIGHTS = 70;
@@ -424,16 +424,30 @@ export const MAX_FOLDERS = 100;
 export const FOLDER_NAME_MAX = 60;
 
 /**
- * A folder of the Files & Links tab (fbk_066, owner 2026-10-26). It is only for organizing: it sits in one real stage of its project, one level
- * deep, and holds files. The project keeps the list (Project.folders, as it keeps its links), so a folder is seen by exactly the people who see the
- * project and its files, and no table is needed. A folder name may repeat across stages, never inside one stage.
+ * The two folders that every new client project starts with (fbk_074, owner 2026-10-29). While a folder keeps its preset, the screens show the
+ * name in the language of the viewer. A rename clears the preset.
+ */
+export const FolderPreset = z.enum(['client_documents', 'contract']);
+export type FolderPreset = z.infer<typeof FolderPreset>;
+/** The English name that a preset folder stores in "name". */
+export const FOLDER_PRESET_NAMES: Record<FolderPreset, string> = { client_documents: 'Client documents', contract: 'Contract' };
+
+/**
+ * A folder of the Files & Links tab (fbk_066, owner 2026-10-26). It is only for organizing: it sits in one real stage of its project, or in no
+ * stage (fbk_074: a folder of the whole project), one level deep, and holds files. The project keeps the list (Project.folders, as it keeps its
+ * links), so a folder is seen by exactly the people who see the project and its files, and no table is needed. A folder name may repeat across
+ * places, never inside one place (one stage, or the whole project).
+ * preset and locked are optional, so older folders still parse. A locked folder shows only to the people who hold the switch "Locked folders".
  */
 export const ProjectFolder = z.object({
   id: FolderId,
-  stageId: StageId,
+  /** The stage of the folder. Null: a folder of the whole project (fbk_074). */
+  stageId: StageId.nullable(),
   name: z.string().trim().min(1).max(FOLDER_NAME_MAX),
   createdBy: UserId,
   createdAt: Stamp,
+  preset: FolderPreset.optional(),
+  locked: z.boolean().optional(),
 });
 export type ProjectFolder = z.infer<typeof ProjectFolder>;
 

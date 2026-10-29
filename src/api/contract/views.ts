@@ -101,6 +101,8 @@ export const ViewerCan = z.object({
   planMeeting: z.boolean().optional(),
   /** file.deleteAny: delete any file of the project. */
   deleteAnyFile: z.boolean().optional(),
+  /** folder.locked with the upload right: see the locked folders, and lock or unlock a folder (fbk_074). */
+  lockFolders: z.boolean().optional(),
   /** tracker.deleteAny: delete any Tracker entry of the project. */
   deleteAnyTracker: z.boolean().optional(),
   /** chat.project: open the project chat. */

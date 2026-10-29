@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fileCalls } from './files';
+import { folderCalls } from './folders';
 import { shareCalls } from './sharing';
 import { taskCalls } from './tasks';
 import type { RoleSettings } from '../contract/entities';
@@ -13,7 +14,7 @@ beforeEach(() => setNow(NOW));
  * The file gates of role rights version 2 (design 5.5): file.upload, file.deliver, file.share, file.deleteOwn, file.deleteAny.
  * People: usr_001 Admin, usr_002 leader of prj_001, usr_003 team member, usr_004 outside the team, usr_005 agent of usr_003.
  */
-const calls = { ...fileCalls, ...shareCalls, ...taskCalls };
+const calls = { ...fileCalls, ...folderCalls, ...shareCalls, ...taskCalls };
 const pdf = (text = 'x') => new Blob([text], { type: 'application/pdf' });
 const png = () => new Blob(['x'], { type: 'image/png' });
 
@@ -191,5 +192,58 @@ describe('file.share: share a file into a to-do', () => {
     const file = await t.api.call('files.upload', { projectId: 'prj_001', name: 'a.pdf', blob: pdf() });
     t.store.state.settings.roles = off('comment.create.team');
     await expect(t.api.call('files.share', { fileId: file.file.id, target: { kind: 'task', taskId: 'tsk_001' } })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+});
+
+describe('folder.locked: see the locked folders, and lock or unlock a folder (fbk_074)', () => {
+  /** A project folder for the whole project, made by the Admin. Usr_003 is on the team and uploads; usr_005 is the agent of usr_003. */
+  async function folderIn(t: ReturnType<typeof world>): Promise<string> {
+    t.as('usr_001');
+    return (await t.api.call('folders.create', { projectId: 'prj_001', name: 'Deeds' })).id;
+  }
+
+  it('passes for a team member with the switch on, and refuses with it off', async () => {
+    const t = world(extra('folder.locked'));
+    const id = await folderIn(t);
+    t.as('usr_003');
+    await expect(t.api.call('folders.setLock', { id, locked: true })).resolves.toMatchObject({ locked: true });
+    const closed = world();
+    const other = await folderIn(closed);
+    closed.as('usr_003');
+    await expect(closed.api.call('folders.setLock', { id: other, locked: true })).rejects.toMatchObject({ code: 'forbidden', details: { action: 'folder.locked' } });
+  });
+
+  it('refuses the agent of a person without the switch, and passes the agent of a holder', async () => {
+    const closed = world();
+    const id = await folderIn(closed);
+    closed.as('usr_005');
+    await expect(closed.api.call('folders.setLock', { id, locked: true })).rejects.toMatchObject({ code: 'forbidden' });
+    const open = world(extra('folder.locked'));
+    const other = await folderIn(open);
+    open.as('usr_005');
+    await expect(open.api.call('folders.setLock', { id: other, locked: true })).resolves.toMatchObject({ locked: true });
+  });
+
+  it('keeps the upload right too: a holder outside the team may not lock', async () => {
+    const t = world(extra('folder.locked'));
+    const id = await folderIn(t);
+    t.as('usr_004');
+    await expect(t.api.call('folders.setLock', { id, locked: true })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('shows a locked folder only to a holder: the member with the switch sees it, the member without does not', async () => {
+    const t = world(extra('folder.locked'));
+    const id = await folderIn(t);
+    t.as('usr_001');
+    await t.api.call('folders.setLock', { id, locked: true });
+    t.as('usr_003');
+    const closed = world();
+    const other = await folderIn(closed);
+    closed.as('usr_001');
+    await closed.api.call('folders.setLock', { id: other, locked: true });
+    closed.as('usr_003');
+    await expect(closed.api.call('folders.rename', { id: other, name: 'Mine' })).rejects.toMatchObject({ code: 'not_found' });
+    t.as('usr_003');
+    await expect(t.api.call('folders.rename', { id, name: 'Mine' })).resolves.toMatchObject({ name: 'Mine' });
   });
 });

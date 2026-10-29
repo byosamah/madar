@@ -8,6 +8,7 @@ import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
 import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectResource, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { ensureRights } from './rights';
+import { eventForViewer, eventHiddenByLock, fileHiddenByLock, foldersFor } from './folderLock';
 import { mayWriteMinutes } from './meetingGates';
 import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
@@ -225,7 +226,7 @@ function canEditContent(state: State, projectId: string, authorId: string, viewe
 export function updateItemOf(state: State, update: Update, viewer: User): FeedItem {
   return {
     kind: 'update', id: update.id, at: update.createdAt, author: cardOf(state, update.authorId), body: update.body,
-    fileIds: update.fileIds, attachments: attachmentsOf(state, update.fileIds), editedAt: update.editedAt, commentCount: countComments(state, 'update', update.id),
+    fileIds: update.fileIds, attachments: attachmentsOf(state, update.fileIds, viewer), editedAt: update.editedAt, commentCount: countComments(state, 'update', update.id),
     canEdit: canEditContent(state, update.projectId, update.authorId, viewer),
     ...(update.decision ? { decision: true as const } : {}),
   };
@@ -275,6 +276,8 @@ export function feedFor(
   if (filter !== 'posts' && filter !== 'decisions') {
     const events = (index ? index.feedEventsOf(projectId) : Object.values(state.events).filter((event) => event.projectId === projectId))
       .filter((event) => !event.undoneBy && FEED_VERBS.has(event.verb))
+      // A change of a file in a locked folder shows only to the people who hold the switch (fbk_074).
+      .filter((event) => !eventHiddenByLock(state, viewer, event))
       .filter((event) => filter !== 'tasks' || event.verb.startsWith('task.'))
       .filter((event) => filter !== 'files' || event.verb.startsWith('file.'));
     for (const event of newestOf(events, limit)) {
@@ -328,6 +331,7 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole, project: Pick<Proje
     addTask: can(viewer, 'task.add', r),
     planMeeting: can(viewer, 'meeting.plan', { projectRole, meeting: { organizerId: viewer.id, attendeeIds: [], noProject: false } }),
     deleteAnyFile: can(viewer, 'file.deleteAny', r),
+    lockFolders: can(viewer, 'folder.locked') && can(viewer, 'file.upload', r),
     deleteAnyTracker: can(viewer, 'tracker.deleteAny', r),
     projectChat: can(viewer, 'chat.project', r),
     changeAnyTask: can(viewer, 'task.any', r),
@@ -410,11 +414,12 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
   // The project chat, when the viewer may open it (an outsider gets null, and no id of the chat).
   const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === project.id);
   const chatId = room && canSeeConversation(state, room, viewer) ? room.id : null;
-  return { ...summary, members, deadlines: [...index.deadlinesOf(project.id)], chatId, folders: structuredClone(project.folders ?? []) };
+  return { ...summary, members, deadlines: [...index.deadlinesOf(project.id)], chatId, folders: structuredClone(foldersFor(state, viewer, project.folders)) };
 }
 
-export function eventViewOf(state: State, event: Event): EventView {
-  return { event, actor: cardOf(state, event.actorId) };
+/** viewer: the person who reads the change. A person without the switch "Locked folders" gets no locked folder out of a folder list (fbk_074). */
+export function eventViewOf(state: State, event: Event, viewer?: User): EventView {
+  return { event: viewer ? eventForViewer(state, viewer, event) : event, actor: cardOf(state, event.actorId) };
 }
 
 /** What an open task waits for. A done task waits for nothing, and a task with no prerequisites skips the scan. An office task waits for nothing. */
@@ -501,8 +506,10 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
 }
 
 /** The files of a comment or a message. A deleted file keeps its place with no name and no type. */
-export function attachmentsOf(state: State, fileIds: string[] | undefined): Attachment[] {
-  return (fileIds ?? []).map((id) => {
+export function attachmentsOf(state: State, fileIds: string[] | undefined, viewer?: User): Attachment[] {
+  // A file in a locked folder leaves the list of a person without the switch (fbk_074), as a file that the person may not view leaves a chat message.
+  const shown = viewer ? (fileIds ?? []).filter((id) => { const file = state.files[id]; return !file || !fileHiddenByLock(state, viewer, file); }) : fileIds;
+  return (shown ?? []).map((id) => {
     const file = state.files[id];
     return file ? { id, name: file.name, mimeType: file.versions[file.versions.length - 1].mimeType } : { id, name: null };
   });
@@ -526,7 +533,7 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
     canEdit: !target ? false : target.projectId === null
       ? can(viewer, 'post.editOwn', { ...officeResource(state, target.id, viewer.id), authorId })
       : canEditContent(state, target.projectId, comment.authorId, viewer),
-    files: attachmentsOf(state, comment.fileIds),
+    files: attachmentsOf(state, comment.fileIds, viewer),
     kind: lineKindOf(comment),
     replyTo: replyRefOf(state, comment, viewer.id),
     namesMe: namesPerson(state, comment, viewer.id),
@@ -563,7 +570,8 @@ export function mayViewFile(state: State, viewer: User, file: FileRec): boolean 
     return meeting !== undefined && mayViewMeeting(state, viewer, meeting);
   }
   // A file of a project reads like the project: a hidden project leaves its files to the people who see it (hidden projects, owner 2026-10-22).
-  if (file.projectId !== null) return can(ensureRights(state, viewer), 'project.view', projectResource(state, file.projectId, viewer.id));
+  // A file in a locked folder reads as a missing file for a person without the switch "Locked folders" (fbk_074).
+  if (file.projectId !== null) return can(ensureRights(state, viewer), 'project.view', projectResource(state, file.projectId, viewer.id)) && !fileHiddenByLock(state, viewer, file);
   return can(ensureRights(state, viewer), 'task.view', officeResource(state, file.taskId, viewer.id));
 }
 
@@ -637,7 +645,7 @@ export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): T
     createdBy: cardOf(state, entry.createdBy),
     closedBy: entry.closedBy ? cardOf(state, entry.closedBy) : null,
     people: entry.peopleIds.map((id) => cardOf(state, id)),
-    files: attachmentsOf(state, entry.fileIds),
+    files: attachmentsOf(state, entry.fileIds, viewer),
     replyTask: replyTaskOf(state, entry),
     canClose: mayPost && entry.waiting !== null && entry.closedAt === null && mayFinishReply,
     canEdit: mayPost,

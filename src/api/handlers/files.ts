@@ -11,7 +11,8 @@ import { minutesRefusal, requireMeeting } from './meetings';
 import { assertAgentMayOpenChatFile, fileViewOf, mayDeleteFile, mayOpenFile, mayViewFile, trackerRowOf } from '../views';
 import { assertCan, requireProject, requireStage, requireTask, roleIn, taskRole, touch } from './shared';
 import { addTrackerEntry } from './tracker';
-import { checkPlace } from './folders';
+import { assertFitsLockedFolder, checkPlace } from './folders';
+import { fileHiddenByLock, fileInLockedFolder, foldersFor } from '../folderLock';
 
 /** A, B, ... Z, AA, AB: the version letters. */
 export function nextLetter(previous: string): string {
@@ -49,7 +50,9 @@ export const filesList = defineCall({
     else requireProject(ctx, projectId);
     return Object.values(ctx.state.files)
       .filter((f) => f.meetingId === undefined && f.conversationId === undefined && f.projectId === projectId
-        && (!input.stageId || f.stageId === input.stageId) && (!input.taskId || f.taskId === input.taskId))
+        && (!input.stageId || f.stageId === input.stageId) && (!input.taskId || f.taskId === input.taskId)
+        // A file in a locked folder shows only to the people who hold the switch "Locked folders" (fbk_074).
+        && !fileHiddenByLock(ctx.state, ctx.authority, f))
       .map((f) => fileViewOf(ctx.state, f, ctx.authority))
       .sort((a, b) => b.latest.uploadedAt.localeCompare(a.latest.uploadedAt));
   },
@@ -97,8 +100,9 @@ const UploadFields = z.object({
 
 /** A new file or a new version: the same name on the same place (a project, or one office task) adds the next letter. */
 function addVersion(ctx: Ctx, place: { projectId: string | null; stageId: string | null; taskId: string | null; folderId?: string | null }, name: string, version: Version): FileRec {
+  // A file in a locked folder that the person may not see is not a match: the upload makes a new file, and so tells nothing about the locked one (fbk_074).
   const same = Object.values(ctx.state.files).find((f) => f.projectId === place.projectId
-    && (place.projectId !== null || f.taskId === place.taskId) && f.name.toLowerCase() === name.toLowerCase());
+    && (place.projectId !== null || f.taskId === place.taskId) && f.name.toLowerCase() === name.toLowerCase() && !fileHiddenByLock(ctx.state, ctx.authority, f));
   if (same) {
     version.letter = nextLetter(same.versions[same.versions.length - 1].letter);
     const before = { versions: structuredClone(same.versions) };
@@ -217,8 +221,14 @@ export const filesUpload = defineCall({
     if (input.asCover) assertCan(ctx, 'project.details', { projectRole: role });
     // A folder fixes the stage of the file (fbk_066): without a stage, the file takes the stage of the folder.
     const folderId = input.folderId ?? null;
-    const stageId = input.stageId ?? (folderId ? (project.folders?.find((item) => item.id === folderId)?.stageId ?? null) : null);
+    const stageId = input.stageId ?? (folderId ? (foldersFor(ctx.state, ctx.authority, project.folders).find((item) => item.id === folderId)?.stageId ?? null) : null);
     checkPlace(ctx, project, stageId, folderId);
+    // A locked folder holds no file of a to-do, no cover and no file that the Tracker names (fbk_074).
+    assertFitsLockedFolder(ctx, project, { id: '', taskId: input.taskId }, folderId);
+    if (folderId && project.folders?.find((item) => item.id === folderId)?.locked === true) {
+      if (input.asCover) throw invalid('asCover', 'The cover of the project cannot go in a locked folder.', 'folder_locked_cover');
+      if (input.receivedFromClient) throw invalid('receivedFromClient', 'A file of a locked folder cannot be named on the Tracker.', 'folder_locked_tracker');
+    }
     if (input.taskId && ctx.state.tasks[input.taskId]?.projectId !== project.id) throw invalid('taskId', 'This task is not in the project.');
     if (input.asCover && !prepared.mimeType.startsWith('image/')) throw invalid('asCover', 'The cover must be an image.', 'cover_not_image');
     const version: Version = {
@@ -226,6 +236,10 @@ export const filesUpload = defineCall({
       uploadedBy: ctx.actor.id, uploadedAt: ctx.stamp, ...(prepared.thumbKey ? { thumbKey: prepared.thumbKey } : {}),
     };
     const file = addVersion(ctx, { projectId: project.id, stageId, taskId: input.taskId, folderId }, input.name, version);
+    // A new version of a file that already sits in a locked folder keeps the file there, so the cover and the Tracker line refuse it too.
+    const locked = fileInLockedFolder(ctx.state, file);
+    if (locked && input.asCover) throw invalid('asCover', 'The cover of the project cannot go in a locked folder.', 'folder_locked_cover');
+    if (locked && input.receivedFromClient) throw invalid('receivedFromClient', 'A file of a locked folder cannot be named on the Tracker.', 'folder_locked_tracker');
     if (input.asCover) {
       applyPatch(ctx, project, { coverFileId: file.id }, { projectId: project.id, verb: 'project.cover_changed', targetType: 'project', targetId: project.id });
     }
@@ -235,7 +249,8 @@ export const filesUpload = defineCall({
         projectId: project.id, type: 'file', direction: 'in', title: file.name, note: `Version ${letter}`, fileIds: [file.id], auto: 'upload',
       });
     }
-    touch(ctx, project.id);
+    // A file in a locked folder is no news for the people who cannot see it: the "last update" of the project stays as it is.
+    if (!locked) touch(ctx, project.id);
     return fileViewOf(ctx.state, file, ctx.authority);
   },
 });
@@ -250,6 +265,8 @@ export const filesMarkDelivered = defineCall({
     if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
     // An office task has no client, so its files are never delivered (owner, 2026-10-06).
     if (file.projectId === null) throw invalid('id', 'A file of an office task stays on its task.', 'file_office_task');
+    // The Tracker line names the file, and the Tracker shows to the whole project (fbk_074).
+    if (fileInLockedFolder(ctx.state, file)) throw invalid('id', 'A file of a locked folder cannot be named on the Tracker.', 'folder_locked_tracker');
     assertCan(ctx, 'file.deliver', { projectRole: roleIn(ctx, file.projectId) });
     const letter = file.versions[file.versions.length - 1].letter;
     const entry = addTrackerEntry(ctx, {
@@ -272,9 +289,10 @@ export const filesDelete = defineCall({
     if (project?.coverFileId === file.id) {
       applyPatch(ctx, project, { coverFileId: null }, { projectId: project.id, verb: 'project.cover_changed', targetType: 'project', targetId: project.id });
     }
+    const locked = fileInLockedFolder(ctx.state, file);
     recordDelete(ctx, { projectId: file.projectId, verb: 'file.deleted', targetType: 'file', targetId: file.id, entity: file });
     delete ctx.state.files[file.id];
-    touch(ctx, file.projectId);
+    if (!locked) touch(ctx, file.projectId);
     return { deleted: true as const };
   },
 });
@@ -296,6 +314,7 @@ export const filesMove = defineCall({
     const project = requireProject(ctx, file.projectId);
     assertCan(ctx, 'file.upload', { projectRole: roleIn(ctx, project.id) });
     checkPlace(ctx, project, input.stageId, input.folderId);
+    assertFitsLockedFolder(ctx, project, file, input.folderId);
     if (file.stageId === input.stageId && (file.folderId ?? null) === input.folderId) return fileViewOf(ctx.state, file, ctx.authority);
     // A file saved before folders has no folderId. The event keeps the old value, so the Undo can put it back.
     if (file.folderId === undefined) file.folderId = null;

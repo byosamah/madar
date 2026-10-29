@@ -182,12 +182,12 @@ describe('suite 12: the MCP server in process', () => {
     expect(body.result.ttlMs).toBe(300_000);
   });
 
-  it('lists the 158 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
+  it('lists the 159 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
     const { body } = await rpc(w, 'tools/list');
     const tools = body.result.tools as { name: string; inputSchema: Record<string, unknown>; annotations: Record<string, unknown> }[];
     const admin = mcpTools({ admin: true });
     expect(tools.map((t) => t.name)).toEqual(admin.map((t) => t.name));
-    expect(tools).toHaveLength(158);
+    expect(tools).toHaveLength(159);
     expect(body.result.ttlMs).toBe(300_000);
     expect(body.result.cacheScope).toBe('private');
     const ajv = new Ajv2020({ strict: true, allErrors: true });
@@ -207,13 +207,13 @@ describe('suite 12: the MCP server in process', () => {
     const legacyList = async (target: World, token: string) =>
       (await post(target, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${token}`, 'MCP-Protocol-Version': '2025-11-25' })).body;
 
-    it('lists 118 tools and only the two send tools of the feedback tools to an agent of a member, in both eras', async () => {
+    it('lists 119 tools and only the two send tools of the feedback tools to an agent of a member, in both eras', async () => {
       const modern = await rpc(w, 'tools/list', {}, { token: await member() });
       const legacy = await legacyList(w, await member());
       for (const [era, result] of [['2026-07-28', modern.body.result], ['2025-11-25', legacy.result]] as const) {
         const names = (result.tools as { name: string }[]).map((t) => t.name);
         expect(names, era).toEqual(mcpTools({ rights: heldRightsOfRole(undefined, 'member') }).map((t) => t.name));
-        expect(names, era).toHaveLength(118);
+        expect(names, era).toHaveLength(119);
         expect(names.filter((name) => name.startsWith('feedback.')), era).toEqual(['feedback.send', 'feedback.sendWithScreenshots']);
       }
     });
@@ -231,20 +231,20 @@ describe('suite 12: the MCP server in process', () => {
       expect(w.ran).toEqual(['projects.get']);
     });
 
-    it('lists 118 tools on the next request after the Admin becomes a member, and 158 again after the promotion', async () => {
-      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(158);
+    it('lists 119 tools on the next request after the Admin becomes a member, and 159 again after the promotion', async () => {
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(159);
       const admin = w.mem.tables.state.users.usr_001;
       w.mem.tables.state.users.usr_001 = { ...admin, systemRole: 'member' };
       w.mem.tables.version += 1;
       const demoted = (await rpc(w, 'tools/list')).body.result.tools as { name: string }[];
-      expect(demoted).toHaveLength(118);
+      expect(demoted).toHaveLength(119);
       expect(demoted.map((t) => t.name).filter((name) => name.startsWith('feedback.'))).toEqual(['feedback.send', 'feedback.sendWithScreenshots']);
-      expect((await legacyList(w, await tokenOf())).result.tools).toHaveLength(118);
+      expect((await legacyList(w, await tokenOf())).result.tools).toHaveLength(119);
       const refused = await call(w, 'feedback.list');
       expect(refused.body.error?.code).toBe(-32602);
       w.mem.tables.state.users.usr_001 = admin;
       w.mem.tables.version += 1;
-      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(158);
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(159);
     });
 
     // Owner, 2026-10-23 (role-rights): the 3 tools of requests and bugs go to an agent whose person holds the feedback right, whether the
@@ -261,7 +261,7 @@ describe('suite 12: the MCP server in process', () => {
       try {
         grant(['feedback.manage']);
         const holder = await names();
-        expect(holder).toHaveLength(121);
+        expect(holder).toHaveLength(122);
         expect(holder.filter((name) => name.startsWith('feedback.'))).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.send', 'feedback.sendWithScreenshots', 'feedback.setStatus']);
         // The call runs for the agent, with the rights of its person.
         const list = await call(w, 'feedback.list', {}, { token: await member() });
@@ -270,7 +270,7 @@ describe('suite 12: the MCP server in process', () => {
         // Another right, not this one: no feedback tool, and a call fails before runCall.
         grant(['gaps.view', 'subCompanies.manage', 'templates.updateProjects']);
         const other = await names();
-        expect(other).toHaveLength(118);
+        expect(other).toHaveLength(119);
         expect(other.filter((name) => name.startsWith('feedback.'))).toEqual(['feedback.send', 'feedback.sendWithScreenshots']);
         w.ran.length = 0;
         const refused = await call(w, 'feedback.setStatus', { id: 'fbk_001', status: 'done' }, { token: await member() });
@@ -294,14 +294,14 @@ describe('suite 12: the MCP server in process', () => {
       try {
         setRole('management');
         const management = (await rpc(w, 'tools/list', {}, { token: await member() })).body.result.tools as { name: string }[];
-        expect(management).toHaveLength(124);
+        expect(management).toHaveLength(125);
         expect(management.map((t) => t.name)).toContain('reports.office');
         const report = await call(w, 'reports.office', { period: 'month' }, { token: await member() });
         expect(report.body.result.structuredContent.output.design.brand.name).toBe('Madar');
         expect(w.ran).toEqual(['reports.office']);
         setRole('accounting');
         const accounting = (await rpc(w, 'tools/list', {}, { token: await member() })).body.result.tools as { name: string }[];
-        expect(accounting).toHaveLength(123);
+        expect(accounting).toHaveLength(124);
         expect(accounting.map((t) => t.name)).not.toContain('reports.office');
         const refused = await call(w, 'reports.office', { period: 'month' }, { token: await member() });
         expect(refused.body.error?.code).toBe(-32602);
@@ -438,7 +438,7 @@ describe('suite 12: the MCP server in process', () => {
       use(roleWithout([], ['payment.manage']));
       const holder = await namesOf(token);
       for (const name of ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived', 'payments.delete']) expect(holder, name).toContain(name);
-      expect(holder).toHaveLength(123);
+      expect(holder).toHaveLength(124);
       restore?.();
       // The money switches, with ai.payments off: no payment tool, and a call fails with ai_off (not as an unknown tool).
       use(roleWithout(['ai.payments'], ['payment.manage']));
@@ -494,7 +494,7 @@ describe('suite 12: the MCP server in process', () => {
         const list = await namesOf(await member());
         expect(list).toContain('reports.office');
         for (const name of ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived']) expect(list, name).not.toContain(name);
-        expect(list).toHaveLength(119);
+        expect(list).toHaveLength(120);
       } finally {
         undo();
         state().users.usr_003 = owner;
@@ -524,9 +524,9 @@ describe('suite 12: the MCP server in process', () => {
         expect(w.limit.hits.size).toBe(0);
       });
 
-      it('does not touch the agents of other people: the agent of the Admin still lists 158 tools', async () => {
+      it('does not touch the agents of other people: the agent of the Admin still lists 159 tools', async () => {
         use(roleWithout(['ai.connect']));
-        expect(await namesOf(await tokenOf())).toHaveLength(158);
+        expect(await namesOf(await tokenOf())).toHaveLength(159);
       });
 
       it('gives the tools back when the switch is on again', async () => {
@@ -535,7 +535,7 @@ describe('suite 12: the MCP server in process', () => {
         restore?.();
         restore = undefined;
         w.mem.tables.version += 1;
-        expect(await namesOf(await member())).toHaveLength(118);
+        expect(await namesOf(await member())).toHaveLength(119);
       });
 
       it('refuses a person who is not in the office with no switch at all', async () => {
@@ -905,7 +905,7 @@ describe('suite 12: the MCP server in process', () => {
     it('gives the legacy answer to a request with no version header', async () => {
       const { status, body } = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${await tokenOf()}` });
       expect(status).toBe(200);
-      expect(body.result.tools).toHaveLength(158);
+      expect(body.result.tools).toHaveLength(159);
       expect(body.result.resultType).toBeUndefined();
     });
 
@@ -915,7 +915,7 @@ describe('suite 12: the MCP server in process', () => {
       expect(init.body.result.protocolVersion).toBe('2025-11-25');
       expect(init.headers.get('Mcp-Session-Id')).toBeNull();
       const list = await post(w, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }, auth);
-      expect(list.body.result.tools).toHaveLength(158);
+      expect(list.body.result.tools).toHaveLength(159);
       const read = await post(w, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'projects.get', arguments: { id: 'prj_001' } } }, auth);
       expect(read.body.result.structuredContent.output.project.id).toBe('prj_001');
       // A legacy client cannot answer a question, so a reason comes back as the retry instruction.

@@ -1,5 +1,5 @@
 /**
- * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 92 powers, 121 switches. It is a plain copy of
+ * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 93 powers, 122 switches. It is a plain copy of
  * docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json, without the words (the labels and the hints are word keys of the
  * screens). A test (rightsCatalog.test.ts) checks that this file and the JSON agree. permissions.ts is in the first load of the real
  * build, so this file takes no value from zod or from the schema files.
@@ -48,7 +48,7 @@ export const CATALOG_RIGHT_IDS = [
   'meeting.any.all', 'meeting.minutesAny.lead', 'meeting.minutesAny.all', 'post.create.team', 'post.create.all',
   'comment.create.team', 'comment.create.all', 'post.editOwn', 'project.links.team', 'project.links.all', 'file.upload.team',
   'file.upload.all', 'file.deliver.team', 'file.deliver.all', 'file.share', 'file.deleteOwn', 'file.deleteAny.lead',
-  'file.deleteAny.all', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.project.team', 'chat.project.all',
+  'file.deleteAny.all', 'folder.locked', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.project.team', 'chat.project.all',
   'chat.mentionEveryone', 'tracker.log.team', 'tracker.log.all', 'tracker.reply', 'tracker.export', 'tracker.deleteOwn', 'tracker.deleteAny.lead',
   'tracker.deleteAny.all', 'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove',
   'clients.change', 'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive',
@@ -349,6 +349,12 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'file.deleteAny.all', scope: 'all', basic: false, needs: ['file.deleteAny.lead'] },
         ],
       },
+      {
+        power: 'folder.locked',
+        switches: [
+          { id: 'folder.locked', scope: null, basic: false, newPower: true, needs: [] },
+        ],
+      },
     ],
   },
   {
@@ -629,7 +635,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'stages.replace', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink', 'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'members.add', 'members.addTeam', 'members.remove', 'members.update', 'stages.setPrerequisites', 'deadlines.delete', 'files.link', 'files.delete', 'files.markDelivered', 'files.share', 'files.uploadContent'],
+        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'stages.replace', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.setLock', 'folders.delete', 'files.move', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink', 'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'members.add', 'members.addTeam', 'members.remove', 'members.update', 'stages.setPrerequisites', 'deadlines.delete', 'files.link', 'files.delete', 'files.markDelivered', 'files.share', 'files.uploadContent'],
         switches: [
           { id: 'ai.projects', scope: null, basic: true, needs: ['ai.connect'] },
         ],

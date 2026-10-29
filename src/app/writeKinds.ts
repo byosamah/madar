@@ -85,6 +85,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'files.move': ['events', 'files'],
   'folders.create': ['events', 'projects'],
   'folders.rename': ['events', 'projects'],
+  'folders.setLock': ['events', 'projects'],
   'folders.delete': ['events', 'files', 'projects'],
   'events.undo': EVERY_KIND,
   'events.undoStory': EVERY_KIND,

@@ -187,6 +187,10 @@
         "label": "Delete any file",
         "hint": "Delete any file of a project, by anyone."
       },
+      "folderLocked": {
+        "label": "Locked folders",
+        "hint": "See the locked folders of the projects you see, and lock or unlock a folder."
+      },
       "chatDirect": {
         "label": "Message people",
         "hint": "Send messages one to one."

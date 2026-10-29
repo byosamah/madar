@@ -3,6 +3,7 @@ import type { FileRec } from '../contract/entities';
 import { forbidden, invalid } from '../errors';
 import { can, projectRoleOf } from '../permissions';
 import { ensureRights } from '../rights';
+import { fileInLockedFolder } from '../folderLock';
 import { mayViewFile } from '../views';
 
 /** The files by id. A file of an office task that the person does not see reads as missing, before any other rule (review 2026-10-06). */
@@ -30,6 +31,11 @@ function chatFileStays(): never {
   throw invalid('fileIds', 'A file of a chat stays in its chat.', 'file_chat');
 }
 
+/** A file of a locked folder stays in its folder: no chat, task, post or Tracker entry carries it (fbk_074). The person already sees the file, so the refusal tells nothing. */
+function lockedFileStays(): never {
+  throw invalid('fileIds', 'A file of a locked folder stays in its folder.', 'file_locked');
+}
+
 /** A file of a meeting with no project stays with its meeting: no chat, task, post or Tracker entry carries it (wave 2). */
 function meetingFileStays(): never {
   throw invalid('fileIds', 'A file of a meeting stays with its meeting.', 'file_meeting');
@@ -43,6 +49,7 @@ export function assertFilesInProject(ctx: Ctx, fileIds: string[], projectId: str
   for (const file of requireFiles(ctx, fileIds)) {
     if (file.conversationId !== undefined) chatFileStays();
     if (file.meetingId !== undefined) meetingFileStays();
+    if (fileInLockedFolder(ctx.state, file)) lockedFileStays();
     if (projectId === null) {
       if (file.projectId !== null || file.taskId !== officeTaskId) officeFileStays();
     } else if (file.projectId !== projectId) {
@@ -64,6 +71,7 @@ export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: 
     }
     if (file.meetingId !== undefined) meetingFileStays();
     if (file.projectId === null) officeFileStays();
+    if (fileInLockedFolder(ctx.state, file)) lockedFileStays();
     // A project file goes into a direct chat or a group only with the switch "Share files", as files.share asks it (fbk_070).
     if (!can(ctx.authority, 'file.share')) throw forbidden('You cannot do this.', { action: 'file.share' });
     const block = shareBlockOf(ctx, file.projectId, recipientIds);

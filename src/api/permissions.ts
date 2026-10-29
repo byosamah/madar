@@ -26,6 +26,8 @@ export type Action =
   | 'meeting.plan' | 'meeting.editOwn' | 'meeting.minutesOwn' | 'meeting.any' | 'meeting.minutesAny'
   | 'post.create' | 'comment.create' | 'post.editOwn' | 'project.links'
   | 'file.upload' | 'file.deliver' | 'file.share' | 'file.deleteOwn' | 'file.deleteAny'
+  // Locked folders (fbk_074, owner 2026-10-29): see the locked folders and the files in them, and lock or unlock a folder.
+  | 'folder.locked'
   | 'chat.direct' | 'chat.groupCreate' | 'chat.groupChange' | 'chat.mentionEveryone'
   | 'tracker.log' | 'tracker.reply' | 'tracker.export' | 'tracker.deleteOwn' | 'tracker.deleteAny'
   | 'people.invite' | 'people.change' | 'people.teams' | 'people.turnOff' | 'people.remove' | 'clients.change'
@@ -93,7 +95,7 @@ export function scopeAllows(actor: Actor, power: string, role: ProjectRole): boo
 
 /** The actions that one switch of the same name answers, with no scope and no people rule. */
 const SIMPLE: ReadonlySet<Action> = new Set<Action>([
-  'project.create', 'client.create', 'project.seeAll', 'project.hidden', 'task.assign', 'task.officeAll', 'file.share', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.mentionEveryone',
+  'project.create', 'client.create', 'project.seeAll', 'project.hidden', 'folder.locked', 'task.assign', 'task.officeAll', 'file.share', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.mentionEveryone',
   'tracker.reply', 'tracker.export', 'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'clients.change',
   'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'payment.daftraLink', 'templates.projectCreate', 'templates.projectAny',
   'templates.taskAny', 'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office',

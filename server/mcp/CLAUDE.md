@@ -115,7 +115,10 @@ Own OAuth server (consent, token step, grants): `server/mcp/oauth/CLAUDE.md`.
   the actor and the person of an agent actor). Madar makes the Tracker line of a meeting (the agent never calls `tracker.log` for it).
   Tests: `meetingTools.test.ts`.
 - Folders (`folders.*`, `files.move`) belong to `ai.projects`. The handlers ask `file.upload` of the person. A hidden project answers
-  `not_found`. A delete never deletes a file. Test: `folderTools.test.ts`.
+  `not_found`. A delete never deletes a file. `folders.setLock` also needs the switch `folder.locked`; a locked folder and its files are missing
+  for the agent of a person without the switch, on every tool (`src/api/CLAUDE.md`, "Locked folders"). `folders.create` takes `preset` to add the two
+  standard folders to an older project. The folder texts sit in `INSTRUCTIONS`, so the tool list stays under its size limit (`toolSize.test.ts`).
+  Test: `folderTools.test.ts`.
 - Chats: an agent sends as the person (author the agent, `actingForId` the person). A chat that the person may not open answers
   `not_found` for every kind. A read mark, an archive and a Notify choice write for the person, never for the agent (`ctx.authority`);
   a read by the agent is not a read by the person. An agent edits or deletes only a message of its person or of its agent

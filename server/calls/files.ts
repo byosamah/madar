@@ -1,6 +1,7 @@
 import { fileLimitOf, type FileRec, type Task, type UploadPlace } from '../../src/api/contract/entities';
 import { forbidden, invalid, notFound } from '../../src/api/errors';
 import type { UploadPrepared } from '../../src/api/handlers/files';
+import { fileHiddenByLock } from '../../src/api/folderLock';
 import { can, taskResource } from '../../src/api/permissions';
 import type { ServerHooks } from '../../src/api/registry';
 import type { State } from '../../src/api/store';
@@ -115,7 +116,9 @@ export const filesLink: ServerCall<'files.link'> = async (input, ctx) => {
   else {
     if (!office.lists.projects[file.projectId]) throw notFound('Project', file.projectId);
     // A file of a hidden project reads as a missing file, never as a refusal (hidden projects, owner 2026-10-22).
-    assertMayView(office, userId, file.projectId, () => notFound('File', file.id));
+    const authority = assertMayView(office, userId, file.projectId, () => notFound('File', file.id));
+    // A file in a locked folder reads as a missing file for a person without the switch "Locked folders" (fbk_074).
+    if (fileHiddenByLock(office.lists, authority, file)) throw notFound('File', file.id);
   }
   const version = input.letter ? file.versions.find((v) => v.letter === input.letter) : file.versions[file.versions.length - 1];
   if (!version) throw notFound('Version', input.letter ?? '');

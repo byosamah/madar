@@ -6,7 +6,8 @@ import type { ChangeSignal, Kind } from '../core/types';
 import {
   COUNTERS_UPSERT_SQL, OFFICE_DELETES_SQL, deleteSql, rowOf, rowsParam, upsertSql, type Row,
 } from './rows';
-import { audienceFinder } from './projectAudience';
+import { eventTouchesLocked, lockedFolderChange } from '../../src/api/folderLock';
+import { audienceFinder, lockedAudienceFinder } from './projectAudience';
 import { TABLES, type TableSpec } from './tables';
 
 /**
@@ -111,6 +112,11 @@ export type Diff = {
    * changed and the people who hear them. The kinds are in `kinds`, and never in `publicKinds` or `restKinds`.
    */
   hidden: Map<string, { kinds: Set<Kind>; people: ReadonlySet<string> }>;
+  /**
+   * The changes that touch a locked folder (fbk_074, owner 2026-10-29): for each project, the kinds that changed and the people who may hear
+   * them, the viewers of the project who hold the switch "Locked folders". The kinds are in `kinds`, and never in `publicKinds` or `restKinds`.
+   */
+  locked: Map<string, { kinds: Set<Kind>; people: ReadonlySet<string> }>;
   /** The people who view a project before the change or after it, or null when the project is open to all (writeDiff asks it for a comment it looks up). */
   audienceOf: (projectId: string) => ReadonlySet<string> | null;
   /** True when every record that gave the kind "comments" to the public part is a comment whose project writeDiff looks up. */
@@ -237,8 +243,11 @@ export function diffState(before: State, after: State): Diff {
   /** The office flag of the records that are no part of a direct chat or a group. */
   let publicOffice = false;
   const audienceOf = audienceFinder(before, after);
+  const lockedAudienceOf = lockedAudienceFinder(before, after);
   /** The projects that not every active person views (hidden projects): their kinds and their people. */
   const hidden: Diff['hidden'] = new Map();
+  /** The locked folders of each project (fbk_074): the kinds that changed and the holders of the switch who hear them. */
+  const locked: Diff['locked'] = new Map();
   /** How many records gave each kind to the public part: a comment that writeDiff looks up may take its kind back. */
   const publicCount = new Map<Kind, number>();
   let officeRows = false;
@@ -308,6 +317,16 @@ export function diffState(before: State, after: State): Diff {
     part.kinds.add(kind);
     hidden.set(projectId as string, part);
   };
+  /** A kind of a change that touches a locked folder: only the viewers of the project who hold the switch "Locked folders" hear it (fbk_074). */
+  const lockedPart = (kind: Kind, projectId: string) => {
+    kinds.add(kind);
+    const part = locked.get(projectId) ?? { kinds: new Set<Kind>(), people: lockedAudienceOf(projectId) };
+    part.kinds.add(kind);
+    locked.set(projectId, part);
+  };
+  /** True when a file row sits in a locked folder of its project, in the State that holds the row. */
+  const fileLocked = (state: State, file: Rec): boolean => typeof file.projectId === 'string' && typeof file.folderId === 'string'
+    && state.projects[file.projectId]?.folders?.find((folder) => folder.id === file.folderId)?.locked === true;
   /** A kind of the office task part, which only the people of the task hear (review 2026-10-06). */
   const priv = (kind: Kind) => {
     kinds.add(kind);
@@ -337,9 +356,19 @@ export function diffState(before: State, after: State): Diff {
   function touched(spec: TableSpec, old: Rec | undefined, rec: Rec | undefined, row: Row | undefined): void {
     const sides = [old, rec].filter((side): side is Rec => side !== undefined);
     switch (spec.collection) {
-      case 'projects':
-        projectPart(old && rec && same(without(old, 'updatedAt'), without(rec, 'updatedAt')) ? 'projectTouched' : 'projects', (rec ?? old)!.id);
+      case 'projects': {
+        const id = (rec ?? old)!.id as string;
+        // A change of the folder list of a project (fbk_074). A change inside the locked folders alone goes to the holders of the switch. A folder that
+        // gets locked or unlocked changes what everyone sees, so the folders and the files reload for all.
+        const folderChange = lockedFolderChange(old?.folders as never, rec?.folders as never);
+        if (old && rec && folderChange === 'inside' && same(without(without(old, 'updatedAt'), 'folders'), without(without(rec, 'updatedAt'), 'folders'))) {
+          lockedPart('projects', id);
+          return;
+        }
+        if (folderChange === 'toggle') projectPart('files', id);
+        projectPart(old && rec && same(without(old, 'updatedAt'), without(rec, 'updatedAt')) ? 'projectTouched' : 'projects', id);
         return;
+      }
       case 'users': {
         const id = (rec ?? old)!.id as string;
         const preferencesChanged = !old || !rec || !same(old.preferences, rec.preferences);
@@ -452,6 +481,9 @@ export function diffState(before: State, after: State): Diff {
           // The same for a change of a meeting with no project (fbk_022).
           priv('events');
           officeMeetings.add(rec!.officeMeetingId);
+        } else if (typeof rec!.projectId === 'string' && eventTouchesLocked(after, rec as never)) {
+          // A change of a locked folder, or of a file in one, shows in the History of the holders only (fbk_074).
+          lockedPart('events', rec!.projectId);
         } else {
           projectPart('events', rec!.projectId);
         }
@@ -460,6 +492,11 @@ export function diffState(before: State, after: State): Diff {
         if (OFFICE_SCOPE.has(spec.collection)) {
           pub(spec.collection);
           markOffice();
+        } else if (spec.collection === 'files' && sides.every((side) => typeof side.projectId === 'string')
+          && (!old || fileLocked(before, old)) && (!rec || fileLocked(after, rec))) {
+          // A file that sits in a locked folder before and after the change goes to the holders of the switch (fbk_074). A file that comes out of one,
+          // or goes into one, is a change that the others see too, so it keeps the public part below.
+          lockedPart('files', (rec ?? old)!.projectId as string);
         } else {
           for (const side of sides) {
             // An office task, and a file of one, belong to the task (owner, 2026-10-06).
@@ -597,11 +634,12 @@ export function diffState(before: State, after: State): Diff {
     restKinds,
     publicOffice: personal ? false : publicOffice,
     hidden,
+    locked,
     audienceOf,
     lateComments,
     // A comment whose project writeDiff still looks up may belong to a project, so it keeps the office signal. A chat part has its own
     // signal and does not count here. A hidden project has its own people, so it is no part of the private-only rule.
-    privateOnly: (officeTasks.size > 0 || officeMeetings.size > 0) && !publicOffice && projects.size === 0 && unresolvedComments.length === 0 && hidden.size === 0,
+    privateOnly: (officeTasks.size > 0 || officeMeetings.size > 0) && !publicOffice && projects.size === 0 && unresolvedComments.length === 0 && hidden.size === 0 && locked.size === 0,
   };
 }
 
@@ -707,7 +745,8 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
 
   // The people of a direct chat or a group join the list (owner, 2026-10-21): they get the signal in place of an office signal. One statement
   // counts all their topics, whatever the number of people.
-  const hiddenPeople = [...hidden.values()].flatMap((part) => [...part.people]);
+  const lockedParts = diff.locked;
+  const hiddenPeople = [...hidden.values(), ...lockedParts.values()].flatMap((part) => [...part.people]);
   const people = [...new Set([...diff.people, ...(diff.privateChange ? diff.privatePeople : []), ...diff.chatPeople, ...hiddenPeople])].sort();
   let personSeq = new Map<string, number>();
   if (signalsOn && diff.kinds.size > 0 && people.length > 0) {
@@ -748,10 +787,10 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     // The hidden project part (owner, 2026-10-22): one signal with its own id for each person who views a project that the save touched. It
     // holds the kinds and the ids of those projects only, so a person never hears a project of which the person is no viewer. A person who
     // also hears another part keeps its kinds and ids too, under the id of this part (the screens drop a later signal with a known id).
-    const hiddenId = hidden.size > 0 ? crypto.randomUUID() : '';
+    const hiddenId = hidden.size > 0 || lockedParts.size > 0 ? crypto.randomUUID() : '';
     const inOtherPart = (userId: string) => diff.people.has(userId) || (diff.privateChange && diff.privatePeople.has(userId)) || diff.chatPeople.has(userId);
     const baseOf = (userId: string) => {
-      const own = [...hidden].filter(([, part]) => part.people.has(userId));
+      const own = [...hidden, ...lockedParts].filter(([, part]) => part.people.has(userId));
       if (own.length === 0) return plainOf(userId);
       const plain = inOtherPart(userId) ? plainOf(userId) : { v: 1 as const, office: false, projects: [] as string[], kinds: [] as Kind[], storyId: story.storyId, actorId: story.actorId };
       return {

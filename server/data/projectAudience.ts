@@ -1,4 +1,5 @@
-import { can, projectResource, type Actor } from '../../src/api/permissions';
+import { can, holdsRight, projectResource, type Actor } from '../../src/api/permissions';
+import { LOCKED_RIGHT } from '../../src/api/folderLock';
 import { withOfficeRights } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 
@@ -76,5 +77,23 @@ export function audienceFinder(before: State, after: State): (projectId: string)
     }
     memo.set(projectId, audience);
     return audience;
+  };
+}
+
+/**
+ * The people who hear a change that touches a locked folder (fbk_074): the people who view the project and hold the switch "Locked folders", in the
+ * State before the change or after it. The Admin holds the switch. Everyone else hears nothing of a locked folder, not even that something changed.
+ */
+export function lockedAudienceFinder(before: State, after: State): (projectId: string) => ReadonlySet<string> {
+  const viewersOf = audienceFinder(before, after);
+  const holders = new Set<string>();
+  for (const state of [before, after]) {
+    for (const user of Object.values(state.users)) {
+      if (user.kind === 'human' && user.active && holdsRight(withOfficeRights(user, state.settings?.roles), LOCKED_RIGHT)) holders.add(user.id);
+    }
+  }
+  return (projectId) => {
+    const viewers = viewersOf(projectId);
+    return new Set([...holders].filter((id) => viewers === null || viewers.has(id)));
   };
 }

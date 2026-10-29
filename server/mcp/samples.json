@@ -192,6 +192,11 @@
     "name": "Mood board",
     "storyId": "cor_sample_024"
   },
+  "folders.setLock": {
+    "id": "fld_001",
+    "locked": false,
+    "storyId": "cor_sample_024"
+  },
   "madar.readFirst": {},
   "me.updatePreferences": {
     "theme": "dark"

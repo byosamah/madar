@@ -152,7 +152,8 @@ describe('no read path shows a hidden folder to a person outside the project', (
     const w = await world();
     for (const person of WITH_VIEW) {
       const detail = await as(w, person, () => w.t.api.call('projects.get', { id: w.ids.project }));
-      expect(detail.folders.map((folder) => folder.name), person).toEqual([SECRET]);
+      // The new project starts with Client documents and Contract (fbk_074). The Contract folder is locked: only the Admin holds the switch.
+      expect(detail.folders.map((folder) => folder.name), person).toEqual(person === ADMIN ? ['Client documents', 'Contract', SECRET] : ['Client documents', SECRET]);
       const files = await as(w, person, () => w.t.api.call('files.list', { projectId: w.ids.project }));
       expect(files.map((view) => view.file.folderId), person).toEqual([w.ids.folder]);
     }

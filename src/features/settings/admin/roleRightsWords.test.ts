@@ -11,7 +11,7 @@ type Words = { roleRights: { sections: Record<string, string>; scopes: Record<st
 const words = (tree: object) => (tree as unknown as Words).roleRights;
 const EM_DASH = String.fromCharCode(0x2014);
 
-describe('the words of the role sheet (121 switches, 92 powers, 13 sections)', () => {
+describe('the words of the role sheet (122 switches, 93 powers, 13 sections)', () => {
   it('has the English label and hint of each power word for word from the catalog', () => {
     for (const section of json.sections) {
       expect(words(en).sections[section.key]).toBe(section.en);

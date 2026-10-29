@@ -130,8 +130,8 @@ describe('the folder tools for the agent of a person who does not see the hidden
 });
 
 describe('the lists and the words of the folder tools', () => {
-  it('put the four tools on the allow list, each with a short doc, and tell the agent about folders in the instructions', () => {
-    for (const name of ['folders.create', 'folders.rename', 'folders.delete', 'files.move']) {
+  it('put the five tools on the allow list, each with a short doc, and tell the agent about folders in the instructions', () => {
+    for (const name of ['folders.create', 'folders.rename', 'folders.setLock', 'folders.delete', 'files.move']) {
       expect(MCP_ALLOW as readonly string[], name).toContain(name);
       expect(MCP_DENY as readonly string[], name).not.toContain(name);
       expect(TOOL_DOCS[name].description.length, name).toBeLessThanOrEqual(600);
@@ -141,5 +141,72 @@ describe('the lists and the words of the folder tools', () => {
     expect(INSTRUCTIONS).not.toMatch(/[–—]/);
     expect(TOOL_DOCS['files.list'].description).toContain('folderId');
     expect(TOOL_DOCS['projects.get'].description).toContain('folders');
+  });
+});
+
+/**
+ * The locked folders over MCP (fbk_074, owner 2026-10-29). prj_001 is open. Its folder fld_902 is locked and holds one file. The agent of the Admin
+ * (usr_001, who holds the switch "Locked folders") sees and changes the folder. The agent of a person without the switch (usr_002) finds no trace of
+ * the folder or the file, and every tool that names them answers as for a missing record.
+ */
+describe('the locked folder tools', () => {
+  const OPEN = 'prj_001';
+  const LOCKED_NAME = 'Signed papers';
+  let lockedFile: string;
+  beforeAll(() => {
+    lockedFile = Object.values(seed.files).find((f) => f.projectId === OPEN)!.id;
+    seed.projects[OPEN].folders = [{ id: 'fld_902', stageId: null, name: LOCKED_NAME, createdBy: 'usr_002', createdAt: '2026-10-04T09:00:00.000+03:00', locked: true }];
+    // A locked folder holds no file of a to-do and no cover, so the sample file leaves its task.
+    seed.files[lockedFile] = { ...seed.files[lockedFile], stageId: null, taskId: null, folderId: 'fld_902' };
+    if (seed.projects[OPEN].coverFileId === lockedFile) seed.projects[OPEN].coverFileId = null;
+    seed.counters.fld = 902;
+  });
+
+  it('shows the folder and its file to the agent of a holder, and lets it lock and unlock', async () => {
+    const w = world(agentOf('usr_001'));
+    const read = await call(w, 'projects.get', { id: OPEN });
+    expect(read.structuredContent.output.folders).toEqual([expect.objectContaining({ id: 'fld_902', name: LOCKED_NAME, locked: true })]);
+    const listed = await call(w, 'files.list', { projectId: OPEN });
+    expect(listed.structuredContent.output.map((view: { file: { id: string } }) => view.file.id)).toContain(lockedFile);
+    const open = await call(w, 'folders.setLock', { id: 'fld_902', locked: false });
+    expect(open.isError).toBeUndefined();
+    expect(open.structuredContent.output.locked).toBeUndefined();
+    const again = await call(w, 'folders.setLock', { id: 'fld_902', locked: true });
+    expect(again.structuredContent.output.locked).toBe(true);
+  });
+
+  it('answers the agent of a person without the switch as for a missing record, and shows no name', async () => {
+    const w = world(agentOf('usr_002'));
+    const probes: [string, Record<string, unknown>, Record<string, unknown>, string][] = [
+      ['folders.setLock', { id: 'fld_902', locked: false }, { id: 'fld_999', locked: false }, 'fld_902'],
+      ['folders.rename', { id: 'fld_902', name: 'Mine' }, { id: 'fld_999', name: 'Mine' }, 'fld_902'],
+      ['folders.delete', { id: 'fld_902' }, { id: 'fld_999' }, 'fld_902'],
+      ['files.move', { id: lockedFile, stageId: null, folderId: null }, { id: 'fil_999', stageId: null, folderId: null }, lockedFile],
+      ['files.delete', { id: lockedFile }, { id: 'fil_999' }, lockedFile],
+      ['files.link', { id: lockedFile, variant: 'full', disposition: 'inline' }, { id: 'fil_999', variant: 'full', disposition: 'inline' }, lockedFile],
+    ];
+    for (const [name, hidden, gone, id] of probes) {
+      const a = errorOf(await call(w, name, hidden));
+      const b = errorOf(await call(w, name, gone));
+      expect(a.isError, name).toBe(true);
+      expect(a.error?.code, name).toBe('not_found');
+      expect(swap(a, id), name).toEqual(swap(b, JSON.stringify(gone).match(/"([a-z]{3}_999)"/)![1]));
+      expect(JSON.stringify(a).split(id).join('@'), name).not.toContain(LOCKED_NAME);
+    }
+    const read = await call(w, 'projects.get', { id: OPEN });
+    expect(read.structuredContent.output.folders).toEqual([]);
+    const listed = await call(w, 'files.list', { projectId: OPEN });
+    expect(listed.structuredContent.output.map((view: { file: { id: string } }) => view.file.id)).not.toContain(lockedFile);
+    for (const [name, args] of [['projects.list', {}], ['events.list', { limit: 500 }], ['search.query', { text: LOCKED_NAME }], ['files.list', { projectId: OPEN }]] as const) {
+      expect(JSON.stringify((await call(w, name, args)).structuredContent), name).not.toMatch(new RegExp(`${LOCKED_NAME}|fld_902|${lockedFile}`));
+    }
+  });
+
+  it('refuses the lock to the agent of a person without the switch on a folder that the person sees', async () => {
+    const w = world(agentOf('usr_002'));
+    const made = await call(w, 'folders.create', { projectId: OPEN, name: 'Site photos' });
+    const id = made.structuredContent.output.id as string;
+    const refused = errorOf(await call(w, 'folders.setLock', { id, locked: true }));
+    expect(refused.error).toMatchObject({ code: 'forbidden', details: { action: 'folder.locked' } });
   });
 });

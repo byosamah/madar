@@ -202,8 +202,10 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     // The folders of the Files & Links tab (fbk_066): make one in the current stage, rename it, move a file into it, and delete it (the file goes back
     // to the root of its stage). The Undo of the story takes all of it back.
     await write('folders.create', { projectId: project.id, stageId, name: 'Mood boarding' });
-    const folderId = first(s().projects[project.id].folders ?? [], 'new folder').id;
+    const folderId = first((s().projects[project.id].folders ?? []).filter((f) => f.name === 'Mood boarding'), 'new folder').id;
     await write('folders.rename', { id: folderId, name: 'Mood board' });
+    // The lock (fbk_074): the Admin of the sample run holds the switch, and the folder is open, so this call changes nothing.
+    await write('folders.setLock', { id: folderId, locked: false });
     const projectFile = first(Object.values(s().files).filter((f) => f.projectId === project.id), 'file of the project');
     await write('files.move', { id: projectFile.id, stageId, folderId });
     await write('folders.delete', { id: folderId });

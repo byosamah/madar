@@ -4,6 +4,7 @@ import { FileId, MESSAGE_MAX, TaskId, UserId } from '../contract/entities';
 import { canSeeConversation } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { assertCan, insertComment, requireTask, taskRole, touch } from './shared';
+import { fileInLockedFolder } from '../folderLock';
 import { mayViewFile } from '../views';
 import { assertFilesForDirect } from './attach';
 import { directWith, postMessage, requireDirectPartner } from './chats';
@@ -29,6 +30,8 @@ export const filesShare = defineCall({
     if (file.conversationId !== undefined) throw invalid('target', 'A file of a chat stays in its chat.', 'file_chat');
     // A file of a meeting stays with its meeting (wave 2).
     if (file.meetingId !== undefined) throw invalid('target', 'A file of a meeting stays with its meeting.', 'file_meeting');
+    // A file of a locked folder stays in its folder (fbk_074). The person sees the file, so the refusal tells nothing.
+    if (fileInLockedFolder(ctx.state, file)) throw invalid('target', 'A file of a locked folder stays in its folder.', 'file_locked');
     // Sharing a file needs file.share. A share into a chat also needs the chat switch: postMessage asks it (chat.project or chat.direct).
     assertCan(ctx, 'file.share');
     const body = input.message || file.name;

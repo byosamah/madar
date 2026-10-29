@@ -7,6 +7,7 @@ import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../ev
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { noticeProjectHidden } from '../hiddenNotice';
 import { feedbackNoticeHidden } from '../notify';
+import { eventHiddenByLock, eventTouchesLocked } from '../folderLock';
 import { eventProjectViewer, goneProjectsOf, viewsGoneProject } from '../projectView';
 import { ensureRights, withRights } from '../rights';
 import { can, holdsAdminRights, mayViewMeeting, mayViewProject, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
@@ -72,6 +73,8 @@ export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = c
   }
   // A change of a project follows the view of the project (hidden projects, owner 2026-10-22).
   if (event.projectId && !seesProjectEvent(ctx, event.projectId, viewer)) return false;
+  // A change of a locked folder, or of a file in one, shows only to the people who hold the switch "Locked folders" (fbk_074).
+  if (eventHiddenByLock(ctx.state, viewer, event)) return false;
   return !event.officeTaskId || can(viewer, 'task.view', officeOf(ctx, event, undo, viewer));
 }
 
@@ -122,7 +125,7 @@ export const eventsList = defineCall({
         && (since === null || Date.parse(e.createdAt) >= since))
       .sort((a, b) => b.seq - a.seq)
       .slice(0, input.limit)
-      .map((e) => ({ ...eventViewOf(ctx.state, e), ...eventLabel(ctx.state, e) }));
+      .map((e) => ({ ...eventViewOf(ctx.state, e, ctx.authority), ...eventLabel(ctx.state, e) }));
   },
 });
 
@@ -501,6 +504,22 @@ function releaseFilesOfGoneFolders(ctx: Ctx, projectId: string): void {
   }
 }
 
+/**
+ * The Undo of a folder change brings the folder list back to how it was. A locked folder that this takes away, and that still holds files, would
+ * send its files to the root, where everyone sees them. So the Undo refuses (fbk_074): the person moves the files out, or unlocks the folder.
+ */
+function assertUndoKeepsLockedFiles(ctx: Ctx, event: Event): void {
+  const project = event.projectId ? ctx.state.projects[event.projectId] : undefined;
+  const back = (event.before as { folders?: { id: string }[] } | null)?.folders ?? [];
+  if (!project) return;
+  for (const folder of project.folders ?? []) {
+    if (folder.locked !== true || back.some((item) => item.id === folder.id)) continue;
+    if (Object.values(ctx.state.files).some((file) => file.projectId === project.id && file.folderId === folder.id)) {
+      throw new ApiError('conflict', 'A locked folder still holds files. Move them out first. Undo is not available.', { reason: 'folder_locked_has_files' });
+    }
+  }
+}
+
 function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): EventView {
   // A change that the person does not see reads as missing, before any other rule (owner, 2026-10-06).
   if (!seesEvent(ctx, event, true)) throw notFound('Event', event.id);
@@ -524,6 +543,7 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
     if (back === 'done' || back === 'in_review') assertMayFinish(ctx.state, { ...task, status: String(back) as Task['status'] });
   }
   // A role change lives in the office settings, not in a collection, so its own Undo takes it back (handlers/roles.ts).
+  if (event.verb === 'project.folders_changed') assertUndoKeepsLockedFiles(ctx, event);
   const undo = isRoleEvent(event) ? undoRoleChange(ctx, event) : undoEvent(ctx, event.id);
   // rev is not in the event of a meeting. A change that comes back is a new copy for a calendar, so rev grows again (fbk_022).
   const meeting = event.targetType === 'meeting' ? ctx.state.meetings?.[event.targetId] : undefined;
@@ -533,8 +553,9 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now, undo.id);
   if (event.verb === 'task.deleted') takeBackTemplatePart(ctx, event.targetId, event.projectId);
   if (event.verb === 'project.folders_changed') releaseFilesOfGoneFolders(ctx, event.targetId);
-  if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);
-  return eventViewOf(ctx.state, undo);
+  // The Undo of a change that only the holders of the switch see is no news for the others (fbk_074).
+  if (event.projectId && ctx.state.projects[event.projectId] && !eventTouchesLocked(ctx.state, event)) touch(ctx, event.projectId);
+  return eventViewOf(ctx.state, undo, ctx.authority);
 }
 
 /**

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
   ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, PauseKind, ProjectId, ProjectKind, ProjectShapeText, ProjectStatus, ProjectTemplateId, StageId,
-  SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Stage, type Task,
+  SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectFolder, type ProjectTemplate, type Stage, type Task,
 } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
@@ -27,6 +27,8 @@ import { baseOf } from '../templateSync';
 import { pickMark } from '../../lib/projectMark';
 import { projectRef } from '../../lib/projectRef';
 import { involves } from '../../lib/taskPeople';
+import { fileHiddenByLock, fileInLockedFolder } from '../folderLock';
+import { freeProjectFolderName, presetFoldersOf } from './folders';
 import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, seesProject, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 
@@ -481,6 +483,8 @@ export const projectsCreate = defineCall({
       ...(subCompanyId ? { subCompanyId } : {}),
       ...(internal ? { kind: 'internal' as const, access: { hidden: true, viewerIds: [] } } : {}),
       ...(input.continuous ? { continuous: true } : {}),
+      // A client project starts with the folders "Client documents" and "Contract" for the whole project (fbk_074). The Contract folder starts locked.
+      ...(internal ? {} : { folders: presetFoldersOf(ctx) }),
       createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
       // The link keeps the template, the person of each role and a copy of the template parts. No part is dropped yet (fbk_008 item 4, ADM-01).
       ...(made ? { templateLink: { templateId: made.template.id, linkedAt: stamp, syncedAt: null, rolePeople: { ...made.people }, droppedPartIds: [], base: baseOf(made.template, made.plan) } } : {}),
@@ -564,7 +568,9 @@ export const projectsUpdate = defineCall({
       const file = ctx.state.files[patch.coverFileId];
       // A cover shows to every viewer of the project, so a file of a chat never is one (security review 2026-10-26). The screens offer none.
       if (file?.conversationId !== undefined) throw invalid('coverFileId', 'A file of a chat cannot be a cover. It stays in its chat.', 'cover_chat_file');
-      if (!file || file.projectId !== project.id) throw invalid('coverFileId', 'This file is not in the project.');
+      // A file in a locked folder that the person may not see reads as a file that is not in the project (fbk_074); a holder gets the real reason.
+      if (!file || file.projectId !== project.id || fileHiddenByLock(ctx.state, ctx.authority, file)) throw invalid('coverFileId', 'This file is not in the project.');
+      if (fileInLockedFolder(ctx.state, file)) throw invalid('coverFileId', 'The cover of the project cannot be in a locked folder.', 'folder_locked_cover');
       if (!file.versions[file.versions.length - 1].mimeType.startsWith('image/')) throw invalid('coverFileId', 'The cover must be an image.', 'cover_not_image');
     }
     if (newCode !== undefined) {
@@ -1022,15 +1028,21 @@ export const stagesReplace = defineCall({
     for (const stage of removed) {
       delete state.stages[stage.id];
       for (const d of Object.values(state.deadlines)) if (d.stageId === stage.id) d.stageId = null;
-      // The files of a removed stage go to "No stage", also the files in its folders; the folders go with the stage (fbk_066).
+      // The files of a removed stage go to "No stage", also the files in its folders; the folders go with the stage (fbk_066). A locked folder
+      // does not go: it becomes a folder of the whole project with its files and its lock, so a stage change never shows a locked file (fbk_074).
       for (const f of Object.values(state.files)) {
         if (f.stageId !== stage.id) continue;
         f.stageId = null;
-        if (f.folderId) f.folderId = null;
+        if (f.folderId && project.folders?.find((folder) => folder.id === f.folderId)?.locked !== true) f.folderId = null;
       }
     }
     if (project.folders?.some((folder) => removed.some((stage) => stage.id === folder.stageId))) {
-      project.folders = project.folders.filter((folder) => !removed.some((stage) => stage.id === folder.stageId));
+      const gone = (folder: ProjectFolder) => removed.some((stage) => stage.id === folder.stageId);
+      const kept = project.folders.filter((folder) => !gone(folder));
+      for (const folder of project.folders.filter((item) => gone(item) && item.locked === true)) {
+        kept.push({ ...folder, stageId: null, name: freeProjectFolderName(kept, folder.name) });
+      }
+      project.folders = kept;
     }
     input.stages.forEach((stage, order) => {
       const id = stage.id ?? nextId(state, 'stg');

@@ -25,10 +25,10 @@ describe('the agent tools and the Daftra link', () => {
     }
   });
 
-  // Daftra adds no tool. On main the counts were 53 allowed and 65 for an Admin (after the file folders of fbk_066). After the join with the MCP parity branch they are 127 and 158.
-  it('keeps the count of tools of the joined list: 127 allowed, 158 for an Admin', () => {
-    expect(MCP_ALLOW).toHaveLength(127);
-    expect(mcpTools({ admin: true, rights: OFFICE_RIGHTS })).toHaveLength(158);
+  // Daftra adds no tool. On main the counts were 53 allowed and 65 for an Admin (after the file folders of fbk_066). After the join with the MCP parity branch they are 128 and 158.
+  it('keeps the count of tools of the joined list: 128 allowed, 159 for an Admin', () => {
+    expect(MCP_ALLOW).toHaveLength(128);
+    expect(mcpTools({ admin: true, rights: OFFICE_RIGHTS })).toHaveLength(159);
   });
 
   it('tells the agent in payments.list that a linked payment has a read-only daftra field, with the invoice number and the total', () => {

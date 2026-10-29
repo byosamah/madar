@@ -40,14 +40,32 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   line). It stays out of the gaps `noArea` and `noSubCompany`, the money, and the Tracker counts; it stays in `stage_no_end`
   and the workload (`internalNumbers.test.ts`).
 - **Folders** (`Project.folders`, `handlers/folders.ts`). They live in the project record, so exactly the people who see the
-  project see them. A list row leaves them out (`withoutBase`, `views.ts`). All four calls ask `file.upload`. A folder
-  change is the event `project.folders_changed`, a move is `file.moved`; neither is in `FEED_VERBS`. A move is no news:
-  it never touches the project, so the "last update" order stays. `folders.delete` writes the `file.moved` events first
-  and the folder event last, so one `events.undoStory` brings the folder back before it puts the files in it. Undo of a move
-  into a folder needs the folder to stand (`assertReferencesExist`); the Undo of a folder change sends the files of a gone
-  folder to the root (`releaseFilesOfGoneFolders`). A removed stage (`stages.replace`) takes its folders with it, silently.
-  A file of a chat, a meeting or an office task cannot move. Leak tests: `folderLeaks.test.ts`,
-  `server/data/folderSignals.test.ts`, `server/mcp/folderTools.test.ts`.
+  project see them (a locked folder: see "Locked folders" in `src/api/CLAUDE.md`). A list row leaves them out (`withoutBase`,
+  `views.ts`). The calls `folders.create`, `.rename`, `.delete` and `files.move` ask `file.upload`. `folders.setLock` also asks
+  the switch `folder.locked`. A folder change is the event `project.folders_changed`, a move is `file.moved`; neither is in
+  `FEED_VERBS`. A move is no news: it never touches the project, so the "last update" order stays (an upload into a locked folder
+  and a delete of such a file touch nothing either). `folders.delete` writes the `file.moved` events first and the folder event
+  last, so one `events.undoStory` brings the folder back before it puts the files in it. Undo of a move into a folder needs the
+  folder to stand (`assertReferencesExist`); the Undo of a folder change sends the files of a gone folder to the root
+  (`releaseFilesOfGoneFolders`), except for a locked folder that holds files: the Undo refuses (`folder_locked_has_files`).
+  A file of a chat, a meeting or an office task cannot move. Leak tests: `folderLeaks.test.ts`, `lockedFolderLeaks.test.ts`,
+  `server/data/folderSignals.test.ts`, `server/data/lockedFolderSignals.test.ts`, `server/mcp/folderTools.test.ts`.
+  - **Places.** A folder sits in one real stage, or in no stage (`stageId` null: a folder of the whole project, fbk_074). A name is
+    unique inside one place (one stage, or the whole project); the name check compares only the folders that the person sees.
+    A file in a folder of the project has `stageId` null, and `checkPlace` refuses any other stage (`folder_other_stage`). The
+    screens count such a file for its folder, never for "No stage" (`groupsOf`, `projectFoldersOf`). `stages.replace` takes the
+    open folders of a removed stage with it, but a locked folder stays as a folder of the whole project (a number joins its name
+    when the name is taken), so a stage change never shows a locked file.
+  - **The standard folders.** `projects.create` (also from a template) gives a client project `Client documents` and `Contract`
+    (`presetFoldersOf`; both for the whole project; Contract starts locked); an internal project gets none. `ProjectFolder.preset`
+    (`client_documents`, `contract`) stays while the name is the English one: the screens show the word of the viewer's language
+    (`folderLabel`), and `folders.rename` clears the preset. `folders.create` takes `preset` (and no name): the way to add the two
+    folders to an older project, through the MCP. A second folder with the same preset fails with `folder_preset_taken`, so a rerun
+    is safe. The Contract preset needs `folder.locked`, and the switch is asked before any check of other folders.
+  - A locked folder holds no file of a to-do, no cover, and no file that the Tracker names (`folder_locked_task_file`,
+    `folder_locked_cover`, `folder_locked_tracker`); such a folder cannot be locked while it holds one (`folder_lock_task_file`,
+    `folder_lock_cover`). A locked folder with files is not deleted (`folder_locked_has_files`): the person moves the files out or
+    unlocks it. A file of a locked folder is not shared and not attached (`file_locked`).
 - **Tracker type Government.** The stored value stays `balady`. The screens call it Government. The `TOOL_DOCS` of
   `tracker.log` and `tracker.list` say what it means.
 - `projects.pause` with a restart date: `pause.resumeOn` is a reminder. Madar never restarts a project. `projects.setRestart`

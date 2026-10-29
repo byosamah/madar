@@ -51,17 +51,17 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   /** The rights of a default Member plus more ids (an old id expands to its new ids). */
   const heldPlus = (...extra: string[]) => [...memberHeld, ...expandRights(extra)];
 
-  it('has the 127 tools of the allowlist, each once', () => {
-    expect(MCP_ALLOW).toHaveLength(127);
-    expect(new Set(MCP_ALLOW).size).toBe(127);
+  it('has the 128 tools of the allowlist, each once', () => {
+    expect(MCP_ALLOW).toHaveLength(128);
+    expect(new Set(MCP_ALLOW).size).toBe(128);
     // An agent takes a task with no lead for its person (owner, 2026-10-05).
     expect(MCP_ALLOW).toContain('tasks.take');
     // The base list (no right asked) is the allowlist.
     expect(mcpTools().map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
   });
 
-  it('gives an agent of a default Member 118 tools: the allowlist, the Dashboard, Search and a request or a bug (role rights version 2; MCP parity)', () => {
-    expect(tools).toHaveLength(118);
+  it('gives an agent of a default Member 119 tools: the allowlist, the Dashboard, Search and a request or a bug (role rights version 2; MCP parity)', () => {
+    expect(tools).toHaveLength(119);
     // The tools of project set-up are on the allowlist, but their AI switch (ai.projectSetup) is off for a default Member. The Admin tools need ai.admin and a right.
     expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW.filter((name) => !setupTools.includes(name) && !adminWork.includes(name)), ...memberRightTools].sort());
   });
@@ -94,12 +94,12 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['chats.openDirect', 'chats.send']) expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
   });
 
-  it('adds the 3 tools of requests and bugs only to the list of an agent whose person holds the feedback right: 158 tools for an Admin (owner, 2026-10-07; role-rights, 2026-10-23; project set-up, 2026-10-25; MCP parity, 2026-10-26)', () => {
+  it('adds the 3 tools of requests and bugs only to the list of an agent whose person holds the feedback right: 159 tools for an Admin (owner, 2026-10-07; role-rights, 2026-10-23; project set-up, 2026-10-25; MCP parity, 2026-10-26)', () => {
     // The only Admin tools are the three role calls (admin.manage): the 3 tools of requests and bugs are on the right list, so a role can hold them.
     expect([...MCP_ADMIN]).toEqual(['roles.create', 'roles.update', 'roles.delete']);
     for (const name of feedbackTools) expect(MCP_BY_RIGHT[name as keyof typeof MCP_BY_RIGHT], name).toBe('feedback.manage');
     expect(tools.filter((tool) => tool.name.startsWith('feedback.')).map((tool) => tool.name)).toEqual(['feedback.send', 'feedback.sendWithScreenshots']);
-    expect(adminTools).toHaveLength(158);
+    expect(adminTools).toHaveLength(159);
     expect(adminTools.map((tool) => tool.name).sort()).toEqual([...allowAndAdmin].sort());
     // The list of a Member is the Admin list without the tools of the rights and the switches that a Member lacks, in the same order.
     const lacking = [...paymentTools, 'reports.office', ...feedbackTools, ...setupTools, ...adminWork, 'payments.delete'];
@@ -114,7 +114,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     const names = (rights: Parameters<typeof mcpTools>[0]) => mcpTools(rights).map((tool) => tool.name);
     // The feedback right alone adds exactly the 3 tools to the default list.
     const holder = names({ rights: heldPlus('feedback.manage') });
-    expect(holder).toHaveLength(121);
+    expect(holder).toHaveLength(122);
     for (const name of feedbackTools) expect(holder, name).toContain(name);
     expect(holder).not.toContain('reports.office');
     // Every other right, and all the rights but this one, leave the 3 tools out.
@@ -142,12 +142,12 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(tools.map((tool) => tool.name)).not.toContain('reports.office');
     // Accounting holds the payment switches and no report right: the Member list plus the 5 payment tools, 123 in all.
     const accounting = mcpTools({ rights: heldRightsOfRole(undefined, 'accounting') });
-    expect(accounting).toHaveLength(123);
+    expect(accounting).toHaveLength(124);
     expect(accounting.map((tool) => tool.name)).not.toContain('reports.office');
     expect(accounting.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !feedbackTools.includes(name) && !setupTools.includes(name) && !adminWork.includes(name) && name !== 'reports.office'));
     // Management, with its default rights, gets the report too: 124 in all. It holds the people rights, but ai.admin is off, so it gets no Admin tool.
     const management = mcpTools({ rights: heldRightsOfRole(undefined, 'management') });
-    expect(management).toHaveLength(124);
+    expect(management).toHaveLength(125);
     expect(management.map((tool) => tool.name)).toContain('reports.office');
     expect(management.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !feedbackTools.includes(name) && !setupTools.includes(name) && !adminWork.includes(name)));
     expect(adminTools.map((tool) => tool.name)).toContain('reports.office');
@@ -276,8 +276,8 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['payments.update', 'projects.setStatus', 'tasks.update', 'tracker.close']) {
       expect(adminTools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
     }
-    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(72);
-    expect(adminTools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(97);
+    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(73);
+    expect(adminTools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(98);
     // users.create sends an invitation email, so it is not additive.
     expect(adminTools.find((tool) => tool.name === 'users.create')!.annotations.destructiveHint).toBe(true);
     expect(tools.find((tool) => tool.name === 'tasks.take')!.annotations.destructiveHint).toBe(true);

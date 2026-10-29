@@ -124,6 +124,23 @@ pure handlers, an additive contract, a table for a new collection, a test count 
   `server/mcp/hiddenProjectTools.test.ts`, `server/calls/hiddenProjectFiles.test.ts`. The loader sweep reads and writes the
   hidden project of `trapOffice` (`HIDDEN_PROJECT`, `server/data/loaders/sweep.ts`).
 
+## Locked folders (fbk_074)
+- The switch `folder.locked` ("Locked folders", one switch, off for every role but the Admin). A person without it never learns
+  that a locked folder exists, nor any file in it: every call that names them answers as an unknown id (`not_found`, same code,
+  text and details). The pure rule is `folderLock.ts` (`holdsLockedFolders`, `foldersFor`, `fileHiddenByLock`, `fileInLockedFolder`,
+  `eventTouchesLocked`, `eventHiddenByLock`, `eventForViewer`, `lockedFolderChange`). Every path asks one of them.
+- Read paths: `projects.get` (`foldersFor`), `files.list`, `mayViewFile` (so `files.get`, `files.link`, delete, move, mark delivered and
+  share all read a locked file as missing), `search.query`, `attachmentsOf` (with the viewer), `feedFor`, `seesEvent` (the History, Undo,
+  `events.undoStory`) and `eventViewOf` (takes the locked folders out of a folder list that an event keeps, such as `project.created`),
+  `server/calls/files.ts` (`files.link`), and the change signals (`server/data/save.ts`: a change inside a locked folder goes only
+  to the holders who view the project; a lock or unlock goes to all, with the kinds `projects` and `files`).
+- A locked folder hides its whole past: an event about a folder that is locked now stays hidden, also from the days when it was open.
+- Write paths: `requireFolder` and `checkPlace` read a locked folder as missing for a person without the switch; `addVersion` skips a
+  locked file that the person cannot see, so an upload of the same name makes a new file and tells nothing; `updates.create` and
+  `assertFilesInProject` refuse a locked file. A new door that takes a file id, a folder id or a folder list must ask `folderLock.ts`.
+- `ViewerCan.lockFolders` (the switch with the upload right) is the flag of the lock control. Leak tests: `handlers/lockedFolderLeaks.test.ts`,
+  `server/calls/lockedFolderFiles.test.ts`, `server/data/lockedFolderSignals.test.ts`, `server/mcp/folderTools.test.ts`.
+
 ## Notices
 - `Preferences.notifications` is a `partialRecord`: an absent trigger means on. Read a switch only with `inAppOn`
   (`notify.ts`). A person stored before a new trigger still loads, with no backfill.
@@ -216,6 +233,8 @@ pure handlers, an additive contract, a table for a new collection, a test count 
 ## Prototype data
 - `src/data/seed.ts` builds the sample office. `STATE_VERSION` is in `store.ts`. Each version has a step in
   `src/data/migrate.ts`. A newer or unreadable saved office is never wiped.
+- The prototype adds the standard folders of the sample client projects in `src/data/sampleFolders.ts` (bootstrap and `sampleOffice`, not
+  `buildSeed`: the screen tests count the folders of the plain sample office).
 - `src/api` never imports `src/data/`. `session.resetSampleData` takes the sample office from the runtime (`createApi`
   option `sampleOffice`, `src/data/sampleOffice.ts`), so the server bundles hold none.
 - `settleFuture` runs only on sample data: the prototype, the test office seed (madar-test only) and the local seed.

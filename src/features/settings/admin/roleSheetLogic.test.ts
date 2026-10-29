@@ -8,7 +8,7 @@ import {
 const MEMBER: readonly CatalogRightId[] = withNeeds([...BASIC_ON]);
 
 describe('the sections of the role sheet', () => {
-  it('hold the 121 switches once each, in 13 sections', () => {
+  it('hold the 122 switches once each, in 13 sections', () => {
     expect(SHEET_SECTIONS).toHaveLength(13);
     expect(SHEET_SECTIONS.flatMap((section) => section.ids)).toEqual([...CATALOG_RIGHT_IDS]);
   });
@@ -16,7 +16,7 @@ describe('the sections of the role sheet', () => {
   it('give each power a word key that no other power has', () => {
     const keys = SHEET_SECTIONS.flatMap((section) => section.powers.map((power) => power.key));
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toHaveLength(92);
+    expect(keys).toHaveLength(93);
     expect(powerKey('project.create')).toBe('projectCreate');
     expect(powerKey('templates.taskSave')).toBe('templatesTaskSave');
     expect(powerKey('subCompanies.manage')).toBe('subCompaniesManage');

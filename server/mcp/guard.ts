@@ -96,7 +96,7 @@ export function cleanText(text: string, max = 60): string {
  */
 const RISKY_PREFIXES = ['people.', 'payment.', 'clients.', 'subCompanies.', 'office.'] as const;
 const RISKY_IDS: ReadonlySet<string> = new Set([
-  'ai.admin', 'ai.payments', 'feedback.manage', 'report.office', 'gaps.view', 'project.seeAll', 'project.hidden', 'task.officeAll', 'ai.readChats',
+  'ai.admin', 'ai.payments', 'feedback.manage', 'report.office', 'gaps.view', 'project.seeAll', 'project.hidden', 'folder.locked', 'task.officeAll', 'ai.readChats',
 ]);
 
 /** True when the right is one the person should read first. An id outside the catalog (an old name) may be broad, so it counts as risky. */

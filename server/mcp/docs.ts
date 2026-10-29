@@ -32,7 +32,7 @@ export const INSTRUCTIONS = [
   'Reasons: some changes need a reason in words. A task change that moves the project back to an earlier stage needs "reason". A change of a task date that was already set needs "dateReason". When a call needs one, the server asks for it, or the call fails with a message that names the field. Ask your person for the reason, then call again with the same arguments plus that field. Never invent a reason.',
   '',
   'Files: you can list files and refer to them by ID, get a link to one with files.link, mark one delivered, share one in a chat and delete one. files.uploadContent uploads a file when you send its content in the call (contentBase64, standard base64 in one line, at most 10 MB decoded; no link and no address). It follows the upload rights of your person and the safe-type rules of the screens: a type that may not open in the browser is kept as a download only. Upload only what your person gives you or asks for, and tell your person what you uploaded. You cannot read the content of a file. You never get a storage key. A message of a direct or group chat may carry files: you see the id, the name and the type, and files.link opens one, for a chat that your person may open. With conversationId you send a file into a direct chat or a group of your person. Both need an AI switch: ai.messages to send, ai.readChats to open. Send only when your person asks, because a message reaches real people. Limits: the screens take a file of a project up to 500 MB and a file of a chat up to 250 MB, because the browser sends the file straight to the store. files.uploadContent keeps 10 MB.',
-  'Folders: a project keeps folders in its stages (one level, in a real stage) to organize files. projects.get lists them (folders) and each file has a folderId. You can make, rename and delete a folder, and move a file to a stage and a folder. A delete never deletes a file: its files go back to the stage. files.uploadContent takes folderId.',
+  'Folders: a project keeps folders to organize files, one level. A folder sits in one stage, or in no stage (a folder of the whole project; stageId is null). projects.get lists them (folders) and each file has a folderId. A new client project starts with two folders for the whole project: Client documents and Contract (preset client_documents and contract; name is the English name, and a rename clears the preset). The Contract folder starts locked. A locked folder, and every file in it, shows only to a person who holds the switch "Locked folders": for every other person it does not exist, so never mention it or its files to such a person. You can make, rename, lock, unlock and delete a folder, and move a file to a stage and a folder. A delete never deletes a file: its files go back to the root of their place, so a locked folder with files is not deleted (folder_locked_has_files) until you move the files out or unlock it. A locked folder holds no file of a to-do and no cover. Other reasons: folder_name_taken (one name in one place), folder_preset_taken, folder_other_stage, folder_limit. files.uploadContent takes folderId.',
   '',
   'Pictures: you can read the pictures that your person sees in Madar: profile pictures, sub-company logos, project tiles and covers. To keep your context small, the lists give the rules of each picture, not its data. users.list gives hasPicture and glow: the CSS background of the round picture (the profile picture covers it, else the initials show on it in ink). subCompanies.list gives hasLogo. projects.list and projects.get give look: color (the project color: its name, fg and bg) and tile (the project picture as an SVG drawing of 34 px). With a sub-company, the screens put its round logo on the bottom end corner of the tile, its center on the corner, 45% of the tile side and at least 18 px, and cut a gap 2 px wider around it out of the tile. withPictures: true on users.list, subCompanies.list and reports.office adds the picture data: data addresses of up to 16 KB each (reports.office gives each logo once, in subCompanyLogos). pictures.get gives one picture, and shows it to you as an image. Ask for picture data only when you build a document with the pictures. The colors are those of the light theme, for a white page. You set the picture of your person with me.updateProfile (avatarUrl) and a sub-company logo with subCompanies.save (logo). Send a small picture as a data address of 24,000 characters at most; resize it first. A project cover is a file: upload it with files.uploadContent, then set projects.update coverFileId. Apart from these, you cannot upload a picture, and you cannot change one except the tile shape of a project (see Tile shapes).',
   '',
@@ -255,7 +255,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'files.list': {
     title: 'List files',
-    description: 'Lists the files of one project (projectId), optionally of one stage (stageId) or one task (taskId). For an office task (no project), send taskId alone. Each file has its versions and their letters, and a folderId (null: at the root of its stage; the folders come from projects.get). You cannot read file contents here: files.link gives a link, and files.uploadContent uploads a file. A file of a direct or group chat is never in this list, and a storage key never comes to you.',
+    description: 'Lists the files of one project (projectId), optionally of one stage (stageId) or one task (taskId). For an office task (no project), send taskId alone. Each file has its versions and their letters, and a folderId (null: at the root of its place; the folders come from projects.get). You cannot read file contents here: files.link gives a link, and files.uploadContent uploads a file. A file of a direct or group chat is never in this list, and a storage key never comes to you.',
   },
   'feedback.sendWithScreenshots': {
     title: 'Send a report with pictures',
@@ -263,19 +263,24 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'folders.create': {
     title: 'Make a folder',
-    description: 'Makes a folder in one stage of a project (projectId, stageId, name of 1 to 60 letters). A folder holds files only: no folder inside a folder. A stage cannot have two folders with one name (reason folder_name_taken); a project holds up to 100 (folder_limit). Needs the right to upload to the project. Returns the folder with its id.',
+    description: 'Makes a folder in a stage (stageId), or for the whole project (stageId null or left out), with a name of 1 to 60 letters or a preset (client_documents, contract). Needs the right to upload.',
   },
   'folders.rename': {
     title: 'Rename a folder',
-    description: 'Gives a folder (id from projects.get, folders) a new name of 1 to 60 letters. Fails with folder_name_taken when the stage has a folder with that name. Needs the right to upload to the project. events.undo takes the change back.',
+    description: 'Gives a folder (id from projects.get, folders) a new name of 1 to 60 letters. Fails with folder_name_taken. Needs the right to upload. events.undo takes the change back.',
   },
+  'folders.setLock': {
+    title: 'Lock or unlock a folder',
+    description: 'Locks or unlocks a folder (id, locked). Needs the switch "Locked folders". Ask your person first.',
+  },
+
   'folders.delete': {
     title: 'Delete a folder',
-    description: 'Deletes a folder (id from projects.get, folders). No file is deleted: the files in the folder go back to the root of their stage. Needs the right to upload to the project. Tell your person first when the folder holds files. events.undoStory brings the folder and the place of its files back.',
+    description: 'Deletes a folder (id). No file is deleted: its files go back to the root of their place. Needs the right to upload. Tell your person first when the folder holds files. events.undoStory brings it back.',
   },
   'files.move': {
     title: 'Move a file',
-    description: 'Moves one file (id from files.list) to a stage and a folder: stageId is a stage of the project, or null for No stage; folderId is a folder of that stage, or null for the root of the stage. A folder of another stage fails with folder_other_stage. The task of the file stays. Needs the right to upload to the project. events.undo takes the move back.',
+    description: 'Moves one file (id from files.list) to a stage (or null: No stage) and a folder of that place (or null: the root). Needs the right to upload. events.undo takes the move back.',
   },
   'payments.create': {
     title: 'Add a payment',
@@ -299,7 +304,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id: code, stages, team, leader, client, dates, health, deadlines, links, folders (id, stageId, name). Code: 260902AZT-RES-Villa or KH-26-014. stageEnd ends the current stage, or null. continuous: true, no end. geo: the pin ({ lat, lng }) or null. nameAr: Arabic name. location is the address of the pin. templateId: template or null. chatId: project chat or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). look: color and tile (look.tile uses shape).',
+    description: 'Returns one project by id: code, stages, team, leader, client, dates, health, deadlines, links, folders (id, stageId or null, name, preset, locked). Code: 260902AZT-RES-Villa or KH-26-014. stageEnd ends the current stage, or null. continuous: true, no end. geo: the pin ({ lat, lng }) or null. nameAr: Arabic name. location is the address of the pin. templateId: template or null. chatId: project chat or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). look: color and tile (look.tile uses shape).',
   },
   'projects.list': {
     title: 'List projects',

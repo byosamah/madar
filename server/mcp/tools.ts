@@ -59,7 +59,7 @@ export const MCP_ALLOW = [
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
   'chats.openDirect', 'chats.send', 'stages.setDates', 'stages.replace', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes',
   // Folders of the Files & Links tab (fbk_066, owner 2026-10-26): an agent makes, renames and deletes folders and moves files; a person uploads in the screens.
-  'folders.create', 'folders.rename', 'folders.delete', 'files.move',
+  'folders.create', 'folders.rename', 'folders.setLock', 'folders.delete', 'files.move',
   // MCP parity (owner, 2026-10-26). Every call keeps its rights check, so an agent does only what its person may do.
   // Project set-up: the leader, the pause, who sees a project, the links, the health, the team and what a stage needs. A change of a person's access
   // or of the team tells real people, so TOOL_DOCS says: ask your person first.

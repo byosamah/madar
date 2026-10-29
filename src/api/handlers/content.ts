@@ -13,6 +13,7 @@ import { mayUndoAgentChange } from './history';
 import { activeMentions, assertCan, everyoneOfNew, insertComment, requireProject, requireReplyComment, requireTask, roleIn, seesProject, taskRole, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
 import { assertFilesInProject } from './attach';
+import { fileHiddenByLock, fileInLockedFolder } from '../folderLock';
 
 const Body = z.string().trim().min(1).max(5000);
 const Target = z.object({ targetType: z.enum(['task', 'update']), targetId: z.union([TaskId, UpdateId]) });
@@ -84,7 +85,10 @@ export const updatesCreate = defineCall({
     const project = requireProject(ctx, input.projectId);
     assertCan(ctx, 'post.create', { projectRole: roleIn(ctx, project.id) });
     for (const fileId of input.fileIds) {
-      if (ctx.state.files[fileId]?.projectId !== project.id) throw invalid('fileIds', 'A file is not in this project.');
+      const file = ctx.state.files[fileId];
+      // A file in a locked folder that the person may not see reads as a file that is not in the project (fbk_074).
+      if (file?.projectId !== project.id || fileHiddenByLock(ctx.state, ctx.authority, file)) throw invalid('fileIds', 'A file is not in this project.');
+      if (fileInLockedFolder(ctx.state, file)) throw invalid('fileIds', 'A file of a locked folder stays in its folder.', 'file_locked');
     }
     const id = nextId(ctx.state, 'upd');
     const update: Update = { id, projectId: project.id, authorId: ctx.actor.id, body: input.body, fileIds: input.fileIds, createdAt: ctx.stamp, editedAt: null };

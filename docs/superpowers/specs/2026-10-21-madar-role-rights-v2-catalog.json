@@ -1192,6 +1192,26 @@
               ]
             }
           ]
+        },
+        {
+          "power": "folder.locked",
+          "en": "Locked folders",
+          "ar": "المجلدات المقفلة",
+          "hint": "See the locked folders of the projects you see, and lock or unlock a folder.",
+          "switches": [
+            {
+              "id": "folder.locked",
+              "scope": null,
+              "basic": false,
+              "newPower": true,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
         }
       ]
     },
@@ -2219,6 +2239,7 @@
             "deadlines.update",
             "folders.create",
             "folders.rename",
+            "folders.setLock",
             "folders.delete",
             "files.move",
             "projects.setLeader",

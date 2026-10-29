@@ -198,6 +198,8 @@ function folderWrites(office: State, file: State['files'][string]): SweepCall[] 
     ['folders.create', { projectId, stageId: stages[0].id, name: 'Sweep folder' }, ADMIN],
     ['files.move', { id: file.id, stageId: stages[0].id, folderId: folder }, ADMIN],
     ['folders.rename', { id: folder, name: 'Sweep renamed' }, ADMIN],
+    // The Admin holds the switch "Locked folders". The folder is open, so this unlock changes nothing and the delete below still moves its file out (fbk_074).
+    ['folders.setLock', { id: folder, locked: false }, ADMIN],
     ['folders.delete', { id: folder }, ADMIN],
   ];
 }

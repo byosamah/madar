@@ -32,7 +32,7 @@ describe('the catalog holds the four rights of hidden projects', () => {
       expect(DEFAULT_EXTRA[role]).not.toContain('project.hidden');
     }
     for (const id of ['project.seeAll', 'project.access.lead', 'project.access.all', 'project.hidden'] as const) expect(CATALOG_RIGHT_IDS).toContain(id);
-    expect(CATALOG_RIGHT_IDS).toHaveLength(121);
+    expect(CATALOG_RIGHT_IDS).toHaveLength(122);
   });
 
   it('gives the Admin all four and a Member the two basic ones', () => {

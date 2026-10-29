@@ -78,6 +78,9 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   read across projects takes its ids from them. The people who hear a hidden project come from `audienceFinder`
   (`projectAudience.ts`, `mayViewProject`). The leak tests are `hiddenProjectSignals.test.ts` and `hiddenTraps` in
   `loaders.test.ts`.
+- Locked folders (fbk_074): a change inside a locked folder goes only as person signals to the holders of `folder.locked` who view the project
+  (`lockedAudienceFinder`, `Diff.locked` in `save.ts`); a folder that gets locked or unlocked, and a file that leaves or enters one, is heard by
+  all. Test: `lockedFolderSignals.test.ts`.
 - The shadow run (`server/test/shadow.ts`) runs each API test in memory and on the database, and fails on any difference.
 - `server/it/readIndexes.it.test.ts` pins the plan of each loader read on growth data. Keep it green when you change the SQL of a
   loader read. Add an index in a migration (and the SQLite plan stays its own).

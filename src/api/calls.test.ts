@@ -52,7 +52,7 @@ const CHAT_CALLS = [
 const SHARE_CALLS = ['files.share'];
 // The client tracker (owner request, 2026-10-01). A file marked as delivered logs a tracker entry.
 // The folders of the Files & Links tab and the move of a file (fbk_066, owner 2026-10-26).
-const FOLDER_CALLS = ['folders.create', 'folders.rename', 'folders.delete', 'files.move'];
+const FOLDER_CALLS = ['folders.create', 'folders.rename', 'folders.setLock', 'folders.delete', 'files.move'];
 const TRACKER_CALLS = ['tracker.list', 'tracker.log', 'tracker.close', 'tracker.update', 'tracker.delete', 'tracker.assignReply', 'tracker.export', 'files.markDelivered'];
 // Payment milestones (colleague comment 6, owner, 2026-10-01).
 const PAYMENT_CALLS = ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived', 'payments.delete'];
@@ -92,7 +92,7 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 18 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(179);
+    expect(Object.keys(calls)).toHaveLength(180);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -128,17 +128,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 161 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(161);
-    expect(Object.keys(mapCalls)).toHaveLength(161);
+  it('has 162 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(162);
+    expect(Object.keys(mapCalls)).toHaveLength(162);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 157 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 158 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(157);
+    expect(names).toHaveLength(158);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

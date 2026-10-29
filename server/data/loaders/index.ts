@@ -158,6 +158,8 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'files.move': project(fileCall),
   'folders.create': office,
   'folders.rename': office,
+  // A lock reads the files of the folder (a to-do file or the cover cannot be locked in), as the delete does (fbk_074).
+  'folders.setLock': project(foldersDelete),
   'folders.delete': project(foldersDelete),
 
   'events.list': overview(eventsList),
