@@ -6,6 +6,7 @@ import type { FileView, ProjectDetail } from '../../../api/contract/views';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { SheetOrPopover } from '../../../components/SheetOrPopover';
 import { foldersOf, samePlace, type Place } from './fileDragSlots';
+import { folderLabel } from './folderLabel';
 
 /**
  * Where a file sits now, for the screen. A file whose folder is gone (it should not happen) counts as at the root of its stage, so no file is
@@ -13,13 +14,13 @@ import { foldersOf, samePlace, type Place } from './fileDragSlots';
  */
 export function placeOfFile(view: FileView, detail: ProjectDetail): Place {
   const { stageId, folderId } = view.file;
-  const folder = folderId ? foldersOf(detail).find((item) => item.id === folderId && item.stageId === stageId) : undefined;
+  const folder = folderId ? foldersOf(detail).find((item) => item.id === folderId && (item.stageId ?? null) === (stageId ?? null)) : undefined;
   return { stageId, folderId: folder ? folder.id : null };
 }
 
 /**
- * "Move to" (fbk_066, owner 2026-10-26): the way to move a file on a phone, where nothing drags, and with the keyboard. One list: each stage with
- * its folders under it, then "No stage". The place where the file sits now has a check mark. One press moves the file (the screen then shows a
+ * "Move to" (fbk_066, owner 2026-10-26): the way to move a file on a phone, where nothing drags, and with the keyboard. One list: the folders of the
+ * whole project (fbk_074), then each stage with its folders under it, then "No stage". The place where the file sits now has a check mark. One press moves the file (the screen then shows a
  * toast with Undo). A Popover next to the row on a desk, a Sheet on a phone.
  */
 export function MoveFileSheet({ view, detail, anchor, onPick, onClose }: {
@@ -28,6 +29,7 @@ export function MoveFileSheet({ view, detail, anchor, onPick, onClose }: {
   const { t } = useTranslation();
   const phone = useIsPhone();
   const now = placeOfFile(view, detail);
+  const projectFolders = foldersOf(detail).filter((folder) => folder.stageId === null);
   const choose = (place: Place) => {
     if (!samePlace(now, place)) onPick(place);
     onClose();
@@ -55,9 +57,15 @@ export function MoveFileSheet({ view, detail, anchor, onPick, onClose }: {
         {/* The sheet of a phone draws the title itself. */}
         {!phone && <p dir="auto" className="truncate text-headline text-ink">{t('folders.moveTitle', { name: view.file.name })}</p>}
         <ul className="-mx-1 flex max-h-[60vh] flex-col overflow-y-auto">
+          {projectFolders.length > 0 && (
+            <>
+              <li key="project" className="px-2 pt-1 text-subheadline font-semibold text-ink">{t('folders.projectTitle')}</li>
+              {projectFolders.map((folder) => row({ stageId: null, folderId: folder.id }, folderLabel(folder, t), folder.id, true))}
+            </>
+          )}
           {detail.stages.flatMap((stage) => [
             row({ stageId: stage.id, folderId: null }, stage.name, stage.id),
-            ...foldersOf(detail).filter((folder) => folder.stageId === stage.id).map((folder) => row({ stageId: stage.id, folderId: folder.id }, folder.name, folder.id, true)),
+            ...foldersOf(detail).filter((folder) => folder.stageId === stage.id).map((folder) => row({ stageId: stage.id, folderId: folder.id }, folderLabel(folder, t), folder.id, true)),
           ])}
           {row({ stageId: null, folderId: null }, t('files.noStage'), 'none')}
         </ul>

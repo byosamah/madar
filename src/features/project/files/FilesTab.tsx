@@ -22,7 +22,8 @@ import { DownloadAllButton } from '../../files/DownloadAll';
 import { replaceParam } from '../../../lib/params';
 import { shownKey, shownName } from '../../../lib/projectLabel';
 import type { TabProps } from '../tabs';
-import { FileGroups, groupsOf, hasContent, itemsOf, type GroupActions } from './FileGroups';
+import { FileGroups, groupsOf, hasContent, itemsOf, OpenFolder, ProjectFolders, projectFoldersOf, type GroupActions } from './FileGroups';
+import { folderLabel } from './folderLabel';
 import { foldersOf, placeKey, type Place } from './fileDragSlots';
 import { loadedFilesDrag, loadFilesDrag } from './filesDragLoader';
 import type { FilesDragHostProps } from './FilesDragLayer';
@@ -79,6 +80,15 @@ export function FilesTab({ detail }: TabProps) {
   // A link with "file" (from Search) opens that file's preview once. The link part goes, so Back does not open it again.
   const [params, setParams] = useSearchParams();
   const linked = params.get('file');
+  // A folder of the whole project that is open in place (fbk_074). A step in the history, so Back returns to the full list. A folder that is gone reads as none.
+  const openId = params.get('folder');
+  const openFolderId = openId && foldersOf(detail).some((folder) => folder.id === openId && folder.stageId === null) ? openId : null;
+  const openFolder = (id: string | null) => setParams((current) => {
+    const next = new URLSearchParams(current);
+    if (id === null) next.delete('folder');
+    else next.set('folder', id);
+    return next;
+  }, { replace: id === null });
   useEffect(() => {
     if (!linked || !files.data) return;
     const view = files.data.find((item) => item.file.id === linked);
@@ -96,7 +106,9 @@ export function FilesTab({ detail }: TabProps) {
       for (const file of queue) {
         const onProgress = (done: number, total: number) => setPercent(file, total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0);
         // A file dropped on a folder or a stage group goes there (fbk_066). Any other file goes to the stage of the select, at the root.
-        const where = place ? { stageId: place.stageId, ...(place.folderId ? { folderId: place.folderId } : {}) } : { stageId: stageId || null };
+        // An open folder of the project takes the files that are added with Add or dropped on the tab (fbk_074).
+        const target = place ?? (openFolderId ? { stageId: null, folderId: openFolderId } : undefined);
+        const where = target ? { stageId: target.stageId, ...(target.folderId ? { folderId: target.folderId } : {}) } : { stageId: stageId || null };
         await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, ...where, receivedFromClient: received }, { ...meta, onProgress });
         setPercent(file, 100);
         sent += 1;
@@ -132,12 +144,14 @@ export function FilesTab({ detail }: TabProps) {
   // folder and no link shows the empty state alone. A file or a folder of a stage that is gone fills no group, but it still opens the empty stages.
   // The groups wait for the list of files: a folder never shows "No files yet." while its files load.
   const noStage = t('files.noStage');
-  const { groups, empty } = useMemo(() => {
-    if (!files.data) return { groups: [], empty: false };
+  const { groups, projectFolders, empty } = useMemo(() => {
+    if (!files.data) return { groups: [], projectFolders: [], empty: false };
     const showEmptyStages = canUpload && (files.data.length > 0 || foldersOf(detail).length > 0 || hasLinks);
     const built = groupsOf(detail, files.data, showEmptyStages, noStage);
-    return { groups: built, empty: !hasLinks && !built.some(hasContent) };
+    const wholeProject = projectFoldersOf(detail, files.data);
+    return { groups: built, projectFolders: wholeProject, empty: !hasLinks && wholeProject.length === 0 && !built.some(hasContent) };
   }, [detail, files.data, canUpload, hasLinks, noStage]);
+  const open = openFolderId ? projectFolders.find((data) => data.folder.id === openFolderId) : undefined;
 
   // "Download all" (owner, 2026-10-22, fbk_050): the newest version of each file, for one stage and for the whole project. A button shows for two files
   // or more. The whole-project button shows only when the files sit in more than one group, because with one group it would repeat the group button.
@@ -147,7 +161,8 @@ export function FilesTab({ detail }: TabProps) {
   const stageName = (stageId: string | null) => (stageId === null ? noStage : (detail.stages.find((stage) => stage.id === stageId)?.name ?? ''));
   const placeText = (place: Place): string => {
     const folder = place.folderId ? foldersOf(detail).find((item) => item.id === place.folderId) : undefined;
-    return folder ? t('folders.placeIn', { stage: stageName(place.stageId), folder: folder.name }) : stageName(place.stageId);
+    if (folder && folder.stageId === null) return folderLabel(folder, t);
+    return folder ? t('folders.placeIn', { stage: stageName(place.stageId), folder: folderLabel(folder, t) }) : stageName(place.stageId);
   };
   const viewOf = (id: string) => (files.data ?? []).find((view) => view.file.id === id);
   const nameOfFile = (id: string) => viewOf(id)?.file.name ?? '';
@@ -161,6 +176,7 @@ export function FilesTab({ detail }: TabProps) {
   const createFolder = useUndoable('folders.create', { message: () => t('folders.created') });
   const renameFolder = useUndoable('folders.rename', { message: () => t('folders.renamed') });
   const deleteFolder = useUndoable('folders.delete', { message: () => t('folders.deleted') });
+  const setLock = useUndoable('folders.setLock', { message: (folder) => (folder.locked === true ? t('folders.locked') : t('folders.unlocked')) });
   const move = useUndoable('files.move', { message: () => t('folders.moved', { place: lastPlace.current }) });
   const moveTo = (fileId: string, place: Place) => {
     lastPlace.current = placeText(place);
@@ -211,12 +227,15 @@ export function FilesTab({ detail }: TabProps) {
   };
   const actions: GroupActions = {
     canUpload,
+    canLock: detail.viewerCan.lockFolders === true,
     onPreview: setPreview,
     onShare: setSharing,
     onMove: (view, anchor) => setMoving({ view, anchor }),
     createFolder: (stage, name) => createFolder.mutate({ projectId: detail.project.id, stageId: stage, name }),
     renameFolder: (id, name) => renameFolder.mutate({ id, name }),
+    setLock: (id, locked) => setLock.mutate({ id, locked }),
     deleteFolder: (id) => deleteFolder.mutate({ id }),
+    openFolder,
     zoneOf,
   };
 
@@ -260,12 +279,12 @@ export function FilesTab({ detail }: TabProps) {
       {(canUpload || canLink) && (
         <div className="flex flex-wrap items-end gap-3">
           {!empty && add}
-          {canUpload && <SelectField id="upload-stage" label={t('files.uploadStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
+          {canUpload && !open && <SelectField id="upload-stage" label={t('files.uploadStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
             {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
             <option value="">{t('files.noStage')}</option>
           </SelectField>}
           {/* "Received from the client" also writes a Tracker line, so it needs file.deliver (role rights version 2). */}
-          {canUpload && canDeliver && (
+          {canUpload && canDeliver && !open && (
             <label className="flex min-h-11 items-center gap-2 text-subheadline text-ink">
               <input type="checkbox" checked={received} onChange={(event) => setReceived(event.target.checked)} className="size-5 accent-[var(--sig-from)]" />
               {t('files.receivedFromClient')}
@@ -295,9 +314,16 @@ export function FilesTab({ detail }: TabProps) {
       {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
       <LoadFailed query={files} />
       {empty && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} action={add} />}
-      <ProjectLinks detail={detail} onEdit={openLink} />
-      {groups.filter((group) => group.total > 0).length > 1 && <DownloadAllButton items={allItems} zipName={projectZip} all="allFiles" className="px-2" />}
-      <FileGroups groups={groups} detail={detail} actions={actions} />
+      {/* A folder of the project that is open shows alone, with one step back to the full list (fbk_074). */}
+      {open ? <OpenFolder data={open} detail={detail} actions={actions} onBack={() => openFolder(null)} /> : (
+        <>
+          <ProjectLinks detail={detail} onEdit={openLink} />
+          {groups.filter((group) => group.total > 0).length + projectFolders.filter((data) => data.files.length > 0).length > 1 && <DownloadAllButton items={allItems} zipName={projectZip} all="allFiles" className="px-2" />}
+          {/* The folders wait for the list of files, as the stage groups do: a folder never shows "No files yet." while its files load. */}
+          {files.data && <ProjectFolders folders={projectFolders} detail={detail} actions={actions} />}
+          <FileGroups groups={groups} detail={detail} actions={actions} />
+        </>
+      )}
       <LinkSheet detail={detail} link={editing} open={linkOpen} onOpenChange={setLinkOpen} />
       {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
       {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} projectName={shownName(detail.project, lang)} viewerCan={detail.viewerCan} onClose={() => setSharing(null)} />}

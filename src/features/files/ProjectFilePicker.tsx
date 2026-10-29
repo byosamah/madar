@@ -11,7 +11,8 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Sheet } from '../../components/Sheet';
 import { shownKey } from '../../lib/projectLabel';
-import { groupsOf, type GroupData } from '../project/files/groupsOf';
+import { folderLabel } from '../project/files/folderLabel';
+import { groupsOf, projectFoldersOf, type GroupData } from '../project/files/groupsOf';
 import { ProjectSearch } from '../projects/ProjectSearch';
 import { CheckRow } from '../settings/admin/CheckRow';
 
@@ -24,6 +25,9 @@ export type InsertScope = { projectId?: string; conversationId?: string };
 export type PickedProjectFile = { id: string; name: string };
 
 type Level = { kind: 'projects' } | { kind: 'project'; id: string } | { kind: 'stage'; id: string; stageId: string | null };
+
+/** The stage id of the pseudo stage "Project folders" (fbk_074): the folders of the whole project, in one row of the project level. */
+const PROJECT_FOLDERS = '*';
 
 const ROW = 'pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-start hover:bg-fill';
 const COUNT = 'tabular shrink-0 text-footnote text-ink-2';
@@ -130,7 +134,18 @@ function Stages({ level, onOpenStage, picked, onToggle }: {
   const { t } = useTranslation();
   const detail = useCall('projects.get', { id: level.id });
   const files = useCall('files.list', { projectId: level.id });
-  const groups = useMemo(() => (detail.data && files.data ? groupsOf(detail.data, files.data, false, t('files.noStage')) : null), [detail.data, files.data, t]);
+  // A file in a locked folder stays in its folder, so the picker leaves it out (fbk_074). The server refuses it too.
+  const groups = useMemo(() => {
+    if (!detail.data || !files.data) return null;
+    const locked = new Set((detail.data.folders ?? []).filter((folder) => folder.locked === true).map((folder) => folder.id));
+    const open = files.data.filter((view) => !(view.file.folderId && locked.has(view.file.folderId)));
+    const wholeProject = projectFoldersOf(detail.data, open).filter((data) => data.folder.locked !== true && data.files.length > 0);
+    const stages = groupsOf(detail.data, open, false, t('files.noStage'));
+    const project: GroupData[] = wholeProject.length === 0 ? [] : [{
+      stageId: PROJECT_FOLDERS, name: t('folders.projectTitle'), loose: [], folders: wholeProject, total: wholeProject.reduce((sum, data) => sum + data.files.length, 0),
+    }];
+    return [...project, ...stages];
+  }, [detail.data, files.data, t]);
   if ((detail.error && !detail.data) || (files.error && !files.data)) return <LoadFailed query={detail.error ? detail : files} />;
   if (!groups) return <div aria-busy="true" className="min-h-24" />;
   if (level.kind === 'project') {
@@ -168,7 +183,7 @@ function StageFiles({ group, picked, onToggle }: { group: GroupData; picked: Rea
             onChange={() => onToggle(pick(data.files))}
           >
             <AnimatedIcon icon={FolderOpenIcon} size={18} className="shrink-0 text-ink-2" aria-hidden />
-            <bdi className="min-w-0 flex-1 truncate text-body">{data.folder.name}</bdi>
+            <bdi className="min-w-0 flex-1 truncate text-body">{folderLabel(data.folder, t)}</bdi>
             <span className={COUNT}>{t('folders.count', { count: data.files.length })}</span>
           </CheckRow>
         </li>

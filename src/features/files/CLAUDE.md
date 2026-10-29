@@ -80,8 +80,9 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
   picker asks `chats.insertProjects` once and keeps those ids from `projects.list`, so no call runs for each project. When no project is left, one
   plain line says why (`insert.noShared`), with no search field. An office to-do has none: its files stay on the task.
 - `ProjectFilePicker.tsx` loads at the first press (`lazyOverlay`). Levels: projects (a search field, `projects.list` with status all), the
-  stages of one project (`groupsOf` of `files/groupsOf.ts`, so "No stage" and the empty-stage rule are those of the Files tab), then the
-  folders (a folder with no file is left out; a tick takes all its files) and the files outside a folder. A file inside a folder is sent
+  stages of one project (`groupsOf` of `files/groupsOf.ts`, so "No stage" and the empty-stage rule are those of the Files tab; the folders of the
+  whole project come first as the pseudo stage "Project folders"), then the folders (a folder with no file is left out; a tick takes all its
+  files) and the files outside a folder. A file in a locked folder is left out: the server refuses it in a chat (`file_locked`). A file inside a folder is sent
   only with its folder. The ticks stay while the person steps back. One Send button with the count. A project chat starts at its own stages.
 - Send makes no upload: `insertParts.ts` cuts the pick into messages of 10 files, with the file names as the words, and the box sends them
   with its own `onSend` (the outbox of a chat, `comments.create` for a to-do), in one tick, so the server keeps the order. The text and

@@ -45,7 +45,16 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   `folderId` is not a folder of its stage reads as at the root, so a file is never hidden (`groupsOf`, `placeOfFile`). `groupsOf` lives in
   `files/groupsOf.ts` with no UI import (`FileGroups.tsx` exports it again), so the picker "Insert from a project" of a chat reuses the groups
   without the rows (`src/features/files/CLAUDE.md`).
-- "Move to" is in the "..." menu of every file for `viewerCan.upload`, on a desk and a phone (`MoveFileSheet`, `files.move`).
+- Folders of the whole project (fbk_074): the section "Project folders" sits first, above the stage groups, with its own "+ Folder" (stage null).
+  A row is one press: it opens the folder in place (`OpenFolder`, the param `?folder=<id>`; a step in the history, so Back returns to the list).
+  An open folder shows alone: one back step, the title, the files, the menu. Add and a file dropped on the tab upload into it, and the stage
+  select and "Received from the client" hide. The section waits for `files.list`. A file in such a folder counts for its folder, never for
+  "No stage" (`projectFoldersOf`). A standard folder (`preset`) shows the word of the viewer's language (`folderLabel`).
+- A locked folder shows only to a holder of `folder.locked` (the API sends no other person the folder or its files). The holder sees the lock
+  mark (`HiddenMark` with the label "Locked folder") and "Lock" or "Unlock" in the menu of the folder (`viewerCan.lockFolders`). The row menu of a
+  file in a locked folder hides Share, Mark delivered and Set as cover, because the API refuses them. The picker of a chat leaves such files out.
+- "Move to" is in the "..." menu of every file for `viewerCan.upload`, on a desk and a phone (`MoveFileSheet`, `files.move`). The list is the
+  folders of the whole project first, then each stage with its folders, then "No stage".
 - The pointer drag works for a desk with a fine pointer and `viewerCan.upload` (`dragOn`). dnd-kit is a chunk of its own: `FilesDragLayer.tsx`
   through `filesDragLoader.ts`, the same loaded-module pattern as `dragLayerLoader.ts`. `check-bundles.ts` refuses `DndDescribedBy` in the
   first load, and `filesDragImports.test.ts` holds the imports. The list first draws static slots (`fileDragSlots.tsx`: `Row` and `Zone`).
@@ -53,7 +62,7 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   helpers load the layer first; a test of the swap calls `forgetFilesDragForTests()`.
 - A file from the computer dropped on a folder uploads into it (`files.upload` with `folderId`). A native drop counts only when the drag
   carries `Files` (`carriesFiles`). An upload with the name of a file that the project has adds a version and leaves the file where it is.
-- Tests: `Folders.test.tsx`. A pointer drag in jsdom: `fireEvent.pointerDown` on the row (`isPrimary`, `button: 0`), two `pointerMove` on
+- Tests: `Folders.test.tsx`, `ProjectFolders.test.tsx`. A pointer drag in jsdom: `fireEvent.pointerDown` on the row (`isPrimary`, `button: 0`), two `pointerMove` on
   `document` (the first past 6 px), then `pointerUp`. Mock `getBoundingClientRect` by the `aria-labelledby` of each zone (`layout()`).
 
 ## Payments and the Daftra part

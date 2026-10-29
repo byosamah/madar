@@ -1,6 +1,7 @@
 import type { State } from '../api/store';
 import { todayISO } from '../lib/dates';
 import { addSampleMeetings } from './sampleMeetings';
+import { addSampleFolders } from './sampleFolders';
 import { addSampleInternalProject } from './sampleInternalProject';
 import { addSampleSubCompanies } from './sampleSubCompanies';
 import { buildSeed, type PutBlob } from './seed';
@@ -16,5 +17,6 @@ export async function sampleOffice(now: Date, putBlob: PutBlob): Promise<State> 
   addSampleSubCompanies(state, todayISO(now));
   addSampleInternalProject(state, todayISO(now));
   addSampleMeetings(state, todayISO(now));
+  addSampleFolders(state);
   return settleFuture(state, now);
 }

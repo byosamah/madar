@@ -34,7 +34,7 @@
   },
   "errors": {
     "reasons": {
-      "folder_name_taken": "في هذه المرحلة مجلد بهذا الاسم.",
+      "folder_name_taken": "في هذا المكان مجلد بهذا الاسم.",
       "folder_limit": "يتسع المشروع لـ 100 مجلد على الأكثر.",
       "folder_other_stage": "هذا المجلد في مرحلة أخرى.",
       "folder_missing": "هذا المجلد ليس في المشروع."

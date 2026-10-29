@@ -45,6 +45,8 @@ export function FileRow({ view, detail, onPreview, onShare, onMove }: {
   const cover = useUndoable('projects.update', { message: () => t('files.coverSet') });
   const delivered = useUndoable('files.markDelivered', { message: () => t('files.delivered') });
   const isCover = detail.project.coverFileId === file.id;
+  // A file in a locked folder stays in its folder: no share, no Tracker line and no cover (fbk_074). The API refuses them too.
+  const inLocked = (detail.folders ?? []).some((folder) => folder.id === file.folderId && folder.locked === true);
   // The API says who may delete the file, so the screen keeps no rule of its own (audit 2026-10-03, PRJ-16, V-20).
   const canDelete = view.canDelete;
   // Share needs file.share and one place to share into (role rights version 2).
@@ -54,9 +56,9 @@ export function FileRow({ view, detail, onPreview, onShare, onMove }: {
   const items: MenuItem[] = [
     { label: t('files.preview'), onSelect: onPreview, hidden: !canPreview(latest.mimeType) },
     { label: t('files.download'), onSelect: () => download(file.id) },
-    { label: t('files.share'), onSelect: onShare, hidden: !mayShare },
-    { label: t('files.markDelivered'), onSelect: () => delivered.mutate({ id: file.id }), hidden: !detail.viewerCan.deliver },
-    { label: t('files.setCover'), onSelect: () => cover.mutate({ id: detail.project.id, patch: { coverFileId: file.id } }), hidden: !image || !detail.viewerCan.editDetails || isCover },
+    { label: t('files.share'), onSelect: onShare, hidden: !mayShare || inLocked },
+    { label: t('files.markDelivered'), onSelect: () => delivered.mutate({ id: file.id }), hidden: !detail.viewerCan.deliver || inLocked },
+    { label: t('files.setCover'), onSelect: () => cover.mutate({ id: detail.project.id, patch: { coverFileId: file.id } }), hidden: !image || !detail.viewerCan.editDetails || isCover || inLocked },
     // "Move to" is the way for a phone and for the keyboard; the pointer drag is the same move (fbk_066). It follows the upload right.
     { label: t('folders.moveTo'), onSelect: () => onMove(rowRef.current), hidden: detail.viewerCan.upload !== true },
     { label: t('files.delete'), onSelect: () => remove.mutate({ id: file.id }), hidden: !canDelete, destructive: true },

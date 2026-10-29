@@ -30,7 +30,7 @@
   },
   "errors": {
     "reasons": {
-      "folder_name_taken": "This stage has a folder with this name.",
+      "folder_name_taken": "A folder here has this name already.",
       "folder_limit": "A project can hold 100 folders at most.",
       "folder_other_stage": "This folder is in another stage.",
       "folder_missing": "This folder is not in the project."

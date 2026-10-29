@@ -2,11 +2,12 @@ import { useTranslation } from 'react-i18next';
 
 /**
  * A small lock beside the name of a hidden project (fbk_044, owner 2026-10-22). The words "Only the team and chosen people" are its
- * label for a screen reader and its title on hover. It is no control and holds no focus.
+ * label for a screen reader and its title on hover. It is no control and holds no focus. `label` gives the same lock to another use, for example a
+ * locked folder (fbk_074).
  */
-export function HiddenMark({ size = 14, className = '' }: { size?: number; className?: string }) {
+export function HiddenMark({ size = 14, className = '', label: given }: { size?: number; className?: string; label?: string }) {
   const { t } = useTranslation();
-  const label = t('project.hiddenMark');
+  const label = given ?? t('project.hiddenMark');
   return (
     <span role="img" aria-label={label} title={label} className={`inline-flex shrink-0 align-middle text-ink-2 ${className}`}>
       <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

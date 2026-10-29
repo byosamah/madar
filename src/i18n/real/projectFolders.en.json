@@ -1,0 +1,44 @@
+{
+  "folders": {
+    "projectTitle": "Project folders",
+    "addForProject": "Add a folder to the whole project",
+    "preset": {
+      "client_documents": "Client documents",
+      "contract": "Contract"
+    },
+    "open": "Open the folder {{name}}",
+    "back": "All files",
+    "backLabel": "Back to all files",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "lockedMark": "Locked folder",
+    "locked": "Folder locked.",
+    "unlocked": "Folder unlocked."
+  },
+  "errors": {
+    "reasons": {
+      "folder_preset_taken": "This project has this standard folder already.",
+      "folder_preset_stage": "A standard folder is for the whole project.",
+      "folder_preset_name": "A standard folder keeps its own name.",
+      "folder_locked_task_file": "A file of a to-do cannot go in a locked folder.",
+      "folder_locked_cover": "The cover of the project cannot be in a locked folder.",
+      "folder_locked_tracker": "A file in a locked folder cannot go on the Tracker.",
+      "folder_lock_task_file": "This folder holds a file of a to-do. Move the file out first.",
+      "folder_lock_cover": "This folder holds the cover of the project. Change the cover first.",
+      "folder_locked_has_files": "This folder is locked and holds files. Move the files out, or unlock the folder.",
+      "file_locked": "A file in a locked folder stays in its folder."
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-138": {
+        "title": "Folders for the whole project",
+        "body": "Make a folder for the whole project, not for one stage. It shows above the stages in Files & Links. Press it to open it. A new project starts with a Client documents folder."
+      },
+      "2026-10-23-139": {
+        "title": "Locked folders",
+        "body": "A locked folder and its files show only to people who hold the Locked folders switch. A new project starts with a locked Contract folder. Lock or unlock any folder from its menu."
+      }
+    }
+  }
+}

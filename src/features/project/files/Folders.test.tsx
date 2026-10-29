@@ -86,7 +86,7 @@ describe('"+ Folder"', () => {
     const { store } = await renderApp(FILES, world());
     await userEvent.click(await screen.findByRole('button', { name: 'Add a folder to Construction Documents' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Folder name' }), 'mood BOARDING{Enter}');
-    expect(await screen.findByText('This stage has a folder with this name.')).toBeInTheDocument();
+    expect(await screen.findByText('A folder here has this name already.')).toBeInTheDocument();
     expect(store.state.projects.prj_001.folders).toHaveLength(3);
   });
 

@@ -7,6 +7,7 @@ import { STATE_VERSION, Store } from '../api/store';
 import { migrateState } from '../data/migrate';
 import { buildSeed } from '../data/seed';
 import { addSampleMeetings } from '../data/sampleMeetings';
+import { addSampleFolders } from '../data/sampleFolders';
 import { addSampleInternalProject } from '../data/sampleInternalProject';
 import { addSampleSubCompanies } from '../data/sampleSubCompanies';
 import { sampleOffice } from '../data/sampleOffice';
@@ -43,6 +44,7 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
     addSampleSubCompanies(state, today);
     addSampleInternalProject(state, today);
     addSampleMeetings(state, today);
+    addSampleFolders(state);
   } else if (state.seededOn !== today) {
     state = shiftState(state, diffDays(state.seededOn, today));
     state.seededOn = today;
