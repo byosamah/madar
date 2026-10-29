@@ -1280,7 +1280,7 @@ Report and patches: `CLAUDE-SECURITY-20261028-093704/` in the main folder (git-i
 - [ ] Ask each person to remove any AI app they do not know in Settings, Agents: Supabase keeps the grant of an approval made before the fix (none with the F1 shape on 2026-10-28).
 
 ## Team reports fbk_073 and fbk_074 (owner answers of 2026-10-29; Madar to-dos tsk_490 to tsk_493)
-- [x] tsk_490 (fbk_073, Abdelrahman): the Schedule tab of the Dashboard shows the leader of each project on a third line of its row. The Leader filter already narrows the Schedule, so no new filter; Abdelrahman got an Arabic reply that says where it is (direct chat cnv_013). What's new 137. Branch `rb/timeline-leader`.
+- [x] tsk_490 (fbk_073, Abdelrahman): the Schedule tab of the Dashboard shows the leader of each project on a third line of its row. The Leader filter already narrows the Schedule, so no new filter; Abdelrahman got an Arabic reply that says where it is (direct chat cnv_013). What's new 137. Done 2026-10-29: production at 70fe10b3.
 - [ ] tsk_491 (fbk_074, Faisal): a folder can sit outside the stages, once for the whole project. Folders show first in the Files tab and open in place. Branch `rb/project-folders`.
 - [ ] tsk_492 (fbk_074): the default folders "Client documents" and "Contract" on every client project, new and current. Current projects get them through the MCP after the release (`folders.create` with a preset), so no migration.
 - [ ] tsk_493 (fbk_074): locked folders. A new switch decides who sees them (the Admin by default); a holder locks or unlocks any folder, and the Contract folder starts locked. Leak tests on every way to reach a file.

@@ -2814,3 +2814,20 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` run by the owner with `!` (finished 2026-10-28 20:32). Live checks: health from
   supabase, fileStore r2, 157 calls; database, lock and asyncContext ok; /mcp with no token 401; madar.vado.sa answers 200, and its
   `words.en-n-V4-YrQ.js` holds the What's new title "Needs first on the to-dos you made".
+
+### Release record: production at 70fe10b3 (2026-10-29, fbk_073: the leader on each row of the Schedule)
+- What shipped (`rb/timeline-leader`, built by the lead, tests first). 82dda13a: `dashboard.get` gives each schedule row its `leaderId`
+  (optional, so an older answer parses); the Schedule tab shows the face and the full name of the leader on a third line of each row, with
+  the card from `leaders` of the same answer (tsk_490). A first try put the name on the code line: it showed three or four letters of the
+  name, so the name got its own line. What's new 137. 70fe10b3: the `dashboard.get` text dropped "Office overview", because the Admin
+  tools/list went 9 bytes over the 110,000-byte limit of `server/mcp/toolSize.test.ts` (main was at about 109,986 bytes). ae9012f1:
+  TASKS.md.
+- Gates (owner's fast rule): typecheck; the two new tests failed before the change; the fast gate (src/api, server/mcp, server/core,
+  loaders, push, mail, google, jobs, health, src/features/dashboard, src/whatsNew: 342 files, 1 failure, the tool size, fixed, then
+  server/mcp 52 files again); build, build:server, build:remote. Skipped: the full npm test, test:lite, test:office, test:db, test:it,
+  test:mcp, the smoke and the deploy suite. Shots (prototype, EN and AR, light and dark, desktop and 390 px, one leader with a photo) in the
+  session scratchpad.
+- `all.sh test` by Claude (record 70fe10b3): quick checks passed (157 calls); the Schedule of the test copy showed the leaders.
+- `echo production | scripts/deploy/all.sh production` by Claude after the owner chose "Production now" (2026-10-29). Live checks: health
+  from supabase, fileStore r2, 157 calls; database, lock and asyncContext ok; /mcp with no token 401; madar.vado.sa answers 200, and its
+  `words.en-DKp1Cz6I.js` holds the What's new title "See who leads each project on the Schedule".
