@@ -893,7 +893,7 @@ Sonnet builders, Claude leads (owner, 2026-10-21). What's new 2026-10-23-74.
   The server allows it (`stages.replace` asks `project.stages`). Options: (a) a small "Edit stages" sheet of its own on the Schedule tab
   for `viewerCan.editStages`; (b) open the edit sheet with only the stage part when the person holds `project.stages` alone. Today every
   role holds both by default, so nobody meets it until the Admin turns one off.
-- [x] **Small fix: the Needs field of a maker without "Give to-dos to other people".** Done 2026-10-28 (tsk_418, de11c82c): the flag `viewerCan.editPrerequisites` comes from `mayChangePrerequisites`, the rule of the server. What's new 136. The "waits for" field of a to-do (`TaskNeeds` in
+- [x] **Small fix: the Needs field of a maker without "Give to-dos to other people".** Done 2026-10-28 (tsk_418, de11c82c): the flag `viewerCan.editPrerequisites` comes from `mayChangePrerequisites`, the rule of the server. What's new 136. Production at fb63559f. The "waits for" field of a to-do (`TaskNeeds` in
   `src/features/project/tasks/TaskSheet.tsx`, line about 482) shows only with `viewerCan.editAll && canDetails`. The server rule of
   prerequisites is `task.any`, or the maker with `task.details` (`tasks.update`, `mayChangePrerequisites`). So a maker whose role has
   `task.assign` off sees no field, although the call would pass. Fix: a new additive flag `viewerCan.editPrerequisites` from the same rule
@@ -1121,7 +1121,7 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md
 - [x] Screenshots: the Inbox line (EN/AR, light/dark, 390 px and desk), the role sheet switch
 - [x] Test copy (`all.sh test`), then production at 10c7191b (2026-10-25 12:43), release record
 - [x] Mark fbk_056 and fbk_057 done in Madar (2026-10-25 12:45, story sty_b5w6qh34op2hvthd2tz4jw)
-- [x] Found 2026-10-25: on a 390 px phone in Arabic, the four Inbox kind chips did not fit one row, and «الأشخاص» dropped to a second row. Done 2026-10-28 (tsk_448, 7aa65289): the owner chose the one word «المهام»; `tests/e2e/inboxPhone.spec.ts` measures one row. What's new 135.
+- [x] Found 2026-10-25: on a 390 px phone in Arabic, the four Inbox kind chips did not fit one row, and «الأشخاص» dropped to a second row. Done 2026-10-28 (tsk_448, 7aa65289): the owner chose the one word «المهام»; `tests/e2e/inboxPhone.spec.ts` measures one row. What's new 135. Production at fb63559f.
 
 ## fbk_052, fbk_055, fbk_058, fbk_059 (owner, 2026-10-25: "go ahead"; production waits for the owner)
 

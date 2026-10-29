@@ -2798,3 +2798,19 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   calls; database, lock and asyncContext ok; /mcp with no token 401; the page policy has `script-src 'self' 'wasm-unsafe-eval'`;
   `words.en-Db91DShz.js` holds the What's new title "The top bar shows where you are". To check in PostHog after a day: no new eval
   error on a project page with a map, and no name on a `madar_call_failed` event.
+
+### Release record: production at fb63559f (2026-10-28, the two "Next" to-dos: the Needs first field of a maker, the Arabic Inbox chips)
+- What shipped (`rb/next-fixes`, one Sonnet builder, tests first). de11c82c: a to-do maker with "Change details" (task.details) and not
+  "Give to-dos to other people" (task.assign) sees the Needs first field (tsk_418). The new flag `viewerCan.editPrerequisites` comes from
+  `mayChangePrerequisites` (`src/api/taskGates.ts`), the rule of `tasks.update`; the digest pin of `tasks.get` in `viewCost.test.ts` moved
+  on purpose. What's new 136. 7aa65289: the Arabic Inbox chip «قائمة المهام» is «المهام» (owner, 2026-10-28), so the four chips fit one row
+  at 390 px (tsk_448); `tests/e2e/inboxPhone.spec.ts` measures the row in Chromium; the old What's new line 62 names the chip as it reads.
+  What's new 135. fb63559f: TASKS.md.
+- Gates. Builder: typecheck; the new tests failed before each fix; npm test (3 failures, each fixed or a load flake, the failed files run
+  again); test:lite 3,426. Lead: build, build:server, build:remote; test:db 3,426; test:it 351; test:mcp 649 (conformance: only the 27
+  expected failures); smoke 136. test:office failed 3 mail tests that fail the same way on main 86d68fee after the office work hours (they
+  passed at 15:33 the same day): the office Worker reads the real clock, and notice mails stop in quiet hours (a TASKS.md item).
+- `all.sh test` by Claude (record fb63559f): quick checks passed (157 calls). The deploy suite did not run.
+- `echo production | scripts/deploy/all.sh production` run by the owner with `!` (finished 2026-10-28 20:32). Live checks: health from
+  supabase, fileStore r2, 157 calls; database, lock and asyncContext ok; /mcp with no token 401; madar.vado.sa answers 200, and its
+  `words.en-n-V4-YrQ.js` holds the What's new title "Needs first on the to-dos you made".
