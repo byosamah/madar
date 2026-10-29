@@ -139,6 +139,15 @@ describe('dashboard.get', () => {
     expect(late.charts.healthMix.late).toBe(1);
   });
 
+  // The Timeline shows the leader of each project on its row, from the card in leaders (fbk_073, owner 2026-10-29).
+  it('gives each schedule row the leader of its project, and null for a project with no leader', async () => {
+    const state = world();
+    state.projects.prj_002 = makeProject({ id: 'prj_002', code: 'KH-26-002', leaderId: null, targetEndDate: '2027-12-31' });
+    const d = await testApi(insightCalls, state).api.call('dashboard.get', {});
+    expect(d.schedule.map((row) => [row.project.code, row.leaderId])).toEqual([['KH-26-001', state.projects.prj_001.leaderId], ['KH-26-002', null]]);
+    expect(d.leaders.map((person) => person.id)).toContain(state.projects.prj_001.leaderId);
+  });
+
   it('counts created and done tasks per week for 12 weeks', async () => {
     const d = await testApi(insightCalls, world()).api.call('dashboard.get', {});
     expect(d.charts.throughput).toHaveLength(12);

@@ -13,6 +13,20 @@ describe('the office schedule', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' })).toBeInTheDocument();
   });
 
+  // Abdelrahman asked to see the leader next to each project (fbk_073, owner 2026-10-29).
+  it('names the leader of each project on its row', async () => {
+    const { api } = await renderApp('/dashboard?view=schedule');
+    const schedule = await screen.findByRole('region', { name: 'Office schedule' });
+    const { schedule: rows, leaders } = await api.call('dashboard.get', { status: 'active' });
+    const led = rows.filter((row) => row.leaderId);
+    expect(led.length).toBeGreaterThan(0);
+    for (const row of led) {
+      const leader = leaders.find((person) => person.id === row.leaderId);
+      const button = within(schedule).getByRole('button', { name: new RegExp(row.project.name) });
+      expect(button).toHaveTextContent(leader?.name ?? 'missing leader');
+    }
+  });
+
   it('shows a project on one line and opens it to one line for each stage, with an overlap hatched', async () => {
     await renderApp('/dashboard?view=schedule');
     const schedule = await screen.findByRole('region', { name: 'Office schedule' });

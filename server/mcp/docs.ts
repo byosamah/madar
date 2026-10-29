@@ -210,7 +210,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'dashboard.get': {
     title: 'Office dashboard',
-    description: 'Office overview. Filters: leaderId, clientId, teamId, subCompanyId and status (default active): tiles (inDesignWithoutArea), health counts, charts (submissions: Tracker entries sent each week), workload (per person: overdue, then open tasks due each of 4 weeks from today; week 1 adds reviews; unassigned: the same for tasks with no lead), waitingForUs (client items for our reply), inReview, schedule, attention, leaders. gaps (noDueDate, noLead, projectsStageNoEnd, noArea, noSubCompany; needs gaps.view) and money (payments due; needs payment.view) are null without it.',
+    description: 'Office overview. Filters: leaderId, clientId, teamId, subCompanyId and status (default active): tiles (inDesignWithoutArea), health counts, charts (submissions: Tracker entries sent each week), workload (per person: overdue, then open tasks due each of 4 weeks from today; week 1 adds reviews; unassigned: the same for tasks with no lead), waitingForUs (client items for our reply), inReview, schedule (each row has leaderId), attention, leaders. gaps (noDueDate, noLead, projectsStageNoEnd, noArea, noSubCompany; needs gaps.view) and money (payments due; needs payment.view) are null without it.',
   },
 
   'deadlines.create': {

@@ -23,7 +23,7 @@ describe("What's new entries", () => {
   it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
     const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
     expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
-    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28']));
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29']));
   });
 
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
@@ -400,6 +400,21 @@ describe("the What's new entries of the fixes of 2026-10-28", () => {
     for (const id of ['2026-10-23-121', '2026-10-23-122']) {
       for (const text of [...words(en, id), ...words(ar, id)]) expect(text).not.toMatch(/[–—]|undefined/);
     }
+  });
+});
+
+// The Schedule of the Dashboard shows the leader on each project row (fbk_073, owner 2026-10-29).
+describe("the What's new entry of the leader on the Schedule", () => {
+  it('is under the usage entry, for the holders of dashboard.view, and opens the Schedule', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-137')).toEqual({ id: '2026-10-23-137', day: '2026-10-29', right: 'dashboard.view', to: '/dashboard?view=schedule' });
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-137')).toBeGreaterThan(0);
+  });
+
+  it('names the leader and the Filter in English and Arabic', () => {
+    const word = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-137', part]));
+    expect(word(en, 'body')).toContain('Filter');
+    expect(word(ar, 'body')).toContain('«تصفية»');
+    expect(word(ar, 'title')).toContain('قائد');
   });
 });
 

@@ -7,6 +7,8 @@
   `dashboard.get` sends them (the server decides by role).
 - The Workload table has a "No lead" row first (`Workload.tsx`) with a dashed empty mark (`NoLeadMark`). It shows only when it holds a to-do.
   The Task list says "Due until <day>" for a range with one end (`taskList.dueUntil`).
+- The Schedule tab (`OfficeSchedule.tsx`) shows the leader of each project on a third line of its row (fbk_073). A row carries only
+  `leaderId`; the card comes from `leaders` of the same `dashboard.get` answer, which holds every leader of the rows.
 - The Map tab (`DashboardMap.tsx`, `MapPinCard.tsx`): `src/features/map/CLAUDE.md`. The meeting view (`MeetingView.tsx`) is the team view,
   never for the client.
 - The Dashboard and its sub-routes need `dashboard.view`. A link to the Dashboard (the lists behind its numbers, the team meeting sheet, the

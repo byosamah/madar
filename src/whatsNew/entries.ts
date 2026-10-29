@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // The Schedule of the Dashboard shows the leader on each project row (fbk_073). The lead sets the real release day before the test deploy.
+  { id: '2026-10-23-137', day: '2026-10-29', right: 'dashboard.view', to: '/dashboard?view=schedule' },
   // The "Needs first" list shows to the maker with task.details, also without task.assign (tsk_418). The lead sets the real release day before the test deploy.
   { id: '2026-10-23-136', day: '2026-10-28' },
   // The Arabic Inbox chip "To-dos" got one word, so the four chips fit one row at 390 px (tsk_448). The lead sets the real release day before the test deploy.

@@ -75,6 +75,11 @@ export const DashboardView = z.object({
     openLoops: z.object({ us: Count, client: Count }),
     /** True for a continuous project (fbk_069): a stage end date never makes it late, so the meeting view shows that date in the plain color. */
     continuous: z.boolean().optional(),
+    /**
+     * The leader of the project, or null for none (fbk_073, owner 2026-10-29). The Timeline shows the card of that id from leaders on the row.
+     * Optional, so an answer of an older server still parses.
+     */
+    leaderId: UserId.nullable().optional(),
   })),
   /** The open client items that wait for the office's reply, for each active project in the filters, the most first (owner, 2026-10-06). */
   waitingForUs: z.array(z.object({ project: Ref, count: Count })),
@@ -310,6 +315,7 @@ export const dashboardGet = defineCall({
           pause: p.status === 'on_hold' ? { kind: pauseKindOf(p), staleDays: staleDaysOf(state, p, today) } : null,
           openLoops: loops.get(p.id) ?? { us: 0, client: 0 },
           ...(p.continuous ? { continuous: true } : {}),
+          leaderId: p.leaderId,
         })),
       inReview: [...reviews]
         .map(([id, rows]) => {

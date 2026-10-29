@@ -7,6 +7,8 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { usePersistentChoice } from '../../app/choices';
 import { useLang } from '../../app/lang';
+import { usePersonName } from '../../app/personName';
+import { Avatar } from '../../components/Avatar';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { formatDay, formatMonth, todayISO } from '../../lib/dates';
 import { clipSpan, midPct, offsetPct, scheduleWindow, widthPct, ZOOMS, type Span } from '../../lib/schedule';
@@ -108,6 +110,9 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
   const [hatch, setHatch] = useHatchOverlap();
   // Every row has the width of the time scale above it, so one measure serves the deadline marks of all rows.
   const [scale, scaleWidth] = useWidth<HTMLDivElement>();
+  // The leader of each row comes from the leaders list of the same answer, so a row carries only the id (fbk_073).
+  const nameOf = usePersonName();
+  const leaders = new Map(view.leaders.map((person) => [person.id, person]));
   return (
     <section aria-labelledby="dash-schedule" className="panel flex flex-col gap-3 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -157,6 +162,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
               const isOpen = opened.has(row.project.id);
               // With the hatch off, no row and no opened line draws it (owner, 2026-10-05, item 9).
               const overlaps = hatch ? stageOverlaps(row.stages) : [];
+              const leader = row.leaderId ? leaders.get(row.leaderId) : undefined;
               return (
                 <Fragment key={row.project.id}>
                   <div className="flex min-h-11 min-w-0 items-center gap-1 rounded-xl hover:bg-fill">
@@ -164,11 +170,19 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                       type="button"
                       aria-expanded={isOpen}
                       onClick={() => toggle(row.project.id)}
-                      className="pressable flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-xl px-2 text-start"
+                      className="pressable flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-xl px-2 pb-2 text-start"
                     >
                       <span className="min-w-0 flex-1">
                         <span className="tabular block text-caption text-ink-2">{shownKey(row.project.code, t)}</span>
                         <bdi className="block truncate text-subheadline text-ink">{shownName(row.project, lang)}</bdi>
+                        {/* The face and the full name of the leader on a line of their own, so the name has the width of the column (fbk_073). */}
+                        {leader && (
+                          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-caption text-ink-2">
+                            <span aria-hidden className="inline-flex shrink-0"><Avatar user={leader} size={20} /></span>
+                            <span className="sr-only">{`${t('dashboard.leader')} `}</span>
+                            <bdi className="truncate">{nameOf(leader)}</bdi>
+                          </span>
+                        )}
                         {/* A paused row has the grey of On track, so it carries the meeting's sign. The sign has its own line, so the
                             name keeps the width of the narrow column (audit 2026-10-03, V-7). */}
                         {row.pause && <span className="block"><ProjectSign project={{ status: 'on_hold', pause: row.pause }} staleDays={row.pause.staleDays} /></span>}
