@@ -35,11 +35,11 @@
     "items": {
       "2026-10-23-138": {
         "title": "Folders for the whole project",
-        "body": "Make a folder for the whole project, not for one stage. It shows above the stages in Files & Links. Press it to open it. A new project starts with a Client documents folder."
+        "body": "Make a folder for the whole project, not for one stage. It shows above the stages in Files & Links. Press it to open it. Each client project has a Client documents folder."
       },
       "2026-10-23-139": {
         "title": "Locked folders",
-        "body": "A locked folder and its files show only to people who hold the Locked folders switch. A new project starts with a locked Contract folder. Lock or unlock any folder from its menu."
+        "body": "A locked folder and its files show only to people who hold the Locked folders switch. Each client project has a locked Contract folder. Lock or unlock any folder from its menu."
       }
     }
   }
