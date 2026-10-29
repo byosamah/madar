@@ -121,9 +121,26 @@ export function callProblems(c: CallCheck): string[] {
   }
   // A save that changes an office task sends that part with its own id and no names, so the id of a named signal never ties the
   // actor or the story to it. Each part keeps one id (review 2026-10-06).
-  const named = rest.filter((s) => s.actorId !== undefined || s.storyId !== undefined);
-  const nameless = rest.filter((s) => s.actorId === undefined && s.storyId === undefined);
-  const parts = diff.privateChange ? [named, nameless] : [rest];
+  // A change that touches a locked folder (fbk_074) goes as person signals to the holders of the switch who view the project, with one id of its own
+  // when the save has a public part too. Such a signal may name a project only for a holder of that project.
+  const lockedPeople = new Set([...diff.locked.values()].flatMap((part) => [...part.people]));
+  const ofLocked = rest.filter((s) => s.channel !== 'office' && lockedPeople.has(s.channel.slice('person:'.length)) && s.projects.some((id) => diff.locked.has(id)));
+  for (const s of ofLocked) {
+    for (const id of s.projects.filter((one) => diff.locked.has(one) && !diff.projects.has(one))) {
+      if (!diff.locked.get(id)!.people.has(s.channel.slice('person:'.length))) problems.push(`${c.name} told ${s.channel} about the locked folders of ${id}, and the person does not hold the switch.`);
+    }
+  }
+  if (new Set(ofLocked.map((s) => s.id)).size > 1) problems.push(`${c.name} sent the locked folder part with more than one id.`);
+  const lockedOnly = [...diff.locked.keys()].filter((id) => !diff.projects.has(id) && !diff.hidden.has(id));
+  for (const id of lockedOnly) {
+    for (const person of diff.locked.get(id)!.people) {
+      if (!c.signals.some((s) => s.channel === `person:${person}` && s.projects.includes(id))) problems.push(`${c.name} did not tell ${person} about the locked folders of ${id}.`);
+    }
+  }
+  const others = rest.filter((s) => !ofLocked.includes(s));
+  const named = others.filter((s) => s.actorId !== undefined || s.storyId !== undefined);
+  const nameless = others.filter((s) => s.actorId === undefined && s.storyId === undefined);
+  const parts = diff.privateChange ? [named, nameless] : [others];
   if (parts.some((part) => new Set(part.map((s) => s.id)).size > 1)) problems.push(`${c.name} sent signals with more than one id.`);
   if (diff.privateChange) {
     if (nameless.some((s) => named.some((one) => one.id === s.id))) {
@@ -136,7 +153,7 @@ export function callProblems(c: CallCheck): string[] {
     if (channels.filter((one) => one === channel).length > 1) problems.push(`${c.name} sent more than one signal on the channel ${channel}.`);
   }
   const expected = [...diff.projects].sort().join(', ');
-  for (const s of rest) {
+  for (const s of others) {
     const sent = [...s.projects].sort().join(', ');
     if (sent !== expected) {
       problems.push(`${c.name} sent a signal for the projects ${sent || '(none)'}, but the change touched ${expected || '(none)'}.`);

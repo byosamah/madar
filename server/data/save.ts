@@ -481,8 +481,9 @@ export function diffState(before: State, after: State): Diff {
           // The same for a change of a meeting with no project (fbk_022).
           priv('events');
           officeMeetings.add(rec!.officeMeetingId);
-        } else if (typeof rec!.projectId === 'string' && eventTouchesLocked(after, rec as never)) {
-          // A change of a locked folder, or of a file in one, shows in the History of the holders only (fbk_074).
+        } else if (typeof rec!.projectId === 'string' && eventTouchesLocked(after, rec as never)
+          && lockedFolderChange((rec!.before as { folders?: never } | null)?.folders, (rec!.after as { folders?: never } | null)?.folders) !== 'toggle') {
+          // A change of a locked folder, or of a file in one, shows in the History of the holders only (fbk_074). A lock or an unlock is heard by all.
           lockedPart('events', rec!.projectId);
         } else {
           projectPart('events', rec!.projectId);
