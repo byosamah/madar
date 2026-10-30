@@ -44,20 +44,36 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
   the file itself in the browser. No outside viewer, no upload of the file: never add one (owner, 2026-10-29).
 - `office/officeKind.ts` decides (`officeKindOf`): the type first, the file name only when the type says nothing (octet-stream, zip, empty).
   It is small and sits in the first load (the chip and `canPreview` import it). It also holds the limits (`OFFICE_MAX_BYTES` 15 MB,
-  `SHEET_LIMITS`). The drawing code loads in chunks of its own: `PreviewSheet` loads `OfficeBody` (`lazyOverlay`), and `OfficeBody` loads
-  `docxHtml` (mammoth + DOMPurify, 330 kB) or `xlsxSheets` (read-excel-file, 53 kB) only for the kind that opens. `scripts/check-bundles.ts`
-  keeps the three libraries out of the first load (`LAZY_MARKERS`). Keep `SHEET_LIMITS` out of `xlsxSheets.ts`: a screen file that imports
-  a value from it pulls the library into its own chunk.
+  `SHEET_LIMITS`). `PreviewSheet` loads `OfficeBody` in its own chunk (`lazyOverlay`).
+- The reading runs in a Web Worker with a budget of 8 seconds (`officeRunner.ts`, `officeWorker.ts`, `officeWorkerCore.ts`). The worker holds
+  mammoth, read-excel-file and fflate (361 kB, its own file). The page sends the bytes (no copy) and gets plain data back. Over the budget,
+  on a worker error or with no worker, the page ends the worker and `OfficeBody` shows the quiet line "This file cannot show here" with
+  Download: the tab never freezes. DOMPurify needs a DOM, so the cleaning of a Word file runs on the page (`docxClean.ts`, a chunk of its
+  own, 30 kB); the worker refuses an HTML text above 20 million characters, so the cleaner has little to do. `scripts/check-bundles.ts` keeps
+  the libraries out of the first load (`LAZY_MARKERS`). Keep `SHEET_LIMITS` out of `xlsxSheets.ts`.
+- The remote build starts the worker in `spawnWorker.ts` (a module worker, `worker-src 'self'`; it runs on Chromium and on WebKit, checked
+  on both with the real CSP). The prototype is one script file: it has no worker file and runs the same code in the page
+  (`inlineWorker.ts`), where a timer cannot end a run, but the unpack limits and the grid scan still stop a bomb and a far cell. The flag is
+  written `import.meta.env.VITE_MADAR_API === 'remote'` in `officeRunner.ts`, so the prototype never sees the worker URL. A test calls
+  `setWorkerFactory(inlineWorker)` (jsdom has no Worker) and may give its own worker (a hung one, a broken one).
 - The bytes: the real build asks `files.link` as the person (the rights, and the locked folder rule, are the same as a download) and reads the
   signed link with `fetch` and `credentials: 'omit'`. This needs `GET` in `config/r2-cors.*.json` and the store in `connect-src` of the
   CSP, as "Download all" does. The prototype reads `files.get`. A signed link is never opened in a window. A file above 15 MB is not read:
-  the size of the version decides first, else the Content-Length of the store. `zipGuard.ts` reads the ZIP directory first and refuses a
-  file that declares more than 80 MB for one part, 150 MB in all or 4,000 parts (a small file can unpack to a huge one).
+  the size of the version decides first, else the Content-Length of the store.
+- `zipGuard.ts` trusts no number of the ZIP file (a zip bomb). It reads the central directory, compares each local header with it, inflates each
+  part in 16 kB steps with fflate and counts the REAL output. It stops at 80 MB for one part or 150 MB in all, and 4,000 parts at most. The real
+  size must equal the declared size. It keeps only the parts that the caller wants. The unpacked size of a limit is a `ZipLimits` argument,
+  so a test makes a small bomb.
 - Word: mammoth makes HTML (no outside file, pictures only as `data:` of png, jpeg, gif, webp or bmp), `sanitize.ts` cleans it with an
   allowlist (no style, class, id, event handler or link: a link keeps its text only), and `OfficeDoc.tsx` draws it in a frame with
   `sandbox=""` and its own CSP (`default-src 'none'; img-src data:`). Each block gets `dir="auto"`, so an Arabic and an English paragraph each
-  read right. Excel: `xlsxSheets.ts` returns plain data, and every cell is React text (`OfficeSheets.tsx`), never HTML. The cut is 1,000
-  rows, 50 columns, 30 sheets and 400,000 cells. One quiet line says that the layout is close, not exact.
+  read right.
+- Excel: `xlsxSheets.ts` unpacks the XML parts itself (`unpackZip`), scans every sheet for its `<dimension ref>` and its `<c r>` and `<row r>`
+  references (`gridOf`), and refuses ("too many cells") before the parse when the grids of all sheets pass 400,000 cells: read-excel-file builds
+  a dense grid up to the farthest cell, so one cell at XFD1048576 would fill the memory. Then it gives the reader (`read-excel-file/universal`,
+  which starts no worker of its own) a STORE copy of the XML parts (`storedZip`): fflate unzips a large deflated archive in blob workers, and
+  the CSP refuses a blob worker. Every cell is React text (`OfficeSheets.tsx`), never HTML. The cut is 1,000 rows, 50 columns and 30 sheets.
+  One quiet line says that the layout is close, not exact.
 - Never add a second way to read a file: the preview must ask the same call as the download. A change to the allowlist or to the frame
   needs a hostile test in `sanitize.test.ts` or `docxHtml.test.ts` first (`officeFixtures.ts` builds a hostile Word file).
 - Tests: `office/*.test.ts(x)`, `PdfPreview.test.tsx` (the chips). Words: `officePreview.*` in `src/i18n/real/officePreview.*`.

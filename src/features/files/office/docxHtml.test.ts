@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { docxToHtml } from './docxHtml';
+import { cleanDocxHtml } from './docxClean';
+import { docxToRawHtml } from './docxConvert';
 import { sampleDocx, storeZip } from './officeFixtures';
+
+/** The two steps of a Word file: mammoth in the worker, then the cleaner on the page. */
+async function docxToHtml(bytes: ArrayBuffer) {
+  const raw = await docxToRawHtml(bytes);
+  return raw.kind === 'html' ? cleanDocxHtml(raw.html) : raw;
+}
 
 describe('docxToHtml (tsk_495)', () => {
   it('draws the text, the heading, the bold line, the table and the picture of a Word file', async () => {

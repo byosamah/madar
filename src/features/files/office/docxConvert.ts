@@ -1,23 +1,26 @@
 import mammoth from 'mammoth/mammoth.browser.min.js';
 import { checkZip } from './zipGuard';
-import { sanitizeDocHtml } from './sanitize';
 
 /**
- * A Word file as safe HTML (tsk_495). Madar draws the file itself in the browser: mammoth reads the .docx, DOMPurify cleans the HTML
- * (`sanitize.ts`), and the page draws it in a frame without scripts (`OfficeDoc.tsx`). Nothing leaves the browser.
- * - The ZIP directory is checked first (`zipGuard.ts`), so a small file cannot unpack to a huge one.
+ * A Word file as HTML that is NOT clean yet (tsk_495). Madar draws the file itself in the browser: mammoth reads the .docx here, in the
+ * worker of the preview (`officeWorker.ts`, which has no DOM and a time budget), the main thread cleans the HTML with DOMPurify
+ * (`docxClean.ts`), and the page draws it in a frame without scripts (`OfficeDoc.tsx`). Nothing leaves the browser.
+ * - The ZIP is unpacked in small steps first (`zipGuard.ts`), so a small file cannot unpack to a huge one.
  * - mammoth reads no outside file (`externalFileAccess` is off), so a picture of an outside address never loads.
  * - A picture comes as a data address of a safe type, at most `MAX_IMAGE_BYTES` each and `MAX_IMAGES` in all. Others are left out.
  * - The layout is close, not exact: mammoth keeps the structure (headings, lists, tables, bold, pictures) and drops fonts, columns and page breaks.
  */
-export type DocxResult = { kind: 'html'; html: string } | { kind: 'empty' } | { kind: 'bad' } | { kind: 'big' };
+export type DocxRaw = { kind: 'html'; html: string } | { kind: 'bad' } | { kind: 'big' };
+
+/** The longest HTML text that the main thread cleans. A text above it is "big": the cleaner runs on the page and has no time budget. */
+export const MAX_HTML_CHARS = 20_000_000;
 
 const PICTURE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp']);
 /** The size of one picture as base64 text. A larger picture is left out. */
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_IMAGES = 60;
 
-export async function docxToHtml(bytes: ArrayBuffer): Promise<DocxResult> {
+export async function docxToRawHtml(bytes: ArrayBuffer): Promise<DocxRaw> {
   const zip = checkZip(bytes);
   if (zip !== 'ok') return { kind: zip };
   let images = 0;
@@ -38,9 +41,7 @@ export async function docxToHtml(bytes: ArrayBuffer): Promise<DocxResult> {
         }),
       },
     );
-    // A paragraph that held only a picture that was left out is empty now.
-    const html = sanitizeDocHtml(result.value).replace(/<p dir="auto"><\/p>/g, '');
-    return html.replace(/<[^>]*>/g, '').trim() === '' && !html.includes('<img') ? { kind: 'empty' } : { kind: 'html', html };
+    return result.value.length > MAX_HTML_CHARS ? { kind: 'big' } : { kind: 'html', html: result.value };
   } catch {
     return { kind: 'bad' };
   }

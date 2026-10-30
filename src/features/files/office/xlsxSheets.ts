@@ -1,6 +1,7 @@
-import readXlsxFile from 'read-excel-file/browser';
+import { zipSync } from 'fflate';
+import readXlsxFile from 'read-excel-file/universal';
 import { SHEET_LIMITS } from './officeKind';
-import { checkZip } from './zipGuard';
+import { unpackZip } from './zipGuard';
 
 /**
  * An Excel file as plain tables (tsk_495). read-excel-file reads the .xlsx in the browser. The result is data, never HTML: the screen
@@ -23,6 +24,48 @@ export type SheetsResult =
   | { kind: 'big' }
   | { kind: 'cells' };
 
+/** The parts that the reader needs, the same as its own filter: XML files and their relationship files. */
+const isXml = (name: string) => name.endsWith('.xml') || name.endsWith('.xml.rels');
+const SHEET_PATH = /^xl\/worksheets\/[^/]+\.xml$/i;
+
+/** The number of a column name: A is 1, Z is 26, AA is 27, XFD is 16,384. More than four letters gives a number above any real column. */
+function columnNumber(letters: string): number {
+  if (letters.length > 4) return Number.MAX_SAFE_INTEGER;
+  let n = 0;
+  for (const letter of letters) n = n * 26 + (letter.charCodeAt(0) - 64);
+  return n;
+}
+
+/**
+ * The size of the dense grid that the reader would build for one sheet: the rows times the columns, taken from the declared dimension and
+ * from every cell reference (`<c r="XFD1048576">`). A cheap scan of the XML text, so a sheet that names a far cell is refused before the
+ * full parse (read-excel-file builds a grid up to the farthest cell).
+ */
+export function gridOf(xml: string): number {
+  let rows = 0;
+  let columns = 0;
+  const dimension = /<dimension\b[^>]*\sref="([^"]*)"/.exec(xml)?.[1];
+  const end = dimension?.split(':').pop()?.match(/^([A-Za-z]+)(\d+)$/);
+  if (end) {
+    columns = columnNumber(end[1].toUpperCase());
+    rows = Number(end[2]);
+  }
+  for (const match of xml.matchAll(/<c\b[^>]*?\sr="([A-Za-z]+)(\d+)"/g)) {
+    columns = Math.max(columns, columnNumber(match[1].toUpperCase()));
+    rows = Math.max(rows, Number(match[2]));
+  }
+  for (const match of xml.matchAll(/<row\b[^>]*?\sr="(\d+)"/g)) rows = Math.max(rows, Number(match[1]));
+  return rows * columns;
+}
+
+/**
+ * The XML parts as a ZIP file with the STORE method. fflate unzips a large deflated archive in blob workers, and the CSP of the page
+ * (`worker-src 'self'`) refuses a blob worker. A stored copy needs no inflate, so the reader never starts a worker.
+ */
+export function storedZip(entries: Record<string, Uint8Array>): Uint8Array {
+  return zipSync(entries, { level: 0 });
+}
+
 type Cell = string | number | boolean | Date | null | undefined;
 
 /** A cell as the text that a person reads. A number loses the noise of the float (0.1 + 0.2), a date shows as a day. */
@@ -35,11 +78,19 @@ function cellText(cell: Cell): string {
 }
 
 export async function xlsxToSheets(bytes: ArrayBuffer): Promise<SheetsResult> {
-  const zip = checkZip(bytes);
-  if (zip !== 'ok') return { kind: zip };
+  // The unpack counts the real output, so a zip bomb stops at the limit (zipGuard.ts). Only the XML parts are kept.
+  const unpacked = unpackZip(bytes, { want: isXml });
+  if (unpacked.kind !== 'ok') return { kind: unpacked.kind };
+  // The size of the grid, before the full parse: a far cell must not build a dense grid.
+  const decoder = new TextDecoder();
+  let grid = 0;
+  for (const [name, data] of Object.entries(unpacked.entries)) {
+    if (SHEET_PATH.test(name)) grid += gridOf(decoder.decode(data));
+    if (grid > SHEET_LIMITS.cells) return { kind: 'cells' };
+  }
   let parsed: { sheet: string; data: Cell[][] }[];
   try {
-    parsed = (await readXlsxFile(bytes)) as { sheet: string; data: Cell[][] }[];
+    parsed = (await readXlsxFile(new Blob([storedZip(unpacked.entries) as BlobPart]))) as { sheet: string; data: Cell[][] }[];
   } catch {
     return { kind: 'bad' };
   }

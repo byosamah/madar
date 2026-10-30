@@ -5,7 +5,16 @@ import { crc32Update } from '../../../lib/zip';
  * program is needed. The Word file carries hostile parts on purpose: a link with a script address, a picture of an outside address, a
  * vector picture and a text that looks like a tag.
  */
-type Part = { name: string; data: Uint8Array };
+type Part = {
+  name: string;
+  data: Uint8Array;
+  /** The deflated bytes of `data`. With them the part is written with method 8 (DEFLATE), else with method 0 (STORE). */
+  packed?: Uint8Array;
+  /** The unpacked size that the central directory declares. A test sets a false one to make a zip bomb. */
+  declared?: number;
+  /** The unpacked size that the local header declares. It follows `declared` unless a test sets it. */
+  localDeclared?: number;
+};
 const utf8 = new TextEncoder();
 const enc = (value: string) => utf8.encode(value);
 
@@ -20,27 +29,32 @@ export function storeZip(parts: Part[]): ArrayBuffer {
   for (const part of parts) {
     const name = utf8.encode(part.name);
     const crc = crc32Update(0, part.data);
+    const body = part.packed ?? part.data;
+    const method = part.packed ? 8 : 0;
+    const declared = part.declared ?? part.data.length;
     const local = new DataView(new ArrayBuffer(30));
     local.setUint32(0, 0x04034b50, true);
     local.setUint16(4, 20, true);
     local.setUint16(6, 0x0800, true);
+    local.setUint16(8, method, true);
     local.setUint32(14, crc, true);
-    local.setUint32(18, part.data.length, true);
-    local.setUint32(22, part.data.length, true);
+    local.setUint32(18, body.length, true);
+    local.setUint32(22, part.localDeclared ?? declared, true);
     local.setUint16(26, name.length, true);
-    chunks.push(new Uint8Array(local.buffer), name, part.data);
+    chunks.push(new Uint8Array(local.buffer), name, body);
     const entry = new DataView(new ArrayBuffer(46));
     entry.setUint32(0, 0x02014b50, true);
     entry.setUint16(4, 20, true);
     entry.setUint16(6, 20, true);
     entry.setUint16(8, 0x0800, true);
+    entry.setUint16(10, method, true);
     entry.setUint32(16, crc, true);
-    entry.setUint32(20, part.data.length, true);
-    entry.setUint32(24, part.data.length, true);
+    entry.setUint32(20, body.length, true);
+    entry.setUint32(24, declared, true);
     entry.setUint16(28, name.length, true);
     entry.setUint32(42, offset, true);
     central.push(new Uint8Array(entry.buffer), name);
-    offset += 30 + name.length + part.data.length;
+    offset += 30 + name.length + body.length;
   }
   const size = central.reduce((n, c) => n + c.length, 0);
   const end = new DataView(new ArrayBuffer(22));
@@ -95,7 +109,14 @@ export async function sampleDocx(o: { arabic?: boolean } = {}): Promise<ArrayBuf
 
 /** One cell of a sheet for `sampleXlsx`: text, a number, or nothing. */
 export type SampleCell = string | number | null;
-export type SampleSheet = { name: string; rows: SampleCell[][] };
+export type SampleSheet = {
+  name: string;
+  rows: SampleCell[][];
+  /** The text of a `<dimension ref>` that the sheet declares. A test sets a false one. */
+  dimension?: string;
+  /** Raw XML that follows the rows inside `<sheetData>`: a test names a far cell with it. */
+  extraRows?: string;
+};
 
 const columnLetters = (index: number) => {
   let n = index + 1;
@@ -110,10 +131,12 @@ const columnLetters = (index: number) => {
 /** An Excel file with the given sheets. Texts go into the shared strings, as Excel writes them. */
 export async function sampleXlsx(sheets: SampleSheet[]): Promise<ArrayBuffer> {
   const strings: string[] = [];
+  const ids = new Map<string, number>();
   const idOf = (value: string) => {
-    const at = strings.indexOf(value);
-    if (at >= 0) return at;
+    const known = ids.get(value);
+    if (known !== undefined) return known;
     strings.push(value);
+    ids.set(value, strings.length - 1);
     return strings.length - 1;
   };
   const sheetXml = (sheet: SampleSheet) => {
@@ -125,7 +148,8 @@ export async function sampleXlsx(sheets: SampleSheet[]): Promise<ArrayBuffer> {
       }).join('');
       return `<row r="${r + 1}">${inner}</row>`;
     }).join('');
-    return `${XML}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows}</sheetData></worksheet>`;
+    const dimension = sheet.dimension ? `<dimension ref="${sheet.dimension}"/>` : '';
+    return `${XML}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${dimension}<sheetData>${rows}${sheet.extraRows ?? ''}</sheetData></worksheet>`;
   };
   const sheetFiles = sheets.map((sheet, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: enc(sheetXml(sheet)) }));
   return storeZip([

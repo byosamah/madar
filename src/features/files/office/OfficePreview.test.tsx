@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MadarApi } from '../../../api/calls';
@@ -9,13 +9,19 @@ import { stubPhone } from '../../inbox/phoneHarness';
 import { PreviewSheet, type PreviewView } from '../../project/files/PreviewSheet';
 import { DOCX, OFFICE_MAX_BYTES, XLSX } from './officeKind';
 import { sampleDocx, sampleXlsx } from './officeFixtures';
+import { setWorkerFactory, type WorkerLike } from './officeRunner';
+import { inlineWorker } from './inlineWorker';
 
 /**
  * A Word file and an Excel file open in the preview (tsk_495, owner 2026-10-29: "view files without a download"). Madar draws the file
  * itself in the browser. The real build reads the bytes of the signed link with fetch (the store allows a GET from the page, as "Download
  * all" does). The prototype reads the stored data with files.get. The bytes never go to another service.
  */
+// jsdom has no Worker: the test worker runs the code of the real worker in the same thread.
+beforeEach(() => setWorkerFactory(inlineWorker));
 afterEach(() => {
+  setWorkerFactory(null);
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -175,14 +181,14 @@ describe('a file that the preview does not draw', () => {
   it('says so for a file that is no Word file, and keeps the Download button', async () => {
     renderPreview(view('fil_959', 'Fake.docx', DOCX), { mode: 'prototype', bytes: new TextEncoder().encode('just words').buffer as ArrayBuffer });
     const sheet = await screen.findByRole('dialog', { name: 'Fake.docx' });
-    expect(await within(sheet).findByText('Madar cannot show this file. Download it to open it.')).toBeInTheDocument();
+    expect(await within(sheet).findByText('This file cannot show here. Download it to open it.')).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: 'Download' })).toBeInTheDocument();
   });
 
   it('keeps the rights of the download: a refused link draws nothing', async () => {
     const { fetched } = renderPreview(view('fil_960', 'Report.docx', DOCX), { mode: 'remote', refuse: true });
     const sheet = await screen.findByRole('dialog', { name: 'Report.docx' });
-    expect(await within(sheet).findByText('Madar cannot show this file. Download it to open it.')).toBeInTheDocument();
+    expect(await within(sheet).findByText('This file cannot show here. Download it to open it.')).toBeInTheDocument();
     expect(sheet.querySelector('iframe')).toBeNull();
     expect(fetched).toEqual([]);
   });
@@ -192,4 +198,44 @@ describe('a file that the preview does not draw', () => {
     const sheet = await screen.findByRole('dialog', { name: 'Deck.pptx' });
     expect(within(sheet).getByText('There is no preview for this file type.')).toBeInTheDocument();
   });
+});
+
+describe('a file that a crafted file would make heavy (tsk_495 review)', () => {
+  /** A worker that takes the file and never answers: a zip bomb or a far cell that does not end. */
+  const hungWorker = (): WorkerLike & { ended: number } => {
+    const worker = { onmessage: null, onerror: null, onmessageerror: null, ended: 0, postMessage() {}, terminate() { worker.ended += 1; } } as WorkerLike & { ended: number };
+    return worker;
+  };
+
+  it('ends a worker that takes more than 8 seconds, and shows the quiet line with the Download button', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const worker = hungWorker();
+    setWorkerFactory(() => worker);
+    renderPreview(view('fil_970', 'Heavy.xlsx', XLSX), { mode: 'prototype', bytes: await sampleXlsx([{ name: 'A', rows: [['x']] }]) });
+    const sheet = await screen.findByRole('dialog', { name: 'Heavy.xlsx' });
+    await waitFor(() => expect(within(sheet).getByText('The file opens in a moment.')).toBeInTheDocument());
+    expect(worker.ended).toBe(0);
+    await vi.advanceTimersByTimeAsync(8100);
+    expect(await within(sheet).findByText('This file cannot show here. Download it to open it.')).toBeInTheDocument();
+    expect(worker.ended).toBe(1);
+    expect(within(sheet).getByRole('button', { name: 'Download' })).toBeInTheDocument();
+  });
+
+  it('shows the same line when the worker breaks', async () => {
+    const worker = hungWorker();
+    setWorkerFactory(() => {
+      queueMicrotask(() => setTimeout(() => worker.onerror?.({}), 0));
+      return worker;
+    });
+    renderPreview(view('fil_971', 'Broken.docx', DOCX), { mode: 'prototype', bytes: await sampleDocx() });
+    const sheet = await screen.findByRole('dialog', { name: 'Broken.docx' });
+    expect(await within(sheet).findByText('This file cannot show here. Download it to open it.')).toBeInTheDocument();
+  });
+
+  it('shows the quiet line for an Excel file that names a far cell, and never builds the grid', async () => {
+    const bytes = await sampleXlsx([{ name: 'Far', rows: [['x']], extraRows: '<row r="1048576"><c r="XFD1048576" t="s"><v>0</v></c></row>' }]);
+    renderPreview(view('fil_972', 'Far.xlsx', XLSX), { mode: 'prototype', bytes });
+    const sheet = await screen.findByRole('dialog', { name: 'Far.xlsx' });
+    expect(await within(sheet).findByText('This file has too many cells to show here. Download it to open it.')).toBeInTheDocument();
+  }, 20_000);
 });

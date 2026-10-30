@@ -41,6 +41,7 @@
     "cmdk": "1.1.1",
     "d3-hierarchy": "3.1.2",
     "dompurify": "3.4.17",
+    "fflate": "0.8.3",
     "hono": "4.13.12",
     "i18next": "26.4.2",
     "idb-keyval": "6.3.0",

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { unzipSync, zipSync } from 'fflate';
 import { sampleXlsx } from './officeFixtures';
 import { SHEET_LIMITS } from './officeKind';
-import { xlsxToSheets } from './xlsxSheets';
+import { storedZip, xlsxToSheets } from './xlsxSheets';
 
 describe('xlsxToSheets (tsk_495)', () => {
   it('reads each sheet by its name, with text and numbers as text', async () => {
@@ -52,5 +53,54 @@ describe('xlsxToSheets (tsk_495)', () => {
 
   it('says "empty" for a workbook whose sheets hold no cell', async () => {
     expect((await xlsxToSheets(await sampleXlsx([{ name: 'A', rows: [] }]))).kind).toBe('empty');
+  });
+});
+
+describe('xlsxToSheets reads the size of the grid before it parses (a far cell, tsk_495 review)', () => {
+  const far = (ref: string, row: number) => `<row r="${row}"><c r="${ref}" t="s"><v>0</v></c></row>`;
+
+  it('refuses a sheet whose one cell sits at XFD1048576, before the dense grid is built', async () => {
+    const bytes = await sampleXlsx([{ name: 'Far', rows: [['x']], extraRows: far('XFD1048576', 1048576) }]);
+    const started = Date.now();
+    expect((await xlsxToSheets(bytes)).kind).toBe('cells');
+    expect(Date.now() - started).toBeLessThan(2000);
+  }, 20_000);
+
+  it('refuses a sheet that declares a huge dimension, also when its cells are few', async () => {
+    const bytes = await sampleXlsx([{ name: 'Wide', rows: [['x']], dimension: 'A1:XFD1048576' }]);
+    expect((await xlsxToSheets(bytes)).kind).toBe('cells');
+  }, 20_000);
+
+  it('adds the grids of all sheets, so many middle-sized sheets are refused together', async () => {
+    const sheet = (name: string) => ({ name, rows: [['x']], dimension: 'A1:J30000' });
+    expect((await xlsxToSheets(await sampleXlsx([sheet('A'), sheet('B')]))).kind).toBe('cells');
+  }, 20_000);
+
+  it('still reads a normal sheet that declares an exact dimension', async () => {
+    const out = await xlsxToSheets(await sampleXlsx([{ name: 'A', rows: [['a', 'b'], ['c', 'd']], dimension: 'A1:B2' }]));
+    expect(out.kind).toBe('sheets');
+  });
+
+  it('reads a deflated file of more than 512 KB, from a STORE copy that needs no worker of its own', async () => {
+    // fflate unzips a large deflated archive in blob workers. The CSP of the page (worker-src 'self') refuses a blob worker, so the preview
+    // unpacks the file itself and gives the reader a copy with no deflated part.
+    let seed = 7;
+    const noise = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed.toString(16).padStart(8, '0') + (seed ^ 0x5bd1e995).toString(16).padStart(8, '0'); };
+    const rows = Array.from({ length: 7000 }, (_, r) => Array.from({ length: 20 }, (_, c) => (r === 0 && c === 0 ? 'first' : noise() + noise())));
+    const files = unzipSync(new Uint8Array(await sampleXlsx([{ name: 'Big', rows }])));
+    const packed = zipSync(Object.fromEntries(Object.entries(files).map(([name, data]) => [name, [data, { level: 6 }] as [Uint8Array, { level: 6 }]])));
+    expect(packed.byteLength).toBeGreaterThan(512 * 1024);
+    const out = await xlsxToSheets(packed.buffer.slice(packed.byteOffset, packed.byteOffset + packed.byteLength) as ArrayBuffer);
+    if (out.kind !== 'sheets') throw new Error(`Expected sheets, got ${out.kind}.`);
+    expect(out.sheets[0].rows[0][0]).toBe('first');
+    expect(out.sheets[0].moreRows).toBe(true);
+  }, 30_000);
+
+  it('makes the copy for the reader with the STORE method only', () => {
+    const copy = storedZip({ 'xl/a.xml': new TextEncoder().encode('<a>'.repeat(500)) });
+    const view = new DataView(copy.buffer, copy.byteOffset, copy.byteLength);
+    let methods: number[] = [];
+    for (let i = 0; i < copy.byteLength - 4; i += 1) if (view.getUint32(i, true) === 0x02014b50) methods = [...methods, view.getUint16(i + 10, true)];
+    expect(methods).toEqual([0]);
   });
 });

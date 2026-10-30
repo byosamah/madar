@@ -20,6 +20,8 @@ import { NOW, TODAY } from '../../../test/factories';
 import { renderApp } from '../../../test/render';
 import { ApiError } from '../../../api/errors';
 import { sampleDocx, sampleXlsx } from '../../files/office/officeFixtures';
+import { setWorkerFactory } from '../../files/office/officeRunner';
+import { inlineWorker } from '../../files/office/inlineWorker';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -55,6 +57,9 @@ describe('the Files tab', () => {
   });
 
   it('previews an uploaded Word file and Excel file from the row menu, and gives no Preview item to a PowerPoint file (tsk_495)', async () => {
+    // jsdom has no Worker: the test worker runs the code of the real worker in the same thread.
+    setWorkerFactory(inlineWorker);
+    onTestFinished(() => setWorkerFactory(null));
     await renderApp(FILES);
     const input = await screen.findByLabelText('Upload files');
     const type = (kind: 'word' | 'sheet') => (kind === 'word' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

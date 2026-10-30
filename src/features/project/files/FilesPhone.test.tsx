@@ -1,10 +1,12 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import type { State } from '../../../api/store';
 import { phoneMedia } from '../../../test/phoneMedia';
 import { renderApp } from '../../../test/render';
 import { sampleDocx } from '../../files/office/officeFixtures';
+import { setWorkerFactory } from '../../files/office/officeRunner';
+import { inlineWorker } from '../../files/office/inlineWorker';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -47,6 +49,9 @@ describe('the Files & Links tab on a phone (phone D, P9)', () => {
   });
 
   it('opens a Word file from the name, and draws it inside the sheet, with no link out (tsk_495)', async () => {
+    // jsdom has no Worker: the test worker runs the code of the real worker in the same thread.
+    setWorkerFactory(inlineWorker);
+    onTestFinished(() => setWorkerFactory(null));
     phoneMedia(true);
     await renderApp(FILES, as('usr_002'));
     await userEvent.upload(await screen.findByLabelText('Upload files'), new File([await sampleDocx()], 'Site report.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));

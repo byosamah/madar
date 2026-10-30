@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isRemote } from '../../../app/files';
-import { reloadOnFailedImport } from '../../../app/importReload';
 import { useRuntime, type Runtime } from '../../../app/runtime';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
 import { OfficeDoc } from './OfficeDoc';
 import { OfficeSheets } from './OfficeSheets';
 import { OFFICE_MAX_BYTES, type OfficeKind } from './officeKind';
+import { readOffice } from './officeRunner';
 import type { SheetTable } from './xlsxSheets';
 
 /**
- * The body of the preview for a Word or Excel file (tsk_495). It lives in its own chunk (`PreviewSheet` loads it with lazyOverlay), and the
- * reading code (mammoth, DOMPurify, read-excel-file) loads in a chunk of its own too, only for the kind that a person opens.
+ * The body of the preview for a Word or Excel file (tsk_495). It lives in its own chunk (`PreviewSheet` loads it with lazyOverlay). The
+ * reading code (mammoth, read-excel-file, fflate) lives in a Web Worker of its own (`officeWorker.ts`), and DOMPurify loads in a chunk
+ * of its own for a Word file. The worker has a time budget of 8 seconds; over it, the worker ends and the person sees the quiet line.
  *
  * Where the bytes come from:
  * - Real build: files.link signs a link as the person (the rights are the same as a download, also for a locked folder), and the page
@@ -52,16 +53,16 @@ async function draw(runtime: Runtime, o: { id: string; letter?: string; kind: Of
   if (o.size !== undefined && o.size > OFFICE_MAX_BYTES) return line('tooBig');
   const bytes = await readBytes(runtime, o.id, o.letter);
   if (bytes === 'big') return line('tooBig');
-  if (o.kind === 'docx') {
-    const { docxToHtml } = await reloadOnFailedImport(() => import('./docxHtml'));
-    const result = await docxToHtml(bytes);
-    if (result.kind === 'html') return { kind: 'html', html: result.html };
-    return line(result.kind === 'empty' ? 'emptyDoc' : result.kind === 'big' ? 'tooBig' : 'failed');
+  // The unpack and the parse run in a worker with a time budget (officeRunner.ts). A timeout or a broken worker is "failed".
+  const result = await readOffice(o.kind, bytes);
+  switch (result.kind) {
+    case 'html': return result;
+    case 'sheets': return result;
+    case 'empty': return line(o.kind === 'docx' ? 'emptyDoc' : 'emptySheet');
+    case 'big': return line('tooBig');
+    case 'cells': return line('tooMany');
+    default: return line('failed');
   }
-  const { xlsxToSheets } = await reloadOnFailedImport(() => import('./xlsxSheets'));
-  const result = await xlsxToSheets(bytes);
-  if (result.kind === 'sheets') return result;
-  return line(result.kind === 'empty' ? 'emptySheet' : result.kind === 'big' ? 'tooBig' : result.kind === 'cells' ? 'tooMany' : 'failed');
 }
 
 export function OfficeBody({ fileId, letter, name, kind, size }: { fileId: string; letter?: string; name: string; kind: OfficeKind; size?: number }) {

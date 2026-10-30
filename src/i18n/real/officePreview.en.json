@@ -4,7 +4,7 @@
     "loading": "The file opens in a moment.",
     "tooBig": "This file is too big to show here. Download it to open it.",
     "tooMany": "This file has too many cells to show here. Download it to open it.",
-    "failed": "Madar cannot show this file. Download it to open it.",
+    "failed": "This file cannot show here. Download it to open it.",
     "emptyDoc": "This file has no text to show.",
     "emptySheet": "This sheet is empty.",
     "sheets": "Sheets",
