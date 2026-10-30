@@ -26,7 +26,14 @@ export type SheetsResult =
 
 /** The parts that the reader needs, the same as its own filter: XML files and their relationship files. */
 const isXml = (name: string) => name.endsWith('.xml') || name.endsWith('.xml.rels');
-const SHEET_PATH = /^xl\/worksheets\/[^/]+\.xml$/i;
+
+/**
+ * The reference attribute of a `dimension`, `row` or `c` element, in every legal form: a namespace prefix, single or double quotes, and
+ * spaces around the equals sign (second automatic review, 2026-10-30). `\b` after the name keeps `col` and `cfRule` out.
+ */
+const REFERENCE = /<(?:[\w.-]+:)?(dimension|row|c)\b[^>]*?\s(ref|r)\s*=\s*(["'])(.*?)\3/g;
+const CELL = /^([A-Za-z]{1,3})(\d{1,7})$/;
+const ROW = /^\d{1,7}$/;
 
 /** The number of a column name: A is 1, Z is 26, AA is 27, XFD is 16,384. More than four letters gives a number above any real column. */
 function columnNumber(letters: string): number {
@@ -39,22 +46,28 @@ function columnNumber(letters: string): number {
 /**
  * The size of the dense grid that the reader would build for one sheet: the rows times the columns, taken from the declared dimension and
  * from every cell reference (`<c r="XFD1048576">`). A cheap scan of the XML text, so a sheet that names a far cell is refused before the
- * full parse (read-excel-file builds a grid up to the farthest cell).
+ * full parse (read-excel-file builds a grid up to the farthest cell). A reference that the scan cannot read (an entity such as `&#88;`, a
+ * number in another form) counts as too big, so the file is refused and never reaches the reader.
  */
 export function gridOf(xml: string): number {
   let rows = 0;
   let columns = 0;
-  const dimension = /<dimension\b[^>]*\sref="([^"]*)"/.exec(xml)?.[1];
-  const end = dimension?.split(':').pop()?.match(/^([A-Za-z]+)(\d+)$/);
-  if (end) {
-    columns = columnNumber(end[1].toUpperCase());
-    rows = Number(end[2]);
+  for (const [, element, attribute, , value] of xml.matchAll(REFERENCE)) {
+    if (element === 'dimension' && attribute === 'ref') {
+      const end = CELL.exec(value.split(':').pop() ?? '');
+      if (!end) return Number.POSITIVE_INFINITY;
+      columns = Math.max(columns, columnNumber(end[1].toUpperCase()));
+      rows = Math.max(rows, Number(end[2]));
+    } else if (element === 'row' && attribute === 'r') {
+      if (!ROW.test(value)) return Number.POSITIVE_INFINITY;
+      rows = Math.max(rows, Number(value));
+    } else if (element === 'c' && attribute === 'r') {
+      const cell = CELL.exec(value);
+      if (!cell) return Number.POSITIVE_INFINITY;
+      columns = Math.max(columns, columnNumber(cell[1].toUpperCase()));
+      rows = Math.max(rows, Number(cell[2]));
+    }
   }
-  for (const match of xml.matchAll(/<c\b[^>]*?\sr="([A-Za-z]+)(\d+)"/g)) {
-    columns = Math.max(columns, columnNumber(match[1].toUpperCase()));
-    rows = Math.max(rows, Number(match[2]));
-  }
-  for (const match of xml.matchAll(/<row\b[^>]*?\sr="(\d+)"/g)) rows = Math.max(rows, Number(match[1]));
   return rows * columns;
 }
 
@@ -84,8 +97,9 @@ export async function xlsxToSheets(bytes: ArrayBuffer): Promise<SheetsResult> {
   // The size of the grid, before the full parse: a far cell must not build a dense grid.
   const decoder = new TextDecoder();
   let grid = 0;
-  for (const [name, data] of Object.entries(unpacked.entries)) {
-    if (SHEET_PATH.test(name)) grid += gridOf(decoder.decode(data));
+  // Every XML part, not only xl/worksheets: the reader finds a sheet through the workbook links, which can name any path.
+  for (const data of Object.values(unpacked.entries)) {
+    grid += gridOf(decoder.decode(data));
     if (grid > SHEET_LIMITS.cells) return { kind: 'cells' };
   }
   let parsed: { sheet: string; data: Cell[][] }[];

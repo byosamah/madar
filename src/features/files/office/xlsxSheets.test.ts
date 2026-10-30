@@ -2,7 +2,31 @@ import { describe, expect, it } from 'vitest';
 import { unzipSync, zipSync } from 'fflate';
 import { sampleXlsx } from './officeFixtures';
 import { SHEET_LIMITS } from './officeKind';
-import { storedZip, xlsxToSheets } from './xlsxSheets';
+import { gridOf, storedZip, xlsxToSheets } from './xlsxSheets';
+
+// The second automatic review (2026-10-30): the scan must read every legal form of a reference, or refuse the file.
+describe('gridOf reads every form of a cell reference (tsk_495, second review)', () => {
+  const huge = (xml: string) => expect(gridOf(xml)).toBeGreaterThan(SHEET_LIMITS.cells);
+
+  it('reads single quotes, a namespace prefix and spaces around the equals sign', () => {
+    huge(`<c r='XFD1048576'/>`);
+    huge(`<x:c r="XFD1048576"/>`);
+    huge(`<c r = "XFD1048576"/>`);
+    huge(`<x:row r='1048576'><x:c r='B1'/></x:row>`);
+    huge(`<x:dimension ref='A1:XFD1048576'/>`);
+  });
+
+  it('counts a reference that it cannot read as too big', () => {
+    huge(`<c r="&#88;FD1048576"/>`);
+    huge(`<row r="1e9"/>`);
+    huge(`<dimension ref="A1:&#88;FD9"/>`);
+  });
+
+  it('counts the cells only, not the col or cfRule elements, and a normal sheet keeps its size', () => {
+    expect(gridOf(`<cols><col min="1" max="16384"/></cols><cfRule type="x"/><row r="2"><c r="B2"/></row>`)).toBe(4);
+    expect(gridOf(`<dimension ref="A1:B2"/><row r="1"><c r="A1"/><c r="B1"/></row><row r="2"><c r="A2"/></row>`)).toBe(4);
+  });
+});
 
 describe('xlsxToSheets (tsk_495)', () => {
   it('reads each sheet by its name, with text and numbers as text', async () => {
@@ -95,6 +119,13 @@ describe('xlsxToSheets reads the size of the grid before it parses (a far cell, 
     expect(out.sheets[0].rows[0][0]).toBe('first');
     expect(out.sheets[0].moreRows).toBe(true);
   }, 30_000);
+
+  it('refuses a far cell in an XML part outside xl/worksheets, since the scan reads every part', async () => {
+    const files = unzipSync(new Uint8Array(await sampleXlsx([{ name: 'A', rows: [['a']] }])));
+    files['xl/other/sheet9.xml'] = new TextEncoder().encode(`<worksheet><sheetData>${far('XFD1048576', 1048576)}</sheetData></worksheet>`);
+    const packed = zipSync(files);
+    expect((await xlsxToSheets(packed.buffer.slice(packed.byteOffset, packed.byteOffset + packed.byteLength) as ArrayBuffer)).kind).toBe('cells');
+  }, 20_000);
 
   it('makes the copy for the reader with the STORE method only', () => {
     const copy = storedZip({ 'xl/a.xml': new TextEncoder().encode('<a>'.repeat(500)) });
