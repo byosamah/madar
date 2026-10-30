@@ -1288,7 +1288,20 @@ Report and patches: `CLAUDE-SECURITY-20261028-093704/` in the main folder (git-i
 - [ ] `test:it` did not run for the folder release (the loaders of `folders.setLock` and `files.move` now load the Tracker lines). Run it at the next merge.
 
 ## Team reports fbk_075 and fbk_076 (owner answers of 2026-10-29; Madar to-dos tsk_494, tsk_495)
-- [x] tsk_494 (fbk_075, Faisal): the Projects list shows two groups, "Projects" and "Internal", while it holds both kinds; "Show first" in the Filter sheet puts a group on top (kept on the device). What's new 140. Branch `rb/projects-groups`.
-- [x] tsk_495 (fbk_076, Faisal): a Word (.docx) or Excel (.xlsx) file opens in the preview of the Files tab, chats, comments and to-dos; Madar draws it in the browser with no outside service. The parse runs in a worker with an 8 s budget; the unpack counts the real sizes (zip bomb) and a grid scan refuses a far cell before the parse (owner chose "fix first" for the two findings of the automatic review). Packages: mammoth, read-excel-file, dompurify, fflate. What's new 141. Branch `rb/office-preview`.
+- [x] tsk_494 (fbk_075, Faisal): the Projects list shows two groups, "Projects" and "Internal", while it holds both kinds; "Show first" in the Filter sheet puts a group on top (kept on the device). What's new 140. Done 2026-10-30: production at 5bbcad6d.
+- [x] tsk_495 (fbk_076, Faisal): a Word (.docx) or Excel (.xlsx) file opens in the preview of the Files tab, chats, comments and to-dos; Madar draws it in the browser with no outside service. The parse runs in a worker with an 8 s budget; the unpack counts the real sizes (zip bomb) and a grid scan refuses a far cell before the parse (owner chose "fix first" for the two findings of the automatic review). Packages: mammoth, read-excel-file, dompurify, fflate. What's new 141. Done 2026-10-30: production at 5bbcad6d.
 - [ ] The prototype runs the Word/Excel parse in the page (one script file), so the 8 s budget is real only in the remote build.
 - [ ] `server/office/dashboardYear.test.ts` (a dashboard.get hash) fails on main 745cab15 too: find whether it depends on the date.
+
+## Supabase egress over the free quota (owner, 2026-10-30: "we need to stay on free version of supabase")
+The dashboard of the organization MADAR: the previous cycle went over the free egress (5 GB); projects may answer 402 from 2026-11-22 if it
+stays over. The cycle of 3 Oct to 3 Nov: 8.98 GB. Measured (read-only, 2026-10-30): about 90% is the database read of the Edge Functions,
+because each request loads the whole office (about 47 KB on the test copy, about 120 KB on production). Test copy about 5 GB, almost all on
+9 days of browser test runs (the deploy suite, Playwright); production about 3.3 GB (estimate: the direct production read was refused);
+answers 0.38 GB, backup 0.14 GB, Auth and Realtime under 0.1 GB. The "workers" host does not help: it reads the same database through
+Hyperdrive.
+- [ ] Owner choice (2026-10-30): browser test runs and the deploy suite use the local office stack (`npm run dev:office`), not the test copy; the test copy gets one short check before each release.
+- [ ] Proposed: load only the parts of the office that a call needs (could about halve production's 3.3 GB). Not approved yet.
+- [ ] Proposed: run the 15-minute job only 06:00 to 22:00 Riyadh (about 0.2 GB). Not approved yet.
+- [ ] Ask Supabase (or read the banner) whether the 22 Nov restriction looks at the cycle that ends on 3 Nov, which is already over.
+- [ ] Log Ingestion 241% (not yet billed): PostgREST restarts about every 32 s with empty schemas. Madar does not use the Data API.

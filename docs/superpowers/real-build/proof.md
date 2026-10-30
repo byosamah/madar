@@ -2854,3 +2854,25 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - Backfill through the MCP as the owner's agent: `folders.create` with a preset on the 11 client projects (prj_001 to prj_010, prj_012;
   the completed prj_001 too), 22 folders fld_003 to fld_024, every Contract folder locked; the internal projects got none. The MCP client
   of the session still had the old tool list; the server took the new fields.
+
+### Release record: production at 5bbcad6d (2026-10-30, fbk_075 the two groups of the Projects list, fbk_076 the Word and Excel preview)
+- What shipped (joined as `rb/release-join` on main 745cab15). cab87973 and 402fc690: the Projects list shows two groups, "Projects" and
+  "Internal", while it holds both kinds; "Show first" in the Filter sheet (kept on the device) puts a group on top (tsk_494, What's new 140).
+  44766e9d, 1376a7af and 2ba74cbe, 97b2f253, 5bbcad6d: a Word (.docx) or Excel (.xlsx) file opens in the preview of the Files tab, chats,
+  comments and to-dos, drawn in the browser (mammoth, read-excel-file, dompurify, fflate); the parse runs in a module worker with an 8 s
+  budget; the unpack counts the real sizes (zip bomb); a grid scan refuses a far cell before the parse, and reads every attribute of a
+  `dimension`, `row` or `c` tag by its local name (five rounds of the automatic security review); the Word page draws in a sandboxed frame
+  with its own CSP (tsk_495, What's new 141). No CSP, CORS, contract or MCP change.
+- Gates. Builder: typecheck, the touched tests (the zip-bomb and far-cell tests failed first; the far-cell test ran the old code out of
+  memory), one npm test before the fixes (1053 of 1054 files; `server/office/dashboardYear.test.ts` fails on main 745cab15 too), builds.
+  Lead after the join: `npm ci` in the join folder, typecheck, the fast gate with the touched screen folders (473 of 474 files; the one file
+  held the three scan tests of the lead, written before their fix, which pass since), build, build:server, build:remote (first load 31
+  files). Not run: test:lite, test:office, test:db, test:it, test:mcp, the smoke, the deploy suite.
+- `all.sh test` of 97b2f253 and 3d6a735 passed. The run of 5bbcad6d (17:10 UTC) stopped at the deep health check: the Supabase pooler of
+  madar-test answered "Failed to connect to database: econnrefused" in both modes, while port 5432 of the database answered from the Mac
+  and the status page said all systems operational. A restart of madar-test (owner OK, `POST /v1/projects/{ref}/restart`, 17:27 UTC) did
+  not clear it. It cleared by itself at 18:14:59 UTC. Production stayed healthy all the time (its deep check gave database, lock and
+  asyncContext ok at 17:19).
+- The owner chose "wait, auto-continue": a script in the scratchpad waited for the deep check, ran `all.sh test` (record 5bbcad6d at 18:16)
+  and `echo production | all.sh production` (18:18). Live checks: health from supabase, fileStore r2, 158 calls; database, lock and
+  asyncContext ok; /mcp with no token 401; `words.en-Bog6k-gq.js` holds "Show first"; `officeWorker-DJE1OipT.js` answers 200.
