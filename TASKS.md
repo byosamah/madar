@@ -1286,3 +1286,9 @@ Report and patches: `CLAUDE-SECURITY-20261028-093704/` in the main folder (git-i
 - [x] tsk_493 (fbk_074): locked folders. The switch `folder.locked` decides who sees them (the Admin by default); a holder locks or unlocks any folder, and the Contract folder starts locked. A locked folder cannot be deleted, and holds no to-do file, cover or Tracker file. What's new 139. Done 2026-10-29: production at d2f2fc5e.
 - [ ] Owner step: turn on "Locked folders" for the roles that must see contracts (only the Admin holds it now, so a project leader does not see the Contract folder of the project).
 - [ ] `test:it` did not run for the folder release (the loaders of `folders.setLock` and `files.move` now load the Tracker lines). Run it at the next merge.
+
+## Team reports fbk_075 and fbk_076 (owner answers of 2026-10-29; Madar to-dos tsk_494, tsk_495)
+- [x] tsk_494 (fbk_075, Faisal): the Projects list shows two groups, "Projects" and "Internal", while it holds both kinds; "Show first" in the Filter sheet puts a group on top (kept on the device). What's new 140. Branch `rb/projects-groups`.
+- [x] tsk_495 (fbk_076, Faisal): a Word (.docx) or Excel (.xlsx) file opens in the preview of the Files tab, chats, comments and to-dos; Madar draws it in the browser with no outside service. The parse runs in a worker with an 8 s budget; the unpack counts the real sizes (zip bomb) and a grid scan refuses a far cell before the parse (owner chose "fix first" for the two findings of the automatic review). Packages: mammoth, read-excel-file, dompurify, fflate. What's new 141. Branch `rb/office-preview`.
+- [ ] The prototype runs the Word/Excel parse in the page (one script file), so the 8 s budget is real only in the remote build.
+- [ ] `server/office/dashboardYear.test.ts` (a dashboard.get hash) fails on main 745cab15 too: find whether it depends on the date.
