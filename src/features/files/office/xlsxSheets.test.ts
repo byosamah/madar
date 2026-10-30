@@ -16,6 +16,17 @@ describe('gridOf reads every form of a cell reference (tsk_495, second review)',
     huge(`<x:dimension ref='A1:XFD1048576'/>`);
   });
 
+  it('reads the real r attribute when another attribute value holds the text r="..." (third review)', () => {
+    huge(`<c t="x r='A1'" r="XFD1048576"/>`);
+    huge(`<row spans='1 r="2"' r="1048576"><c r="B1"/></row>`);
+    huge(`<dimension x="ref='A1:A1'" ref="A1:XFD1048576"/>`);
+  });
+
+  it('counts a tag that it cannot read to its end as too big', () => {
+    huge(`<c r="A1" broken><v>1</v></c>`);
+    huge(`<row r="1" s=unquoted>`);
+  });
+
   it('counts a reference that it cannot read as too big', () => {
     huge(`<c r="&#88;FD1048576"/>`);
     huge(`<row r="1e9"/>`);

@@ -28,12 +28,30 @@ export type SheetsResult =
 const isXml = (name: string) => name.endsWith('.xml') || name.endsWith('.xml.rels');
 
 /**
- * The reference attribute of a `dimension`, `row` or `c` element, in every legal form: a namespace prefix, single or double quotes, and
- * spaces around the equals sign (second automatic review, 2026-10-30). `\b` after the name keeps `col` and `cfRule` out.
+ * The start of a `dimension`, `row` or `c` element, with or without a namespace prefix. The look-ahead keeps `col`, `cfRule` and `c:chart`
+ * out. The attributes are then read one by one from the tag start (`attributesOf`), so the text of one attribute value can never pass for
+ * another attribute (second and third automatic reviews, 2026-10-30).
  */
-const REFERENCE = /<(?:[\w.-]+:)?(dimension|row|c)\b[^>]*?\s(ref|r)\s*=\s*(["'])(.*?)\3/g;
+const START = /<(?:[\w.-]+:)?(dimension|row|c)(?=[\s/>])/g;
+const ATTRIBUTE = /\s+([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/y;
+const TAG_END = /\s*\/?>/y;
 const CELL = /^([A-Za-z]{1,3})(\d{1,7})$/;
 const ROW = /^\d{1,7}$/;
+
+/** Every attribute of the tag that starts at `from`, by its exact name, or null when the tag does not read cleanly to its `>`. */
+function attributesOf(xml: string, from: number): Map<string, string> | null {
+  const found = new Map<string, string>();
+  let at = from;
+  for (;;) {
+    TAG_END.lastIndex = at;
+    if (TAG_END.test(xml)) return found;
+    ATTRIBUTE.lastIndex = at;
+    const match = ATTRIBUTE.exec(xml);
+    if (!match) return null;
+    found.set(match[1], match[2] ?? match[3]);
+    at = ATTRIBUTE.lastIndex;
+  }
+}
 
 /** The number of a column name: A is 1, Z is 26, AA is 27, XFD is 16,384. More than four letters gives a number above any real column. */
 function columnNumber(letters: string): number {
@@ -52,21 +70,22 @@ function columnNumber(letters: string): number {
 export function gridOf(xml: string): number {
   let rows = 0;
   let columns = 0;
-  for (const [, element, attribute, , value] of xml.matchAll(REFERENCE)) {
-    if (element === 'dimension' && attribute === 'ref') {
-      const end = CELL.exec(value.split(':').pop() ?? '');
-      if (!end) return Number.POSITIVE_INFINITY;
-      columns = Math.max(columns, columnNumber(end[1].toUpperCase()));
-      rows = Math.max(rows, Number(end[2]));
-    } else if (element === 'row' && attribute === 'r') {
+  for (const start of xml.matchAll(START)) {
+    const element = start[1];
+    const attributes = attributesOf(xml, start.index + start[0].length);
+    if (!attributes) return Number.POSITIVE_INFINITY;
+    // A cell or a row with no reference takes the next place, so it cannot reach far.
+    const value = attributes.get(element === 'dimension' ? 'ref' : 'r');
+    if (value === undefined) continue;
+    if (element === 'row') {
       if (!ROW.test(value)) return Number.POSITIVE_INFINITY;
       rows = Math.max(rows, Number(value));
-    } else if (element === 'c' && attribute === 'r') {
-      const cell = CELL.exec(value);
-      if (!cell) return Number.POSITIVE_INFINITY;
-      columns = Math.max(columns, columnNumber(cell[1].toUpperCase()));
-      rows = Math.max(rows, Number(cell[2]));
+      continue;
     }
+    const cell = CELL.exec(element === 'dimension' ? value.split(':').pop() ?? '' : value);
+    if (!cell) return Number.POSITIVE_INFINITY;
+    columns = Math.max(columns, columnNumber(cell[1].toUpperCase()));
+    rows = Math.max(rows, Number(cell[2]));
   }
   return rows * columns;
 }
