@@ -7,7 +7,8 @@ only from the Mac, after the typed word `production`. The test copy is https://p
 The test copy is the staging step. There is no third copy: Supabase gives 2 free projects, and Madar uses both.
 1. Commit the change on main, with every merge gate green.
 2. `scripts/deploy/all.sh test`. At its end it records the commit (`.git/madar-test-deploy`, shared by every worktree).
-3. Run the deploy suite on the test copy (`tests/CLAUDE.md`). It seeds the sample office again at its end.
+3. Run the deploy suite on the local office stack (`npm run dev:office`), not on the test copy: Supabase egress (root guide,
+   2026-10-30). On the test copy, check the changed screen once by hand.
 4. The owner tries the change on the test copy with a sample account: admin@, management@, accounting@ or
    member@madar.test (passwords in `secrets/test-accounts.env`).
 5. After the owner's OK: `scripts/deploy/all.sh production` from the same commit.
@@ -179,8 +180,8 @@ step: the file store does not follow the server host. No copy from R2 back to St
   to `$VITE_SUPABASE_URL/auth/v1/token?grant_type=password` with the publishable key and prints only `%{http_code}`.
 - `deploy.test.ts`: a production test calls `readyForConfigPush()`, `commitAll()` and `deployTest()` first.
 - `token-scope.sh` is the first step of `deploy.yml`: it stops the GitHub job if the token can reach production.
-- After a deploy, run the deploy suite on the test copy (see `tests/CLAUDE.md`), and write the result in proof.md,
-  section "Deploy".
+- After a deploy, run the deploy suite on the local office stack (see `tests/CLAUDE.md`; not on the test copy, for the Supabase
+  egress), and write the result in proof.md, section "Deploy".
 
 ## Quick check of production
 - `npx wrangler pages deployment list --project-name madar` shows the commit of each production and preview deploy.

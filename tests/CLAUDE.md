@@ -22,7 +22,10 @@ in a node script with `devices['iPhone 15']` too. Both configs run Desktop Chrom
 - `npx playwright test -c playwright.deploy.config.ts`. It runs the real screens on the server.
 - Local by default: it needs `MADAR_LOCAL_PUBLISHABLE_KEY` and a fresh seed (`npx tsx tests/e2e-deploy/local.ts seed`; the local
   stack steps are in `supabase/CLAUDE.md`, "Run the real product locally").
-- On the test copy: load `.env.local` and `secrets/test-accounts.env`, then set `MADAR_DEPLOY_URL`,
+- Run it on the local stack (`npm run dev:office` writes `test-results/office-local/run.env`), never on the test copy without the
+  owner's OK: each request there loads the whole office from Supabase, and the runs of October used about 5 GB of the free 5 GB
+  egress (root guide, 2026-10-30). The same holds for every Playwright walk of the real build.
+- On the test copy (only with the owner's OK): load `.env.local` and `secrets/test-accounts.env`, then set `MADAR_DEPLOY_URL`,
   `MADAR_E2E_SUPABASE_URL`, `MADAR_E2E_PUBLISHABLE_KEY` (from `config/remote.test.env`), `MADAR_E2E_DATABASE_URL`
   (madar-test session pooler) and `MADAR_E2E_MCP_URL=https://preview.madar-46r.pages.dev/mcp`. Seed before and after the run.
   The seed also revokes the AI app grants of the 4 accounts, so an app that a one-off check approved does not stay.

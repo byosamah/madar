@@ -1300,7 +1300,7 @@ because each request loads the whole office (about 47 KB on the test copy, about
 9 days of browser test runs (the deploy suite, Playwright); production about 3.3 GB (estimate: the direct production read was refused);
 answers 0.38 GB, backup 0.14 GB, Auth and Realtime under 0.1 GB. The "workers" host does not help: it reads the same database through
 Hyperdrive.
-- [ ] Owner choice (2026-10-30): browser test runs and the deploy suite use the local office stack (`npm run dev:office`), not the test copy; the test copy gets one short check before each release.
+- [x] Owner choice (2026-10-30): browser test runs and the deploy suite use the local office stack (`npm run dev:office`), not the test copy; the test copy gets one short check before each release. Written in the root guide, `scripts/deploy/CLAUDE.md` and `tests/CLAUDE.md`.
 - [ ] Proposed: load only the parts of the office that a call needs (could about halve production's 3.3 GB). Not approved yet.
 - [ ] Proposed: run the 15-minute job only 06:00 to 22:00 Riyadh (about 0.2 GB). Not approved yet.
 - [ ] Ask Supabase (or read the banner) whether the 22 Nov restriction looks at the cycle that ends on 3 Nov, which is already over.
