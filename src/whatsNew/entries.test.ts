@@ -23,7 +23,7 @@ describe("What's new entries", () => {
   it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
     const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
     expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
-    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29']));
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30']));
   });
 
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
@@ -406,7 +406,7 @@ describe("the What's new entries of the fixes of 2026-10-28", () => {
 // The Projects list shows two groups, Projects and Internal (fbk_075, owner 2026-10-29).
 describe("the What's new entry of the two groups of the Projects list", () => {
   it('is under the usage entry, for everyone, and opens the Projects list', () => {
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-140')).toEqual({ id: '2026-10-23-140', day: '2026-10-29', to: '/projects' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-140')).toEqual({ id: '2026-10-23-140', day: '2026-10-30', to: '/projects' });
     expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-140')).toBeGreaterThan(0);
   });
 
