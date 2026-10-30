@@ -606,7 +606,7 @@ describe("the What's new entries of the folders of 2026-10-29", () => {
 describe('the Word and Excel preview entry (tsk_495)', () => {
   const words = (tree: Parameters<typeof wordAt>[0], id: string) => ['title', 'body'].map((part) => String(wordAt(tree, ['whatsNew', 'items', id, part])));
   it('names the preview of Word and Excel files for everyone', () => {
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-141')).toEqual({ id: '2026-10-23-141', day: '2026-10-29' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-141')).toEqual({ id: '2026-10-23-141', day: '2026-10-30' });
     expect(words(en, '2026-10-23-141')[1]).toContain('Excel');
     expect(words(ar, '2026-10-23-141')[1]).toContain('إكسل');
   });
