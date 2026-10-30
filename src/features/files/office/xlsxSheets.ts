@@ -32,13 +32,16 @@ const isXml = (name: string) => name.endsWith('.xml') || name.endsWith('.xml.rel
  * out. The attributes are then read one by one from the tag start (`attributesOf`), so the text of one attribute value can never pass for
  * another attribute (second and third automatic reviews, 2026-10-30).
  */
-const START = /<(?:[\w.-]+:)?(dimension|row|c)(?=[\s/>])/g;
-const ATTRIBUTE = /\s+([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/y;
+const START = /<(?:[^\s/>:]+:)?(dimension|row|c)(?=[\s/>])/g;
+const ATTRIBUTE = /\s+([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/y;
 const TAG_END = /\s*\/?>/y;
 const CELL = /^([A-Za-z]{1,3})(\d{1,7})$/;
 const ROW = /^\d{1,7}$/;
 
-/** Every attribute of the tag that starts at `from`, by its exact name, or null when the tag does not read cleanly to its `>`. */
+/**
+ * Every attribute of the tag that starts at `from`, by its name without a prefix (the reader strips it, so `x:r` is `r`), or null when the
+ * tag does not read cleanly to its `>` or names one attribute twice (fourth automatic review, 2026-10-30).
+ */
 function attributesOf(xml: string, from: number): Map<string, string> | null {
   const found = new Map<string, string>();
   let at = from;
@@ -48,7 +51,9 @@ function attributesOf(xml: string, from: number): Map<string, string> | null {
     ATTRIBUTE.lastIndex = at;
     const match = ATTRIBUTE.exec(xml);
     if (!match) return null;
-    found.set(match[1], match[2] ?? match[3]);
+    const name = match[1].startsWith('xmlns:') ? match[1] : match[1].slice(match[1].indexOf(':') + 1);
+    if (found.has(name)) return null;
+    found.set(name, match[2] ?? match[3]);
     at = ATTRIBUTE.lastIndex;
   }
 }

@@ -22,6 +22,14 @@ describe('gridOf reads every form of a cell reference (tsk_495, second review)',
     huge(`<dimension x="ref='A1:A1'" ref="A1:XFD1048576"/>`);
   });
 
+  it('reads a prefixed attribute and a prefix of any letters as the reader does, and refuses a name given twice (fourth review)', () => {
+    huge(`<c x:r="XFD1048576"/>`);
+    huge(`<ä:c r="XFD1048576"/>`);
+    huge(`<c r="A1" r="XFD1048576"/>`);
+    huge(`<c r="A1" x:r="XFD1048576"/>`);
+    huge(`<x:dimension y:ref="A1:XFD1048576"/>`);
+  });
+
   it('counts a tag that it cannot read to its end as too big', () => {
     huge(`<c r="A1" broken><v>1</v></c>`);
     huge(`<row r="1" s=unquoted>`);
