@@ -51,6 +51,8 @@ function attributesOf(xml: string, from: number): Map<string, string> | null {
     ATTRIBUTE.lastIndex = at;
     const match = ATTRIBUTE.exec(xml);
     if (!match) return null;
+    // No legal XML name has two colons, and the reader would cut such a name in its own way: refuse it (fifth automatic review).
+    if (match[1].indexOf(':') !== match[1].lastIndexOf(':')) return null;
     const name = match[1].startsWith('xmlns:') ? match[1] : match[1].slice(match[1].indexOf(':') + 1);
     if (found.has(name)) return null;
     found.set(name, match[2] ?? match[3]);

@@ -30,6 +30,12 @@ describe('gridOf reads every form of a cell reference (tsk_495, second review)',
     huge(`<x:dimension y:ref="A1:XFD1048576"/>`);
   });
 
+  it('refuses an attribute name with two colons, which no legal XML name has (fifth review)', () => {
+    huge(`<c xmlns:a:r="XFD1048576"/>`);
+    huge(`<dimension xmlns:x:ref="A1:XFD1048576"/>`);
+    huge(`<c a:b:r="XFD1048576"/>`);
+  });
+
   it('counts a tag that it cannot read to its end as too big', () => {
     huge(`<c r="A1" broken><v>1</v></c>`);
     huge(`<row r="1" s=unquoted>`);
