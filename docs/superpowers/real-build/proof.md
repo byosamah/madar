@@ -2876,3 +2876,27 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - The owner chose "wait, auto-continue": a script in the scratchpad waited for the deep check, ran `all.sh test` (record 5bbcad6d at 18:16)
   and `echo production | all.sh production` (18:18). Live checks: health from supabase, fileStore r2, 158 calls; database, lock and
   asyncContext ok; /mcp with no token 401; `words.en-Bog6k-gq.js` holds "Show first"; `officeWorker-DJE1OipT.js` answers 200.
+
+## The compressed office copy (tsk_496, 2026-11-01)
+- Why: Supabase starts a new worker for almost each request, so the office cache is cold and each request read the whole office. About
+  90% of the egress of the organization was that read (TASKS.md, "Supabase egress over the free quota").
+- What: one row in `office_copy` (migration `20261101000100_office_copy.sql`) holds the office lists as gzip and base64 text, with the
+  `office_meta.version` and the database time. A cold read sends `META_SQL`, then one statement (`OFFICE_COLD_SQL`) that gives the copy and the
+  office rows and deletes above its version. The code is `server/data/officeCopy.ts` and `officeCache.ts`.
+- Measured on the local Postgres (`server/it/officeCopy.it.test.ts`, bytes received by the client socket for the cold read of the office):
+
+  | Office | Full read before | Cold read with the copy | Change |
+  | --- | --- | --- | --- |
+  | Sample office (216 rows, about 5 saved changes since the copy) | 57,647 bytes | 12,508 bytes | 78% less |
+  | Year office lists (1,120 keys; copy text 32,576 bytes) | 259,100 bytes | 33,019 bytes | 87% less |
+
+  With no usable copy the cold statement is the full read in one statement, and costs 3% more than `OFFICE_ROWS_SQL` (59,235 against 57,466
+  bytes) for its two extra columns. The test copy holds the sample office, so its numbers are the first row. Production is larger: the year
+  office row is the better guess.
+- Not measured: Supabase's own count of egress for a `text` column (the test copy shows it after the release), and the real mix of requests.
+- Proved with the real `pgDb` as `madar_server` (`server/it/officeCopyHost.it.test.ts`): the writer starts through `Db.detached`, so its
+  `db.statement` runs on its own connection. Without `detached` the statement refuses ("cannot run inside a transaction") and the test fails.
+  A write request that starts cold does not wait for its own copy write, and the next cold read merges the change as a delta.
+- Unchanged by design: every handler, loader and view rule; the office object (SQLite) keeps its own in-memory office. The db-mode harness
+  never commits, so `fakeDeps` leaves `Config.officeCopy` off there.
+- To switch it off: set `OFFICE_COPY=off` on the functions. To drop a copy that is in doubt: `delete from office_copy`.
