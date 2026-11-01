@@ -281,6 +281,8 @@ export function pgDb(database: DatabaseConfig, o: PgDbOptions = {}): PgDb {
       return run(mode, (q) => q<R>(text, values));
     },
 
+    detached: (work) => current.exit(work),
+
     async close(): Promise<void> {
       const open = [pools.write, pools.read].filter((pool): pool is pg.Pool => pool !== undefined);
       pools.write = undefined;

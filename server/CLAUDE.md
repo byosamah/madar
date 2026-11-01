@@ -47,6 +47,9 @@ The other host stays deployed as the way back. Each area has its own guide: `mcp
   one exception: reads only, side by side, each with its own error and in the order of the answers. Before such a run, `prefetchLinkRun`
   (`calls/files.ts`) reads the files of the whole run with one statement (`FILES_DOCS_SQL`) into `batch.files`. `filesLink` still checks the
   view right per link, and `handleBatch` drops `batch.files` after the run.
+- The office read is the largest read of a request, and the worker is cold. A cold read starts from the compressed office copy (one
+  row, `data/officeCopy.ts`) and loads only the rows above its version: a few KB where it read the whole office (`data/CLAUDE.md`,
+  "Office cache"). The batch, the MCP app and the 15-minute job get it through `readOffice`; the office object does not use it.
 - A batch with a write calls `db.warm('write')` after the token check.
 - The first read joins the sign-in. When the first call of a batch is a plain read (`joinsFirstRead` in `core/runCall.ts`: a shared read with
   no preflight hook), `handleBatch` opens one read transaction, reads the office in it, and runs that call in it (`RunRequest.open`,

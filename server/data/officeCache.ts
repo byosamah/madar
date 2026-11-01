@@ -1,6 +1,10 @@
 import type { State } from '../../src/api/store';
+import { requestHost, type After } from '../core/after';
 import type { Deps, Query } from '../core/ports';
 import { OFFICE_COLLECTIONS, type OfficeCollection, type OfficeSnapshot } from '../core/types';
+import {
+  COPY_DELTA_BYTES, COPY_DELTA_ROWS, COPY_MAX_AGE_MS, COPY_ROW, GONE_ROW, OFFICE_COLD_SQL, OFFICE_COPY_UPSERT_SQL, decodeCopy, encodeCopy,
+} from './officeCopy';
 import { tableOf } from './tables';
 
 /**
@@ -25,6 +29,13 @@ import { tableOf } from './tables';
  *   loads everything again.
  * - The snapshot is deep-frozen: a write into a cached object throws. A loader gives each call its own deep copy.
  * - The users keep their auth_user_id beside the snapshot (userIdOfAuth), for the sign-in lookup of the batch route.
+ * - The compressed copy (tsk_496, officeCopy.ts): Supabase starts a new worker for almost each request, so this memory is almost always
+ *   cold. With the copy on (Config.officeCopy), a cold read sends one statement (OFFICE_COLD_SQL) that gives the row of the copy and
+ *   the office rows and deletes above its version. The copy becomes the starting state, and the merge below is the same code as a warm
+ *   refresh. A copy that is missing, broken, newer than the database or older than the keep time is never used: the cache then reads
+ *   every row, as it did before, so the copy can save bytes but can never change an answer. A read that merged a big delta, or found
+ *   no usable copy, writes a new copy after the answer, through requestHost().after and on its own connection, never inside a
+ *   transaction of a call. Only the committed state of a read that is not "own" is written, as the cache keeps only that.
  */
 
 /** How long the 15-minute job (track N3) keeps office_deletes rows. The cache relies on it, so the job imports it. */
@@ -36,7 +47,7 @@ type Entry = { ord: number; doc: Rec; auth?: string | null };
 type Tables = Map<OfficeCollection, Map<string, Entry>>;
 type Cached = { version: number; syncedAt: number; tables: Tables; snapshot: OfficeSnapshot };
 
-export type OfficeCacheDeps = Pick<Deps, 'db'>;
+export type OfficeCacheDeps = Pick<Deps, 'db'> & Partial<Pick<Deps, 'log'>>;
 export type OfficeCache = {
   read(deps: OfficeCacheDeps, q?: Query): Promise<OfficeSnapshot>;
   /**
@@ -129,27 +140,102 @@ function build(tables: Tables, version: number): OfficeSnapshot {
   return snapshot;
 }
 
-export function createOfficeCache(o: { keepMs?: number } = {}): OfficeCache {
-  const keepMs = o.keepMs ?? (OFFICE_DELETES_KEEP_DAYS - 1) * DAY_MS;
-  let cached: Cached | undefined;
+export type OfficeCacheOptions = {
+  keepMs?: number;
+  /** Starts a cold read from the compressed office copy and writes a new copy after an answer (Config.officeCopy). */
+  copy?: boolean;
+  /** The "after" of the running request. Default: requestHost().after. With none, the cache writes no copy. */
+  after?: () => After | undefined;
+};
 
-  async function rowsAbove(deps: OfficeCacheDeps, q: Query, version: number) {
-    const rows = await q<{ c: OfficeCollection; id: string; ord: string | number; doc: Rec; auth: string | null }>(OFFICE_ROWS_SQL, [version]);
-    const deletes = version < 0 ? [] : await q<{ tbl: string; id: string }>(OFFICE_DELETES_SQL, [version]);
+type RowIn = { c: OfficeCollection; id: string; ord: string | number; doc: Rec; auth: string | null };
+type Gone = { tbl: string; id: string };
+type ColdRow = Omit<RowIn, 'c'> & { c: string; snap_at: Date | string | null; body: string | null };
+
+const emptyTables = (): Tables => new Map(OFFICE_COLLECTIONS.map((c) => [c, new Map()]));
+
+export function createOfficeCache(o: OfficeCacheOptions = {}): OfficeCache {
+  const keepMs = o.keepMs ?? (OFFICE_DELETES_KEEP_DAYS - 1) * DAY_MS;
+  const copyOn = o.copy === true;
+  const afterOf = o.after ?? (() => requestHost().after);
+  let cached: Cached | undefined;
+  /** The newest version that this cache gave to a writer, so a burst of requests in one worker writes one copy. */
+  let offered = -1;
+
+  async function rowsAbove(q: Query, version: number) {
+    const rows = await q<RowIn>(OFFICE_ROWS_SQL, [version]);
+    const deletes = version < 0 ? [] : await q<Gone>(OFFICE_DELETES_SQL, [version]);
     return { rows, deletes };
+  }
+
+  /**
+   * The cold read with the copy: one statement, then a decode. Anything wrong with the copy gives the full read. The seed is the
+   * state of the copy, and rows and deletes are what the statement gave above its version. "age" is how old the copy was.
+   */
+  async function coldRead(q: Query, version: number, at: number): Promise<{ tables: Tables; rows: RowIn[]; deletes: Gone[]; seeded: boolean; age: number }> {
+    const got = await q<ColdRow>(OFFICE_COLD_SQL, [version, new Date(at - keepMs)]);
+    const copy = got.find((row) => row.c === COPY_ROW);
+    const rows = got.filter((row) => row.c !== COPY_ROW && row.c !== GONE_ROW) as RowIn[];
+    if (!copy) return { tables: emptyTables(), rows, deletes: [], seeded: false, age: 0 };
+    const copyVersion = Number(copy.id);
+    const copyAt = new Date(copy.snap_at as Date | string).getTime();
+    const tables = typeof copy.body === 'string' && copyVersion <= version && at - copyAt <= keepMs ? await decodeCopy(copy.body, copyVersion) : null;
+    if (!tables) return { tables: emptyTables(), ...(await rowsAbove(q, -1)), seeded: false, age: 0 };
+    const deletes = got.filter((row) => row.c === GONE_ROW).map((row) => ({ tbl: row.body as string, id: row.id }));
+    return { tables, rows, deletes, seeded: true, age: at - copyAt };
+  }
+
+  /**
+   * After the answer, and outside every transaction of the call: encodes the tables and writes them as the new copy. Never throws.
+   * The tables are never changed after a refresh (each refresh makes new maps), so the work can read them later.
+   */
+  function offer(deps: OfficeCacheDeps, version: number, at: number, tables: Tables): void {
+    if (!copyOn || version <= offered) return;
+    const after = afterOf();
+    if (!after) return;
+    offered = version;
+    const work = async () => {
+      try {
+        const { body, rows } = await encodeCopy(version, tables);
+        await deps.db.statement('write', OFFICE_COPY_UPSERT_SQL, [version, new Date(at), rows, body]);
+      } catch (error) {
+        deps.log?.warn('The office copy was not written. Requests read the office rows instead.', { error: error instanceof Error ? error.message : String(error) });
+      }
+    };
+    after(deps.db.detached ? deps.db.detached(work) : work());
   }
 
   /** own: the reading transaction wrote office_meta, so the snapshot is for this read only and the cache keeps what it held. */
   async function refresh(deps: OfficeCacheDeps, q: Query, version: number, at: number, own: boolean): Promise<OfficeSnapshot> {
     const from = cached && cached.version < version && at - cached.syncedAt <= keepMs ? cached : undefined;
-    const tables: Tables = new Map(OFFICE_COLLECTIONS.map((c) => [c, new Map(from?.tables.get(c))]));
-    const { rows, deletes } = await rowsAbove(deps, q, from ? from.version : -1);
+    let tables: Tables;
+    let rows: RowIn[];
+    let deletes: Gone[];
+    // Why a new copy may be due: no copy was used (a full read), or the copy was old.
+    let stale = false;
+    if (from) {
+      tables = new Map(OFFICE_COLLECTIONS.map((c) => [c, new Map(from.tables.get(c))]));
+      ({ rows, deletes } = await rowsAbove(q, from.version));
+    } else if (copyOn) {
+      const read = await coldRead(q, version, at);
+      ({ tables, rows, deletes } = read);
+      stale = !read.seeded || read.age > COPY_MAX_AGE_MS;
+    } else {
+      tables = emptyTables();
+      ({ rows, deletes } = await rowsAbove(q, -1));
+    }
     const byTable = new Map(OFFICE_COLLECTIONS.map((c) => [tableOf(c).table, c]));
     // A row deleted and then written again (an Undo) is in both lists: the delete goes first, the row stays.
     for (const gone of deletes) tables.get(byTable.get(gone.tbl)!)?.delete(gone.id);
     for (const row of rows) tables.get(row.c)!.set(row.id, { ord: Number(row.ord), doc: row.doc, auth: row.auth });
     const snapshot = build(tables, version);
-    if (!own) cached = { version, syncedAt: at, tables, snapshot };
+    if (!own) {
+      cached = { version, syncedAt: at, tables, snapshot };
+      // A warm refresh (from) and a full read that no copy was meant to replace never write. The others write when the delta is big.
+      if (copyOn && !from && (stale || rows.length + deletes.length >= COPY_DELTA_ROWS || (rows.length > 0 && JSON.stringify(rows).length >= COPY_DELTA_BYTES))) {
+        offer(deps, version, at, tables);
+      }
+    }
     return snapshot;
   }
 
@@ -194,7 +280,7 @@ function cacheOf(deps: Deps): OfficeCache {
   const key = `${deps.config.supabaseUrl}|${deps.config.lockKey}`;
   let cache = caches.get(key);
   if (!cache) {
-    cache = createOfficeCache();
+    cache = createOfficeCache({ copy: deps.config.officeCopy === true });
     caches.set(key, cache);
   }
   return cache;

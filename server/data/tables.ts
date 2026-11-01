@@ -119,6 +119,8 @@ export const SERVER_TABLES = [
   'daftra_clients', 'daftra_invoices',
   // The email code guard (owner, 2026-10-26): the codes that an agent needs for a risky Admin act. Server-only, written outside the office lock.
   'agent_confirms',
+  // The compressed office copy (tsk_496, 2026-11-01): derived data that a cold office read starts from. Postgres only, written outside the office lock.
+  'office_copy',
 ] as const;
 
 /** The rows of one collection, in the order of its State map. Settings is one row with the key "office". */

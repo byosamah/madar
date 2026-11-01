@@ -51,9 +51,9 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     }
   });
 
-  it('keeps the server tables of Postgres, apart from office_deletes and platform_config, and adds its own', async () => {
+  it('keeps the server tables of Postgres, apart from office_deletes, office_copy and platform_config, and adds its own', async () => {
     const { raw } = await freshLite();
-    const kept = SERVER_TABLES.filter((table) => table !== 'office_deletes' && table !== 'platform_config');
+    const kept = SERVER_TABLES.filter((table) => table !== 'office_deletes' && table !== 'office_copy' && table !== 'platform_config');
     const expected = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...kept, 'agent_approvals', 'office_snapshot', 'schema_version', 'usage_day', ...SIGNIN_TABLES];
     expect(tablesOf(raw)).toEqual(expected.sort());
   });

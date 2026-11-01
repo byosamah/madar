@@ -26,6 +26,12 @@ export interface Db {
    */
   warm?(mode: 'read' | 'write'): Promise<void>;
   /**
+   * Runs work outside the transaction of the current async context. pgDb keeps its open transaction in AsyncLocalStorage, and work
+   * that starts inside a transaction inherits it, so a later `statement` would refuse. The office copy writer (officeCache.ts) starts
+   * its upload through this. A Db with no such context leaves it out, and the work then runs as it is.
+   */
+  detached?<T>(work: () => T): T;
+  /**
    * 'sqlite' for the SQLite Db of the office object and of test:lite (server/data/lite/db.ts). Absent means Postgres. Code that
    * sends its own SQL picks its text with sqlFor (server/data/dialect.ts).
    */
@@ -142,6 +148,12 @@ export type Config = {
    * as it is. With it, each `error` line also posts one record to PostHog Cloud EU (server/core/insight.ts).
    */
   posthogKey?: string;
+  /**
+   * The compressed office copy (tsk_496, server/data/officeCopy.ts): true makes the office cache start a cold read from the copy row and
+   * write a new copy after an answer. Left out means off, which is what the unit tests and the db-mode harness need (the harness never
+   * commits). buildDeps turns it on, and OFFICE_COPY=off turns it off again.
+   */
+  officeCopy?: boolean;
 };
 
 /** The live socket tickets of the office object (exit wave 3): live.ticket mints one, the socket open takes it (server/office/live.ts). */

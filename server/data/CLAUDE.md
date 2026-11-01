@@ -30,6 +30,9 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   rows to it. A migration that makes records with a counter prefix sets that counter to the highest number. A table that is
   no office list and starts empty raises no office version.
 - `project_templates` is an office list (`OFFICE_COLLECTIONS`), so `projects.create` reads its template from the office.
+- `office_copy` (`20261101000100_office_copy.sql`, tsk_496) is a server-only table with one row (`id = 1`): the compressed office copy of the
+  office cache (see "Office cache"). It is derived data, Postgres only, with no SQLite twin and no `chg`. A reseed truncates it.
+  It is in `OUTSIDE_OFFICE_LOCK`, because the writer runs after an answer and takes no lock.
 - Server-only tables (no State collection) are the list `SERVER_TABLES` in `tables.ts`. A server table that is written outside
   the office lock must also go into `OUTSIDE_OFFICE_LOCK` (`scripts/backup/check.ts`) and `DRIFT_TABLES`
   (`server/office/ops.ts`), and needs a SQLite twin (a `LITE_STEPS` entry). `google_calendars` is in neither list because both of
@@ -67,6 +70,30 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   `META_COUNTERS_SQL` (office_meta and a json object of the counters) as the first statement after the lock, and the loader's
   `sqlSource(q, { counters })` gives them with no statement of its own. A read keeps `META_SQL`. Never read the counters of a
   write before the lock, and never cache them with the snapshot: a save can change a counter and leave the version as it is.
+
+- The compressed office copy (tsk_496, `officeCopy.ts`; `Config.officeCopy`, on unless `OFFICE_COPY=off`): Supabase starts a new worker for
+  almost each request, so the memory above is almost always cold, and each request read the whole office. The one row of `office_copy`
+  holds the cached office entries (key, `ord`, doc, sign-in link) as gzip and base64 text, with the `office_meta.version` and the database
+  time at which it was current. A cold read sends one statement after `META_SQL` (`OFFICE_COLD_SQL`): the copy row, plus the office rows
+  and the `office_deletes` rows above the version of the copy. The copy is the starting state, and the merge is the code of a warm
+  refresh, so the order of each list, `ord` and `userIdOfAuth` equal a full read (`officeCopy.test.ts` compares them after random edits,
+  deletes and an Undo).
+- The copy never changes an answer. The statement leaves the copy out when its version is above `office_meta` or its time is older than the
+  keep time of `office_deletes` (6 days), and then the same statement is the full read. The cache also refuses a copy that does not
+  decode (gzip checks its checksum), has another form, a count that differs, or a key that differs from its id, and reads every row in a
+  second statement. Never read the copy outside this path.
+- The writer runs only for a read that is not "own", through `requestHost().after`, started with `Db.detached` (pgDb keeps its transaction
+  in AsyncLocalStorage, and work that starts inside a transaction would inherit it, so `db.statement` would refuse). It writes on its own
+  connection after the answer, never inside a transaction of a call. With no `after` (tests, scripts) it writes nothing. It writes when no
+  copy was used, when the delta was 25 rows or 8 KB (`COPY_DELTA_ROWS`, `COPY_DELTA_BYTES`), or when the copy was a day old
+  (`COPY_MAX_AGE_MS`). A warm refresh never writes. The upsert keeps the newest version, so two writers are safe, and replaces a copy that
+  is above `office_meta` (a database that went back). A failed write logs one warning and nothing else: do not add a log line for each
+  request (Supabase Log Ingestion is over its free quota).
+- The db-mode harness never commits, so `fakeDeps` leaves `officeCopy` off. A test of the copy on Postgres is
+  `server/it/officeCopy.it.test.ts`. The deploy runs migrations first (`scripts/deploy/db.sh`), so the table exists before the new code.
+  To switch the copy off in an emergency, set `OFFICE_COPY=off` on the functions, and delete the row if you doubt its content.
+- The office object (SQLite path) keeps its office in memory with its own `office_snapshot` table (`lite/office.ts`) and never calls
+  this cache, so it is unchanged.
 
 ## Loaders
 - Every call needs a loader entry in `loaders/`, or a test fails.

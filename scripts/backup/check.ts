@@ -112,7 +112,7 @@ export function parseManifest(text: string): Manifest {
  * (files.uploadStart), stories (story.start), outbox (the effects of a call, after its commit), mail_log (the mail lock) and
  * mail_outbox (the mail path), google_connections and google_events (the effects gcal.sync and gcal.revoke, fbk_022), daftra_clients and daftra_invoices (the cache fill of
  * daftra.matchClient and of the job step daftra, which holds no lock during a Daftra call; the Daftra link, 2026-10-26), and agent_confirms (the email code guard of an agent,
- * owner 2026-10-26). A row can land
+ * owner 2026-10-26), and office_copy (the compressed office copy, written after an answer; tsk_496, 2026-11-01). A row can land
  * in one of them between the counts of dump.ts and the snapshot of the data dump.
  */
 export const OUTSIDE_OFFICE_LOCK: readonly string[] = [
@@ -123,6 +123,7 @@ export const OUTSIDE_OFFICE_LOCK: readonly string[] = [
   'public.google_events',
   'public.mail_log',
   'public.mail_outbox',
+  'public.office_copy',
   'public.outbox',
   'public.rate_limits',
   'public.stories',

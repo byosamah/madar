@@ -202,6 +202,8 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     ...(google ? { google } : {}),
     ...(daftra ? { daftra } : {}),
     ...(posthogKey ? { posthogKey } : {}),
+    // The compressed office copy is on unless OFFICE_COPY is "off" (server/data/officeCopy.ts).
+    officeCopy: read('OFFICE_COPY')?.trim().toLowerCase() !== 'off',
   };
 
   const jobsSecret = read('JOBS_SECRET');
