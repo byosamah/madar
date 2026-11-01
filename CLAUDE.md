@@ -201,11 +201,13 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
   `test:office`, `test:db`, `test:it`, `test:mcp`, and the prototype smoke at screen merges (`npm run smoke` runs
   `npm run build` first). No merge with a red check. Agents without Docker cannot run `test:db` or `test:it`: the merge
   lead runs them and fixes what they pin.
+- A rebase over commits that touch none of the track's files (a peer's fix or release record) needs only the typecheck and
+  the tests of the touched files again, not every gate.
 - One builder for a track works in `deploy-test` on `rb/<track>` (`git switch -c`): no commit on main, no push, no deploy.
   The merge lead rebases it on main, runs the gates once, then `git switch main && git merge --ff-only rb/<track>` and
   `git branch -d rb/<track>`. Run `git branch -d` from the folder that holds main: it tests against the HEAD of that folder.
   `-d` refuses a branch that reached main by a rebase or a cherry-pick: check that `git cherry main <branch>` prints only `-`
-  lines, then use `-D`.
+  lines, then use `-D`. `-d` also refuses a branch that a worktree holds: `git worktree remove <folder>` first (owner OK).
 - While a release waits on its recorded commit, build the next batch in a worktree branch: production refuses any new commit
   on main, and any changed file in the folder of main (a guide line too). Edit on a branch, and fast-forward main after the
   release.

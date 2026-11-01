@@ -46,6 +46,8 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - Every Docker or database task takes the lock first: `scripts/dev/docker-lock.sh run <holder> -- <cmd>` (or `acquire`
   and `release` for long work, `status`). An `acquire` lock is stale after 3 hours: on a longer run, `release <holder>`,
   then `acquire <holder>` (sandbox off). Only one local stack at a time (16 GB Mac).
+- `docker-lock.sh run` waits 30 minutes for a holder, then gives up: start it again. `docker-lock.sh status` names the holder
+  and its worktree, so you know which track's session to ask.
 - `test:db`, `test:it` and the `test:mcp` conformance runner need Docker Desktop and the local stack. The sandbox blocks
   `open -a Docker`; with the sandbox off it works, and Docker is up in about 10 s. The run sequence:
   `docker-lock.sh acquire <holder>`, `npx supabase start -x edge-runtime`, `npx supabase db reset`, `npm run test:db`,

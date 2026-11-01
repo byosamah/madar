@@ -104,6 +104,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   record"), a line in `TASKS.md`, one commit on main. That commit changes HEAD, so the next production needs `all.sh test` again.
 - To prove what a copy serves, grep a new English word in `assets/words.en-*.js`. `index.html` does not name that file: a first-load
   script does. Find it with `for s in $(curl -s <host>/ | grep -o '/assets/[^"]*\.js' | sort -u); do curl -s <host>$s | grep -o 'words\.en-[A-Za-z0-9_-]*\.js'; done | sort -u` (sandbox off).
+  Shorter, right after `all.sh` in the same folder: `grep -rl '<new text>' dist/assets` names the file, then
+  `curl -s <host>/assets/<name> | grep -c '<new text>'`.
 - Just after a deploy, madar.vado.sa can serve the old bundle for a short time. Compare the `index-*.js` name there with the
   deploy address (`<id>.madar-46r.pages.dev`, the last line of `all.sh`).
 - Every script refuses production when `CI` or `GITHUB_ACTIONS` is set. A `MADAR_DEPLOY_CONFIRMED` from the shell never counts.
