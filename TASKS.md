@@ -1320,4 +1320,4 @@ Decisions: "at the same time" is the same Sunday to Saturday week as the due dat
 - [x] MCP: the `Busy week:` line of `INSTRUCTIONS` and one sentence in the `TOOL_DOCS` of `tasks.create`, `tasks.update`, `tasks.createMany` and `tasks.updateMany`; the guides.
 - [x] Gates once: `npm test` (3 failed: 2 screen files passed again alone, `server/office/dashboardYear.test.ts` is the known failure on main), `npm run build`, `npm run build:remote -- test`, `npm run test:lite` (the lead runs `test:db`, `test:it`, `test:mcp`, `test:office`).
 - [x] Screenshots (EN/AR, light/dark, 390 px; one desk panel shot), in the scratchpad of the builder.
-- [ ] Lead: confirm the real release day of the What's new entry before the test deploy.
+- [x] Lead: the What's new day 2026-11-01 is the release day. The lead ran `test:db`, `test:it`, `test:mcp` and `test:office` (all pass), rebased on main, deployed the test copy, checked the office sheet by hand there, and released 52758942 to production on 2026-11-01 (owner: "Production now"; the 45-minute deploy suite skipped).

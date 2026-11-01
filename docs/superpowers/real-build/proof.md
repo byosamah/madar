@@ -2920,3 +2920,20 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` by Claude after the owner chose "Production now" (2026-11-01, 09:02 UTC). Live
   checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401. Switch off if needed: the function
   secret `OFFICE_COPY=off`, and `delete from office_copy` for a doubtful copy.
+
+### Release record: production at 52758942 (2026-11-01, tsk_499: the busy-week note)
+- What shipped (`rb/busy-week`, one Sonnet builder, tests first). One commit: when a person sets a lead and a due date in the New to-do sheet of a
+  stage or in the New office to-do sheet, or saves a new lead or due date in the to-do panel, a quiet note under the date lists the other open
+  to-dos (todo, in progress) that the lead leads with a due date in the same Sunday to Saturday week, and a line for the past-due ones. No block,
+  no extra press. One read of `tasks.list` for the lead and the week, so a person sees only the rows that `tasks.list` gives them (hidden
+  projects and private office to-dos stay out). MCP: the `Busy week:` line of `INSTRUCTIONS` and one sentence in the `TOOL_DOCS` of
+  `tasks.create`, `tasks.update`, `tasks.createMany` and `tasks.updateMany`. No server data change, no migration, no new call.
+- Gates. Builder: typecheck, the new tests (45), npm test (12,721 passed; 2 screen files passed again alone; `dashboardYear.test.ts` fails on
+  main too), npm run build, build:remote -- test, test:lite. Lead, on the local stack: test:db (3,464), test:it (361), test:mcp (655, only the
+  expected conformance failures), test:office (40). After each rebase on main: typecheck and the 108 tests of the touched files.
+- Test copy: `all.sh test` of 52758942 passed (health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401).
+  By hand in Chrome as the admin sample: the New office to-do sheet with a date showed "You have 1 to-do past due." The 45-minute deploy suite
+  was skipped (owner: "Production now"; screens and MCP text only).
+- `echo production | scripts/deploy/all.sh production` by Claude after the owner chose "Production now" (2026-11-01, about 09:15 UTC). Live
+  checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401. The live words file
+  (`words.en-*.js`) holds the new text "in the same week".
