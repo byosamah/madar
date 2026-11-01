@@ -72,7 +72,7 @@ function fakeOffice() {
     }
     throw new Error(`The fake office does not know: ${sql.slice(0, 60)}`);
   };
-  /** Mimics pgDb: a transaction is an async context, `statement` refuses inside one, and `detached` leaves it. */
+  /** Mimics pgDb: a transaction is an async context, `statement` refuses inside one, and `statementApart` never reads it. */
   const context = new AsyncLocalStorage<boolean>();
   const q: Query = <R,>(sql: string, values?: unknown[]) => answer<R>(sql, values, context.getStore() === true);
   const tx = <T,>(_mode: 'read' | 'write', work: (inner: Query) => Promise<T>) => context.run(true, () => work(q));
@@ -82,7 +82,7 @@ function fakeOffice() {
       if (context.getStore()) throw new Error('db.statement runs on its own connection, so it cannot run inside a transaction.');
       return answer<R>(sql, values, false);
     },
-    detached: <T,>(work: () => T): T => context.exit(work),
+    statementApart: async <R,>(_mode: string, sql: string, values?: unknown[]) => answer<R>(sql, values, false),
   } as unknown as Db;
   return { db, q, tx, handle, context };
 }
@@ -408,7 +408,7 @@ describe('the writer of the copy', () => {
     expect(office.db.asked.filter((ask) => ask.inTx).every((ask) => ask.sql !== OFFICE_COPY_UPSERT_SQL)).toBe(true);
   });
 
-  it('would fail inside a transaction on this fake, so the test above proves the use of detached', async () => {
+  it('would fail inside a transaction on this fake, so the test above proves the use of statementApart', async () => {
     const office = seeded();
     await expect(office.tx('read', () => office.handle.statement('write', OFFICE_COPY_UPSERT_SQL, [1, new Date(), 0, '']))).rejects.toThrow(/inside a transaction/);
   });
@@ -503,7 +503,7 @@ describe('the writer of the copy', () => {
     const warned: unknown[] = [];
     const pending: Promise<unknown>[] = [];
     const cache: OfficeCache = createOfficeCache({ copy: true, after: () => (work) => void pending.push(work) });
-    const deps = { db: { ...failing, tx: office.handle.tx, detached: office.handle.detached }, log: { warn: (...a: unknown[]) => void warned.push(a) } } as never;
+    const deps = { db: { ...failing, tx: office.handle.tx, statementApart: failing.statement }, log: { warn: (...a: unknown[]) => void warned.push(a) } } as never;
     const snapshot = await office.tx('read', (inner) => cache.read(deps, inner));
     await Promise.all(pending);
     expect(snapshot.version).toBe(1);

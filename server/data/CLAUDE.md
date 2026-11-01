@@ -82,9 +82,11 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   keep time of `office_deletes` (6 days), and then the same statement is the full read. The cache also refuses a copy that does not
   decode (gzip checks its checksum), has another form, a count that differs, or a key that differs from its id, and reads every row in a
   second statement. Never read the copy outside this path.
-- The writer runs only for a read that is not "own", through `requestHost().after`, started with `Db.detached` (pgDb keeps its transaction
-  in AsyncLocalStorage, and work that starts inside a transaction would inherit it, so `db.statement` would refuse). It writes on its own
-  connection after the answer, never inside a transaction of a call. With no `after` (tests, scripts) it writes nothing. It writes when no
+- The writer runs only for a read that is not "own", through `requestHost().after`. It writes on its own connection after the answer,
+  never inside a transaction of a call, with `Db.statementApart`. Do not use `db.statement` or `AsyncLocalStorage.exit` for it: pgDb
+  keeps its transaction in AsyncLocalStorage, a promise that starts inside a transaction inherits it, and on Supabase Edge Functions `exit`
+  clears it only for the first synchronous part (probe of 2026-11-02), so `statement` refused on the test copy. `statementApart` never
+  reads that context. With no `after` (tests, scripts) it writes nothing. It writes when no
   copy was used, when the delta was 25 rows or 8 KB (`COPY_DELTA_ROWS`, `COPY_DELTA_BYTES`), or when the copy was a day old
   (`COPY_MAX_AGE_MS`). A warm refresh never writes. The upsert keeps the newest version, so two writers are safe, and replaces a copy that
   is above `office_meta` (a database that went back). A failed write logs one warning and nothing else: do not add a log line for each

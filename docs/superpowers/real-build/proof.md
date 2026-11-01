@@ -2894,8 +2894,11 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   bytes) for its two extra columns. The test copy holds the sample office, so its numbers are the first row. Production is larger: the year
   office row is the better guess.
 - Not measured: Supabase's own count of egress for a `text` column (the test copy shows it after the release), and the real mix of requests.
-- Proved with the real `pgDb` as `madar_server` (`server/it/officeCopyHost.it.test.ts`): the writer starts through `Db.detached`, so its
-  `db.statement` runs on its own connection. Without `detached` the statement refuses ("cannot run inside a transaction") and the test fails.
+- Proved with the real `pgDb` as `madar_server` (`server/it/officeCopyHost.it.test.ts`): the writer uses `Db.statementApart`, which reads no
+  transaction context. First build (012eaa2e) used `AsyncLocalStorage.exit`; it worked on Node but not on Supabase Edge Functions, where
+  `exit` clears the store only for the first synchronous part (probe on the local edge runtime, 2026-11-02: `[null,"tx"]` after the first
+  await), so the test copy logged "db.statement runs on its own connection" and wrote no copy. The tests now run the job step, the joined
+  first read of the batch and the MCP app with `exit` made useless, as the edge runtime has it.
   A write request that starts cold does not wait for its own copy write, and the next cold read merges the change as a delta.
 - Unchanged by design: every handler, loader and view rule; the office object (SQLite) keeps its own in-memory office. The db-mode harness
   never commits, so `fakeDeps` leaves `Config.officeCopy` off there.

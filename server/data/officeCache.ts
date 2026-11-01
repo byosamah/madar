@@ -197,12 +197,15 @@ export function createOfficeCache(o: OfficeCacheOptions = {}): OfficeCache {
     const work = async () => {
       try {
         const { body, rows } = await encodeCopy(version, tables);
-        await deps.db.statement('write', OFFICE_COPY_UPSERT_SQL, [version, new Date(at), rows, body]);
+        const params = [version, new Date(at), rows, body];
+        // statementApart: this work started inside a transaction and its async context came along (ports.ts).
+        if (deps.db.statementApart) await deps.db.statementApart('write', OFFICE_COPY_UPSERT_SQL, params);
+        else await deps.db.statement('write', OFFICE_COPY_UPSERT_SQL, params);
       } catch (error) {
         deps.log?.warn('The office copy was not written. Requests read the office rows instead.', { error: error instanceof Error ? error.message : String(error) });
       }
     };
-    after(deps.db.detached ? deps.db.detached(work) : work());
+    after(work());
   }
 
   /** own: the reading transaction wrote office_meta, so the snapshot is for this read only and the cache keeps what it held. */

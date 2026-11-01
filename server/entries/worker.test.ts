@@ -197,6 +197,15 @@ describe('the request database', () => {
     const inside = await scope.run(openDb(), () => scope.db.statement<{ n: number }>('read', 'select 1'));
     expect(inside).toEqual([{ n: 1 }]);
   });
+
+  it('forwards statementApart (the office copy writer) to the Db of the request, or to statement when the Db has none', async () => {
+    const scope = requestScopedDb();
+    const asked: string[] = [];
+    const apart = { statementApart: async (_mode: string, text: string) => (asked.push(`apart ${text}`), []), statement: async (_mode: string, text: string) => (asked.push(`plain ${text}`), []) };
+    await scope.run(apart as never, () => scope.db.statementApart!('write', 'select 1'));
+    await scope.run({ statement: apart.statement } as never, () => scope.db.statementApart!('write', 'select 2'));
+    expect(asked).toEqual(['apart select 1', 'plain select 2']);
+  });
 });
 
 describe('the host of each answer (owner, 2026-10-16)', () => {

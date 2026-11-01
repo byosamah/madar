@@ -201,8 +201,9 @@ export function pgDb(database: DatabaseConfig, o: PgDbOptions = {}): PgDb {
     return q;
   }
 
-  async function run<T>(mode: 'read' | 'write', work: (q: Query) => Promise<T>): Promise<T> {
-    if (current.getStore()) throw new Error('A nested transaction is not allowed: the work already runs inside db.tx.');
+  /** apart: a statement that runs on after the transaction that started it (statementApart). It reads and sets no transaction context. */
+  async function run<T>(mode: 'read' | 'write', work: (q: Query) => Promise<T>, apart = false): Promise<T> {
+    if (!apart && current.getStore()) throw new Error('A nested transaction is not allowed: the work already runs inside db.tx.');
     const caller = o.callerClient;
     const client = caller ?? (await poolOf(mode).connect());
     const state = { ended: false };
@@ -218,7 +219,7 @@ export function pgDb(database: DatabaseConfig, o: PgDbOptions = {}): PgDb {
       } else {
         await client.query(START[mode]);
       }
-      const out = await current.run(open, () => work(q));
+      const out = apart ? await work(q) : await current.run(open, () => work(q));
       state.ended = true;
       await client.query(caller ? 'release savepoint madar_tx' : 'commit');
       return out;
@@ -281,7 +282,10 @@ export function pgDb(database: DatabaseConfig, o: PgDbOptions = {}): PgDb {
       return run(mode, (q) => q<R>(text, values));
     },
 
-    detached: (work) => current.exit(work),
+    async statementApart<R = Record<string, unknown>>(mode: 'read' | 'write', text: string, values?: unknown[]): Promise<R[]> {
+      refuseUnsafeStatement(text);
+      return run(mode, (q) => q<R>(text, values), true);
+    },
 
     async close(): Promise<void> {
       const open = [pools.write, pools.read].filter((pool): pool is pg.Pool => pool !== undefined);

@@ -26,11 +26,12 @@ export interface Db {
    */
   warm?(mode: 'read' | 'write'): Promise<void>;
   /**
-   * Runs work outside the transaction of the current async context. pgDb keeps its open transaction in AsyncLocalStorage, and work
-   * that starts inside a transaction inherits it, so a later `statement` would refuse. The office copy writer (officeCache.ts) starts
-   * its upload through this. A Db with no such context leaves it out, and the work then runs as it is.
+   * `statement` for work that was started inside a transaction and runs on after it (the office copy writer, officeCache.ts). pgDb
+   * keeps its open transaction in AsyncLocalStorage, and a promise that starts inside a transaction inherits it: on Supabase Edge
+   * Functions AsyncLocalStorage.exit clears it only for the first synchronous part (probe, 2026-11-02), so `statement` would refuse.
+   * This one never reads that context and uses a connection of its own. A Db with no such context leaves it out.
    */
-  detached?<T>(work: () => T): T;
+  statementApart?<R = Record<string, unknown>>(mode: 'read' | 'write', text: string, values?: unknown[]): Promise<R[]>;
   /**
    * 'sqlite' for the SQLite Db of the office object and of test:lite (server/data/lite/db.ts). Absent means Postgres. Code that
    * sends its own SQL picks its text with sqlFor (server/data/dialect.ts).
