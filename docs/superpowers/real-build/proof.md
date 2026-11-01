@@ -2903,3 +2903,20 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - Unchanged by design: every handler, loader and view rule; the office object (SQLite) keeps its own in-memory office. The db-mode harness
   never commits, so `fakeDeps` leaves `Config.officeCopy` off there.
 - To switch it off: set `OFFICE_COPY=off` on the functions. To drop a copy that is in doubt: `delete from office_copy`.
+
+### Release record: production at 5c82ba47 (2026-11-01, tsk_496: the compressed office copy, for the Supabase egress)
+- What shipped (`rb/office-snapshot`, one Sonnet builder, tests first). fd19ea5c, 2b7b3a17, 012eaa2e: the table `office_copy` (migration
+  `20261101000100_office_copy.sql`, RLS, `madar_server` only), `server/data/officeCopy.ts`, and the cold read of `officeCache.ts`: one row
+  with the office lists as gzip and base64 plus the rows and deletes above its version, with the full read as the fallback. 5c82ba47: the copy
+  write uses `Db.statementApart`, because on the Supabase edge runtime `AsyncLocalStorage.exit` keeps the transaction context only until the
+  first `await` (the first test deploy logged "The office copy was not written ... cannot run inside a transaction" at each job run, and the
+  fallback served every request).
+- Gates. Builder: typecheck, unit tests first (copy against full read, every bad-copy fallback, two writers, delete window), the six host
+  path tests of `officeCopyHost.it.test.ts` (they fail on 012eaa2e), npm test (1056 of 1057; `dashboardYear.test.ts` fails on main too),
+  test:lite, test:office, test:db, test:it, test:mcp, the builds; the real jobs function on the local edge runtime wrote a copy.
+- Local bytes (cold office read, client socket): sample office 57,647 to 12,508 (78% less); year office lists 259,100 to 33,019 (87% less).
+- Test copy: `all.sh test` of 5c82ba47 passed; the 09:00 UTC job wrote the copy: version 4695, 216 rows, 10,816 bytes against 46,743 bytes
+  of office documents (77% less); no warning or error in the logs from 08:51 to 09:01.
+- `echo production | scripts/deploy/all.sh production` by Claude after the owner chose "Production now" (2026-11-01, 09:02 UTC). Live
+  checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401. Switch off if needed: the function
+  secret `OFFICE_COPY=off`, and `delete from office_copy` for a doubtful copy.
