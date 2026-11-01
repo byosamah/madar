@@ -9,6 +9,7 @@ import { RichText } from '../../../components/RichText';
 import { Switch } from '../../../components/Switch';
 import { TabPanel, Tabs } from '../../../components/Tabs';
 import type { TaskStatus } from '../../../api/contract/entities';
+import { BusyWeekNote } from './BusyWeekNote';
 import { DateNotes, TaskNeeds } from './TaskNeeds';
 import { Checklist, Fact, History, TaskFiles } from './TaskParts';
 import { ConversationView, sectionOptions } from './Conversation';
@@ -120,6 +121,8 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
                 {readOnly.duration && <Fact label={t('taskSheet.duration')}>{readOnly.duration}</Fact>}
               </div>
             )}
+            {/* After the person saves a new lead or a new due date: what else the lead has in that week (tsk_499). Never on open. */}
+            {panel.busy && <BusyWeekNote {...panel.busy} variant="panel" />}
             <DateNotes data={data} />
             {canDetails
               ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />

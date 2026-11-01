@@ -1307,3 +1307,17 @@ Hyperdrive.
 - [ ] Proposed: run the 15-minute job only 06:00 to 22:00 Riyadh (about 0.2 GB). Not approved yet.
 - [ ] Ask Supabase (or read the banner) whether the 22 Nov restriction looks at the cycle that ends on 3 Nov, which is already over.
 - [ ] Log Ingestion 241% (not yet billed): PostgREST restarts about every 32 s with empty schemas. Madar does not use the Data API.
+
+## Busy-week note for a new or changed to-do (tsk_499, owner decisions of 2026-11-01; branch `rb/busy-week`)
+Owner request: when a person adds a to-do for someone, show what the lead already has at the same time, so the person can change the date.
+Decisions: "at the same time" is the same Sunday to Saturday week as the due date; a quiet note under the due date, with no extra press and no block; on the New to-do sheets that have a lead field and on the to-do panel after a saved change of the lead or the date; the lead's open to-dos past due are one extra line.
+- [x] The pure split of the rows (`src/lib/busyWeek.ts`) with unit tests.
+- [x] The note and its read in one shared file (`tasks/BusyWeekNote.tsx`); one read of `tasks.list` for the lead and the week, none before a lead and a date are set.
+- [x] The note in the New to-do sheet of a stage and in the New office to-do sheet.
+- [x] The note in the task panel on the desk and on the phone, after a saved new lead or due date, never when the panel opens.
+- [x] Words in English and Arabic (`real/busyweek.*.json`, six Arabic plural forms) and the What's new entry `2026-11-01-142`.
+- [x] Tests: sheets, panel, call count, and leak tests (hidden project, private office to-do, project on hold).
+- [x] MCP: the `Busy week:` line of `INSTRUCTIONS` and one sentence in the `TOOL_DOCS` of `tasks.create`, `tasks.update`, `tasks.createMany` and `tasks.updateMany`; the guides.
+- [x] Gates once: `npm test` (3 failed: 2 screen files passed again alone, `server/office/dashboardYear.test.ts` is the known failure on main), `npm run build`, `npm run build:remote -- test`, `npm run test:lite` (the lead runs `test:db`, `test:it`, `test:mcp`, `test:office`).
+- [x] Screenshots (EN/AR, light/dark, 390 px; one desk panel shot), in the scratchpad of the builder.
+- [ ] Lead: confirm the real release day of the What's new entry before the test deploy.

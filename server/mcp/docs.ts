@@ -42,6 +42,8 @@ export const INSTRUCTIONS = [
   '',
   'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead. tasks.help makes your person a helper of a project task, or takes them off it. On a project task, the person who added it (its maker) changes it like the project leader while on the team: title, dates, lead, helpers, prerequisites and the delete. The lead of a project task may delete it in the screens too, and its maker then gets a notification. A maker names only people on the team. Reviewing a task and changing its review need need the switch "Review to-dos" (task.review). Naming a person outside the team needs the switch "Change the team" (project.team). By default the project leader and the Admin hold both.',
   '',
+  'Busy week: before you add a to-do with a lead and a due date (tasks.create, tasks.createMany), or change the lead or the due date of a to-do (tasks.update, tasks.updateMany), read tasks.list for that lead: ownerId the lead, status [todo, in_progress], includeDone false, dueTo the Saturday of the week of that due date (a week runs Sunday to Saturday). The filter ownerId also matches a helper, so keep only the rows whose ownerId is the lead, and leave out the to-do you change. A row due in that week, or before today, is busy work of the lead. When there is some, tell your person how many to-dos and which titles, and ask whether to add it anyway or pick another date, before you write. When there is none, write as usual. For many items, read once for each lead and week. The screens show the same note.',
+  '',
   'Many to-dos: for more than a few to-dos, use tasks.createMany (up to 50 new to-dos in one call) and tasks.updateMany (up to 100 changes in one call, also a move to another stage with patch.stageId), and not one call for each to-do. Madar runs the items in order with the same rights and rules as tasks.create and tasks.update, in one story, and a failed item does not stop the next. Read the results: for an item that needs a reason, ask your person, then send only that item again with reason or dateReason. tasks.move sets the status only.',
   '',
   'Long lists: projects.list and tasks.list give a page of 50 short rows. Send limit (200 at most) and offset, follow page.next until it is null, and send full: true only when you need the full rows.',
@@ -356,7 +358,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.create': {
     title: 'Add a task',
-    description: 'Adds a task to a project: a title, and optionally the stage, owner (the lead), helpers, prerequisites, start and due dates, description, flag and review need. Without ownerId the task has no lead. A team member names only team mates as owner or helpers. needsReview false needs the leader. A new open task in an earlier stage moves the project back, and then the call needs "reason". Without projectId it adds an office task: no project, no stage, no prerequisites; only its maker, lead, helpers and the Admin see it.',
+    description: 'Adds a task to a project: a title, and optionally the stage, owner (the lead), helpers, prerequisites, dates, description, flag and review need. Without ownerId the task has no lead. A team member names only team mates as owner or helpers. needsReview false needs the leader. A new open task in an earlier stage moves the project back, and then the call needs "reason". Without projectId it adds an office task: no project, no stage, no prerequisites; only its maker, lead, helpers and the Admin see it. Check Busy week first.',
   },
   'tasks.get': {
     title: 'Get a task',
@@ -380,11 +382,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.createMany': {
     title: 'Add many tasks',
-    description: 'Makes up to 50 to-dos in one call: items, each the input of tasks.create. Items run in order with the rights and rules of tasks.create, in one story (your storyId, or a new one that this tool starts), so one events.undoStory takes them all back. A failed item does not stop the next. The answer is short: storyId, done, failed and results (index, ok, id, title, stageId, status, or error). A reason request fails only that item: ask your person, then send that item again with reason.',
+    description: 'Makes up to 50 to-dos in one call: items, each the input of tasks.create. Items run in order with the rights and rules of tasks.create, in one story (your storyId, or a new one that this tool starts), so one events.undoStory takes them all back. A failed item does not stop the next. The answer is short: storyId, done, failed and results (index, ok, id, title, stageId, status, or error). A reason request fails only that item: ask your person, then send that item again with reason. Check Busy week first.',
   },
   'tasks.updateMany': {
     title: 'Change many tasks',
-    description: 'Changes up to 100 to-dos in one call: items, each { id, patch, reason?, dateReason? } as tasks.update takes them. Use it to move many to-dos to another stage (patch.stageId). Items run in order with the rights and rules of tasks.update, in one story, so one events.undoStory takes them back. A failed item does not stop the next. The answer is short: storyId, done, failed, results (index, ok, id, title, stageId, status, or error). A reason request (stage_back_reason, date_reason_needed) fails only that item: ask your person, then send it again with reason or dateReason.',
+    description: 'Changes up to 100 to-dos in one call: items, each { id, patch, reason?, dateReason? } as tasks.update takes them. Use it to move many to-dos to another stage (patch.stageId). Items run in order with the rights and rules of tasks.update, in one story (events.undoStory takes it back). A failed item does not stop the next. The answer: storyId, done, failed, results (index, ok, id, title, stageId, status, error). A reason request (stage_back_reason, date_reason_needed) fails only that item: ask your person, then send it again with reason or dateReason. Check Busy week first.',
   },
   'tasks.take': {
     title: 'Take a task',
@@ -396,7 +398,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.update': {
     title: 'Change a task',
-    description: 'Changes one task. To move it to another stage, send patch.stageId (a move back needs "reason"). Also title, description, dates, schedule, owner, helpers, prerequisites, flag, review need or checklist. Send only the fields that change, in "patch". ownerId null takes the lead off an open task. The owner, helpers and prerequisites need the maker of the task, the leader or the Admin; the review need, the leader or the Admin. A change of a date that was already set needs "dateReason". For many tasks use tasks.updateMany. To move a checklist item, send the whole "checklist" in the new order.',
+    description: 'Changes one task. To move it to another stage, send patch.stageId (a move back needs "reason"). Also title, description, dates, schedule, owner, helpers, prerequisites, flag, review need or checklist. Send only changed fields in "patch". ownerId null takes the lead off an open task. The owner, helpers and prerequisites need the maker, the leader or the Admin; the review need, the leader or the Admin. A change of a date that was already set needs "dateReason". For many tasks use tasks.updateMany. To move a checklist item, send the whole "checklist". Check Busy week first.',
   },
   'tracker.close': {
     title: 'Close a tracker wait',

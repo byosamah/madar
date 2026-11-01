@@ -115,6 +115,15 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   button Focus. Layout props on the shared parts (`layout="rows"`, `rows`, `docked`, `hideTitle`) are in `DetailRows.tsx` and its callers.
 - An office to-do has no project: the word Office (`office.word`) shows where a project shows, and its panel (`TaskSheet` with `detail`
   null) has no stage and no prerequisites. `taskLink(null, id)` sends it to `/work?task=<id>`.
+- Busy-week note (`tasks/BusyWeekNote.tsx`, tsk_499, owner 2026-11-01): a quiet note under the due date. It shows the other open to-dos of the
+  lead (status todo or in_progress, the lead is the owner, not a helper) that are due in the same Sunday to Saturday week, up to three rows,
+  "and N more", one line for the to-dos past due, and a hint. A to-do is in one list only: before today it is past due, else in the week.
+  It never blocks: no dialog, no extra press, Add works as usual. Where: the two New to-do sheets that have a lead field (`NewTaskSheet`,
+  `NewOfficeTaskSheet`; the quick add has none), and the task panel after a saved new lead or due date (`busy` of `useTaskPanel`, on the desk
+  and on the phone). Never when the panel opens. The one read is `tasks.list {ownerId, status, includeDone: false, dueTo: Saturday}`, so the same
+  lead and week answer from the cache; the note mounts only with a lead and a date, so a sheet reads nothing when it opens. The server gives only
+  what the person may see, so hidden projects and private office to-dos never count. The pure split is `lib/busyWeek.ts`. The agent rule is the
+  `Busy week:` line of `INSTRUCTIONS` (`server/mcp/CLAUDE.md`). Tests: `BusyWeekSheet`, `BusyWeekPanel`, `work/BusyWeekOffice`.
 
 ## Project page on a phone
 - Five tabs, `PHONE_TABS` in `tabs.tsx`. Activity, Schedule and Team are pages inside More (`MoreSubPage`). `?tab=more` is the list. On a

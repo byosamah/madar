@@ -170,6 +170,11 @@ Own OAuth server (consent, token step, grants): `server/mcp/oauth/CLAUDE.md`.
   each item through `runTool`, in order, in one story. A failed item does not stop the next. A reason request is the error of that item
   (`stage_back_reason`, `date_reason_needed`): the agent asks its person and sends that item again. A `storyId` that is not the agent's
   fails the whole tool (`story_not_yours`). The batch is one request for the rate limit, and each item has its own transaction. Test: `bulkTasks.test.ts`.
+- Busy week (tsk_499): the `Busy week:` line of `INSTRUCTIONS` makes an agent read `tasks.list` for the lead and the week before it adds a
+  to-do with a lead and a due date, or changes the lead or the due date (the four write tools carry the sentence "Check Busy week first." in
+  `TOOL_DOCS`). The agent tells its person the count and the titles, and asks to add it anyway or to pick another date. The screens show the
+  same note (`BusyWeekNote`). The tool list sits near its 110 KB limit (`toolSize.test.ts`): a new `TOOL_DOCS` sentence needs a cut elsewhere.
+  Test: `busyWeek.test.ts`.
 - Uploads by content (`upload.ts`): `files.uploadContent` and `feedback.sendWithScreenshots` are MCP-only (`NO_CALL_TOOLS`), with the
   switches `ai.projects` and `ai.feedback`. The tool runs `files.uploadStart` through `ctx.runCall` (the same rights and refusals as the
   screens), puts the bytes with `PUT` to the signed link from the server (`ToolRunCtx.storeFetch`; the link never leaves the function),

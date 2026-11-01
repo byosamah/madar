@@ -32,6 +32,8 @@ write natural Arabic, not a word-for-word copy of the English.
 - An Arabic verb after a person's name needs a `_female` key beside the base key.
 - Arabic plurals use `_one`, `_two`, `_few`, `_many`, `_other`. English plurals use `_one`, `_other`. No test checks that an
   Arabic plural has all six forms: check them by hand.
+- An Arabic plural form takes no variable except `count` (`i18n.test.ts`). Put a name in its own key and join the two texts in the code
+  (`busyWeek.subject` and `busyWeek.weekCount`).
 - A reason code or a key never ends with `_other` unless it is a plural form: i18next reads the suffix.
 - Western digits and the Gregorian calendar in both languages (`ar-SA-u-ca-gregory-nu-latn`, `src/lib/dates.ts`).
 - Office time is UTC+3. The work week is Sunday to Thursday.

@@ -11,6 +11,7 @@ import { Button } from '../../../components/Button';
 import { DateField } from '../../../components/DateField';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
+import { BusyWeekNote } from './BusyWeekNote';
 import { useStageBack } from './StageBack';
 
 /**
@@ -18,6 +19,7 @@ import { useStageBack } from './StageBack';
  * and the due date, as the office task panel has. The words next to the "+" stay the quick add. A new task has no lead until a
  * person picks one, as the quick add makes it (owner, 2026-10-05). The lead comes from the team: only the leader and the Admin add
  * a person to it, and they do that in the task panel. The rest lives in the task panel too, one press away from the toast.
+ * Once a lead and a due date are set, a quiet note shows the other open to-dos of that lead in the same week (tsk_499, owner 2026-11-01). It blocks nothing.
  * It is memoized: the quick add of the stage renders on each key, and its props stay the same between keys, so the closed sheet waits.
  */
 export const NewTaskSheet = memo(function NewTaskSheet({ detail, stage, open, onOpenChange, onOpen }: {
@@ -79,6 +81,8 @@ export const NewTaskSheet = memo(function NewTaskSheet({ detail, stage, open, on
             {people.map((person) => <option key={person.id} value={person.id}>{nameOf(person)}</option>)}
           </SelectField>
           <DateField id={`new-task-due-${stage.id}`} label={t('taskSheet.dueDate')} value={due} onChange={setDue} />
+          {/* The note mounts only while the sheet is open and a lead and a date are set, so the sheet reads nothing before that (tsk_499). */}
+          {lead && due && <BusyWeekNote leadId={lead} due={due} variant="sheet" />}
         </div>
       </Sheet>
       {back.sheet}

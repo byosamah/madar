@@ -10,6 +10,7 @@ import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { SelectField, TextField } from '../../components/Fields';
 import { Sheet } from '../../components/Sheet';
+import { BusyWeekNote } from '../project/tasks/BusyWeekNote';
 import { openTask } from '../../lib/params';
 
 /**
@@ -73,6 +74,8 @@ export function NewOfficeTaskSheet({ open, onOpenChange }: { open: boolean; onOp
           {people.map((person) => <option key={person.id} value={person.id}>{nameOf(person)}</option>)}
         </SelectField>
         <DateField id="office-task-due" label={t('taskSheet.dueDate')} value={due} onChange={setDue} />
+        {/* The lead and the date are set: a quiet note shows what else the lead has in that week (tsk_499). It blocks nothing. */}
+        {leadId && due && <BusyWeekNote leadId={leadId} due={due} variant="sheet" />}
         <p className="text-footnote text-label-2">{t('office.private')}</p>
       </div>
     </Sheet>

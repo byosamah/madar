@@ -1,0 +1,28 @@
+{
+  "busyWeek": {
+    "subject": "{{name}} has",
+    "subjectSelf": "You have",
+    "weekCount": "{{count}} to-dos due in the same week.",
+    "weekCount_one": "1 to-do due in the same week.",
+    "weekCount_other": "{{count}} to-dos due in the same week.",
+    "pastCount": "{{count}} to-dos past due.",
+    "pastCount_one": "1 to-do past due.",
+    "pastCount_other": "{{count}} to-dos past due.",
+    "pastMore": "{{count}} other to-dos are past due.",
+    "pastMore_one": "1 other to-do is past due.",
+    "pastMore_other": "{{count}} other to-dos are past due.",
+    "more": "and {{count}} more",
+    "more_one": "and 1 more",
+    "more_other": "and {{count}} more",
+    "hintSheet": "Pick another date, or add it anyway.",
+    "hintPanel": "Pick another date if that week is too full."
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-01-142": {
+        "title": "See a busy week before you set a date",
+        "body": "When you add a to-do, Madar shows the other to-dos that its lead has in the same week. The same note shows when you change the lead or the due date of a to-do."
+      }
+    }
+  }
+}

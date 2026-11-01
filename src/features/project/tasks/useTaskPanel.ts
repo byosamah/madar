@@ -42,10 +42,10 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
   const [failures, setFailures] = useState(0);
   const update = useAction('tasks.update', {
     onRefused: (error, input) => {
-      if (dates.refused(error, input, (next) => update.mutate(next)) || back.refused(error, input, (next) => update.mutate(next))) return true;
+      if (dates.refused(error, input, (next) => send(next)) || back.refused(error, input, (next) => send(next))) return true;
       // A failed save with a date reason opens the reason sheet again with the typed reason (audit 2026-10-03, BRW-6). The toast
       // still says why, but with no Retry: the sheet's Save dates is the one place to try again (audit 2026-10-03, V-14).
-      if (dates.retry(input, (next) => update.mutate(next))) {
+      if (dates.retry(input, (next) => send(next))) {
         toast.failed(error);
         return true;
       }
@@ -57,6 +57,18 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
       return false;
     },
   });
+  // The busy-week note (tsk_499): it shows after the person saves a new lead or a new due date in this panel, never when the panel opens.
+  // `checked` holds the lead and the due date of the answer of that save. The note shows while the panel still reads these two values, so it
+  // never reads for the old lead before the answer arrives, and it goes when an Undo or another person changes the lead or the date.
+  const [checked, setChecked] = useState<{ id: string; ownerId: string | null; dueDate: string | null } | null>(null);
+  const send = (input: Parameters<typeof update.mutate>[0]) => {
+    const before = { ownerId: task.ownerId, dueDate: task.dueDate };
+    update.mutate(input, {
+      onSuccess: (saved) => {
+        if (saved.task.ownerId !== before.ownerId || saved.task.dueDate !== before.dueDate) setChecked({ id: task.id, ownerId: saved.task.ownerId, dueDate: saved.task.dueDate });
+      },
+    });
+  };
   const move = useMoveTask(back);
   // The one finish button of the phone panel: the same call as the tick of a list row and the Done button of Focus mode. The server
   // result decides the toast, so the toast is true even when the word of the button was a guess.
@@ -124,7 +136,7 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
   const patch = (changes: Patch) => {
     if (changes.title !== undefined) sent.current.title = changes.title;
     if (changes.description !== undefined) sent.current.description = changes.description;
-    update.mutate({ id: task.id, patch: changes });
+    send({ id: task.id, patch: changes });
   };
   // Role rights version 2: one flag for each kind of change. The details, the dates and the work are three switches.
   const canDetails = viewerCan.editDetails === true;
@@ -167,7 +179,7 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
   if (data.owner && !people.some((person) => person.id === data.owner?.id)) people.push(data.owner);
   // The panel counts the lead as on the team, also when the lead left it (naming a person outside the team adds them to it, which asks
   // project.team).
-  const { teamIds, pickable: choices, changeLead } = useLeadChoices({ taskId: task.id, humans: pickable, detail, leadOnTeam: data.owner });
+  const { teamIds, pickable: choices, changeLead } = useLeadChoices({ taskId: task.id, humans: pickable, detail, leadOnTeam: data.owner, onLead: (saved) => setChecked({ id: task.id, ownerId: saved.task.ownerId, dueDate: saved.task.dueDate }) });
   // While the task waits for review, its lead gets the pull-back choices and no Done (audit 2026-10-03, F-19).
   const statusOptions = BOARD_COLUMNS
     .filter((status) => status === task.status || moveTargets(task.status, false, task.needsReview, task.ownerId !== null).includes(status))
@@ -197,8 +209,12 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
   // The panel is open, so the choice replaces the link and keeps the history step of the panel (audit 2026-10-03, V-36).
   const setSection = (next: 'details' | 'conversation') => link.open({ thread: next === 'conversation' ? '1' : null });
 
+  // The note needs a lead and a due date, and a to-do that is still open: a to-do in review or done adds no load.
+  const busy = checked?.id === task.id && checked.ownerId === task.ownerId && checked.dueDate === task.dueDate && (task.status === 'todo' || task.status === 'in_progress')
+    ? { leadId: task.ownerId, due: task.dueDate, openId: task.id }
+    : null;
   return {
-    data, detail, task, viewerCan, noteFirst,
+    data, detail, task, viewerCan, noteFirst, busy,
     canDetails, canDates, canNeeds, mayChange,
     root, reviewBlock,
     title, setTitle, description, setDescription, unsaved, note, setNote,

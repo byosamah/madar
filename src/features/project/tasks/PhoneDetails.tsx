@@ -9,6 +9,7 @@ import { NoLeadMark } from '../../../components/NoLeadMark';
 import { RichText } from '../../../components/RichText';
 import { useLang } from '../../../app/lang';
 import { Group, PickRow, SwitchRow, ValueRow } from './DetailRows';
+import { BusyWeekNote } from './BusyWeekNote';
 import { DateNotes, TaskNeeds } from './TaskNeeds';
 import { Checklist, History, TaskFiles } from './TaskParts';
 import { TaskVersions } from './TaskVersions';
@@ -150,6 +151,8 @@ export function PhoneDetails({ panel }: { panel: TaskPanel }) {
     <div className="flex flex-col gap-5">
       <People panel={panel} />
       <When panel={panel} />
+      {/* After the person saves a new lead or a new due date: what else the lead has in that week (tsk_499). Never on open. */}
+      {panel.busy && <BusyWeekNote {...panel.busy} variant="panel" />}
       <DateNotes data={panel.data} />
       <ThisTodo panel={panel} />
       <Checklist rows key={panel.failures} task={panel.task} edit={panel.canDetails} tick={panel.viewerCan.contribute} onChange={(checklist) => panel.patch({ checklist })} draft={panel.checklistDraft} />

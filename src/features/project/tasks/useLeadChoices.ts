@@ -14,8 +14,10 @@ import { actorContext } from '../../../lib/grammar';
  * `leadOnTeam` is the lead that counts as on the team. The panel passes its lead, so a lead who left the team still reads as on it. The
  * people list passes null.
  */
-export function useLeadChoices<P extends { id: string }>({ taskId, humans, detail, leadOnTeam }: {
+export function useLeadChoices<P extends { id: string }>({ taskId, humans, detail, leadOnTeam, onLead }: {
   taskId: string; humans: P[]; detail: ProjectDetail | null | undefined; leadOnTeam: { id: string } | null;
+  /** The task panel passes this to know that a new lead is saved: it then shows the busy-week note (tsk_499). It gets the saved to-do. */
+  onLead?: (saved: { task: { ownerId: string | null; dueDate: string | null } }) => void;
 }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
@@ -27,6 +29,7 @@ export function useLeadChoices<P extends { id: string }>({ taskId, humans, detai
   // (audit 2026-10-03, F-22).
   const joins = useRef(false);
   const newLead = useUndoable('tasks.update', {
+    onSuccess: (saved) => onLead?.(saved),
     message: (output) => (output.owner
       ? t(joins.current ? 'taskSheet.newLeadJoined' : 'taskSheet.newLead', { name: nameOf(output.owner), context: actorContext(output.owner) })
       : t('lead.removed')),
