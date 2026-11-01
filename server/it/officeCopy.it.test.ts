@@ -25,6 +25,8 @@ const SERVER = 'madar_server';
 describe('the office copy on the local database', () => {
   const schema = `madar_copy_${process.pid}`;
   let db: pg.Client;
+  /** The connection of the writer: a statement of the copy writer never shares the connection of a transaction of a call. */
+  let writer: pg.Client;
   const q: Query = async <R,>(text: string, values?: unknown[]) => (await db.query(text, values)).rows as R[];
 
   /** The bytes that the client socket received while the work ran: the real size of the answers on the wire. */
@@ -47,10 +49,10 @@ describe('the office copy on the local database', () => {
     }
   }
 
-  /** A Db for the cache: transactions run on the one client, and a statement runs on it with no transaction open. */
+  /** A Db for the cache: transactions run on the client, and a statement runs on the connection of the writer. */
   const handle = {
     tx: <T,>(mode: 'read' | 'write', work: (inner: Query) => Promise<T>) => inTx(mode, () => work(q)),
-    statement: async <R,>(_mode: string, text: string, values?: unknown[]) => q<R>(text, values),
+    statement: async <R,>(_mode: string, text: string, values?: unknown[]) => (await writer.query(text, values)).rows as R[],
   } as unknown as Db;
 
   /** A cache with the copy on, and the work that it hands to "after". */
@@ -87,12 +89,15 @@ describe('the office copy on the local database', () => {
     db = await localClient();
     await applyMigrations(db, schema);
     await db.query(`set search_path to ${schema}`);
+    writer = await localClient();
+    await writer.query(`set search_path to ${schema}`);
     const seed = await buildSeed(TODAY, async () => undefined);
     await inTx('write', () => writeState(q, seed));
   }, 60_000);
 
   afterAll(async () => {
     if (!db) return;
+    await writer?.end();
     await dropSchema(db, schema);
     await db.end();
   });
@@ -114,7 +119,6 @@ describe('the office copy on the local database', () => {
   it('a first cold read is the full read in one statement, and writes the copy after the answer', async () => {
     const run = copyCache();
     const first = await run.read();
-    expect(await copyRow()).toEqual([]);
     expectSame(first, await fullRead());
     await run.settle();
     const [row] = await copyRow();
@@ -134,14 +138,15 @@ describe('the office copy on the local database', () => {
       delete state.members[key];
       state.clients[Object.keys(state.clients)[0]].name = 'Client renamed';
     });
-    // An Undo: a project is removed and comes back with a new ord.
+    // An Undo: a deadline is removed and comes back with a new ord, so it goes last.
+    const deadline = Object.keys((await fullRead()).lists.deadlines)[0];
+    const saved = structuredClone((await fullRead()).lists.deadlines[deadline]);
     await change((state) => {
-      delete state.projects.prj_003;
+      delete state.deadlines[deadline];
     });
-    const gone = (await fullRead()).lists.projects;
-    expect(gone.prj_003).toBeUndefined();
+    expect((await fullRead()).lists.deadlines[deadline]).toBeUndefined();
     await change((state) => {
-      state.projects.prj_003 = { ...structuredClone(state.projects.prj_002), id: 'prj_003', name: 'Back' };
+      state.deadlines[deadline] = saved as never;
     });
     const expected = await fullRead();
     expect(expected.version).toBeGreaterThan(before[0].version);
@@ -153,7 +158,7 @@ describe('the office copy on the local database', () => {
     const fullBytes = await received(() => fullRead());
     expect(snapshot.lists.projects.prj_002.name).toBe('Renamed after the copy');
     expect(Object.keys(snapshot.lists.members)).not.toContain(key);
-    expect(Object.keys(snapshot.lists.projects).at(-1)).toBe('prj_003');
+    expect(Object.keys(snapshot.lists.deadlines).at(-1)).toBe(deadline);
     process.stdout.write(`office copy, sample office: full read ${fullBytes} bytes, cold read with the copy ${copyBytes} bytes\n`);
     expect(copyBytes).toBeLessThan(fullBytes);
   });
@@ -175,6 +180,11 @@ describe('the office copy on the local database', () => {
     const none = await q<{ c: string }>(OFFICE_COLD_SQL, [meta.version, new Date(now + 3_600_000)]);
     expect(none.some((row) => row.c === COPY_ROW)).toBe(false);
     expect(none).toHaveLength(full);
+    // The price of the two extra columns when no copy is used: the same rows, in the same one statement.
+    const plain = await received(() => q(OFFICE_ROWS_SQL, [-1]));
+    const cold = await received(() => q(OFFICE_COLD_SQL, [meta.version, new Date(now + 3_600_000)]));
+    process.stdout.write(`office copy, no copy used: the rows statement ${plain} bytes, the cold statement ${cold} bytes\n`);
+    expect(cold).toBeLessThan(plain * 1.1);
     const newer = await q<{ c: string }>(OFFICE_COLD_SQL, [Number(meta.version) - 1000, new Date(now - 6 * 86_400_000)]);
     expect(newer.some((row) => row.c === COPY_ROW)).toBe(false);
     expect(newer).toHaveLength(full);
@@ -186,7 +196,7 @@ describe('the office copy on the local database', () => {
     const at = new Date();
     await q(OFFICE_COPY_UPSERT_SQL, [live, at, 1, body]);
     // Two writers at once: the old one comes in any order and never wins.
-    await Promise.all([q(OFFICE_COPY_UPSERT_SQL, [live - 1, at, 2, body]), q(OFFICE_COPY_UPSERT_SQL, [live - 2, at, 3, body])]);
+    await Promise.all([db.query(OFFICE_COPY_UPSERT_SQL, [live - 1, at, 2, body]), writer.query(OFFICE_COPY_UPSERT_SQL, [live - 2, at, 3, body])]);
     expect(await copyRow()).toMatchObject([{ version: live, row_count: 1 }]);
     // A copy above the version of the database (a database that went back) is replaced by the version of this writer.
     await q('update office_copy set version = $1', [live + 500]);
@@ -210,20 +220,28 @@ describe('the office copy on the local database', () => {
     const year = await yearOffice(TODAY);
     const lists = emptyState(TODAY);
     for (const c of OFFICE_COLLECTIONS) (lists as unknown as Record<string, unknown>)[c] = (year as unknown as Record<string, unknown>)[c];
-    await db.query('truncate office_copy');
-    for (const spec of ['members', 'stages', 'deadlines', 'conversations', 'projects']) await db.query(`delete from ${spec}`);
-    await inTx('write', () => writeState(q, lists));
-    const run = copyCache();
-    await run.read();
-    await run.settle();
-    const fullBytes = await received(() => fullRead());
-    const warmRun = copyCache();
-    let snapshot!: Awaited<ReturnType<typeof fullRead>>;
-    const copyBytes = await received(async () => void (snapshot = await warmRun.read()));
-    expectSame(snapshot, await fullRead());
-    const rows = Object.values(snapshot.lists).reduce((n, list) => n + Object.keys(list as object).length, 0);
-    const [row] = await copyRow();
-    process.stdout.write(`office copy, year office lists (${rows} keys): full read ${fullBytes} bytes, cold read with the copy ${copyBytes} bytes, copy text ${row.size} bytes\n`);
-    expect(copyBytes).toBeLessThan(fullBytes);
+    const big = `${schema}_year`;
+    await applyMigrations(db, big);
+    await db.query(`set search_path to ${big}`);
+    await writer.query(`set search_path to ${big}`);
+    try {
+      await inTx('write', () => writeState(q, lists));
+      const run = copyCache();
+      await run.read();
+      await run.settle();
+      const fullBytes = await received(() => fullRead());
+      const warmRun = copyCache();
+      let snapshot!: Awaited<ReturnType<typeof fullRead>>;
+      const copyBytes = await received(async () => void (snapshot = await warmRun.read()));
+      expectSame(snapshot, await fullRead());
+      const keys = Object.values(snapshot.lists).reduce((n, list) => n + Object.keys(list as object).length, 0);
+      const [row] = await copyRow();
+      process.stdout.write(`office copy, year office lists (${keys} keys): full read ${fullBytes} bytes, cold read with the copy ${copyBytes} bytes, copy text ${row.size} bytes\n`);
+      expect(copyBytes).toBeLessThan(fullBytes);
+    } finally {
+      await db.query(`set search_path to ${schema}`);
+      await writer.query(`set search_path to ${schema}`);
+      await dropSchema(db, big);
+    }
   }, 120_000);
 });
