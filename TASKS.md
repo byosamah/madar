@@ -1305,6 +1305,7 @@ Hyperdrive.
 - [ ] Proposed: load only the parts of the office that a call needs. The copy above does most of the saving, so this waits for the measure after the release. Not approved yet.
 - [ ] MCP requests that run no tool (`initialize`, `tools/list`) still read the whole office. Not changed in tsk_496: a partial office needs a partial snapshot type, which is not small or safe, and with the copy the saving is about 2 KB.
 - [ ] Proposed: run the 15-minute job only 06:00 to 22:00 Riyadh (about 0.2 GB). Not approved yet.
+- [ ] Proposed (tsk_500): keep profile pictures and logos out of the office load. Production's copy is 61.6 KB of a 116 KB office (50% less), because picture data does not shrink. Not approved yet.
 - [ ] Ask Supabase (or read the banner) whether the 22 Nov restriction looks at the cycle that ends on 3 Nov, which is already over.
 - [ ] Log Ingestion 241% (not yet billed): PostgREST restarts about every 32 s with empty schemas. Madar does not use the Data API.
 

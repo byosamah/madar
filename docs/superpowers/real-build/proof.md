@@ -2937,3 +2937,7 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` by Claude after the owner chose "Production now" (2026-11-01, about 09:15 UTC). Live
   checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401. The live words file
   (`words.en-*.js`) holds the new text "in the same week".
+- Production after the release (read-only, 2026-11-01): the copy was written at 09:12:54 UTC (version 1977, 213 rows, 61,584 bytes); the
+  full office is 221 rows and 115,956 bytes of documents (users 53,631, projects 23,210, sub_companies 12,938, stages 8,059), so a cold read
+  takes about 50% less (the test copy: 77%). Picture data (profile pictures, logos) fills most of users and sub_companies and does not
+  shrink in gzip: to-do tsk_500 proposes to keep it out of the office load. No warning or error in the production logs from 09:01 to 09:17.
