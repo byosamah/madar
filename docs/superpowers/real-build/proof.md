@@ -2982,3 +2982,26 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   Live checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and
   `/favicon.ico` 200; madar.vado.sa serves `index-BZuZIV9D.js`, the same as the deploy address, and `words.en-yOwmLxw7.js` holds
   "Long stage names stay in the stage box".
+
+### Release record: production at 3e68bd6e (2026-11-02, after fbk_077: long names stay on a phone screen in the people lists)
+- Why (owner: "go ahead" on a check of the other fieldsets after fbk_077): with one long name in the prototype at 390 px, the people
+  list of Admin, Teams, "Add team" grew to 646 px in 348 px, and the Team list of the New project sheet to 543 px. Both sheets
+  scrolled sideways, and the job titles left the screen. The filter fieldsets (Projects, To-dos, Tracker, Activity), the office
+  hours and the template roles fitted.
+- What shipped (`rb/fieldset-fit`, tests first): `fieldset { min-inline-size: 0 }` in the base layer of `src/design/tokens.css`. It
+  acts only where a fieldset was wider than its box, so no other layout changes. The Team list grid of `ProjectFields.tsx` also gets
+  `grid-cols-1`: a grid with no column list made one automatic column of 543 px. What's new `2026-11-02-145`
+  (`real/fieldsetfit.*.json`). Guides: `src/CLAUDE.md`, `src/design/CLAUDE.md`. No server change, no new call, no MCP change.
+- Gates. The new tests of `tokens.test.ts` and `NewProjectTemplate.test.tsx` failed first, then passed. Typecheck; the touched
+  tests (15 files, 156 tests); `check-rtl`; `npm run build`. Full `npm test` once: 12,754 passed, 1 failed:
+  `server/office/dashboardYear.test.ts` (fails on main too). Not run: test:lite, test:office, test:db, test:it, test:mcp, the smoke
+  and the deploy suite (a screen-only CSS change). Shots before and after (EN/AR, light/dark, 390 px; desk) and a 390 px sweep of
+  the other fieldset screens, in the scratchpad.
+- Test copy: `all.sh test` of 3e68bd6e passed (health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no
+  token 401). By hand in Chrome on a desk, with a 50-letter name typed into the page: both fieldsets have min-width 0px and fill
+  their box, the Team grid has `grid-cols-1`, the name truncates, no sideways scroll. The test copy refuses a frame (its CSP), so the
+  390 px check stayed on the prototype. The served `words.en-DxMkJJ4l.js` holds the new title.
+- `echo production | scripts/deploy/all.sh production` by the owner with `!` after he chose "Release now" (2026-11-02, about 11:10
+  UTC). Live checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title
+  Madar and `/favicon.ico` 200; madar.vado.sa serves `index-CaGfhl83.js`, the same as the deploy address; the live
+  `index-ChCi9RyD.css` holds `fieldset{min-inline-size:0}`, and `words.en-DxMkJJ4l.js` holds "Long names stay on the screen".

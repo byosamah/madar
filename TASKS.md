@@ -1350,4 +1350,4 @@ the screen. The filter fieldsets hold short words and fitted.
   `NewProjectTemplate.test.tsx`. The roles grid of a template fitted (its selects shrink).
 - [x] What's new `2026-11-02-145` (`real/fieldsetfit.*.json`). Guides: `src/CLAUDE.md`, `src/design/CLAUDE.md`. No MCP change.
 - [x] Shots before and after (EN/AR, light/dark, 390 px; desk), and a sweep of the filter fieldsets at 390 px, in the scratchpad.
-- [ ] Release.
+- [x] Release: test copy, then production by the owner. Done 2026-11-02: production at 3e68bd6e.
