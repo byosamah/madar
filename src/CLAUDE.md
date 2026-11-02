@@ -111,6 +111,8 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
   own language: Arabic from the right, English from the left. Put `dir="auto"` on the text, never on a flex or grid box or with
   `text-start` or `text-end`: `scripts/check-rtl.ts` fails on that. A name with a colon is one `<bdi>`.
 - A direction isolate is needed for a name or an invoice number inside an Arabic sentence (`isolate`).
+- A `<fieldset>` is at least as wide as its widest line by default (`min-inline-size: min-content`). Give it `min-w-0` when a child
+  truncates or must wrap, or a long name pushes it out of its card (fbk_077; `StageControl.tsx`, `MeetingForm.tsx`).
 
 ## Before you call a screen change done
 - A change to a picture, a ring or a people stack: check it with a real photo, not initials. Put a photo in the saved office:
@@ -121,7 +123,7 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
 - Prototype language and theme live in IndexedDB (the person menu from 640 px, the Me tab on a phone). A switch takes a few seconds, and
   `<html lang>` can show the old value meanwhile. Wait before a screenshot.
 - A quick 390 px check without Playwright: in the claude-in-chrome tab, add a fixed 390 x 844 `iframe` of the same page (`innerWidth` is
-  390). Switch the language or theme in the outer tab, then load the frame again (they share IndexedDB). Measure a phone text fit at 360 px and
+  390; give it `border: none`, because a 2 px border makes 386). Switch the language or theme in the outer tab, then load the frame again (they share IndexedDB). Measure a phone text fit at 360 px and
   390 px in both languages: Arabic buttons («إرسال») are wider. To check a press area, use `elementFromPoint` on a grid around the element:
   a box measure misses an `after:` press strip.
 - Shots from a branch worktree: `npx vite build --outDir test-results/proto-<x>`, then `python3 -m http.server <port> --bind 127.0.0.1` there
@@ -142,6 +144,9 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
   (`TaskSheetTyping.test.tsx`). A Home Today test first moves the other to-dos of its person out of Today (the sample office has more). A panel
   that waits for its own query (DecisionsPanel on `projects.get`) can come after the card: wait for the panel itself.
 - `vite preview` sends no CSP, so only the deploy suite on the test copy catches a policy break.
+- jsdom draws no layout. For an overflow fix, measure `getBoundingClientRect` and `getComputedStyle` in Chrome before and after, then
+  pin the class in the test (fbk_077). The sample stage names are short: rename them in the saved office (`state.stages[id].name`) to
+  see a long-name bug.
 - A test helper that makes a router awaits `preloadScreens()` at the top of its module (`test/render.tsx`, `test/heldRemoteApp.tsx`,
   `features/auth/renderAuth.tsx`). Without it the first frame is empty and React Router warns that a HydrateFallback is absent.
   `test/setup.ts` gives the words of both languages to the screens (`addWords`).
