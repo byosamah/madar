@@ -1329,3 +1329,13 @@ Decisions: "at the same time" is the same Sunday to Saturday week as the due dat
 - [x] Gates once: `npm test` (3 failed: 2 screen files passed again alone, `server/office/dashboardYear.test.ts` is the known failure on main), `npm run build`, `npm run build:remote -- test`, `npm run test:lite` (the lead runs `test:db`, `test:it`, `test:mcp`, `test:office`).
 - [x] Screenshots (EN/AR, light/dark, 390 px; one desk panel shot), in the scratchpad of the builder.
 - [x] Lead: the What's new day 2026-11-01 is the release day. The lead ran `test:db`, `test:it`, `test:mcp` and `test:office` (all pass), rebased on main, deployed the test copy, checked the office sheet by hand there, and released 52758942 to production on 2026-11-01 (owner: "Production now"; the 45-minute deploy suite skipped).
+
+## Team report fbk_077 (Faisal, 2026-11-02; branch `rb/fbk077`)
+Report: in a narrow (portrait) window, the stage list of the project header shows the "Needs first" names and hint past the edge of
+the stage box, with a sideways scroll bar.
+Cause: a `<fieldset>` is at least as wide as its widest line by default (`min-inline-size: min-content`), so the long two-language
+stage names pushed it 18 px out of the card, and `truncate` never cut them. `MeetingForm.tsx` already had the cure.
+- [x] Test first (`ProjectScreen.test.tsx`, fbk_077), then `min-w-0` on the fieldset in `src/features/project/StageControl.tsx`.
+- [x] What's new `2026-11-02-144` (`real/fbk077.*.json`). No MCP change: no call or rule changed.
+- [x] Screenshots (EN/AR, light/dark, desk and 390 px) with the stage names of prj_007, in the scratchpad.
+- [ ] Release: merge to main, the test copy, then production; mark fbk_077 done after production.

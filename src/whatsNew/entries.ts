@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // A long stage name under "Needs first" stays in the stage box of the Stages list and ends with "..." (fbk_077). The lead sets the real release day before the test deploy.
+  { id: '2026-11-02-144', day: '2026-11-02' },
   // A failed map file after a release reloads the page once, so a project page with a pin shows no error page (PostHog, tsk_501). The lead sets the real release day before the test deploy.
   { id: '2026-11-02-143', day: '2026-11-02' },
   // A quiet note shows the other to-dos of the lead in the same week, in the New to-do sheets and after a change in the to-do panel (tsk_499). The lead sets the real release day before the test deploy.

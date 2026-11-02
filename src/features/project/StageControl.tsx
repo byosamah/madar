@@ -54,8 +54,9 @@ function StageDetails({ detail, stage }: { detail: ProjectDetail; stage: Stage }
       {tasks.data && <p className="text-subheadline text-ink-2">{t('project.stageTasks', { done, total: inStage.length })}</p>}
       {overlapText && <p dir="auto" className="text-subheadline text-ink-2">{overlapText}</p>}
       {waiting.length > 0 && <p dir="auto" className="text-subheadline font-medium text-ink">{t('project.stageWaiting', { names: list.format(waiting.map((other) => other.name)) })}</p>}
+      {/* min-w-0: a fieldset is at least as wide as its widest line by default, and a long stage name then left the card (fbk_077). */}
       {detail.viewerCan.editStages ? (
-        <fieldset className="mt-2 flex flex-col">
+        <fieldset className="mt-2 flex min-w-0 flex-col">
           <legend className="pb-1 text-footnote font-semibold text-ink-2">{t('project.stageNeeds')}</legend>
           <p className="pb-1 text-footnote text-ink-2">{t('project.stageNeedsHint')}</p>
           {others.length === 0 && <p className="text-footnote text-ink-2">{t('project.stageNoNeeds')}</p>}

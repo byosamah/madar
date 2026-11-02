@@ -66,6 +66,17 @@ describe('the Project screen header', () => {
     expect(await within(popover).findByText('Waiting for Construction Documents')).toBeInTheDocument();
   });
 
+  // A fieldset is at least as wide as its widest line by default (min-inline-size: min-content). A long stage name then pushed
+  // "Needs first" out of the stage card on a narrow window (fbk_077). jsdom draws no layout, so the test pins the class that stops it.
+  it('keeps the "Needs first" list inside the stage card, so a long stage name truncates (fbk_077)', async () => {
+    await renderApp(PROJECT, as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: /Construction Documents/ }));
+    const popover = screen.getByRole('dialog', { name: 'Stages' });
+    const needs = within(popover).getByRole('group', { name: 'Needs first' });
+    expect(needs).toHaveClass('min-w-0');
+    expect(within(needs).getByText('Permits')).toHaveClass('truncate');
+  });
+
   it('shows the prerequisites of a stage as text to a person who cannot change them', async () => {
     await renderApp(PROJECT, as('usr_004'));
     await userEvent.click(await screen.findByRole('button', { name: /Construction Documents/ }));

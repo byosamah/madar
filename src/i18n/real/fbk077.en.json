@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-11-02-144": {
+        "title": "Long stage names stay in the stage box",
+        "body": "In a narrow window, a long stage name under \"Needs first\" went past the edge of the stage box. Now the name stays in the box and ends with \"...\"."
+      }
+    }
+  }
+}
