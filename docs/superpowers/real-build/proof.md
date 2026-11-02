@@ -2941,3 +2941,24 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   full office is 221 rows and 115,956 bytes of documents (users 53,631, projects 23,210, sub_companies 12,938, stages 8,059), so a cold read
   takes about 50% less (the test copy: 77%). Picture data (profile pictures, logos) fills most of users and sub_companies and does not
   shrink in gzip: to-do tsk_500 proposes to keep it out of the office load. No warning or error in the production logs from 09:01 to 09:17.
+
+### Release record: production at a8370c03 (2026-11-02, tsk_501: a failed map file after a release reloads the page once)
+- Why (PostHog check of 2026-11-02, owner: "check posthog"): on 28 Oct a tab from before the release asked for the old MapCanvas file 8
+  times on 4 project pages ("Failed to fetch dynamically imported module"). No error boundary sits around the map, so the route error page
+  took the whole project page each time. The screens and the lazy overlays already reload once on a failed import; the map did not.
+- What shipped (`rb/map-reload`, built by the lead, tests first). `lazyMapCanvas` (`src/features/map/mapLib.ts`) runs the chunk import
+  through `reloadOnFailedImport` (`app/importReload.ts`, which imports nothing). `warmMap` stays quiet on a failure. What's new
+  `2026-11-02-143` (`real/mapreload.*.json`). No server change, no new call, no MCP change.
+- Gates. The new test of `mapLib.test.tsx` failed first (no reload, the error left the Suspense), then passed. Typecheck; the touched tests
+  (33 files, 275 tests); `npm run build`; `build:remote -- test` (first load 32 files, 964,982 B, no change of the limits). Full `npm test`
+  once, at a load average of 34: 12,749 passed, 3 failed: `server/office/dashboardYear.test.ts` (fails on main too), and
+  `ChatListStage.test.tsx` and `ReactionAny.test.tsx`, which passed alone (11 of 11). Not run: test:lite, test:office, test:db, test:it,
+  test:mcp, the smoke and the deploy suite (a screen-only change of one loader).
+- Test copy: `all.sh test` of a8370c03 passed (health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401).
+  By hand in Chrome: What's new shows the entry under 2 Nov; `/projects/prj_001` loads the MapCanvas chunk, the library and the worker, draws
+  the map canvas and shows no error page. The served `words.en-*.js` and `words.ar-*.js` hold the new title.
+- `echo production | scripts/deploy/all.sh production` by Claude after the owner chose "Production now" (2026-11-02, about 09:25 UTC).
+  Live checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and
+  `/favicon.ico` 200; the live `words.en-BDj7zmup.js` holds "The project page works after an update".
+- PostHog the same day (owner OK): the 6 old error issues marked resolved (the two CSP eval issues, the map file issue, the job connection
+  issue and the two health check issues of the madar-test pooler outage of 30 Oct). A resolved issue opens again when its error comes back.
