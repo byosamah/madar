@@ -10,6 +10,9 @@ of coordinates. The Dashboard Map tab is `src/features/dashboard/DashboardMap.ts
   `scripts/check-bundles.ts` fails a prototype dist or a first load that holds the `maplibregl-` marker.
 - `mapLib.ts` is the loader and holds no map code. A screen makes its lazy canvas with `lazyMapCanvas()`, which starts the library request
   with the chunk request. A pointer down on the Dashboard Map tab calls `warmMap()`. The map never joins the idle prefetch.
+- `lazyMapCanvas` runs the chunk import through `reloadOnFailedImport` (`app/importReload.ts`): a failed MapCanvas file reloads the page
+  once, as a screen change does. No error boundary sits around the map, so before this a tab from before a release showed the error page
+  for the whole project page (PostHog, 2026-10-28: 8 times on 4 projects, tsk_501). `warmMap` stays quiet on a failure.
 - The worker is a `?worker&url` import (it needs its own imports bundled). `releaseUrl` adds `VITE_MADAR_BUILD` to the worker address:
   a browser keeps an assets file for a year, and the worker obeys the policy header of its own file.
 - No Arabic text plugin (owner, 2026-10-28, tsk_486). MapLibre 6 shapes Arabic text by itself: the map drew the same pixels with

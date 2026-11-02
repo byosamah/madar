@@ -1,5 +1,6 @@
 import { lazy } from 'react';
 import type * as MapLib from 'maplibre-gl';
+import { reloadOnFailedImport, type PageReload } from '../../app/importReload';
 import { SATELLITE_SCHEME, loadSatelliteTile } from './satellite';
 
 /**
@@ -54,11 +55,13 @@ const quiet = () => undefined;
 /**
  * The lazy MapCanvas of a screen. The library request starts with the chunk request of the canvas, so the two downloads overlap
  * (FL-17), where the library started only after the canvas chunk ran. A failed library load shows at the canvas, which asks again.
+ * A failed canvas chunk reloads the page once, as a screen change does (`reloadOnFailedImport`): after a release, a tab from before
+ * it asks for a MapCanvas file that the host no longer has, and the error page took the whole project page (PostHog, 2026-10-28).
  */
-export function lazyMapCanvas() {
+export function lazyMapCanvas(page?: PageReload) {
   return lazy(() => {
     loadMapLib().catch(quiet);
-    return import('./MapCanvas');
+    return reloadOnFailedImport(() => import('./MapCanvas'), page);
   });
 }
 

@@ -86,6 +86,39 @@ describe('the map loader', () => {
     }
   });
 
+  it('reloads the page once when the MapCanvas file is gone after a release, so the project page shows no error page', async () => {
+    // PostHog, 2026-10-28: a tab from before the release asked for the old MapCanvas file 8 times on 4 project pages, and each
+    // time the error page took the whole project page (no boundary sits around the map). The screens reload once for this.
+    let marked: string | null = null;
+    const reload = vi.fn();
+    const page = {
+      online: () => true,
+      href: () => 'https://madar.vado.sa/projects/prj_008',
+      markedHref: () => marked,
+      mark: (href: string) => {
+        marked = href;
+        return true;
+      },
+      unmark: () => {
+        marked = null;
+      },
+      reload,
+    };
+    vi.doMock('./MapCanvas', () => {
+      throw new Error('Failed to fetch dynamically imported module: https://madar.vado.sa/assets/MapCanvas-D-EA-TNl.js');
+    });
+    try {
+      const { lazyMapCanvas } = await import('./mapLib');
+      const Canvas = lazyMapCanvas(page);
+      render(<Suspense fallback={<p>Map wait</p>}><Canvas pins={[]} /></Suspense>);
+      await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+      expect(marked).toBe('https://madar.vado.sa/projects/prj_008');
+      expect(screen.getByText('Map wait')).toBeInTheDocument();
+    } finally {
+      vi.doMock('./MapCanvas', () => ({ default: () => <div role="region" aria-label="Map double" /> }));
+    }
+  });
+
   it('adds the release to the worker address', async () => {
     const { releaseUrl } = await import('./mapLib');
     expect(releaseUrl('/assets/w.js', '2026.10.19')).toBe('/assets/w.js?release=2026.10.19');

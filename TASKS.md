@@ -1307,6 +1307,13 @@ Hyperdrive.
 - [ ] Proposed: run the 15-minute job only 06:00 to 22:00 Riyadh (about 0.2 GB). Not approved yet.
 - [ ] Proposed (tsk_500): keep profile pictures and logos out of the office load. Production's copy is 61.6 KB of a 116 KB office (50% less), because picture data does not shrink. Not approved yet.
 - [ ] Ask Supabase (or read the banner) whether the 22 Nov restriction looks at the cycle that ends on 3 Nov, which is already over.
+
+## PostHog check of 2026-11-02 (owner: "check posthog")
+Production had no browser error after the release of 28 Oct. The 147 server errors of 30 Oct are the madar-test pooler outage (proof.md).
+Slow `files.upload` steps follow the file size (205 MB: 12 s). The owner marked the 6 old issues resolved.
+- [ ] tsk_501 (owner: "Fix it now"): a failed MapCanvas file after a release reloads the page once (`lazyMapCanvas` in
+  `src/features/map/mapLib.ts`). Before, the error page took the whole project page (8 times on 4 projects, 28 Oct). What's new
+  `2026-11-02-143`. Branch `rb/map-reload`.
 - [ ] Log Ingestion 241% (not yet billed): PostgREST restarts about every 32 s with empty schemas. Madar does not use the Data API.
 
 ## Busy-week note for a new or changed to-do (tsk_499, owner decisions of 2026-11-01; branch `rb/busy-week`)

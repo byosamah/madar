@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-11-02-143": {
+        "title": "The project page works after an update",
+        "body": "When Madar gets an update while your page is open, a page with a map now reloads once by itself. Before, you saw an error page until you reloaded it."
+      }
+    }
+  }
+}
