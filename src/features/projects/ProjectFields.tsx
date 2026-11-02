@@ -199,7 +199,8 @@ function TeamPicker({ people, value, onChange, locked }: { people: User[]; value
   return (
     <fieldset className="flex flex-col gap-1">
       <legend className="pb-1 text-footnote text-label-2">{t('projectForm.team')}</legend>
-      <div className="grid gap-1 sm:grid-cols-2">
+      {/* grid-cols-1: an automatic column is as wide as the longest name, and a long name pushed the list past a phone edge. */}
+      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
         {people.map((person) => (
           <label key={person.id} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-fill">
             <input

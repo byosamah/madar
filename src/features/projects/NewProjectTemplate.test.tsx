@@ -46,6 +46,14 @@ describe('the New Project sheet with a project template', () => {
     expect(template.compareDocumentPosition(client) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  // A grid with no column list makes one automatic column as wide as the longest name, so a long name pushed the Team list past
+  // the phone edge (543 px at 390 px, after fbk_077). grid-cols-1 gives a column that can shrink, and the name truncates.
+  it('keeps the Team list inside the sheet on a phone: its grid has one column that can shrink (fbk_077)', async () => {
+    const { sheet } = await openSheet();
+    const team = within(sheet).getByRole('group', { name: 'Team' });
+    expect(team.querySelector(':scope > div')).toHaveClass('grid-cols-1', 'sm:grid-cols-2');
+  });
+
   it('ticks the people of the roles in the team list and locks their tick with the role name (ADM-20)', async () => {
     const { sheet } = await openSheet();
     await userEvent.selectOptions(within(sheet).getByLabelText('Start from a template'), TEMPLATE);

@@ -119,6 +119,16 @@ describe('text with its own direction', () => {
   });
 });
 
+// A browser makes a fieldset at least as wide as its widest line (min-inline-size: min-content). A long name in a picker then pushed
+// the fieldset, and the sheet, past the screen edge (fbk_077: the Stages list; then the team picker of Admin, Teams and the Team of the
+// New project sheet, 646 px and 543 px wide at 390 px). One base rule keeps every fieldset inside its box.
+describe('fieldsets', () => {
+  it('never grow past their box: the base layer sets min-inline-size 0', () => {
+    const base = css.slice(css.indexOf('@layer base {'));
+    expect(base).toMatch(/\n\s+fieldset \{\n\s+min-inline-size: 0;\n\s+\}/);
+  });
+});
+
 describe('the font stacks', () => {
   // The owner's font since 2026-10-05: Thmanyah Sans for Arabic and English (font.thmanyah.com, free, licence in each file).
   const FACE = /@font-face \{[^}]*\}/g;

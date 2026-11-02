@@ -320,6 +320,11 @@
   [data-animated-icon] svg {
     display: block;
   }
+  /* A browser makes a fieldset at least as wide as its widest line. A long name in a picker then pushed the fieldset past its
+     card or the screen edge, and a truncated name never cut (fbk_077). With 0 the fieldset fills its box and never grows past it. */
+  fieldset {
+    min-inline-size: 0;
+  }
   html {
     background: linear-gradient(180deg, var(--c-page-top), var(--c-page-bottom)) fixed, var(--c-page-bottom);
     color: var(--c-ink);

@@ -1339,3 +1339,15 @@ stage names pushed it 18 px out of the card, and `truncate` never cut them. `Mee
 - [x] What's new `2026-11-02-144` (`real/fbk077.*.json`). No MCP change: no call or rule changed.
 - [x] Screenshots (EN/AR, light/dark, desk and 390 px) with the stage names of prj_007, in the scratchpad.
 - [x] Release: test copy, then production by the owner. fbk_077 marked done. Done 2026-11-02: production at d4ad023b.
+
+## Fieldsets after fbk_077 (owner: "go ahead", 2026-11-02; branch `rb/fieldset-fit`)
+Check of the other 17 fieldsets. With one long name (prototype, 390 px), two broke: the people list of Admin, Teams, "Add team"
+(646 px in 348 px) and the Team list of the New project sheet (543 px in 348 px). Both scrolled sideways, and the job titles left
+the screen. The filter fieldsets hold short words and fitted.
+- [x] `fieldset { min-inline-size: 0 }` in the base layer of `src/design/tokens.css` (test first in `tokens.test.ts`). It acts only
+  where a fieldset was wider than its box, so no other layout changes.
+- [x] The Team list grid of `ProjectFields.tsx` gets `grid-cols-1` (its automatic column was 543 px); test first in
+  `NewProjectTemplate.test.tsx`. The roles grid of a template fitted (its selects shrink).
+- [x] What's new `2026-11-02-145` (`real/fieldsetfit.*.json`). Guides: `src/CLAUDE.md`, `src/design/CLAUDE.md`. No MCP change.
+- [x] Shots before and after (EN/AR, light/dark, 390 px; desk), and a sweep of the filter fieldsets at 390 px, in the scratchpad.
+- [ ] Release.

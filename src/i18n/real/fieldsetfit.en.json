@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-11-02-145": {
+        "title": "Long names stay on the screen",
+        "body": "On a phone, a long name went past the edge of the screen. This happened in the people list when you made a new team or a new project. Now the name stays on the screen and ends with \"...\"."
+      }
+    }
+  }
+}

@@ -111,8 +111,9 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
   own language: Arabic from the right, English from the left. Put `dir="auto"` on the text, never on a flex or grid box or with
   `text-start` or `text-end`: `scripts/check-rtl.ts` fails on that. A name with a colon is one `<bdi>`.
 - A direction isolate is needed for a name or an invoice number inside an Arabic sentence (`isolate`).
-- A `<fieldset>` is at least as wide as its widest line by default (`min-inline-size: min-content`). Give it `min-w-0` when a child
-  truncates or must wrap, or a long name pushes it out of its card (fbk_077; `StageControl.tsx`, `MeetingForm.tsx`).
+- A browser makes a `<fieldset>` at least as wide as its widest line. The base layer of `tokens.css` sets `min-inline-size: 0` on every
+  fieldset (fbk_077, pinned in `tokens.test.ts`), so a new one needs no class. A grid with no column list inside it still makes one
+  automatic column as wide as its longest name: write `grid-cols-1 sm:grid-cols-2`, never `sm:grid-cols-2` alone, around a list of names.
 
 ## Before you call a screen change done
 - A change to a picture, a ring or a people stack: check it with a real photo, not initials. Put a photo in the saved office:

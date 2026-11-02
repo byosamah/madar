@@ -8,6 +8,8 @@ the same system for people and for design tools (Google DESIGN.md format, alpha,
 - `tokens.css`: the CSS variables, light and dark. `tokens.test.ts` checks the contrast of the text pairs. It also pins the four
   exact font-family stacks, the font faces, and the `unicode-range` of Madar Dot and Madar Digits. A new family, a new face or
   a change to a stack or a range fails it.
+- The base layer of `tokens.css` also holds layout resets: `fieldset { min-inline-size: 0 }` keeps every fieldset inside its box
+  (fbk_077; `tokens.test.ts` pins it). It is no token, so `DESIGN.md` does not change.
 - `--phone-bar` is the room of the phone tab bar. The shell sets `data-bar-hidden` on `<html>` while the bar hides (an open
   chat, the keyboard, Focus mode), and the token goes to 0. Use it for page padding and the toast lane. `--chat-h` is not a
   token: `PhoneChatPage` sets it inline on the chat root, and the composer and the @ list read it with a `100dvh` fallback.
