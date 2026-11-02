@@ -2962,3 +2962,23 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   `/favicon.ico` 200; the live `words.en-BDj7zmup.js` holds "The project page works after an update".
 - PostHog the same day (owner OK): the 6 old error issues marked resolved (the two CSP eval issues, the map file issue, the job connection
   issue and the two health check issues of the madar-test pooler outage of 30 Oct). A resolved issue opens again when its error comes back.
+
+### Release record: production at d4ad023b (2026-11-02, fbk_077: long stage names under "Needs first" stay in the stage box)
+- Why (team report fbk_077, Faisal, with a screenshot of prj_007): in a portrait window, the "Needs first" names and hint of the Stages
+  list ran past the stage card, with a sideways scroll bar. Cause: a `<fieldset>` is at least as wide as its widest line by default
+  (`min-inline-size: min-content`), so the long two-language stage names pushed it 18 px out of the card and `truncate` never cut them.
+  Proved in the prototype before the fix (fieldset 280 px in a card with 262 px of room, computed min-width "min-content").
+- What shipped (`rb/fbk077`, tests first): `min-w-0` on the fieldset in `src/features/project/StageControl.tsx`, the cure that
+  `MeetingForm.tsx` already had. The owner kept the cut with "..." over a wrap to two lines. What's new `2026-11-02-144`
+  (`real/fbk077.*.json`). No server change, no new call, no MCP change.
+- Gates. The new test of `ProjectScreen.test.tsx` failed first (no `min-w-0`), then passed. Typecheck; the touched tests (5 files, 101
+  tests); `src/i18n` and `src/whatsNew` (110 tests); `check-rtl`; `npm run build`. Full `npm test` once: 12,752 passed, 1 failed:
+  `server/office/dashboardYear.test.ts` (fails on main too). Not run: test:lite, test:office, test:db, test:it, test:mcp, the smoke and
+  the deploy suite (a screen-only change of one class). Screenshots EN/AR, light/dark, desk and 390 px, with the stage names of prj_007.
+- Test copy: `all.sh test` of d4ad023b passed (health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token
+  401). By hand in Chrome on `/projects/prj_001`: the fieldset has min-width 0px and fits its 262 px, long names end with "...", and the
+  list has no sideways scroll. The served `words.en-yOwmLxw7.js` holds the new title.
+- `echo production | scripts/deploy/all.sh production` by the owner with `!` after he chose "Release now" (2026-11-02, about 10:45 UTC).
+  Live checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and
+  `/favicon.ico` 200; madar.vado.sa serves `index-BZuZIV9D.js`, the same as the deploy address, and `words.en-yOwmLxw7.js` holds
+  "Long stage names stay in the stage box".

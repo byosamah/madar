@@ -1338,4 +1338,4 @@ stage names pushed it 18 px out of the card, and `truncate` never cut them. `Mee
 - [x] Test first (`ProjectScreen.test.tsx`, fbk_077), then `min-w-0` on the fieldset in `src/features/project/StageControl.tsx`.
 - [x] What's new `2026-11-02-144` (`real/fbk077.*.json`). No MCP change: no call or rule changed.
 - [x] Screenshots (EN/AR, light/dark, desk and 390 px) with the stage names of prj_007, in the scratchpad.
-- [ ] Release: merge to main, the test copy, then production; mark fbk_077 done after production.
+- [x] Release: test copy, then production by the owner. fbk_077 marked done. Done 2026-11-02: production at d4ad023b.
