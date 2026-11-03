@@ -3027,3 +3027,22 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   Live checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and
   `/favicon.ico` 200; madar.vado.sa serves `index-B4ngPnIY.js`, the same as the deploy address; `words.en-ClTkGV1t.js` holds
   "Three fixes in Insert from a project".
+
+### Release record: production at 7140e9c3 (2026-11-03, a video plays in chats, comments and the Files tab)
+- Why (owner question "why there's no preview and play of the video on chat?"): a video showed only as a chip that downloaded it. No
+  screen had a video player, and the CSP had no `media-src`, so `default-src 'self'` would refuse a video of the file store. Owner
+  answers: a tile with the first frame that opens a full screen player, in chats, comments and the Files tab.
+- What shipped (`rb/video`, tests first): `isInlineVideo` (MP4, WebM, QuickTime: the inline list of the server), `VideoTile` in
+  `AttachmentList`, `components/VideoViewer.tsx`, the video branch of `PreviewSheet` and `canPreview`, and `media-src 'self' {{FILES}}`
+  in `config/headers.template`. What's new `2026-11-03-147` (`real/video.*.json`). No MCP change: no call, right or rule changed.
+- Gates: the 11 new tests failed first, then passed. Typecheck, the touched folders (441 tests), `npm run build` and `build:remote --
+  test` (first load 965,326 B of 970,000) passed. Skipped before production by the owner's choice ("To production now"): the full
+  `npm test` and the smoke; they run after this record. No server, contract or MCP file changed, so test:lite, test:office, test:db,
+  test:it and test:mcp did not run. Shots (scratchpad): EN/AR, light/dark at 390 px in Chrome, iPhone 15 in WebKit, a 1280 px desk.
+- Test copy: `all.sh test` failed twice on a cold start right after the deploy (run 1: POST /mcp gave no answer in 20 s; run 2: the
+  health check with the jobs secret gave no answer in 20 s). `checks.sh test` alone passed in 3 s, and run 3 passed and recorded
+  7140e9c. By hand in Chrome as the sample Admin: an MP4 sent in the direct chat with Faisal loads in the tile from the R2 host
+  (readyState 4, 1280 x 720), and the full screen player plays it (3.5 s after 2 s). The live CSP holds `media-src` with the R2 host.
+- `echo production | scripts/deploy/all.sh production` by Claude after the owner's answer, 2026-11-03. Live checks: health from
+  supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and `/favicon.ico` 200; the
+  CSP holds `media-src 'self' https://<account>.eu.r2.cloudflarestorage.com`; `markRead-CmRfwlBr.js` holds the tile code (`#t=0.1`).

@@ -1385,4 +1385,7 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
 - [x] Words `real/video.*`, What's new `2026-11-03-147`, guides (files, project, deploy), decision log. No MCP change: no call or right changed.
 - [x] Shots in the scratchpad (`shots/`): EN/AR, light/dark at 390 px in Chrome, iPhone 15 in WebKit, and a 1280 px desk. The tile
   shows the first frame in each, stays inside its bubble, and the player starts by itself. No side scroll. No page errors.
-- [ ] Gates, then release: test copy (check one real MP4 on R2 with the real CSP), then production.
+- [x] Release: test copy (a real MP4 played from R2 with the real CSP), then production at 7140e9c3 on 2026-11-03 (proof.md).
+- [ ] After production, by the owner's choice: the full `npm test` and the prototype smoke.
+- [ ] Open, not fixed: `all.sh test` failed twice on a cold start (POST /mcp, then the health check with the jobs secret, each one try
+  of 20 s). Proposal: give checks 2 and 3 of `checks.sh` the tries of check 1.
