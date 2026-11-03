@@ -1367,4 +1367,12 @@ items. The lead checked the top three in the code. All three were real.
 - [ ] Open, not fixed (owner picked only the three bugs): `chats.insertProjects` builds the rights of each person again for each project
   (build each person once before the loop); the clip menu hides "Insert from a project" in a project chat from a person without
   `file.share`, while the server allows it there; very long file names are cut at `MESSAGE_MAX` and then show as cut words in the bubble.
+- [ ] Found at the gate of this batch, also red on main 8d84f776 (not caused by it): `server/office/dashboardYear.test.ts` ("gives the same
+  answer as before the change": the fingerprint differs) and `src/features/inbox/ReactionAny.test.tsx` ("closes the message sheet before the
+  emoji sheet opens": the message sheet is still there, 3 of 3 runs). 9 other files of the full run passed alone (time limits at a load of 120).
+- [x] Gates, each once: typecheck, build:server, build:remote test, test:lite, test:office, test:db, test:mcp and the smoke (136 of 136)
+  passed. test:it: 362 tests passed, and moveToR2.it.test.ts passed again after a MinIO 503 at its setup. npm test: 12 red at a load of
+  120, 9 files passed alone, MeetingsCard passed on a second run, and the 2 above are red on main too. Shots in the scratchpad: the chat
+  after a reply with 12 files (EN, light, desk) and the What's new line (AR, dark, 390 px). The deploy suite is skipped: a hand check on
+  the test copy instead.
 - [ ] Release: test copy, then production.
