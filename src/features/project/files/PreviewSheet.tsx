@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../../../app/useIsPhone';
-import { useFileLink, useFileUrl, usePictureTest } from '../../../app/files';
+import { isInlineVideo, useFileLink, useFileUrl, usePictureTest } from '../../../app/files';
 import { useDownloadFile } from '../../../app/useDownloadFile';
 import { PRIVATE } from '../../../app/privateMark';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
 import { ImageViewer } from '../../../components/ImageViewer';
+import { VideoViewer } from '../../../components/VideoViewer';
 import { Sheet } from '../../../components/Sheet';
 import { lazyOverlay } from '../../../app/lazyOverlay';
 import { officeKindOf, type OfficeKind } from '../../files/office/officeKind';
@@ -18,10 +19,12 @@ import { officeKindOf, type OfficeKind } from '../../files/office/officeKind';
 const officeBody = lazyOverlay(() => import('../../files/office/OfficeBody').then((m) => m.OfficeBody));
 
 /**
- * True for a file the preview can show: a picture, a PDF, a Word file (.docx) or an Excel file (.xlsx). The name only matters for a file
- * whose type says nothing (tsk_495). PowerPoint, .doc and .xls stay a download.
+ * True for a file the preview can show: a picture, a PDF, a Word file (.docx) or an Excel file (.xlsx), or a video that the server shows
+ * inline (MP4, WebM, QuickTime; owner, 2026-11-03). The name only matters for a file whose type says nothing (tsk_495). PowerPoint, .doc,
+ * .xls and other videos stay a download.
  */
-export const canPreview = (mimeType: string, name?: string) => mimeType.startsWith('image/') || mimeType === 'application/pdf' || officeKindOf(mimeType, name) !== null;
+export const canPreview = (mimeType: string, name?: string) =>
+  mimeType.startsWith('image/') || mimeType === 'application/pdf' || isInlineVideo(mimeType) || officeKindOf(mimeType, name) !== null;
 
 /**
  * What the preview needs of a file: its id, its name, its type and the letter of the version (none means the newest). A FileView of the
@@ -117,6 +120,27 @@ function PhonePdf({ views, index, onIndex, onClose }: PreviewProps) {
 }
 
 /**
+ * A video (owner, 2026-11-03) plays in the full screen player, on a desk and on a phone alike, as in a chat. The player asks files.link
+ * as the person, as the download does.
+ */
+function VideoPreview({ views, index, onClose }: PreviewProps) {
+  const download = useDownloadFile();
+  const view = views[index];
+  const link = useFileLink(view.file.id, view.latest.letter, 'full');
+  return (
+    <VideoViewer
+      open
+      onClose={onClose}
+      name={view.file.name}
+      src={link.url}
+      failed={link.broken}
+      onError={link.onError}
+      onDownload={() => download(view.file.id, view.latest.letter)}
+    />
+  );
+}
+
+/**
  * A Word or Excel file (tsk_495). Madar draws it in the browser, inside the sheet, on a desk and on a phone alike: a link out would send the
  * file to another viewer, and the owner wants no outside service. The reading code is in `features/files/office/`.
  */
@@ -132,7 +156,7 @@ function OfficePreview({ views, index, onIndex, onClose, kind }: PreviewProps & 
 }
 
 /**
- * A file preview: an image, a PDF, a Word file or an Excel file. With more than one view, Previous and Next move through them. The picture test of
+ * A file preview: an image, a PDF, a Word file, an Excel file or a video. With more than one view, Previous and Next move through them. The picture test of
  * app/files decides which pictures an img tag shows: in the real build a picture that the store keeps as a download (an SVG)
  * shows the file icon and a download, and asks for no inline link (F3 repair). Any other type keeps the plain line, as before.
  * On a phone a picture opens in the full screen viewer and a PDF in a sheet with one link (phone D). The desk path above stays.
@@ -144,6 +168,7 @@ export function PreviewSheet(props: PreviewProps) {
   const type = view.latest.mimeType;
   const office = officeKindOf(type, view.file.name);
   if (office) return <OfficePreview {...props} kind={office} />;
+  if (isInlineVideo(type)) return <VideoPreview {...props} />;
   if (phone && isPicture(type)) return <PhonePicture {...props} />;
   if (phone && type === 'application/pdf') return <PhonePdf {...props} />;
   return <DeskPreview {...props} />;

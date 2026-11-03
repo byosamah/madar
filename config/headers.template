@@ -16,11 +16,12 @@
 # clicks and the masking. Without it, PostHog keeps the replays and the click records off (test copy, 2026-10-25). No script comes from it.
 # 'wasm-unsafe-eval' in script-src lets the Arabic text plugin of the map run its WebAssembly. It allows no eval().
 # style-src keeps 'unsafe-inline', because vaul adds a <style> element. img-src keeps blob: for the pictures of a new upload.
+# media-src lets a video of a chat, a comment or the Files tab play from its signed link (owner, 2026-11-03).
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   X-Frame-Options: DENY
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}} https://nominatim.openstreetmap.org https://tiles.openfreemap.org https://eu.i.posthog.com https://eu-assets.i.posthog.com; frame-src {{FILES}}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; media-src 'self' {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}} https://nominatim.openstreetmap.org https://tiles.openfreemap.org https://eu.i.posthog.com https://eu-assets.i.posthog.com; frame-src {{FILES}}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

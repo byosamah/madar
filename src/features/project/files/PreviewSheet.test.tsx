@@ -7,7 +7,7 @@ import { RuntimeProvider, createQueryClient, type Runtime } from '../../../app/r
 import { ToastProvider } from '../../../app/toasts';
 import { initI18n } from '../../../i18n';
 import { phoneMedia } from '../../../test/phoneMedia';
-import { PreviewSheet } from './PreviewSheet';
+import { PreviewSheet, canPreview } from './PreviewSheet';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -156,5 +156,28 @@ describe('the file preview on a phone (phone D, P9)', () => {
     expect(fullAsked()).toBe(2);
     // The small picture still shows, so the viewer does not say that the picture failed.
     expect(within(viewer).queryByText(/did not load/)).toBeNull();
+  });
+});
+
+describe('the preview of a video (owner, 2026-11-03)', () => {
+  it('previews the videos that the server shows inline, and keeps every other video a download', () => {
+    for (const type of ['video/mp4', 'video/webm', 'video/quicktime']) expect(canPreview(type, 'clip'), type).toBe(true);
+    for (const type of ['video/x-matroska', 'video/x-msvideo']) expect(canPreview(type, 'clip'), type).toBe(false);
+  });
+
+  it('plays a video of the Files tab in the full screen player, on a desk and on a phone, with Download', async () => {
+    for (const phone of [false, true]) {
+      phoneMedia(phone);
+      const { calls, unmount } = renderSheet(view('fil_905', 'Walkthrough.mp4', 'video/mp4'), 'remote');
+      const dialog = await screen.findByRole('dialog', { name: 'Walkthrough.mp4' });
+      await waitFor(() => expect(dialog.querySelector('video')).not.toBeNull());
+      const player = dialog.querySelector('video') as HTMLVideoElement;
+      expect(player).toHaveAttribute('controls');
+      expect(player.getAttribute('src')).toBe('https://store.test/link-1');
+      expect(calls[0]).toEqual({ name: 'files.link', input: { id: 'fil_905', letter: 'B', variant: 'full', disposition: 'inline' } });
+      expect(within(dialog).getByRole('button', { name: 'Download Walkthrough.mp4' })).toBeInTheDocument();
+      unmount();
+      vi.restoreAllMocks();
+    }
   });
 });

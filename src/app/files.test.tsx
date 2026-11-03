@@ -6,7 +6,7 @@ import type { MadarApi } from '../api/calls';
 import { ApiError } from '../api/errors';
 import { initI18n } from '../i18n';
 import { renderWithRuntime } from '../test/render';
-import { LINK_STALE_MS, downloadFile, isInlinePicture, limitText, remoteFileAdapters, uploadErrorMessage, useFileLimit, useFileLink, useFileUrl, useScreenshotLink } from './files';
+import { LINK_STALE_MS, downloadFile, isInlinePicture, isInlineVideo, limitText, remoteFileAdapters, uploadErrorMessage, useFileLimit, useFileLink, useFileUrl, useScreenshotLink } from './files';
 import type { QueryClient } from '@tanstack/react-query';
 import { RuntimeProvider, createQueryClient, useRuntime, type Runtime } from './runtime';
 import { ToastProvider } from './toasts';
@@ -106,6 +106,11 @@ describe('file links in the real build (plan 5.2)', () => {
   it('isInlinePicture takes only the pictures that the server shows inline (isPictureType in server/files/links.ts)', () => {
     for (const type of ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'IMAGE/PNG', ' image/png; charset=x ']) expect(isInlinePicture(type), type).toBe(true);
     for (const type of ['image/svg+xml', 'image/x-icon', 'image/heic', 'image/bmp', 'image/png, image/svg+xml', 'application/pdf', '']) expect(isInlinePicture(type), type).toBe(false);
+  });
+
+  it('isInlineVideo takes only the videos that the server shows inline (INLINE_SAFE in server/files/links.ts)', () => {
+    for (const type of ['video/mp4', 'video/webm', 'video/quicktime', 'VIDEO/MP4', ' video/mp4; codecs="avc1" ']) expect(isInlineVideo(type), type).toBe(true);
+    for (const type of ['video/x-msvideo', 'video/x-matroska', 'video/x-m4v', 'video/mp4, text/html', 'audio/mp4', 'image/png', '']) expect(isInlineVideo(type), type).toBe(false);
   });
 
   it('downloadFile asks for a download link (attachment) and opens it', async () => {

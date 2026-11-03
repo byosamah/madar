@@ -1,0 +1,15 @@
+{
+  "video": {
+    "play": "Play {{name}}",
+    "group": "Videos",
+    "failed": "This video cannot play here. Download it to watch it."
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-03-147": {
+        "title": "Watch videos without a download",
+        "body": "A video in a chat, a comment or Files & Links now shows its first picture. Press it to watch the video on the full screen. If a video cannot play in your browser, download it."
+      }
+    }
+  }
+}

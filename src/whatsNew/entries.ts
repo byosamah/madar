@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // A video (MP4, WebM, QuickTime) in a chat, a comment or Files & Links shows its first frame, and a press plays it on the full screen (owner, 2026-11-03). The lead sets the real release day before the test deploy.
+  { id: '2026-11-03-147', day: '2026-11-03' },
   // Three fixes of Insert from a project (code review 2026-11-03): a reply with more than 10 files answers once, a turned-off person in a group blocks no project file, and the picker list reloads on a change of the rights or the teams. The lead sets the real release day before the test deploy.
   { id: '2026-11-03-146', day: '2026-11-03' },
   // A long name stays on a phone screen in the people lists of a new team and a new project: one base rule for every fieldset, and one column that can shrink in the Team list (after fbk_077). The lead sets the real release day before the test deploy.

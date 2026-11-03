@@ -1,12 +1,15 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Attachment } from '../../api/contract/views';
-import { downloadFile, isRemote, useFileLink, usePictureTest } from '../../app/files';
+import { downloadFile, isInlineVideo, isRemote, useFileLink, usePictureTest } from '../../app/files';
 import { PRIVATE } from '../../app/privateMark';
 import { useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { useNearView } from '../../app/useNearView';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { PlayIcon } from '../../components/icons/animated/play';
 import { ImageViewer } from '../../components/ImageViewer';
+import { VideoViewer } from '../../components/VideoViewer';
 import { todayISO } from '../../lib/dates';
 import { lazyOverlay } from '../../app/lazyOverlay';
 import { FileChips, type ChipPreview } from './Attachments';
@@ -23,6 +26,8 @@ const pdfPreview = lazyOverlay(() => import('../project/files/PreviewSheet').the
 const SHAPES = new Map<string, number>();
 /** The box of a picture before its shape is known. Most photos are 4 to 3. */
 const FIRST_SHAPE = 4 / 3;
+/** The box of a video before its shape is known. Most videos are 16 to 9. */
+const VIDEO_SHAPE = 16 / 9;
 
 type Shape = 'single' | 'square' | 'wide';
 /** A file that still exists (a deleted file has no name). */
@@ -91,6 +96,88 @@ function PictureTile({ file, shape, onOpen, onBroken, tiles }: {
 }
 
 /**
+ * One video of a message as a tile (owner, 2026-11-03): its first frame, with a round play mark. The tile asks for the inline link only
+ * near the view, and loads only the first bytes (preload metadata), so a chat scroll costs a phone little data. The start mark (#t=0.1)
+ * makes Safari for iPhone draw the first frame; the store never sees it. A press opens the full screen player, with the same link. A
+ * video that cannot load, or that this browser cannot play, tells the list (onBroken), which draws it as a chip that downloads.
+ */
+function VideoTile({ file, onOpen, onBroken, tiles }: {
+  file: Named;
+  onOpen: () => void;
+  onBroken: (id: string) => void;
+  tiles: Map<string, HTMLButtonElement>;
+}) {
+  const { t } = useTranslation();
+  const box = useRef<HTMLDivElement>(null);
+  const near = useNearView(box);
+  const { url, onError, broken } = useFileLink(near ? file.id : null, undefined, 'full');
+  const [ratio, setRatio] = useState(() => SHAPES.get(file.id) ?? VIDEO_SHAPE);
+  useEffect(() => {
+    if (broken) onBroken(file.id);
+  }, [broken, file.id, onBroken]);
+  if (broken) return null;
+  return (
+    <div ref={box} style={{ aspectRatio: ratio }} className="relative w-60 max-w-full max-h-80 overflow-hidden rounded-xl bg-black">
+      {url && (
+        <video
+          src={`${url}#t=0.1`}
+          preload="metadata"
+          muted
+          playsInline
+          tabIndex={-1}
+          aria-hidden
+          onError={onError}
+          onLoadedMetadata={(event) => {
+            const { videoWidth, videoHeight } = event.currentTarget;
+            if (videoWidth <= 0 || videoHeight <= 0) return;
+            const next = Math.min(3, Math.max(0.4, videoWidth / videoHeight));
+            SHAPES.set(file.id, next);
+            setRatio(next);
+          }}
+          className={`${PRIVATE} pointer-events-none size-full object-cover`}
+        />
+      )}
+      <button
+        ref={(node) => {
+          if (node) tiles.set(file.id, node);
+          else tiles.delete(file.id);
+        }}
+        type="button"
+        aria-haspopup="dialog"
+        aria-label={t('video.play', { name: file.name })}
+        onClick={onOpen}
+        className="pressable absolute inset-0 grid place-items-center"
+      >
+        <span className="grid size-12 place-items-center rounded-full bg-black/55 text-white">
+          <AnimatedIcon icon={PlayIcon} size={22} aria-hidden className="translate-x-px" />
+        </span>
+      </button>
+    </div>
+  );
+}
+
+/** The player of one video of a message. It asks for the same inline link as the tile, so the press needs no new call. */
+function MessageVideo({ file, open, onClose, tiles }: { file: Named; open: boolean; onClose: () => void; tiles: Map<string, HTMLButtonElement> }) {
+  const runtime = useRuntime();
+  const toast = useToast();
+  const link = useFileLink(file.id, undefined, 'full');
+  return (
+    <VideoViewer
+      open={open}
+      onClose={onClose}
+      name={file.name}
+      src={link.url}
+      failed={link.broken}
+      onError={link.onError}
+      onDownload={() => {
+        downloadFile(runtime.api, file.id, undefined, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error));
+      }}
+      focusAfter={() => tiles.get(file.id) ?? null}
+    />
+  );
+}
+
+/**
  * The viewer of the pictures of one message. The big picture asks for its own link only now. The small picture is the preview's link, in
  * the cache, so it shows at once while the big one loads.
  */
@@ -128,7 +215,8 @@ function PictureViewer({ pictures, index, open, onMove, onClose, tiles }: {
 
 /**
  * The files of a chat message or a comment (owner, 2026-10-19). A picture shows as a preview, several pictures as a small grid, and a press
- * opens the viewer with Close and Download. Every other file stays a chip that saves it. A picture that breaks, or that the store
+ * opens the viewer with Close and Download. A video (MP4, WebM, QuickTime) shows as a tile under the pictures, one under the other, and a
+ * press plays it over the whole screen (owner, 2026-11-03). Every other file stays a chip that saves it. A picture that breaks, or that the store
  * keeps as a download (an SVG in the real build), shows as a chip too. The rights to open a file are the same as before: the preview and
  * the viewer ask for the same links as the chip did. Two files or more get one quiet "Download all (N)" button under them: one ZIP file with
  * every file that still exists, pictures too (owner, 2026-10-22, fbk_050). Its name is the title of the pane and the day.
@@ -140,12 +228,14 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
   const [broken, setBroken] = useState<ReadonlySet<string>>(new Set());
   const [viewer, setViewer] = useState<{ index: number; open: boolean } | null>(null);
   const [pdf, setPdf] = useState<Named | null>(null);
+  const [video, setVideo] = useState<{ file: Named; open: boolean } | null>(null);
   const tiles = useRef(new Map<string, HTMLButtonElement>());
   const onBroken = useCallback((id: string) => setBroken((all) => (all.has(id) ? all : new Set(all).add(id))), []);
   if (files.length === 0) return null;
 
   const pictures = files.filter((file): file is Named => file.name !== null && file.mimeType !== undefined && isPicture(file.mimeType) && !broken.has(file.id));
-  const chips = files.filter((file) => !pictures.some((picture) => picture.id === file.id));
+  const videos = files.filter((file): file is Named => file.name !== null && file.mimeType !== undefined && isInlineVideo(file.mimeType) && !broken.has(file.id));
+  const chips = files.filter((file) => !pictures.some((picture) => picture.id === file.id) && !videos.some((clip) => clip.id === file.id));
   const count = pictures.length;
   const downloadable = files.filter((file): file is Named => file.name !== null).map((file) => ({ id: file.id, name: file.name }));
   const columns = count >= 5 ? 'grid-cols-3' : 'grid-cols-2';
@@ -167,6 +257,15 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
           ))}
         </ul>
       )}
+      {videos.length > 0 && (
+        <ul aria-label={t('video.group')} className="flex min-w-0 max-w-full flex-col gap-1">
+          {videos.map((file) => (
+            <li key={file.id} className="flex min-w-0 max-w-full">
+              <VideoTile file={file} onOpen={() => setVideo({ file, open: true })} onBroken={onBroken} tiles={tiles.current} />
+            </li>
+          ))}
+        </ul>
+      )}
       <FileChips files={chips} preview={preview} />
       <DownloadAllButton items={downloadable} zipName={() => `${title ?? t('zip.defaultName')} ${todayISO()}`} />
       {pdf && (
@@ -176,6 +275,9 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
           onIndex={() => undefined}
           onClose={() => setPdf(null)}
         />
+      )}
+      {video && (
+        <MessageVideo file={video.file} open={video.open} onClose={() => setVideo({ file: video.file, open: false })} tiles={tiles.current} />
       )}
       {viewer && count > 0 && (
         <PictureViewer

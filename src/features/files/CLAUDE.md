@@ -78,6 +78,20 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
   needs a hostile test in `sanitize.test.ts` or `docxHtml.test.ts` first (`officeFixtures.ts` builds a hostile Word file).
 - Tests: `office/*.test.ts(x)`, `PdfPreview.test.tsx` (the chips). Words: `officePreview.*` in `src/i18n/real/officePreview.*`.
 
+## Video in a bubble, a comment or the Files tab (owner, 2026-11-03)
+- `isInlineVideo` (`app/files.ts`) takes the three video types that the server shows inline: MP4, WebM and QuickTime (`INLINE_SAFE` in
+  `server/files/links.ts`). Both builds use it. Every other video (.mkv, .avi, .m4v) stays a chip that downloads. Keep the two lists equal.
+- In `AttachmentList` a video is a `VideoTile` under the pictures, one under the other (a list named "Videos"). The tile asks the inline
+  `full` link near the view (a video has no thumb) and loads only its first bytes (`preload="metadata"`). The `#t=0.1` start mark makes
+  Safari for iPhone draw the first frame; the store never sees it, so the signature holds. A video that cannot load, or that the browser
+  cannot play, turns into a chip after one new link (`onBroken`).
+- A press opens `VideoViewer` (`components/VideoViewer.tsx`): the shell of `ImageViewer` (name, Download, X) with a `<video controls
+  autoPlay playsInline>`. It asks the same query as the tile, so the press makes no call. A video that fails there shows `video.failed`,
+  and Download stays. `PreviewSheet` opens the same player for a video of the Files tab and of the to-do files (`canPreview` takes it).
+- The CSP needs `media-src 'self' {{FILES}}` (`config/headers.template`): without it `default-src 'self'` refuses the store link.
+  A `<video>` without `crossorigin` needs no CORS rule. Playwright's own Chromium has no H.264: test an MP4 with `channel: 'chrome'` or WebKit.
+- Tests: `VideoAttachments.test.tsx`, `PreviewSheet.test.tsx` ("the preview of a video"). Words: `src/i18n/real/video.*`.
+
 ## Download all
 - `AttachmentList` ends with one quiet text button "Download all (N)" (`DownloadAll.tsx`, never a main button) when two or more files can be
   downloaded. A deleted file (`name === null`) does not count. The Files tab has its own buttons (`src/features/project/CLAUDE.md`).

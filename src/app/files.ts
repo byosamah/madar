@@ -137,6 +137,18 @@ export function isInlinePicture(mimeType: string): boolean {
   return !lower.includes(',') && INLINE_PICTURES.has(lower.split(';')[0].trim());
 }
 
+/** The videos that the server shows inline (INLINE_SAFE in server/files/links.ts). It keeps every other video type as a download. */
+const INLINE_VIDEOS = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
+
+/**
+ * True for a video that the screens play (owner, 2026-11-03): the same three types in both builds. A type with a parameter counts by
+ * its base; a list never does. Any other video (.mkv, .avi) stays a chip that downloads.
+ */
+export function isInlineVideo(mimeType: string): boolean {
+  const lower = mimeType.trim().toLowerCase();
+  return !lower.includes(',') && INLINE_VIDEOS.has(lower.split(';')[0].trim());
+}
+
 /**
  * The picture test of the screens: in the real build only an inline picture (an SVG comes as a download, so an img never shows
  * it); in the prototype every picture, because the browser reads the stored data with its own type.

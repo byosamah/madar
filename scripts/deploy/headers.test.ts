@@ -53,6 +53,8 @@ describe('renderHeaders', () => {
     const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
     expect(directive(headers, 'img-src')).toEqual(["'self'", 'data:', 'blob:', TEST]);
     expect(directive(headers, 'frame-src')).toEqual([TEST]);
+    // A chat video plays from the signed link of the store (owner, 2026-11-03). Without media-src, default-src 'self' refuses it.
+    expect(directive(headers, 'media-src')).toEqual(["'self'", TEST]);
     expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM, OPENFREEMAP, POSTHOG, POSTHOG_ASSETS]);
     expect(headers).not.toContain('r2.cloudflarestorage.com');
   });
@@ -63,7 +65,7 @@ describe('renderHeaders', () => {
     // The settings file of the project (replays, clicks) comes from the assets host as JSON. Its scripts stay out (script-src below).
     expect(directive(headers, 'connect-src')).toContain(POSTHOG_ASSETS);
     expect(headers).not.toContain('posthog.com/static');
-    for (const name of ['script-src', 'worker-src', 'img-src', 'frame-src', 'default-src', 'style-src', 'font-src']) expect(directive(headers, name).join(' '), name).not.toContain('posthog');
+    for (const name of ['script-src', 'worker-src', 'img-src', 'media-src', 'frame-src', 'default-src', 'style-src', 'font-src']) expect(directive(headers, name).join(' '), name).not.toContain('posthog');
   });
 
   it('names only the hosts of the chosen environment', () => {
@@ -81,6 +83,7 @@ describe('renderHeaders', () => {
     const r2 = `https://${ACCOUNT}.eu.r2.cloudflarestorage.com`;
     expect(directive(headers, 'img-src')).toEqual(["'self'", 'data:', 'blob:', r2]);
     expect(directive(headers, 'frame-src')).toEqual([r2]);
+    expect(directive(headers, 'media-src')).toEqual(["'self'", r2]);
     expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', r2, NOMINATIM, OPENFREEMAP, POSTHOG, POSTHOG_ASSETS]);
   });
 

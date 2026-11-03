@@ -1376,3 +1376,13 @@ items. The lead checked the top three in the code. All three were real.
   after a reply with 12 files (EN, light, desk) and the What's new line (AR, dark, 390 px). The deploy suite is skipped: a hand check on
   the test copy instead.
 - [x] Release: test copy, then production by the owner. Done 2026-11-03: production at de8d7781.
+
+## Video plays in chats, comments and the Files tab (owner, 2026-11-03)
+Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with the first frame opens a full screen player, everywhere.
+- [x] `isInlineVideo` (MP4, WebM, QuickTime, the server's inline list), the tile in `AttachmentList`, `VideoViewer`, the video branch of
+  `PreviewSheet` and `canPreview`. Tests first: `VideoAttachments.test.tsx`, `PreviewSheet.test.tsx`, `files.test.tsx`.
+- [x] CSP `media-src 'self' {{FILES}}` (`config/headers.template`, `headers.test.ts`). Without it the browser refuses the store link.
+- [x] Words `real/video.*`, What's new `2026-11-03-147`, guides (files, project, deploy), decision log. No MCP change: no call or right changed.
+- [x] Shots in the scratchpad (`shots/`): EN/AR, light/dark at 390 px in Chrome, iPhone 15 in WebKit, and a 1280 px desk. The tile
+  shows the first frame in each, stays inside its bubble, and the player starts by itself. No side scroll. No page errors.
+- [ ] Gates, then release: test copy (check one real MP4 on R2 with the real CSP), then production.

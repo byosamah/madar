@@ -4,6 +4,12 @@ The owner decisions and the history that the CLAUDE.md guides held until 2026-10
 keep each decision that still sets a rule, as a rule. This file is the record of when and why. Newest wins.
 Sections follow the guide that held the text. Line numbers and counts in this file are from that day and can be old.
 
+## 2026-11-03
+- Video in chats (owner): a video (MP4, WebM, QuickTime) in a chat message, a to-do comment and the Files tab shows its first frame with a
+  play mark, and a press plays it in a full screen player with Download (option "Tile, opens full screen", place "Everywhere"). The other
+  option, a small player inside the bubble, had more controls in the chat. Before this, a video was a chip that only downloaded. The CSP
+  had no `media-src`, so `default-src 'self'` would refuse a video of the file store: the release adds `media-src 'self' {{FILES}}`.
+
 ## 2026-10-28
 - Map plugin (tsk_486, owner): Madar no longer loads the Arabic text plugin of the map (`@mapbox/mapbox-gl-rtl-text`). MapLibre 6.11.2
   draws right-to-left text by itself, and the map drew the same pixels with the plugin loaded, blocked and absent. The worker ran the

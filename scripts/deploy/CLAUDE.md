@@ -79,7 +79,7 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   6. `pages.sh`: builds the remote screens, writes `dist/_headers` (CSP) with `headers.ts`, and uploads to the Pages
      project `madar`: branch `preview` for test, `main` for production. The `functions/` folder (the Pages Functions) goes
      too. `headers.ts` holds the fixed hosts of the CSP and `headers.test.ts` pins them. `/sw.js` gets `Cache-Control:
-     no-cache`. The push services need no `connect-src`: the browser, not the page, talks to them. The page's own `/api`
+     no-cache`. `media-src` names the file store, so a chat video plays from its signed link (owner, 2026-11-03). The push services need no `connect-src`: the browser, not the page, talks to them. The page's own `/api`
      needs none either. `script-src` holds `'wasm-unsafe-eval'`. Its first user, the Arabic text plugin of the map, is gone
      (2026-10-28, tsk_486): drop it after a check that no other file of the build runs WebAssembly.
   7. `checks.sh`: through the page host, `GET /api/health` gives 200 with `x-madar-server` of the host in
