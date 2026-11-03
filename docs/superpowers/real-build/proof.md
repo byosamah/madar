@@ -3005,3 +3005,25 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   UTC). Live checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title
   Madar and `/favicon.ico` 200; madar.vado.sa serves `index-CaGfhl83.js`, the same as the deploy address; the live
   `index-ChCi9RyD.css` holds `fieldset{min-inline-size:0}`, and `words.en-DxMkJJ4l.js` holds "Long names stay on the screen".
+
+### Release record: production at de8d7781 (2026-11-03, chat code review: a reply with many files, a turned-off person, the picker list)
+- Why (owner picked "Fix the 3 bugs" after a `/code-review medium` of the newest chat changes): a reply with more than 10 project files
+  sent the reply on every message of 10 files, so the person answered got one notice for each message; a group that still held a
+  turned-off person refused every project file ("no shared project", `recipient_not_on_project`); the read rule of
+  `chats.insertProjects` lacked `settings` and `teams`, so a change of a role right or of a hidden project left the picker list old.
+- What shipped (`rb/chat-fixes`, tests first): `insertParts` takes the reply and gives it to the first part only, `Composer` passes the
+  reply to `onSend`, and `ConversationPane` and `CommentThread` use it. `chats.send` and `chats.insertProjects` ask `chatMemberIds`
+  (the active people). `readMap.ts` adds `settings` and `teams`. MCP: the `Messages:` line says "other active people". What's new
+  `2026-11-03-146` (`real/chatfixes.*.json`). Guides: `src/api/handlers`, `server/mcp`, `src/features/files`.
+- Gates, each once. The 5 new tests failed first, then passed. Typecheck, build:server, build:remote test, test:lite, test:office,
+  test:db, test:mcp and the smoke (136 of 136) passed. test:it: 362 passed; `moveToR2.it.test.ts` stopped at its setup (MinIO 503)
+  and passed on a second run. npm test at a load of 120: 12 red; 9 files passed alone, MeetingsCard passed on a second run, and
+  `dashboardYear.test.ts` and `ReactionAny.test.tsx` are red on main 8d84f776 too (TASKS.md). The deploy suite was not run.
+- Test copy: `all.sh test` of de8d7781 passed (health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no
+  token 401). By hand in Chrome as the sample Admin: What's new shows the new line first under 3 Nov, and Insert from a project in the
+  direct chat of Hala and Faisal lists their 4 shared projects. The reply with 12 files was checked on the prototype (a shot in the
+  scratchpad: only the first message quotes the reply).
+- `echo production | scripts/deploy/all.sh production` by the owner with `!` (the auto-mode check refused Claude's run), 2026-11-03.
+  Live checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and
+  `/favicon.ico` 200; madar.vado.sa serves `index-B4ngPnIY.js`, the same as the deploy address; `words.en-ClTkGV1t.js` holds
+  "Three fixes in Insert from a project".

@@ -1375,4 +1375,4 @@ items. The lead checked the top three in the code. All three were real.
   120, 9 files passed alone, MeetingsCard passed on a second run, and the 2 above are red on main too. Shots in the scratchpad: the chat
   after a reply with 12 files (EN, light, desk) and the What's new line (AR, dark, 390 px). The deploy suite is skipped: a hand check on
   the test copy instead.
-- [ ] Release: test copy, then production.
+- [x] Release: test copy, then production by the owner. Done 2026-11-03: production at de8d7781.
