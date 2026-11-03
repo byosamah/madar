@@ -3046,3 +3046,25 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` by Claude after the owner's answer, 2026-11-03. Live checks: health from
   supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and `/favicon.ico` 200; the
   CSP holds `media-src 'self' https://<account>.eu.r2.cloudflarestorage.com`; `markRead-CmRfwlBr.js` holds the tile code (`#t=0.1`).
+
+### Release record: production at eed1c5a7 (2026-11-03, the open items of the chat review: Share files for agents, the picker speed, two red tests)
+- Why (owner: "close what still open too"; then "Server follows switch" and "Yes, to production"): the review of 2026-11-03 left
+  three items, and two tests were red on main. In a project chat and on the comments of a project to-do, the server took any project
+  file from a person without `file.share`, so an agent could do what the screen and the Share button refuse.
+- What shipped (`rb/open-items`, tests first, rebased on the video release dd799d0d): `assertShareSwitchInProject` (`attach.ts`; called
+  by `postMessage` for a project chat and by `comments.create` for a project target): without the switch, only a file whose newest version
+  the person or the agent of the person uploaded, so an upload still works. `shareRuleOf` builds the rights of each person of the chat once
+  for `chats.insertProjects`. Long names: no change (10 names of 200 characters fit in 4,000; `insertParts.test.ts`). `dashboardYear.test.ts`
+  leaves out `leaderId` (added by 82dda13a); `ReactionAny.test.tsx` counts the open sheets after every change. MCP: the `Messages:` line.
+  What's new `2026-11-03-148` (`real/openitems.*.json`). Guides: `src/api/handlers`, `server/mcp`, `src/features/files`.
+- Gates, each once. The new tests of `shareSwitch.test.ts` (4 of 8) and `shareRuleCost.test.ts` failed first, then passed; every test file
+  that names `file.share` passed (10 files, 590 tests). Typecheck, build:server, build:remote test, test:lite, test:office, test:it and test:mcp
+  passed. test:db: 3,475 passed; `meetingLeaks.test.ts` hit its time limit at a load of 214 and passed alone on a fresh stack. npm test: 3 red at
+  a load of 70 to 140; 2 passed alone, and `focusInert.test.tsx` fails on main too (TASKS.md). After the rebase: typecheck, the touched tests
+  (20 files, 162 tests), build:server and build:remote test passed. The smoke and the deploy suite were not run: no screen code changed.
+- Test copy: `all.sh test` of eed1c5a7 passed on the first try (health from supabase, 158 calls; database, lock and asyncContext ok; /mcp
+  with no token 401). The served `words.en-TdWWrXdo.js` and `words.ar-EPi5spxe.js` hold the new What's new line.
+- `echo production | scripts/deploy/all.sh production` by Claude (it passed after the owner picked "Yes, to production"), 2026-11-03
+  about 10:00 UTC. Live checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title
+  Madar and `/favicon.ico` 200; madar.vado.sa serves `index-BJwz2FbE.js`, the same as the deploy address; `words.en-TdWWrXdo.js` holds
+  "AI assistants follow Share files".

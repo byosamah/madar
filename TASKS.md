@@ -1408,4 +1408,4 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
 - [x] Gates, each once: typecheck, build:server, build:remote test, test:lite, test:office, test:it and test:mcp passed. test:db: 3,475
   passed, and `meetingLeaks.test.ts` (a time limit at a load of 214) passed alone on a fresh stack. npm test: 3 red at a load of 70 to 140;
   `EmojiPanel` and `EarlierMessages` passed alone, `focusInert` fails on main too (above). The smoke was not run: no screen code changed.
-- [ ] Release: test copy, then production (owner: "Yes, to production").
+- [x] Release: test copy, then production by Claude after the owner picked "Yes, to production". Done 2026-11-03: production at eed1c5a7.
