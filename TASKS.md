@@ -1403,4 +1403,9 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
   that one field, and the three old fingerprints hold. No product change (a helper agent found the commit; proof in its search).
 - [x] `ReactionAny.test.tsx`: the line "the emoji sheet is not there yet" raced one animation frame on a busy machine. An observer now
   counts the open sheets after every change from the press on, and the test expects at most 1. No product change.
+- [ ] New, found at this gate (proposed, not fixed): `src/features/me/focusInert.test.tsx` line 36 waits only the 1 s default of `waitFor`
+  for the phone bar after Focus mode closes. At a load of 85 to 140 it fails on main too (3 of 3). A `{ timeout: 5_000 }` there would fix it.
+- [x] Gates, each once: typecheck, build:server, build:remote test, test:lite, test:office, test:it and test:mcp passed. test:db: 3,475
+  passed, and `meetingLeaks.test.ts` (a time limit at a load of 214) passed alone on a fresh stack. npm test: 3 red at a load of 70 to 140;
+  `EmojiPanel` and `EarlierMessages` passed alone, `focusInert` fails on main too (above). The smoke was not run: no screen code changed.
 - [ ] Release: test copy, then production (owner: "Yes, to production").
