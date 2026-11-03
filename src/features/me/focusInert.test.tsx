@@ -33,6 +33,13 @@ describe('Focus mode on a phone', () => {
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Focus' })).toBeNull());
     await waitFor(() => expect(document.querySelector('.app-page')).toHaveProperty('inert', false));
-    await waitFor(() => expect(document.querySelector('nav[data-pill]')).toHaveProperty('inert', false));
+    // jsdom has no inert property: Focus mode sets it by hand on the bar it found, and React writes the inert attribute. After the close the
+    // bar is often a new element (it left the page while Focus mode showed), whose property reads undefined. A browser reads the attribute,
+    // so the bar is live when neither the attribute nor the hand-set value says inert (2026-11-03: the old check failed under load).
+    await waitFor(() => {
+      const back = document.querySelector<HTMLElement>('nav[data-pill]');
+      expect(back).not.toBeNull();
+      expect(back!.inert === true || back!.hasAttribute('inert')).toBe(false);
+    });
   });
 });
