@@ -1147,7 +1147,7 @@ Owner answers: memory `owner-batch-2026-10-26-fbk060-066`. Three tracks from mai
 - [x] Test copy (`all.sh test`, a9c0841e), screenshots in Chrome (EN/AR, light/dark, 390 px)
 - [x] Production at a9c0841e (2026-10-26, owner: "ok production"), release record
 - [x] Mark fbk_060, fbk_062 to fbk_066 done in Madar (2026-10-26 12:05, story sty_pxf4rzxoxogvy4tkvl2ljt)
-- [ ] `src/features/me/focusInert.test.tsx` fails under a high load (16) on the production commit too: make its wait robust (found 2026-10-26)
+- [x] `src/features/me/focusInert.test.tsx` fails under a high load (16) on the production commit too: make its wait robust (found 2026-10-26). Closed 2026-11-03 (510e547f): jsdom has no `inert` property, and the bar is a new element after Focus mode; the test now reads the attribute
 - [ ] fbk_064 is not proven on a real stale tab: if Faisal still sees the error page after a reload on the new build, ask for the error text
 - [x] fbk_061 tile shapes (production at 5bfb2df7 with Daftra, 2026-10-26; shapes set on prj_010, 015, 016, 017): `Project.shape` set through the MCP; the three internal tools keep their app logos; every client project gets a shape drawn from its own pictures, as BIG draws its icons (study of 20 BIG projects under way)
 
@@ -1265,7 +1265,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] tsk_487: closed by the owner (2026-10-28): no jump on a cold load of /work. The PostHog score came from one tab open for more than a day (a CLS row holds the worst burst of the tab life). The guide `src/app/insight/CLAUDE.md` says how to read such a row (e9cdb754).
 - [x] tsk_488: the To-do list (/tasks) marked Dashboard in the top bar, in English and Arabic, since 2026-10-01. It now marks Tasks; the Deadlines list still marks Dashboard (3ceacd67). What's new 130. Done 2026-10-28: production at 8169cbd9.
 - [x] tsk_489: `madar_call_failed` sends only the call name, no `personId` and no `personName`. `eventFields.test.ts` pins the fields of every PostHog event of Madar (a713d766). Done 2026-10-28: production at 8169cbd9.
-- [ ] Flaky test: `src/features/me/focusInert.test.tsx` ("keeps the data-pill mark on the phone bar") fails under a load average of about 11, also on main 9ade9ea1 alone (2026-10-28: `inert` of the phone bar is true when the test reads it). It passes alone at a lower load. Find the race and make the test wait for the state.
+- [x] Flaky test: `src/features/me/focusInert.test.tsx` ("keeps the data-pill mark on the phone bar") fails under a load average of about 11, also on main 9ade9ea1 alone (2026-10-28: `inert` of the phone bar is true when the test reads it). It passes alone at a lower load. Find the race and make the test wait for the state. Closed 2026-11-03 (510e547f), most likely the same cause: the 2026-11-03 runs read undefined, not true, and 5 of 5 passed at a load of 261. Reopen it if a run fails with the value true.
 - [ ] Time-of-day test: `test:office` fails 3 mail tests (`batch.wd.test.ts` "sends the mail of a new task after the answer", `cron.wd.test.ts` "runs the job steps" and "sends at most 45 network calls") after the office work hours. They passed at 15:33 and failed at 19:50 on main 86d68fee (2026-10-28): the office Worker reads the real clock, and the notice mails stop in quiet hours. Pin the work hours or the clock in the office test.
 
 ## Security scan fixes (Claude Security scan of 2026-10-28; owner: "test copy, then production", "check production, then fix", "fix it properly")
