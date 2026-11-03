@@ -24,6 +24,8 @@ describe('the MCP words of project files in a chat', () => {
     expect(messagesLine()).toContain('must be on the project');
     // A turned-off person in a group blocks no file (review 2026-11-03).
     expect(messagesLine()).toContain('other active people of the chat');
+    // Without Share files, an agent attaches only files that its person or the agent uploaded (owner, 2026-11-03).
+    expect(messagesLine()).toContain('only files that your person or you uploaded');
     expect(messagesLine()).toContain('in words your person approves');
     expect(messagesLine()).toContain('ai.messages');
     expect(filesLine()).toContain('500 MB');

@@ -12,7 +12,7 @@ import { toggledReactions, toggleMessageReaction } from './chats';
 import { mayUndoAgentChange } from './history';
 import { activeMentions, assertCan, everyoneOfNew, insertComment, requireProject, requireReplyComment, requireTask, roleIn, seesProject, taskRole, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
-import { assertFilesInProject } from './attach';
+import { assertFilesInProject, assertShareSwitchInProject } from './attach';
 import { fileHiddenByLock, fileInLockedFolder } from '../folderLock';
 
 const Body = z.string().trim().min(1).max(5000);
@@ -150,6 +150,8 @@ export const commentsCreate = defineCall({
     const { projectId, officeTaskId, resource } = targetOf(ctx, input.targetType, input.targetId);
     assertCan(ctx, 'comment.create', resource);
     assertFilesInProject(ctx, input.fileIds, projectId, officeTaskId);
+    // The switch "Share files" governs the files of a project only. A file of an office to-do stays on its to-do.
+    if (projectId !== null) assertShareSwitchInProject(ctx, input.fileIds);
     if (input.replyToId !== undefined) requireReplyComment(ctx, input.targetType, input.targetId, input.replyToId);
     const comment = insertComment(ctx, input.targetType, input.targetId, projectId, input.body, input.fileIds, undefined, undefined, input.replyToId);
     touch(ctx, projectId);

@@ -127,7 +127,7 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
 ## Attach menu and Insert from a project
 - The clip of a chat box (`Composer.tsx`) and of the comments of a to-do (`CommentThread.tsx`) is `AttachMenu`: a short menu with "Upload a
   file" (`files.uploadOne`) and "Insert from a project" (a bottom sheet on a phone, as every `Menu` with `sheetOnPhone`). The menu shows only
-  for a person with `file.share` and where the box has an `insert` scope. Else the clip is the plain `AttachButton`. The hidden file input
+  for a person with `file.share` and where the box has an `insert` scope (the server asks the same switch for a file of another person, `assertShareSwitchInProject`). Else the clip is the plain `AttachButton`. The hidden file input
   stays beside the menu with the label "Attach files" (tests upload to it), and the item opens it, as the Files tab does.
 - `insert` is `{ conversationId }` for a direct chat and a group, and `{ projectId }` for a project chat and a to-do of a project (the server
   takes only files of that project). A direct chat or a group lists only the projects that hold every active person of the chat (owner, 2026-10-28): the

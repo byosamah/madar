@@ -15,7 +15,7 @@ import { inTaskThread, newCommentsOf, threadUnread } from '../taskUnread';
 import { can, mayViewTask, principalOf, projectRoleOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
-import { assertFilesForDirect, assertFilesInProject, shareBlockOf } from './attach';
+import { assertFilesForDirect, assertFilesInProject, assertShareSwitchInProject, shareBlockOf, shareRuleOf } from './attach';
 import { assertCan, replyNotHere, roleIn } from './shared';
 import { isLine, lineKindOf } from '../../lib/commentLine';
 import { mentionedUserIds, plainText } from '../../lib/text';
@@ -369,6 +369,7 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
     if (conversation.kind === 'project') {
       if (!conversation.projectId) throw invalid('fileIds', 'This chat has no project for files.', 'file_not_visible');
       assertFilesInProject(ctx, fileIds, conversation.projectId);
+      assertShareSwitchInProject(ctx, fileIds);
     } else {
       // The active people only (chatMemberIds): a person whom an Admin turned off stays in the group, reads nothing, and blocks no file.
       const others = chatMemberIds(ctx.state, conversation).filter((id) => id !== ctx.authority.id);
@@ -428,7 +429,9 @@ export const chatsInsertProjects = defineCall({
     const others = chatMemberIds(ctx.state, conversation).filter((id) => id !== ctx.authority.id);
     if (others.length === 0 || !can(ctx.authority, 'chat.direct')) return [];
     const sees = visibleProjectIds(ctx.state, ctx.authority);
-    return Object.keys(ctx.state.projects).filter((id) => sees.has(id) && shareBlockOf(ctx, id, others) === null);
+    // The rights of each person are built once for the whole list (shareRuleOf), not once for each project.
+    const blockOf = shareRuleOf(ctx, others);
+    return Object.keys(ctx.state.projects).filter((id) => sees.has(id) && blockOf(id) === null);
   },
 });
 

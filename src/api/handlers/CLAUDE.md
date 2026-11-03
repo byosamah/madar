@@ -199,10 +199,14 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   `files.share` does), the sender and every other active person of the chat must be on the project (`file_not_visible`, `recipient_not_on_project`; a person whom an Admin turned off stays in the group and does not count, `chatMemberIds`).
   A project chat and a to-do thread take only files of their own project (`file_other_project`). At most `MAX_ATTACHMENTS` (10) in a
   message: the screen sends 10 in each message, in order. Tests: `chatInsert.test.ts`, `attachments.test.ts`.
+  In a project chat and on the comments of a project to-do or post, a person without `file.share` (or the agent of that person) may attach
+  only a file whose newest version the person or that agent uploaded (`assertShareSwitchInProject`, owner 2026-11-03: "Server follows
+  switch"), so an upload in the chat still works and the Share button and the screen agree. Test: `shareSwitch.test.ts`.
 - **The picker list of a chat** (owner, 2026-10-28). `chats.insertProjects { conversationId }` gives the ids of the projects that the picker lists in a direct
   chat or a group: the projects the person sees, filtered by `shareBlockOf` (`attach.ts`), the one rule that `assertFilesForDirect` asks too. So a listed
   project never fails Send for the reason "the other person is not on the project". The call reads the office only (loader `office`), one answer for the
-  whole list. A chat that the person may not open answers `not_found`, as `chats.messages`. A person without `file.share` or `chat.direct` gets `[]`. A
+  whole list. `shareRuleOf` builds the rights of each person of the chat once for the whole list, not once for each project
+  (`shareRuleCost.test.ts`). A chat that the person may not open answers `not_found`, as `chats.messages`. A person without `file.share` or `chat.direct` gets `[]`. A
   project chat gives its own project. It is on the MCP deny list (the tool list has no room). The parity test of `chatInsert.test.ts` sends a file of each
   project and compares.
 - A message view (`messageViewOf`) drops the file row of a file that the reader may not view (`mayViewFile`). The loader

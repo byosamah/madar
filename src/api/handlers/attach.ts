@@ -1,7 +1,7 @@
 import type { Ctx } from '../registry';
 import type { FileRec } from '../contract/entities';
 import { forbidden, invalid } from '../errors';
-import { can, projectRoleOf } from '../permissions';
+import { can, principalOf, projectRoleOf, type Actor } from '../permissions';
 import { ensureRights } from '../rights';
 import { fileInLockedFolder } from '../folderLock';
 import { mayViewFile } from '../views';
@@ -60,10 +60,26 @@ export function assertFilesInProject(ctx: Ctx, fileIds: string[], projectId: str
 }
 
 /**
+ * The switch "Share files" in a project chat and on the comments of a project to-do or post (owner, 2026-11-03: "Server follows switch").
+ * The catalog says "Share a project file into a chat or a to-do", and files.share asks the switch for every target. These calls also carry
+ * the files that the person uploaded for the message, so without the switch the person, or the agent of the person, may attach only a file
+ * whose newest version the person or that agent uploaded. Call it after assertFilesInProject: a file that the person may not open reads as
+ * missing first, so the refusal tells nothing about it.
+ */
+export function assertShareSwitchInProject(ctx: Ctx, fileIds: string[]): void {
+  if (fileIds.length === 0 || can(ctx.authority, 'file.share')) return;
+  for (const id of fileIds) {
+    const newest = ctx.state.files[id]?.versions.at(-1);
+    if (!newest || principalOf(ctx.state, newest.uploadedBy) !== ctx.authority.id) throw forbidden('You cannot do this.', { action: 'file.share' });
+  }
+}
+
+/**
  * A direct or group message may carry a file of a project when the sender and every other person of the chat both belong to the
  * project of the file. It may carry a file of its own chat (conversationId), and a file of no other chat (owner, 2026-10-19).
  */
 export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: string[], conversationId?: string): void {
+  let blockOf: ReturnType<typeof shareRuleOf> | undefined;
   for (const file of requireFiles(ctx, fileIds)) {
     if (file.conversationId !== undefined) {
       if (file.conversationId !== conversationId) chatFileStays();
@@ -74,7 +90,8 @@ export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: 
     if (fileInLockedFolder(ctx.state, file)) lockedFileStays();
     // A project file goes into a direct chat or a group only with the switch "Share files", as files.share asks it (fbk_070).
     if (!can(ctx.authority, 'file.share')) throw forbidden('You cannot do this.', { action: 'file.share' });
-    const block = shareBlockOf(ctx, file.projectId, recipientIds);
+    blockOf ??= shareRuleOf(ctx, recipientIds);
+    const block = blockOf(file.projectId);
     if (block === 'file_not_visible') throw invalid('fileIds', 'You cannot see the project of this file.', block);
     if (block === 'recipient_not_on_project') throw invalid('fileIds', 'The other person cannot see the project of this file.', block);
   }
@@ -86,9 +103,30 @@ export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: 
  * project. It gives the reason that stops the file, or null when the file may go. The check of chats.send (assertFilesForDirect) and the
  * list of the picker (chats.insertProjects) both ask it, so the picker never lists a project that Send then refuses.
  */
-export function shareBlockOf(ctx: Ctx, projectId: string, recipientIds: string[]): 'file_not_visible' | 'recipient_not_on_project' | null {
-  if (!mayShareProjectFile(ctx, projectId, ctx.authority.id)) return 'file_not_visible';
-  return recipientIds.every((recipientId) => mayShareProjectFile(ctx, projectId, recipientId)) ? null : 'recipient_not_on_project';
+export function shareBlockOf(ctx: Ctx, projectId: string, recipientIds: string[]): ShareBlock {
+  return shareRuleOf(ctx, recipientIds)(projectId);
+}
+
+type ShareBlock = 'file_not_visible' | 'recipient_not_on_project' | null;
+
+/**
+ * The rule of shareBlockOf for many projects (review 2026-11-03): chats.insertProjects asks it for every project of the office. The rights
+ * of each person of the chat do not change from one project to the next, so they are built once here, not once for each project. Only the
+ * place of each person on the project (projectRoleOf) is read for each project. The answer is the one of mayShareProjectFile.
+ */
+export function shareRuleOf(ctx: Ctx, recipientIds: string[]): (projectId: string) => ShareBlock {
+  const rightsOf = (userId: string): Actor | undefined => {
+    const user = ctx.state.users[userId];
+    return user === undefined ? undefined : ensureRights(ctx.state, user);
+  };
+  const sender = rightsOf(ctx.authority.id);
+  const others = recipientIds.map((userId) => ({ userId, actor: rightsOf(userId) }));
+  const mayShare = (actor: Actor | undefined, userId: string, projectId: string): boolean =>
+    actor !== undefined && can(actor, 'chat.project', { projectRole: projectRoleOf(ctx.state, projectId, userId) });
+  return (projectId) => {
+    if (!mayShare(sender, ctx.authority.id, projectId)) return 'file_not_visible';
+    return others.every(({ userId, actor }) => mayShare(actor, userId, projectId)) ? null : 'recipient_not_on_project';
+  };
 }
 
 /**

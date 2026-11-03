@@ -10,8 +10,15 @@ import { yearOffice } from './test/yearOffice';
  * DB-3, the CPU part (performance audit 2026-10-21): dashboard.get filtered all tasks once for each stage tag of each project.
  * The year office is the size of the real office after one year. The answers below were taken before the change, so they pin
  * that the faster handler gives the same answer for the same input.
+ * Since 2026-10-29 (commit 82dda13a, fbk_073) each schedule row also has a leaderId. That is a planned new field, and the
+ * answers below were taken without it. So the hash drops that one field. With this drop, the old hashes still hold.
+ * Another new field needs the same drop here. The rule tests in insights.test.ts check the value of the new field.
  */
-const hash = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16);
+const withoutLeaderId = (answer: unknown): unknown => ({
+  ...(answer as object),
+  schedule: (answer as { schedule: Record<string, unknown>[] }).schedule.map(({ leaderId: _leaderId, ...row }) => row),
+});
+const hash = (value: unknown): string => createHash('sha256').update(JSON.stringify(withoutLeaderId(value))).digest('hex').slice(0, 16);
 
 let office: State;
 beforeAll(async () => {

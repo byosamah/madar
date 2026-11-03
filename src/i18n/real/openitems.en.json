@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-11-03-148": {
+        "title": "AI assistants follow Share files",
+        "body": "Without the Share files switch, your AI assistant attaches only the files that you uploaded. This now holds in project chats and in the comments of a to-do too, as on your screen."
+      }
+    }
+  }
+}

@@ -138,11 +138,18 @@ describe('the + of the phone sheet', () => {
     const spy = vi.spyOn(api, 'call');
     await longPress('msg_901');
     const sheet = await screen.findByRole('dialog', { name: /Faisal Al-Harbi · / });
+    // The emoji sheet opens one frame after the message sheet closes. A test that looks at one moment races that frame on a busy
+    // machine, so an observer counts the open sheets after every change of the page, from the press on.
+    let mostOpen = 0;
+    const watch = new MutationObserver(() => {
+      mostOpen = Math.max(mostOpen, document.querySelectorAll('[role="dialog"]:not([data-state="closed"])').length);
+    });
+    watch.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-state'] });
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add a reaction' }));
-    // In the same moment the message sheet is closing and the emoji sheet is not there yet.
-    expect(screen.queryByRole('dialog', { name: 'Add an emoji' })).toBeNull();
     const emoji = await screen.findByRole('dialog', { name: 'Add an emoji' });
-    // Never two sheets at once.
+    watch.disconnect();
+    // Never two sheets at once: not in any step, and not when the emoji sheet is there.
+    expect(mostOpen).toBe(1);
     expect(screen.queryByRole('dialog', { name: /Faisal Al-Harbi · / })).toBeNull();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     await userEvent.click((await within(emoji).findAllByRole('button', { name: 'party popper' }))[0]);

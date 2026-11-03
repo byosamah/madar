@@ -1389,3 +1389,18 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
 - [ ] After production, by the owner's choice: the full `npm test` and the prototype smoke.
 - [ ] Open, not fixed: `all.sh test` failed twice on a cold start (POST /mcp, then the health check with the jobs secret, each one try
   of 20 s). Proposal: give checks 2 and 3 of `checks.sh` the tries of check 1.
+
+## Open items of the chat review closed (owner: "close what still open too", 2026-11-03; branch `rb/open-items`)
+- [x] The "Share files" rule (owner picked "Server follows switch"): in a project chat and on the comments of a project to-do or post, a
+  person without `file.share`, or the agent of that person, may attach only a file whose newest version the person or that agent uploaded
+  (`assertShareSwitchInProject`). An upload in the chat still works, and the screen, the Share button and the server now agree. Tests
+  first: `shareSwitch.test.ts` (4 of 8 failed before). MCP: the `Messages:` line. What's new `2026-11-03-148` (`real/openitems.*.json`).
+- [x] Speed of the picker list: `shareRuleOf` builds the rights of each person of the chat once, not once for each project. Test first:
+  `shareRuleCost.test.ts` (counts the reads of the role rights; parity with the rule for one project).
+- [x] Very long file names: no change needed. A file name holds at most 200 characters, so 10 names and the commas are at most 2,018
+  characters, under `MESSAGE_MAX` (4,000). `insertParts.test.ts` keeps that true if a limit changes.
+- [x] `dashboardYear.test.ts`: red since 82dda13a (2026-10-29, fbk_073), which added `leaderId` to each schedule row. The hash leaves out
+  that one field, and the three old fingerprints hold. No product change (a helper agent found the commit; proof in its search).
+- [x] `ReactionAny.test.tsx`: the line "the emoji sheet is not there yet" raced one animation frame on a busy machine. An observer now
+  counts the open sheets after every change from the press on, and the test expects at most 1. No product change.
+- [ ] Release: test copy, then production (owner: "Yes, to production").
