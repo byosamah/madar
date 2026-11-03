@@ -75,6 +75,27 @@ describe('project files in a group, a direct chat and a project chat', () => {
     expect(Object.values(t.store.state.messages)).toHaveLength(0);
   });
 
+  // A person whom an Admin turned off stays in the people of a group (users.deactivate keeps memberIds) and reads nothing (review
+  // 2026-11-03). The rule asks only the active people of the chat, as Seen and @everyone do (chatMemberIds).
+  it('takes project files in a group that still holds a turned-off person, and lists the project in the picker', async () => {
+    const t = world();
+    t.store.state.users.usr_004 = { ...t.store.state.users.usr_004, active: false };
+    t.as('usr_003');
+    expect(await t.api.call('chats.insertProjects', { conversationId: t.mixed })).toContain('prj_001');
+    const sent = await t.api.call('chats.send', { conversationId: t.mixed, body: 'Sheets', fileIds: ids(2) });
+    expect(sent.message.fileIds).toEqual(ids(2));
+  });
+
+  it('takes no project file in a direct chat whose other person is turned off: no active person would read it', async () => {
+    const t = world();
+    t.as('usr_003');
+    const direct = await t.api.call('chats.openDirect', { userId: 'usr_002' });
+    t.store.state.users.usr_002 = { ...t.store.state.users.usr_002, active: false };
+    expect(await t.api.call('chats.insertProjects', { conversationId: direct.id })).toEqual([]);
+    await expect(t.api.call('chats.send', { conversationId: direct.id, body: 'Look', fileIds: ['fil_001'] })).rejects.toBeDefined();
+    expect(Object.values(t.store.state.messages).filter((m) => m.conversationId === direct.id && (m.fileIds?.length ?? 0) > 0)).toHaveLength(0);
+  });
+
   it('needs the switch "Share files" for a project file in a direct chat or a group, as files.share does', async () => {
     const t = world();
     t.as('usr_006');

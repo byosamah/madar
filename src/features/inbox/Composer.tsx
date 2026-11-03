@@ -27,13 +27,17 @@ type ComposerProps = {
   /** The count of people that @everyone names here (fbk_041), for the row "Everyone" of the mention list. Missing: the row is off. */
   everyone?: number;
   pending: boolean;
-  /** "clear" empties the box. Call it when the send worked. */
-  onSend: (body: string, fileIds: string[], clear: () => void) => void;
+  /**
+   * "clear" empties the box. Call it when the send worked. "reply" is the message that this send answers, or null. The box decides it, so
+   * a pick of more than 10 project files answers the message only once (review 2026-11-03).
+   */
+  onSend: (body: string, fileIds: string[], clear: () => void, reply: ReplyRef | null) => void;
   /** Where picked files go: a project, an office task or a chat of its own. Without it, the box shows no attach control. */
   upload?: UploadTarget;
   /**
-   * Where "Insert from a project" looks (fbk_070, owner 2026-10-27). A direct chat or a group looks in every project the person may open
-   * (`{}`). A project chat and a to-do thread keep to their own project (`{ projectId }`), as the server asks. Missing: no such choice.
+   * Where "Insert from a project" looks (fbk_070, owner 2026-10-27). A direct chat or a group passes `{ conversationId }`: the picker lists
+   * only the projects that hold every person of the chat (`chats.insertProjects`, owner 2026-10-28). A project chat and a to-do thread keep
+   * to their own project (`{ projectId }`), as the server asks. Missing: no such choice.
    */
   insert?: InsertScope;
   /** The message that the next send answers (chat design 2026-10-19, item 10). Its strip shows above the field. */
@@ -117,8 +121,9 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, insert, ow
   const files = upload ? attachments.files : [];
   // The project files go as messages at once, 10 in each message, in the order of the picks (fbk_070). They are the project files
   // themselves: no upload and no new storage. The words are the file names, as for a file sent with no words. The text of the box stays.
+  // Only the first message answers a reply.
   const insertFiles = (picked: PickedProjectFile[]) => {
-    for (const part of insertParts(picked)) onSend(part.body, part.fileIds, () => undefined);
+    for (const part of insertParts(picked, replyTo ?? null)) onSend(part.body, part.fileIds, () => undefined, part.reply);
   };
   const submit = async () => {
     const body = withMentionMarkup(text.trim(), people) || files.map((file) => file.name).join(', ').slice(0, MESSAGE_MAX);
@@ -140,7 +145,7 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, insert, ow
       change('');
       attachments.clear();
       field.current?.focus();
-    });
+    }, replyTo ?? null);
   };
   return (
     <form

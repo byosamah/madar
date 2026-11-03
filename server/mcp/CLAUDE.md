@@ -126,7 +126,7 @@ Own OAuth server (consent, token step, grants): `server/mcp/oauth/CLAUDE.md`.
   Tests: `messageTools.test.ts`, `chatSwitches.test.ts`.
 - A message may carry project files (fbk_070): `chats.send` with `fileIds` of project files that the person may share. The rule is the one of
   `files.share`: the file reads as missing when the person may not open it (a hidden project too), the sender needs the switch
-  `file.share`, and every other person of a direct chat or a group must be on the project (`recipient_not_on_project`). A project chat takes
+  `file.share`, and every other active person of a direct chat or a group must be on the project (`recipient_not_on_project`; a turned-off person does not count). A project chat takes
   only files of its own project. At most 10 files in a message (`MAX_ATTACHMENTS`). It needs `ai.messages`, as every send. `files.uploadContent`
   keeps its 10 MB: the 500 MB of a project file is for the screens (a signed upload straight to R2). Tests: `chatInsertDocs.test.ts`,
   `src/api/handlers/chatInsert.test.ts`. The tool list is at its 110 KB cap (`toolSize.test.ts`): a new tool word needs a cut elsewhere.

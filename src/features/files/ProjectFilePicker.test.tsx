@@ -192,6 +192,33 @@ describe('the picker: projects, stages, folders and files', () => {
     expect(first.createdAt.localeCompare(second.createdAt)).toBeLessThanOrEqual(0);
   });
 
+  // A reply with more than 10 files (review 2026-11-03): only the first message answers the old message, so the person who wrote it
+  // gets one notice, not one for each 10 files.
+  it('keeps the reply on the first message only, when 12 files answer a message', async () => {
+    const { store } = await renderApp(DIRECT, plant);
+    const answered = messagesOf(store.state, 'cnv_013').filter((m) => m.authorId === 'usr_002').at(-1)!;
+    const bubble = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>(`[data-message-id="${answered.id}"]`);
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    await userEvent.click(within(bubble).getByRole('button', { name: 'Actions for this message' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Reply' }));
+    await openInsert();
+    await openProject(/Corniche Office Tower/);
+    await openStage(/Construction Documents/);
+    const box = within(await sheet());
+    await userEvent.click(await box.findByRole('checkbox', { name: /Big/ }));
+    await userEvent.click(box.getByRole('button', { name: 'Send 12 files' }));
+    await waitFor(() => expect(newOf(store.state)).toHaveLength(2));
+    const [first, second] = newOf(store.state);
+    expect(first.replyToId).toBe(answered.id);
+    expect(second.replyToId).toBeUndefined();
+    const sent = new Set([first.id, second.id]);
+    const notices = Object.values(store.state.notifications).filter((n) => n.userId === 'usr_002' && n.reply === true && n.messageId !== undefined && sent.has(n.messageId));
+    expect(notices).toHaveLength(1);
+  });
+
   it('finds a project by a part of its name', async () => {
     await renderApp(DIRECT, plant);
     await openInsert();

@@ -81,7 +81,8 @@ export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: 
 }
 
 /**
- * The one rule of a project file in a direct chat or a group (fbk_070): the sender and every other person of the chat must be on the
+ * The one rule of a project file in a direct chat or a group (fbk_070): the sender and every other active person of the chat (the callers
+ * pass `chatMemberIds`, so a person whom an Admin turned off does not count, review 2026-11-03) must be on the
  * project. It gives the reason that stops the file, or null when the file may go. The check of chats.send (assertFilesForDirect) and the
  * list of the picker (chats.insertProjects) both ask it, so the picker never lists a project that Send then refuses.
  */

@@ -341,7 +341,8 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
             pending={false}
             // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
             upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
-            // Insert from a project (fbk_070): a project chat takes only files of its own project, a direct chat or a group takes any project file.
+            // Insert from a project (fbk_070): a project chat takes only files of its own project. A direct chat or a group takes the files of
+            // the projects that hold every person of the chat (owner, 2026-10-28).
             insert={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { conversationId: id }}
             replyTo={replyTo}
             onCancelReply={() => setReplyTo(null)}
@@ -349,11 +350,11 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
             onTextChange={typing.changed}
             autoFocus={!embedded}
             compact={!!embedded}
-            onSend={(body, fileIds, clear) => {
-              const input = { conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
+            onSend={(body, fileIds, clear, reply) => {
+              const input = { conversationId: id, body, fileIds, ...(reply ? { replyToId: reply.id } : {}) };
               const key = newOutboxKey();
               typing.stop();
-              outbox.add({ key, input, body, replyTo, at: nowStamp(), seen: new Set(messages.map((view) => view.message.id)), failed: false });
+              outbox.add({ key, input, body, replyTo: reply, at: nowStamp(), seen: new Set(messages.map((view) => view.message.id)), failed: false });
               // The box is free at once: the next message does not wait for this one.
               clear();
               setReplyTo(null);
@@ -541,10 +542,10 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
           onEditLast={editLast}
           autoFocus={!embedded}
           compact={!!embedded}
-          onSend={(body, fileIds, clear) => {
-            const input = { targetType: 'task' as const, targetId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
+          onSend={(body, fileIds, clear, reply) => {
+            const input = { targetType: 'task' as const, targetId: id, body, fileIds, ...(reply ? { replyToId: reply.id } : {}) };
             const key = newOutboxKey();
-            outbox.add({ key, input, body, replyTo, at: nowStamp(), seen: new Set((comments.data ?? []).map((view) => view.comment.id)), failed: false });
+            outbox.add({ key, input, body, replyTo: reply, at: nowStamp(), seen: new Set((comments.data ?? []).map((view) => view.comment.id)), failed: false });
             clear();
             setReplyTo(null);
             create.mutate(input, { onSuccess: (view) => outbox.markSaved(key, view.comment.id) });

@@ -92,9 +92,9 @@ function CommentThreadFor({
   const insertComment = useAction('comments.create');
   const insert = projectId === null ? undefined : { projectId };
   const insertFiles = (picked: PickedProjectFile[]) => {
-    insertParts(picked).forEach((part, index) => {
-      insertComment.mutate({ targetType, targetId, ...part, ...(index === 0 && replyTo ? { replyToId: replyTo.id } : {}) });
-    });
+    for (const part of insertParts(picked, replyTo)) {
+      insertComment.mutate({ targetType, targetId, body: part.body, fileIds: part.fileIds, ...(part.reply ? { replyToId: part.reply.id } : {}) });
+    }
     setReplyTo(null);
   };
   // The files go up first, to the project of the comment. A comment on a task also links them to the task.

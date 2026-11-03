@@ -67,6 +67,35 @@ describe('the to-do thread of the Inbox', () => {
     expect(await screen.findByRole('dialog', { name: 'Corniche Office Tower' })).toBeInTheDocument();
   });
 
+  // A reply with more than 10 files (review 2026-11-03): only the first comment answers the old comment.
+  it('keeps the reply on the first comment only, when 12 files answer a comment', async () => {
+    const OLD = 'cmt_900';
+    const { store } = await renderApp('/inbox/tsk_007', (state) => {
+      as('usr_006')(state);
+      for (let n = 1; n <= 12; n += 1) {
+        const id = `fil_9${String(n).padStart(2, '0')}`;
+        state.files[id] = { id, projectId: 'prj_001', stageId: 'stg_004', taskId: null, name: `Sheet ${String(n).padStart(2, '0')}.pdf`, versions: [version] };
+      }
+      state.comments[OLD] = { id: OLD, targetType: 'task', targetId: 'tsk_007', authorId: 'usr_002', body: 'Which sheets are ready?', reactions: {}, createdAt: STAMP, editedAt: null } as State['comments'][string];
+    });
+    const bubble = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>(`[data-message-id="${OLD}"]`);
+      expect(found).not.toBeNull();
+      return found!;
+    }, { timeout: 10_000 });
+    await userEvent.click(within(bubble).getByRole('button', { name: 'Actions for this comment' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Reply' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Attach' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Insert from a project' }));
+    const box = within(await screen.findByRole('dialog', { name: 'Corniche Office Tower' }));
+    await userEvent.click(await box.findByRole('button', { name: /Construction Documents/ }));
+    for (let n = 1; n <= 12; n += 1) await userEvent.click(await box.findByRole('checkbox', { name: `Sheet ${String(n).padStart(2, '0')}.pdf` }));
+    await userEvent.click(box.getByRole('button', { name: 'Send 12 files' }));
+    const withFiles = () => commentsOf(store.state, 'tsk_007').filter((c) => (c.fileIds?.length ?? 0) > 0);
+    await waitFor(() => expect(withFiles()).toHaveLength(2));
+    expect(withFiles().map((c) => c.replyToId)).toEqual([OLD, undefined]);
+  });
+
   it('keeps the plain attach button on an office to-do, which has no project', async () => {
     const { api, router } = await renderApp('/inbox');
     const made = await api.call('tasks.create', { title: 'Renew the licence', ownerId: 'usr_001' });

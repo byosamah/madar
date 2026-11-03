@@ -23,7 +23,7 @@ describe("What's new entries", () => {
   it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
     const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
     expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
-    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-11-01', '2026-11-02']));
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-11-01', '2026-11-02', '2026-11-03']));
   });
 
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.

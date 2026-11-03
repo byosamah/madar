@@ -370,7 +370,8 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
       if (!conversation.projectId) throw invalid('fileIds', 'This chat has no project for files.', 'file_not_visible');
       assertFilesInProject(ctx, fileIds, conversation.projectId);
     } else {
-      const others = conversation.memberIds.filter((id) => id !== ctx.authority.id);
+      // The active people only (chatMemberIds): a person whom an Admin turned off stays in the group, reads nothing, and blocks no file.
+      const others = chatMemberIds(ctx.state, conversation).filter((id) => id !== ctx.authority.id);
       if (others.length === 0) throw invalid('fileIds', 'This chat has no other person.', 'file_not_visible');
       assertFilesForDirect(ctx, fileIds, others, conversation.id);
     }
@@ -409,7 +410,7 @@ export const chatsSend = defineCall({
 
 /**
  * The projects that the picker "Insert from a project" lists in a direct chat or a group (owner, 2026-10-28): the projects that the
- * person sees and that hold the person and every other person of the chat. It is the rule of chats.send (`shareBlockOf`), so Send never
+ * person sees and that hold the person and every other active person of the chat. It is the rule of chats.send (`shareBlockOf`), so Send never
  * refuses a listed project for this reason. The answer holds only ids of projects that the person sees already. A chat that the person
  * may not open answers as a missing chat. A person without the switches that chats.send asks for gets no project. A project chat keeps its own project.
  */
@@ -424,7 +425,7 @@ export const chatsInsertProjects = defineCall({
       return conversation.projectId && visibleProjectIds(ctx.state, ctx.authority).has(conversation.projectId) && shareBlockOf(ctx, conversation.projectId, []) === null
         ? [conversation.projectId] : [];
     }
-    const others = conversation.memberIds.filter((id) => id !== ctx.authority.id);
+    const others = chatMemberIds(ctx.state, conversation).filter((id) => id !== ctx.authority.id);
     if (others.length === 0 || !can(ctx.authority, 'chat.direct')) return [];
     const sees = visibleProjectIds(ctx.state, ctx.authority);
     return Object.keys(ctx.state.projects).filter((id) => sees.has(id) && shareBlockOf(ctx, id, others) === null);

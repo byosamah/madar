@@ -212,6 +212,12 @@ describe('the read map (plan 5.3, client map 3.2)', () => {
     expect(READS['session.get'].kinds).toContain('settings');
   });
 
+  // The picker list of a chat (review 2026-11-03): the rights of each person of the chat come from settings.roles, and a hidden project
+  // shows by its teams. The sample office never runs those branches for this call, so the trace above cannot see them. Pin the two kinds.
+  it('reloads the picker list of a chat on a change of the rights or of the teams, as projects.list does', () => {
+    expect(READS['chats.insertProjects'].kinds).toEqual(expect.arrayContaining(['settings', 'teams']));
+  });
+
   it('knows the project of each project read from its input or its answer', () => {
     expect(READS['projects.get'].projectOf?.({ id: 'prj_007' }, undefined)).toBe('prj_007');
     expect(READS['tasks.list'].projectOf?.({ projectId: 'prj_002' }, undefined)).toBe('prj_002');

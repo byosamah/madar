@@ -22,6 +22,8 @@ describe('the MCP words of project files in a chat', () => {
     expect(messagesLine()).toContain('files.list');
     expect(messagesLine()).toContain('at most 10');
     expect(messagesLine()).toContain('must be on the project');
+    // A turned-off person in a group blocks no file (review 2026-11-03).
+    expect(messagesLine()).toContain('other active people of the chat');
     expect(messagesLine()).toContain('in words your person approves');
     expect(messagesLine()).toContain('ai.messages');
     expect(filesLine()).toContain('500 MB');

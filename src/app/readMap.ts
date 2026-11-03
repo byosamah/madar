@@ -94,8 +94,9 @@ const RULES: Record<string, ReadRule> = {
   'chats.list': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
   'chats.unreadCount': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
   'chats.messages': rule('person', ['chatReads', 'conversations', 'members', 'messages', 'preferences', 'projects', 'users']),
-  // The picker list of a chat (owner, 2026-10-28): the people of the chat, their place on each project and their rights decide it.
-  'chats.insertProjects': rule('office', ['conversations', 'members', 'projects', 'users']),
+  // The picker list of a chat (owner, 2026-10-28): the people of the chat, their place on each project and their rights decide it. settings:
+  // the rights come from settings.roles. teams: the viewers of a hidden project (review 2026-11-03).
+  'chats.insertProjects': rule('office', ['conversations', 'members', 'projects', 'settings', 'teams', 'users']),
   'chats.waiting': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
   // The ticket of the live socket (exit wave 3): src/api/remote/liveSocket.ts asks for it with api.call, never with useCall.
   'live.ticket': rule('none', []),

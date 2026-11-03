@@ -1351,3 +1351,20 @@ the screen. The filter fieldsets hold short words and fitted.
 - [x] What's new `2026-11-02-145` (`real/fieldsetfit.*.json`). Guides: `src/CLAUDE.md`, `src/design/CLAUDE.md`. No MCP change.
 - [x] Shots before and after (EN/AR, light/dark, 390 px; desk), and a sweep of the filter fieldsets at 390 px, in the scratchpad.
 - [x] Release: test copy, then production by the owner. Done 2026-11-02: production at 3e68bd6e.
+
+## Chat code review fixes (owner picked "Fix the 3 bugs", 2026-11-03; branch `rb/chat-fixes`)
+A `/code-review medium` of the newest chat changes (Insert from a project, the PDF preview, the picker limit, the unread number) found 8
+items. The lead checked the top three in the code. All three were real.
+- [x] A reply with more than 10 project files sent the reply on every message, so the person answered got one notice for each 10 files
+  (the chat box and the to-do thread of the Inbox). `insertParts` now takes the reply and gives it to the first part only, and `onSend`
+  of `Composer` gets the reply from the box. `CommentThread` uses the same helper (the copied loop is gone). Tests first:
+  `ProjectFilePicker.test.tsx`, `InsertInTodo.test.tsx`.
+- [x] A turned-off person in a group blocked every project file (picker "no shared project", Send `recipient_not_on_project`). `chats.send`
+  and `chats.insertProjects` now ask `chatMemberIds` (the active people). A direct chat with a turned-off person stays closed. Tests first:
+  `chatInsert.test.ts`. MCP: the `Messages:` line says "other active people".
+- [x] The picker list did not reload on a change of the rights or the teams: `readMap.ts` adds `settings` and `teams`. Test: `readMap.test.ts`.
+- [x] The two old comments about the picker scope (`Composer.tsx`, `ConversationPane.tsx`). What's new `2026-11-03-146` (`real/chatfixes.*.json`).
+- [ ] Open, not fixed (owner picked only the three bugs): `chats.insertProjects` builds the rights of each person again for each project
+  (build each person once before the loop); the clip menu hides "Insert from a project" in a project chat from a person without
+  `file.share`, while the server allows it there; very long file names are cut at `MESSAGE_MAX` and then show as cut words in the bubble.
+- [ ] Release: test copy, then production.

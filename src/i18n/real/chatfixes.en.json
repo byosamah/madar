@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-11-03-146": {
+        "title": "Three fixes in Insert from a project",
+        "body": "When you reply with more than 10 project files, the writer of the message gets one notice. A colleague whom the Admin turned off no longer stops project files in a group. The list of projects changes at once when the Admin changes a right."
+      }
+    }
+  }
+}
