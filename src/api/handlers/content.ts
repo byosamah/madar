@@ -7,7 +7,7 @@ import { applyPatch, lastTaskCopy, recordCreate, recordDelete } from '../events'
 import { notifyIn } from '../notify';
 import { mayViewTask, principalOf, projectResource, type Resource } from '../permissions';
 import { nextId } from '../store';
-import { commentViewOf, feedFor, updateItemOf } from '../views';
+import { commentViewOf, feedFor, mayViewFile, updateItemOf } from '../views';
 import { toggledReactions, toggleMessageReaction } from './chats';
 import { mayUndoAgentChange } from './history';
 import { activeMentions, assertCan, everyoneOfNew, insertComment, requireProject, requireReplyComment, requireTask, roleIn, seesProject, taskRole, touch } from './shared';
@@ -87,7 +87,11 @@ export const updatesCreate = defineCall({
     for (const fileId of input.fileIds) {
       const file = ctx.state.files[fileId];
       // A file in a locked folder that the person may not see reads as a file that is not in the project (fbk_074).
-      if (file?.projectId !== project.id || fileHiddenByLock(ctx.state, ctx.authority, file)) throw invalid('fileIds', 'A file is not in this project.');
+      if (file?.projectId !== project.id || fileHiddenByLock(ctx.state, ctx.authority, file)) {
+        // A file of Resources that the person sees stays on the Resources page (fbk_078). A hidden one gets the answer of any other missing file.
+        if (file?.resource === true && mayViewFile(ctx.state, ctx.authority, file)) throw invalid('fileIds', 'A file of Resources stays on the Resources page.', 'file_resource');
+        throw invalid('fileIds', 'A file is not in this project.');
+      }
       if (fileInLockedFolder(ctx.state, file)) throw invalid('fileIds', 'A file of a locked folder stays in its folder.', 'file_locked');
     }
     const id = nextId(ctx.state, 'upd');
