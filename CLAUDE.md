@@ -83,6 +83,9 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
   built product (tokens and weights: `src/design/CLAUDE.md`).
 - A team report about a screen released the same day may come from a stale browser copy. Read the record through the Madar
   MCP (for example `chats.messages`) before you call the fix broken; a reload of the page shows the new copy.
+- A chat message with pictures to a team member: take the shots on the test copy (the Admin's own screens show hidden projects), then
+  send it from the owner's Madar page in Chrome (claude-in-chrome `file_upload` on the composer's file input, one Send, wait for the
+  uploads), not with `files.uploadContent` (the whole picture as base64 inside the call).
 
 ## Secrets and accounts
 - Secrets live only in `.env.local` and `secrets/<env>.env` (both git-ignored). Never open, print, commit or log them.
@@ -229,4 +232,8 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 - A review of a branch reads its worktree or `git diff main...<branch>`, never the main folder: another session's unsaved
   edits there look like part of the change.
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
+- A builder's own helper agents report to the lead session, not to the builder: brief each builder to measure by itself and never wait
+  on a helper's report.
+- A message to a running builder can cross its work. Send one decision; to change it, send "stop" first and read the branch before the
+  new order.
 - Workflow agents, finishers, usage limits, joins and merge traps: `docs/superpowers/real-build/build-process.md`.

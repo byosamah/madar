@@ -123,7 +123,8 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
   `Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })` and dispatch `visibilitychange` first.
 - Prototype language and theme live in IndexedDB (the person menu from 640 px, the Me tab on a phone). A switch takes a few seconds, and
   `<html lang>` can show the old value meanwhile. Wait before a screenshot.
-- A quick 390 px check without Playwright: in the claude-in-chrome tab, add a fixed 390 x 844 `iframe` of the same page (`innerWidth` is
+- A quick 390 px check without Playwright (a local server only: the test copy and production send `X-Frame-Options: DENY`): in the
+  claude-in-chrome tab, add a fixed 390 x 844 `iframe` of the same page (`innerWidth` is
   390; give it `border: none`, because a 2 px border makes 386). Switch the language or theme in the outer tab, then load the frame again (they share IndexedDB). Measure a phone text fit at 360 px and
   390 px in both languages: Arabic buttons («إرسال») are wider. To check a press area, use `elementFromPoint` on a grid around the element:
   a box measure misses an `after:` press strip.
