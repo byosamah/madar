@@ -1416,11 +1416,19 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
 - [x] A project list shows rows or boxes: the View button beside Filter on a desk Projects page, a round toggle on a phone Projects
   page and on a desk Home. One choice for both screens, kept by the browser. The deadline name wraps in a box and the date stays whole.
   Madar to-do tsk_633. Record: proof.md, "Release record: production at c0b38511".
-- [ ] The first load is 969,329 B of the 970,000 B limit (671 B left): the next change that adds first-load code must look at the limit.
+- [x] The first load is 969,329 B of the 970,000 B limit (671 B left): handled in the Resources release (below).
 - [x] Release: test copy, then production by Claude after the owner's "release it to production when ready". Done 2026-11-05: production
   at c0b38511.
-- [ ] Open from the same batch: fbk_079 (tsk_634, file preview in a big center window on a desk) and fbk_078 (tsk_635, a Resources page;
-  the place in the menu and who adds files wait on the owner).
+- [x] Open from the same batch: fbk_079 (tsk_634, file preview in a big center window on a desk) and fbk_078 (tsk_635, a Resources page).
+  Both shipped in production at 7a288c80 (below).
 
 ## Team report fbk_078 (owner answers of 2026-11-05)
-- [ ] fbk_078 (Faisal): Resources, a page for the files of the whole office (building codes, policies), inside Projects. Built on `rb/resources`, not yet merged. Every person reads; the new switch "Manage office resources" (off for every role but the Admin) changes; a locked folder reuses "Locked folders". What's new 152. The first-load limit rose from 970,000 to 972,000 B (the merge lead, 2026-11-05; the feature adds 1,195 B). The agent uses the existing file and folder tools, so the tool list cap stays 110 KB.
+- [x] fbk_078 (Faisal): Resources, a page for the files of the whole office (building codes, policies), inside Projects. Shipped in production at 7a288c80 (Arabic name «المراجع»). Every person reads; the new switch "Manage office resources" (off for every role but the Admin) changes; a locked folder reuses "Locked folders". What's new 152. The first-load limit rose from 970,000 to 972,000 B (the merge lead, 2026-11-05; the feature adds 1,195 B). The agent uses the existing file and folder tools, so the tool list cap stays 110 KB.
+
+## Release: Resources and the big file preview (owner: "finish them all then production", "ship all together", 2026-11-05; `rb/release-1105`)
+- [x] fbk_079 (tsk_634): on a desk, PDF, pictures, Word and Excel open in one big center window (`Sheet` mode `center`). The phone keeps its way.
+- [x] fbk_078 (tsk_635): Resources («المراجع»), inside Projects; on a phone the To-dos View toggle sits in the title row, so the 4-part
+  Work switch has the whole row (every label fits at 360 and 390 px, Chromium and WebKit).
+- [x] Release: test copy, then production by Claude. Done 2026-11-05: production at 7a288c80. Record: proof.md.
+- [ ] The first load holds 970,494 B of the 972,000 B limit (1,506 B left): the next change that adds first-load code must look at it.
+- [ ] An empty Resources folder shows in no MCP list, so an agent cannot find it to rename, lock or delete it (INSTRUCTIONS says so).

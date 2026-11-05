@@ -3090,3 +3090,32 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` by Claude, 2026-11-05 about 08:45 UTC. Live checks: health from supabase, 158
   calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and `/favicon.ico` 200; madar.vado.sa serves
   `index-DJy7R08w.js`, the same as the deploy address; `words.en-D1xMWMgp.js` holds "Show your projects as boxes".
+
+### Release record: production at 7a288c80 (2026-11-05, fbk_078 Resources and fbk_079 the big file preview)
+- Why (owner: "finish them all then production", then "ship all together"): Faisal's reports fbk_078 (one place for office files, such as
+  building codes and policies) and fbk_079 (a PDF preview in the side panel is too small). Owner answers of 2026-11-05: Resources sits
+  inside Projects (a link on the desk Projects page, a 4th part of the phone Work switch); the new switch "Manage office resources" is on
+  for the Admin only, every person reads; a locked folder uses "Locked folders"; every desk preview opens in a big center window.
+- What shipped (`rb/release-1105`, 14 commits on b26cb713): `rb/resources` (10 commits: `resource: true` files, `Settings.resourceFolders`,
+  the switch `resources.manage`, 4 screen calls on the MCP deny list, the existing file and folder tools take a Resources target, the
+  shared lock rules `fileHiddenByLock`, `eventHiddenByLock` and `eventForViewer` cover Resources, leak tests); `rb/preview` (the `center`
+  desk mode of `Sheet` for PDF, pictures, Word and Excel; video keeps its full-screen player); the Arabic name «المراجع» (the old
+  «ملفات المكتب» was cut in all 4 Arabic cases of the phone switch, in Chromium and WebKit); on a phone the To-dos View toggle moved to
+  the title row, so the 4-part switch has the whole row. What's new `2026-11-05-152` and `2026-11-05-151`.
+- Limits: the first-load limit rose from 970,000 to 972,000 B in the same commit as its reason (Resources adds 1,195 B of registry
+  lines); the release holds 970,494 B raw (1,506 B left), 295,379 B gzip, 32 files. The MCP tool list stays under 110 KB (the owner
+  allowed a one-time 112 KB; it was not needed). The api bundle bound in `bundles.test.ts` rose to 970,000 characters.
+- Security: an automated review of the first Resources commits found 3 gaps (resource folders in `settings.get`, the shared hide rule and
+  the events, `files.delete`). Each got a failing test first, then the fix, before the merge.
+- Gates, each once. `rb/resources`: npm test 12,885 passed; test:lite 3,517; test:office 40; test:db 3,517; test:it (files 37, runCall 10,
+  save 12, loaders 9, readIndexes 10, uploadContent 4, mcp 9, worker 12); test:mcp 668 (conformance: the 27 expected failures only).
+  `rb/preview`: npm test 12,816 with 1 red that pinned old code (`privateMark.test.ts`), now covering `useFileUrl` and `useFileLink`.
+  After the join: typecheck, 33 touched files (938 tests), build, build:server, build:remote test, npm test 12,900 passed. Smoke: 4 red
+  (the Work switch test expected 3 parts), then the switch fixes, then 140 of 140. WebKit and Chromium: every label of the Work switch
+  fits at 360 and 390 px in English and Arabic on /work, /meetings, /projects and /resources, and no page scrolls sideways.
+- Test copy: `all.sh test` of 7a288c80 passed on the first try (health from supabase, 162 calls; database, lock and asyncContext ok; /mcp
+  with no token 401). By hand in Chrome as the admin sample: the Resources link on Projects, the empty Resources page, a new folder
+  "Building codes" saved with Undo, a PDF of the Files tab in the big center window.
+- `echo production | scripts/deploy/all.sh production` by Claude, 2026-11-05 about 11:45 UTC. Live checks: health from supabase, 162
+  calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and `/favicon.ico` 200; madar.vado.sa serves
+  `index-Beyb5LAi.js`, the same as the deploy address; `words.en-C9H7vPZK.js` holds "Manage office resources" and the preview line.
