@@ -98,7 +98,7 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
   Gentle words: "3 days past due" in the attention color, never a red "Overdue". The unread badge is red on the Inbox and the bell only.
 - Calm rules: one title and at most one main button (`expectCalm` in `tests/e2e-deploy/steps.ts` checks these two). One Filter button and no
   filter chip rows (the one exception is the four kind chips of the phone Inbox, a radiogroup whose open chip is a white card and never
-  navy). No grid view. "On track" never shows in lists. Avatar stacks only as `AvatarStack` with the leader ring.
+  navy). A project list shows rows or boxes by the choice of the person (fbk_080, owner 2026-11-05, `features/projects/projectView.ts`); no other list has a grid view. "On track" never shows in lists. Avatar stacks only as `AvatarStack` with the leader ring.
 - Shared parts (avatars, tiles, logo, icons, required fields, dates, popovers): `components/CLAUDE.md`.
 - RTL: logical classes only (`start/end`, `ms/me`, `ps/pe`). `scripts/check-rtl.ts` fails on left or right styles.
 - Write a direction mark as an escape (`⁨`), never as the raw character: GitHub flags hidden bidi characters. The Write tool can save a

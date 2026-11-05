@@ -4,6 +4,12 @@ The owner decisions and the history that the CLAUDE.md guides held until 2026-10
 keep each decision that still sets a rule, as a rule. This file is the record of when and why. Newest wins.
 Sections follow the guide that held the text. Line numbers and counts in this file are from that day and can be old.
 
+## 2026-11-05
+- Project boxes (fbk_080, owner): Home ("Your projects") and the Projects page get a second view, Boxes, beside Rows. The owner picked option B
+  (tile boxes) of three mockups: A cover boxes, B tile boxes, C shape squares. No project had a cover picture on 2026-11-05, so the cover boxes
+  would have shown only the drawn tile at a large size. The choice stays in the browser and serves both screens. This replaces the old calm
+  rule "No grid view" for the project lists only. No other list has a grid view.
+
 ## 2026-11-03
 - Video in chats (owner): a video (MP4, WebM, QuickTime) in a chat message, a to-do comment and the Files tab shows its first frame with a
   play mark, and a press plays it in a full screen player with Download (option "Tile, opens full screen", place "Everywhere"). The other

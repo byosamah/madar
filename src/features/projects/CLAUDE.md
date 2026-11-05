@@ -12,6 +12,17 @@ The Projects screen, the New and Edit project sheets, the form fields, the templ
 - The list shows two groups, "Projects" and "Internal" (`ProjectsBody`), only while it holds both kinds; else it is one list with no
   titles (fbk_075). "Show first" in the Filter sheet shows only while the list holds an internal project; the browser keeps it
   (`PROJECT_FIRST_KEY`, `sort.ts`), like the sort. The search of the phone filters first, then the rows group.
+- A project list shows rows or boxes (fbk_080, owner 2026-11-05, option B "tile boxes" of three mockups). One choice, `PROJECT_VIEWS` (`rows` first,
+  `boxes`) in the browser under `madar.projects.view` (`useProjectView`, `projectView.ts`), serves Home and Projects. `ProjectBox` is the
+  memoized box (its code sits in `ProjectListRow.tsx` and `ProjectBox.tsx` re-exports it: as its own module it grew the first load of the remote
+  build from 32 to 37 files, over the check-bundles limit), with the rules of the row: one `Link`, `projects.get` on pointerdown and never on hover, the menu through `RowMenu`
+  (in `ProjectListRow.tsx`), no router hook in the body. The box is a column: the tile (40 px) and the state word with the lock,
+  the name (2 lines at most) and the client or "Internal", then at the bottom the stage name with its steps, and the next deadline with a
+  small team stack (leader 28 px, team 22 px, the leader ring). Its last row wraps when the box is narrow, and the box passes `wrap` to `NextDeadlineLabel`: the deadline name takes 2 lines (`line-clamp-2`, no other display class, for Safari) and the date stays whole. The row keeps the cut name. `ProjectBoxGrid` is the grid:
+  2 columns on a phone, `repeat(auto-fill,minmax(236px,1fr))` from 640 px. The groups "Projects" and "Internal" keep their own grid, and the
+  phone search filters first. The switch: a desk Projects page has the View button beside Filter (Rows or Boxes as radios, `ProjectViewButton`);
+  a phone Projects page and a desk Home have one round 44 px toggle (`ProjectViewToggle`, its own file, so Home does not import `FilterButton` and its sheet into the first load; `aria-pressed`). Add no other control. The view is a
+  browser choice: it adds no call, MCP tool or right. Tests: `ProjectBox.test.tsx`, `ProjectViewChoice.test.tsx`, `home/HomeProjectView.test.tsx`.
 - The New project sheet starts with one choice, "Client project" or "Internal project" (`ProjectFormValues.kind`, Client at first). Internal
   hides the code group, client, location, area, sub-company and contract date (`ProjectFields`, flag `internal`). The sheet sends
   `kind: 'internal'` and none of the client fields. `validateProjectForm` skips the code and the sub-company. The edit sheet reads `kind` from

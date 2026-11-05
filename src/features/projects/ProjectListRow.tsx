@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -110,3 +110,90 @@ export const ProjectListRow = memo(function ProjectListRow({ summary, source }: 
     </motion.li>
   );
 });
+
+/*
+ * The box of fbk_080 (ProjectBox, ProjectBoxGrid) lives in this file on purpose. As a module of its own, imported by Home, it made the
+ * remote build split five shared modules out of the entry chunk (ProjectTile, due, files, projectName, projectShape): the first load
+ * went from 32 to 37 files and over its byte limit (check-bundles). `ProjectBox.tsx` re-exports both names, so every caller imports them from there.
+ */
+/**
+ * One project as one box (fbk_080, owner 2026-11-05, option B "tile boxes"). It holds what a row holds, in one column: the tile and the
+ * state word on top, the name and the client, then at the bottom the stage with its steps, and the next deadline with the team.
+ * The rules of the row apply: one link, `projects.get` starts on pointerdown and never on hover, the menu is the `RowMenu` part (no router
+ * hook in this body), and the box is memoized, so a list that reloads for one project renders only that box.
+ */
+export const ProjectBox = memo(function ProjectBox({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
+  const { t } = useTranslation();
+  const lang = useLang();
+  const { project } = summary;
+  const menu = useContextMenu();
+  const prefetch = usePrefetchCall();
+  const index = summary.stages.findIndex((stage) => stage.id === summary.currentStage.id);
+  return (
+    <motion.li
+      {...menu.handlers}
+      layout="position"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ ...spring.standard, duration: 0.46 }}
+      className="min-w-0"
+    >
+      <Link
+        to={`/projects/${project.id}`}
+        data-project-box
+        onClick={() => setSharedSource(source)}
+        onPointerDown={() => prefetch('projects.get', { id: project.id })}
+        className="pressable panel flex h-full min-w-0 flex-col gap-3 p-4 transition-colors hover:!bg-fill/50"
+      >
+        <span className="flex items-start justify-between gap-2">
+          <ProjectTile id={project.id} mark={project.mark} shape={project.shape} subCompanyId={summary.subCompanyId} size={40} shared />
+          <span className="flex min-h-6 min-w-0 items-center gap-2">
+            <ProjectStateWord summary={summary} />
+            {isHiddenProject(project) && <HiddenMark />}
+          </span>
+        </span>
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <motion.span layoutId={`name-${project.id}`} transition={spring.expand} dir="auto" className="line-clamp-2 text-[calc(15px*var(--boost))] font-semibold leading-snug text-ink">
+            {shownName(project, lang)}
+          </motion.span>
+          {summary.client && <bdi dir="auto" className="block truncate text-footnote text-ink-2">{clientName(summary.client, lang)}</bdi>}
+          {!summary.client && isInternalProject(project) && <span className="block truncate text-footnote text-ink-2">{t('project.internal')}</span>}
+        </span>
+        <span data-stage-column className="mt-auto flex min-w-0 flex-col gap-1.5">
+          <bdi dir="auto" className="truncate text-footnote font-medium text-ink">{summary.currentStage.name}</bdi>
+          <ProgressLine
+            index={index}
+            total={summary.stages.length}
+            complete={project.status === 'completed'}
+            glow={false}
+            tone={signOfProject(summary)}
+            label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
+            className="w-full"
+          />
+        </span>
+        {/* The deadline and the team share one row. A narrow box wraps them, the deadline first. */}
+        <span data-box-last className="flex min-h-7 min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <span className="min-w-0 max-w-full">
+            <NextDeadlineLabel deadline={summary.nextDeadline} stageEnd={summary.stageEnd} continuous={summary.project.continuous} wrap />
+          </span>
+          <span data-team-column>
+            <AvatarStack leader={summary.leader} team={summary.team} max={summary.leader ? 2 : 3} size={22} leaderSize={28} />
+          </span>
+        </span>
+      </Link>
+      <RowMenu summary={summary} point={menu.point} onClose={menu.close} />
+    </motion.li>
+  );
+});
+
+/** A grid of project boxes: 2 columns on a phone, as many 236 px columns as fit on a desk. The caller sets the `LayoutGroup`. */
+export function ProjectBoxGrid({ label, rows, source }: { label: string; rows: ProjectSummary[]; source: 'home' | 'projects' }) {
+  return (
+    <ul aria-label={label} className="grid grid-cols-2 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(236px,1fr))]">
+      <AnimatePresence initial={false}>
+        {rows.map((summary) => <ProjectBox key={summary.project.id} summary={summary} source={source} />)}
+      </AnimatePresence>
+    </ul>
+  );
+}

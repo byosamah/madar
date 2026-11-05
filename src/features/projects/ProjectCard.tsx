@@ -38,7 +38,7 @@ export function ProjectCover({ summary, className = 'aspect-video', layoutId }: 
  * "Permit set · 12 Oct", or "Permit set · In 3 days". A deadline in the past says so in the attention color (redesign spec 5.4).
  * With no named deadline, "Stage ends · 12 Oct" gives the end of the current stage, the date that the Late tag reads (fbk_004).
  */
-export function NextDeadlineLabel({ deadline, stageEnd, continuous }: { deadline: ProjectSummary['nextDeadline']; stageEnd?: ProjectSummary['stageEnd']; continuous?: boolean }) {
+export function NextDeadlineLabel({ deadline, stageEnd, continuous, wrap = false }: { deadline: ProjectSummary['nextDeadline']; stageEnd?: ProjectSummary['stageEnd']; continuous?: boolean; wrap?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   // A continuous project (fbk_069) never ends: with no named deadline it says "Continuous", also when a stage has an end date.
@@ -47,6 +47,19 @@ export function NextDeadlineLabel({ deadline, stageEnd, continuous }: { deadline
   if (!shown) return <span className="text-footnote text-ink-2">{t('projects.noDeadline')}</span>;
   const word = wordForDays(shown.daysLeft);
   const when = word.key === 'dueOn' ? formatDay(shown.date, lang) : dueText(word, t, lang, shown.date);
+  // `wrap` (the project box, fbk_080): a narrow box of 171 px cut the name to "Coordina...", so it no longer said what the deadline is.
+  // It holds the "Stage ends" line too (no named deadline): there the name wraps and the date stays whole. The name takes up to 2 lines (line-clamp-2 alone sets the display, Safari needs -webkit-box), and the date stays whole: on the same
+  // line when it fits, else on the next line. No dot between them, because a dot would stand alone at the start of the second line.
+  if (wrap) {
+    return (
+      <p data-deadline-wrap className={`flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1.5 text-footnote ${word.tone === 'attn' ? 'text-attn' : 'text-ink-2'}`}>
+        <bdi className={`line-clamp-2 min-w-0 font-medium ${word.tone === 'attn' ? '' : 'text-ink'}`}>{shown.name}</bdi>
+        {/* The dot is for a screen reader only: it keeps "name · date" as one phrase without drawing a dot at the start of a line. */}
+        <span className="sr-only"> · </span>
+        <span className="tabular whitespace-nowrap">{when}</span>
+      </p>
+    );
+  }
   // The stage word is the one fact that says what the date is, so this line wraps on a narrow row and never cuts it: the phone
   // check cut "نهاية المرحلة" to "نهاي..." on a Late row (2026-10-12).
   if (!deadline) {

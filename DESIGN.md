@@ -611,8 +611,8 @@ stands alone without a label or an accessible name.
 - **Do** let panels breathe: white space is part of the calm, not unused room.
 - **Do** design the Arabic screen at the same time as the English one, with logical sides only.
 - **Don't** use gradients on buttons, and never a blue-to-violet gradient anywhere. The owner reads it as generic AI style.
-- **Don't** bring back glass panels, cover images in lists, grid views of projects or rows of filter chips (the four kind chips of the
-  phone Inbox are the one exception).
+- **Don't** bring back glass panels, cover images in lists, a grid view of any list but the projects, or rows of filter chips (the four
+  kind chips of the phone Inbox are the one exception). The project lists show rows or boxes by the choice of the person (fbk_080).
 - **Don't** use red for anything except Late and errors.
 - **Don't** show "On track" in a list, or a status word when nothing needs attention.
 - **Don't** add a badge, a pulse or a moving element to get attention. One unread count on the Inbox and the bell (on a phone, the Inbox tab and its two segments) is

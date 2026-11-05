@@ -1,0 +1,16 @@
+{
+  "projectView": {
+    "label": "View",
+    "rows": "Rows",
+    "boxes": "Boxes",
+    "showBoxes": "Show as boxes"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-05-150": {
+        "title": "Show projects as boxes",
+        "body": "Show your projects as boxes: press View on the Projects page."
+      }
+    }
+  }
+}

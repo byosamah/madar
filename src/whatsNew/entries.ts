@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // A project list shows rows or boxes by the choice of the person: the View button of Projects and a round toggle on Home (fbk_080, owner 2026-11-05). The lead sets the real release day before the test deploy.
+  { id: '2026-11-05-150', day: '2026-11-05', to: '/projects' },
   // The switch Share files also holds for AI assistants in a project chat and on the comments of a to-do: without it, only files that the person or the agent uploaded (owner, 2026-11-03: "Server follows switch"). The lead sets the real release day before the test deploy.
   { id: '2026-11-03-148', day: '2026-11-03' },
   // A video (MP4, WebM, QuickTime) in a chat, a comment or Files & Links shows its first frame, and a press plays it on the full screen (owner, 2026-11-03). The lead sets the real release day before the test deploy.

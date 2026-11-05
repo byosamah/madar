@@ -26,9 +26,12 @@ import { projectsDefaultShow } from '../../lib/projectReach';
 import { useRoleHint } from '../home/useRoleHint';
 import { WorkHeader } from '../work/WorkHeader';
 import { NewProjectSheet, usePrepareNewProject } from './NewProjectSheet';
+import { ProjectBoxGrid } from './ProjectBox';
 import { ProjectListRow } from './ProjectListRow';
 import { ProjectSearch } from './ProjectSearch';
 import { searchProjects } from './searchProjects';
+import { type ProjectView, useProjectView } from './projectView';
+import { ProjectViewButton } from './ProjectViewButton';
 import { PROJECT_FIRST_KEY, PROJECT_FIRSTS, PROJECT_SORT_KEY, PROJECT_SORTS } from './sort';
 
 type First = (typeof PROJECT_FIRSTS)[number];
@@ -48,8 +51,8 @@ const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
  * The list, its empty state or its error. It takes only plain props and stable handlers, so New project, which opens a form
  * over the list, does not render the rows again (performance audit 2026-10-07, RND-2).
  */
-const ProjectsBody = memo(function ProjectsBody({ rows, first, error, onRetry, onShowAll }: {
-  rows: ProjectSummary[] | undefined; first: First; error: unknown; onRetry: () => void; onShowAll: () => void;
+const ProjectsBody = memo(function ProjectsBody({ rows, first, view, error, onRetry, onShowAll }: {
+  rows: ProjectSummary[] | undefined; first: First; view: ProjectView; error: unknown; onRetry: () => void; onShowAll: () => void;
 }) {
   const { t } = useTranslation();
   if (error) {
@@ -62,7 +65,7 @@ const ProjectsBody = memo(function ProjectsBody({ rows, first, error, onRetry, o
   const internal = rows.filter((summary) => isInternalProject(summary.project));
   // While one group is empty, the list stays one list with no titles (fbk_075).
   if (internal.length === 0 || internal.length === rows.length) {
-    return <LayoutGroup id="projects"><RowList label={t('screens.projects')} rows={rows} /></LayoutGroup>;
+    return <LayoutGroup id="projects"><RowList label={t('screens.projects')} rows={rows} view={view} /></LayoutGroup>;
   }
   const client = rows.filter((summary) => !isInternalProject(summary.project));
   const parts: [First, ProjectSummary[]][] = first === 'internal' ? [['internal', internal], ['projects', client]] : [['projects', client], ['internal', internal]];
@@ -72,7 +75,7 @@ const ProjectsBody = memo(function ProjectsBody({ rows, first, error, onRetry, o
         {parts.map(([key, group]) => (
           <section key={key} aria-labelledby={`projects-group-${key}`}>
             <h2 id={`projects-group-${key}`} className="px-2 pb-1 text-caption font-semibold uppercase tracking-[0.06em] text-ink-2">{t(`projects.groups.${key}`)}</h2>
-            <RowList label={t(`projects.groups.${key}`)} rows={group} />
+            <RowList label={t(`projects.groups.${key}`)} rows={group} view={view} />
           </section>
         ))}
       </div>
@@ -80,8 +83,9 @@ const ProjectsBody = memo(function ProjectsBody({ rows, first, error, onRetry, o
   );
 });
 
-/** One panel of project rows. */
-function RowList({ label, rows }: { label: string; rows: ProjectSummary[] }) {
+/** One panel of project rows, or one grid of project boxes (fbk_080). */
+function RowList({ label, rows, view }: { label: string; rows: ProjectSummary[]; view: ProjectView }) {
+  if (view === 'boxes') return <ProjectBoxGrid label={label} rows={rows} source="projects" />;
   return (
     <ul aria-label={label} className="@container panel hairline overflow-hidden">
       <AnimatePresence initial={false}>
@@ -97,8 +101,8 @@ function RowList({ label, rows }: { label: string; rows: ProjectSummary[] }) {
  * Filter button and the New project sheet stay as they are. The text is not in the link and does not count in the Filter badge. The
  * list gets the same array while the text keeps every row.
  */
-function ProjectsFind({ filterButton, chips, rows, first, error, onRetry, onShowAll }: {
-  filterButton: ReactNode; chips: ReactNode; rows: ProjectSummary[] | undefined; first: First; error: unknown; onRetry: () => void; onShowAll: () => void;
+function ProjectsFind({ filterButton, chips, rows, first, view, error, onRetry, onShowAll }: {
+  filterButton: ReactNode; chips: ReactNode; rows: ProjectSummary[] | undefined; first: First; view: ProjectView; error: unknown; onRetry: () => void; onShowAll: () => void;
 }) {
   const [query, setQuery] = useState('');
   const found = useMemo(() => (rows ? searchProjects(rows, query) : undefined), [rows, query]);
@@ -114,7 +118,7 @@ function ProjectsFind({ filterButton, chips, rows, first, error, onRetry, onShow
         {filterButton}
       </div>
       {chips && <div className="flex flex-wrap items-center gap-3 pb-4">{chips}</div>}
-      <ProjectsBody rows={found} first={first} error={error} onRetry={onRetry} onShowAll={showAll} />
+      <ProjectsBody rows={found} first={first} view={view} error={error} onRetry={onRetry} onShowAll={showAll} />
     </>
   );
 }
@@ -176,6 +180,7 @@ export function ProjectsScreen() {
   });
   const [sort, setSort] = usePersistentChoice(PROJECT_SORT_KEY, SORTS, 'updated');
   const [first, setFirst] = usePersistentChoice(PROJECT_FIRST_KEY, PROJECT_FIRSTS, 'projects');
+  const [view, setView] = useProjectView();
   const [creating, setCreating] = useState(false);
   // "New project" needs project.create (role rights version 2).
   const mayCreate = useRight('project.create');
@@ -279,6 +284,8 @@ export function ProjectsScreen() {
       )}
     </FilterButton>
   );
+  // The View control sits beside Filter: the radio button on a desk, the round toggle on a phone (fbk_080).
+  const viewButton = <ProjectViewButton view={view} onView={setView} />;
   const hasChips = Boolean(gap || health);
   const chips = (
     <>
@@ -306,7 +313,7 @@ export function ProjectsScreen() {
     return (
       <>
         <WorkHeader action={newProject} />
-        <ProjectsFind filterButton={filterButton} chips={hasChips ? chips : null} rows={list.data} first={first} error={list.error} onRetry={retry} onShowAll={showAll} />
+        <ProjectsFind filterButton={<>{filterButton}{viewButton}</>} chips={hasChips ? chips : null} rows={list.data} first={first} view={view} error={list.error} onRetry={retry} onShowAll={showAll} />
         {mayCreate && <NewProjectSheet open={creating} onOpenChange={setCreating} />}
       </>
     );
@@ -316,9 +323,10 @@ export function ProjectsScreen() {
       <ScreenTitle title={t('screens.projects')} action={newProject} />
       <ScreenControls>
         {filterButton}
+        {viewButton}
         {chips}
       </ScreenControls>
-      <ProjectsBody rows={list.data} first={first} error={list.error} onRetry={retry} onShowAll={showAll} />
+      <ProjectsBody rows={list.data} first={first} view={view} error={list.error} onRetry={retry} onShowAll={showAll} />
       {mayCreate && <NewProjectSheet open={creating} onOpenChange={setCreating} />}
     </>
   );

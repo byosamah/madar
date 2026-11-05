@@ -18,7 +18,10 @@ import { counted } from '../../lib/grammar';
 import { comingUp, dayRing, dueByToday, greetingKey, nextForYou, officeHour } from '../../lib/home';
 import { useFocusLink } from '../focus/focusLink';
 import { todayMeetingsInput } from '../meetings/readInputs';
+import { ProjectBoxGrid } from '../projects/ProjectBox';
 import { ProjectListRow } from '../projects/ProjectListRow';
+import { type ProjectView, useProjectView } from '../projects/projectView';
+import { ProjectViewToggle } from '../projects/ProjectViewToggle';
 import { DayRing } from './DayRing';
 import { HomeTaskSheet, warmTaskSheet } from './HomeTaskSheet';
 import { MeetingsCard } from './MeetingsCard';
@@ -37,10 +40,10 @@ import { hasNew, readSeen } from '../../whatsNew/seen';
  * link change that only opens or closes the task panel does not render the rows again (performance audit 2026-10-07, RND-2).
  * "today" and "hour" come from the parent, so a new day or hour still gives a new date, greeting and due words.
  */
-const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedError, showLeft, phone, today, hour, onOpen, onFocus, onRetry }: {
-  session: CallOutput<'session.get'>; mine: TaskRow[]; review: TaskRow[]; listed: ProjectSummary[] | undefined; listedError: unknown; showLeft: boolean; phone: boolean;
+const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedError, view, showLeft, phone, today, hour, onOpen, onFocus, onRetry, onView }: {
+  session: CallOutput<'session.get'>; mine: TaskRow[]; review: TaskRow[]; listed: ProjectSummary[] | undefined; listedError: unknown; view: ProjectView; showLeft: boolean; phone: boolean;
   today: string; hour: number; onOpen: (projectId: string | null, taskId: string, thread?: boolean) => void; onFocus: (taskId: string) => void;
-  onRetry: () => void;
+  onRetry: () => void; onView: (next: ProjectView) => void;
 }) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -86,19 +89,27 @@ const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedE
     <>
       <div className="flex min-w-0 flex-col gap-4">{blocks}</div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
-        <div className="flex items-baseline justify-between gap-3 px-1">
+        <div className="flex items-center justify-between gap-3 px-1">
           <h2 id="your-projects" className="text-section text-ink">{t('home.projects')}</h2>
-          {projects && <span className="tabular text-subheadline text-ink-2">{counted(t, 'home.projectCount', projects.length)}</span>}
+          {/* The count and the one round toggle of the view (fbk_080). The negative margin keeps the header as high as before. */}
+          <span className="flex items-center gap-3">
+            {projects && <span className="tabular text-subheadline text-ink-2">{counted(t, 'home.projectCount', projects.length)}</span>}
+            {projects && projects.length > 0 && <ProjectViewToggle view={view} onView={onView} className="-my-2" />}
+          </span>
         </div>
         {listedError ? <LoadFailed error={listedError} onRetry={onRetry} /> : null}
         {projects && projects.length === 0 && <p className="panel px-5 py-4 text-subheadline text-ink-2">{t('home.noProjects')}</p>}
         {projects && projects.length > 0 && (
           <LayoutGroup id="home">
-            <ul aria-label={t('home.projects')} className="@container panel hairline overflow-hidden">
-              <AnimatePresence initial={false}>
-                {projects.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} source="home" />)}
-              </AnimatePresence>
-            </ul>
+            {view === 'boxes' ? (
+              <ProjectBoxGrid label={t('home.projects')} rows={projects} source="home" />
+            ) : (
+              <ul aria-label={t('home.projects')} className="@container panel hairline overflow-hidden">
+                <AnimatePresence initial={false}>
+                  {projects.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} source="home" />)}
+                </AnimatePresence>
+              </ul>
+            )}
           </LayoutGroup>
         )}
         <Link to="/projects" className="flex min-h-11 items-center self-start px-1 text-subheadline font-semibold text-link">{t('home.allProjects')}</Link>
@@ -129,6 +140,7 @@ export function HomeScreen() {
   const listed = useCall('projects.list', homeProjectsInput(admin, reach), { enabled: !phone });
   // An office task has no project, so its link names the task alone (owner, 2026-10-06).
   const open = useStableHandler((projectId: string | null, taskId: string, thread: boolean = false) => setParams({ ...(projectId ? { project: projectId } : {}), task: taskId, ...(thread ? { thread: '1' } : {}) }));
+  const [view, setView] = useProjectView();
   const startFocus = useStableHandler(focus.open);
   const retryProjects = useStableHandler(() => void listed.refetch());
   const close = useCallback(() => setParams((current) => {
@@ -179,6 +191,7 @@ export function HomeScreen() {
         review={review.data}
         listed={listed.data}
         listedError={listed.error}
+        view={view}
         showLeft={showLeft}
         phone={phone}
         today={today}
@@ -186,6 +199,7 @@ export function HomeScreen() {
         onOpen={open}
         onFocus={startFocus}
         onRetry={retryProjects}
+        onView={setView}
       />
       {taskId && <HomeTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
     </div>

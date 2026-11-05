@@ -15,6 +15,10 @@ Home (`HomeScreen.tsx`). The first request of Home, the stored answers and the r
 - `PushAskCard` shows one of three cards (push ask, the iPhone steps, the Android install). Rules: `src/features/settings/CLAUDE.md`. On a
   phone it shows a 20 px bell before the ask line only; the other two cards have none.
 
+- "Your projects" shows rows or boxes by the one choice of the Projects page (`useProjectView`, fbk_080). A round 44 px toggle sits beside the
+  project count (`ProjectViewToggle`, only while the list has a project). The column is about 630 px wide, so it holds 2 boxes across.
+  `HomeBody` takes `view` and the stable setter as props, so a link change does not render the boxes again.
+
 ## On a phone
 - `HomeScreen` renders five blocks as direct children of one grid, `grid grid-cols-[minmax(0,1fr)] gap-4`: the title, `NextCard`, `TodayPanel`,
   `MeetingsCard` and `PushAskCard`. Add no `display: contents` wrapper, because the `.screen-enter` rule reads the DOM tree.
