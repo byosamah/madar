@@ -142,6 +142,30 @@ pure handlers, an additive contract, a table for a new collection, a test count 
 - `ViewerCan.lockFolders` (the switch with the upload right) is the flag of the lock control. Leak tests: `handlers/lockedFolderLeaks.test.ts`,
   `server/calls/lockedFolderFiles.test.ts`, `server/data/lockedFolderSignals.test.ts`, `server/mcp/folderTools.test.ts`.
 
+## Resources (fbk_078, owner 2026-11-05)
+- The files of the whole office (building codes, policies) on one page, inside Projects: `/resources`, the link on Projects (desk), the 4th part of the
+  Work switch (phone). Every person reads and downloads; the switch `resources.manage` ("Manage office resources", off for every role but the Admin) adds,
+  renames, moves and deletes. Reading has no switch. `ViewerCan` is not used: `resources.list` gives `viewerCan: { manage, lock }`.
+- Data: a resource file is a `FileRec` with `resource: true`, `projectId`, `stageId` and `taskId` null, and `folderId` naming a folder of Resources (null: the
+  root). The folders (`ResourceFolder`: id, name, createdBy, createdAt, locked; one level) are the list `Settings.resourceFolders`, as a project keeps its
+  folders: no table, no migration. `settings.get` and `settings.update` leave that list out (`settingsOut`, `handlers/people.ts`): a locked folder must never
+  reach a person without the lock switch.
+- Calls (`handlers/resources.ts`): `resources.list`, `resources.saveFolder` (no id: make; id: rename and lock), `resources.updateFile` (rename and move),
+  `resources.delete` (a file or a folder by its id). An upload is `files.upload` with `resources: true` and `folderId`; its link is `files.link`.
+  A second file of the same name in the same place is the next version. The limit is the project limit (500 MB). Every other carrier of a file refuses a
+  resource file with the reason `file_resource` (`files.delete`, `files.move`, `files.markDelivered`, `files.share`, posts, comments, chats, the Tracker).
+- Locked folders: the rule is `resourceLock.ts` (`resourceFoldersFor`, `resourceFileHidden`, `resourceFileLocked`, `eventTouchesLockedResources`,
+  `resourceEventForViewer`), the twin of `folderLock.ts`; the holder is `holdsLockedFolders`. A locked folder and its files answer a person without the lock
+  switch as an unknown id (same code, text and details) on `resources.*`, `files.link`, `files.get`, `search.query`, the History and the Undo. The switch
+  `resources.manage` is asked after the view check, so a locked folder reads as missing before any refusal. A lock or an unlock also needs `folder.locked`.
+  A locked folder is not deleted (`folder_locked`). The Contract-style rules for projects (cover, Tracker, to-do) do not apply: a resource file has none.
+- History: a change of the folder list is the event `resources.folders_changed` (target `settings`, id `resources`; the whole list on both sides, so the
+  Undo and the lock rule read it). `undoResourceFolders` takes it back (the generic Undo has no collection for the settings). A file change is `file.added`,
+  `file.version_added`, `file.renamed`, `file.moved` or `file.deleted` with `projectId` null; the Undo of a file asks `resources.manage` (`assertMayUndo`).
+  A delete of a folder writes the `file.moved` events first and the folder event last, so one `events.undoStory` brings back the folder before its files.
+- Leak tests: `handlers/resources.test.ts`, `server/calls/resourceFiles.test.ts`, `server/data/resourceSignals.test.ts`, `server/mcp/resourceTools.test.ts`.
+  The loader sweep reads and writes `resourceTrap` (`server/data/loaders/sweep.ts`).
+
 ## Notices
 - `Preferences.notifications` is a `partialRecord`: an absent trigger means on. Read a switch only with `inAppOn`
   (`notify.ts`). A person stored before a new trigger still loads, with no backfill.

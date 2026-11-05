@@ -5,6 +5,13 @@ keep each decision that still sets a rule, as a rule. This file is the record of
 Sections follow the guide that held the text. Line numbers and counts in this file are from that day and can be old.
 
 ## 2026-11-05
+- Resources (fbk_078, owner, from the report of Faisal): the office keeps shared files, such as building codes and office policies, on one page. Place:
+  inside Projects. On a desk, a quiet "Resources" link sits at the end side of the Filter and View row of Projects (not a second main button).
+  On a phone, "Resources" is the 4th part of the Work switch, after To-dos, Meetings and Projects. Rights: every person reads and downloads. A new
+  switch "Manage office resources" (`resources.manage`) adds, renames, moves and deletes files and folders; only the Admin holds it by default, and the
+  Admin can give it to any role. Reading needs no switch (the owner said every person reads). Private papers reuse the switch "Locked folders"
+  (`folder.locked`): a locked folder of Resources and its files show only to its holders, and do not exist for everyone else. The Arabic name is
+  «ملفات المكتب». The folders live in the office settings (no table, no migration); a resource file is a file record with `resource: true`.
 - Project boxes (fbk_080, owner): Home ("Your projects") and the Projects page get a second view, Boxes, beside Rows. The owner picked option B
   (tile boxes) of three mockups: A cover boxes, B tile boxes, C shape squares. No project had a cover picture on 2026-11-05, so the cover boxes
   would have shown only the drawn tile at a large size. The choice stays in the browser and serves both screens. This replaces the old calm

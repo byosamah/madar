@@ -107,6 +107,12 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   read across projects takes its ids from them. The people who hear a hidden project come from `audienceFinder`
   (`projectAudience.ts`, `mayViewProject`). The leak tests are `hiddenProjectSignals.test.ts` and `hiddenTraps` in
   `loaders.test.ts`.
+- Resources (fbk_078): the folders are `Settings.resourceFolders` (the `settings` doc) and a file has `resource: true` (the `files` doc): no table, no
+  migration. A loader reads the files by the doc field (`{ field: 'resource', in: ['true'] }`, `loaders/resources.ts`), a scan of the files table. The
+  search leaves the locked folders out in SQL for a person without the switch, so the limit of 5 equals the cut of the handler. A change inside a locked
+  folder of Resources goes only as person signals to every active holder of `folder.locked`, with no project (`Diff.locked` under `RESOURCES_LOCK_KEY`,
+  `lockedHoldersOf`); a folder that gets locked or unlocked, and a file that leaves or enters a locked folder, is heard by all. Test:
+  `resourceSignals.test.ts`.
 - Locked folders (fbk_074): a change inside a locked folder goes only as person signals to the holders of `folder.locked` who view the project
   (`lockedAudienceFinder`, `Diff.locked` in `save.ts`); a folder that gets locked or unlocked, and a file that leaves or enters one, is heard by
   all. Test: `lockedFolderSignals.test.ts`.

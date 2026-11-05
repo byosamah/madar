@@ -54,6 +54,10 @@ needs MinIO (`server/it/minio.ts`; CI starts it in `ci-stack.yml`).
   of a project meeting), 250 MB for a file of a direct chat, a group, a meeting with no project and an office to-do. The store limit only
   lowers the number (Supabase Storage 50 MB). `files.uploadStart` checks the declared size, and the preflight of `files.upload` checks
   the stored object, both by the place of the call. A person who needs a larger file in a chat inserts the project file (no copy).
+- The Resources page (fbk_078) is one more place: `files.uploadStart` and `files.upload` take `resources: true` (no project, chat, meeting, stage or task). The
+  key folder is `resources/<intent>/` (`resourcesUploadKey`, `RESOURCES_UPLOAD_PREFIX`), `checkIntent` takes the flag, the limit is the project limit,
+  and the start asks the switch `resources.manage` (`assertMayUploadToResources`). `files.link` of a resource file asks only the person check and the lock
+  rule (`assertMayViewResourceFile`): a file in a locked folder is a missing file for a person without `folder.locked`. Test: `server/calls/resourceFiles.test.ts`.
 - Object keys hold only `[a-z0-9/-]` (`keys.ts`), so a key never leaves its folder. Each upload is a folder with `file`
   and, for a picture, `thumb`.
 - A file has one owner, and the owner picks the key folder and the intent rule. The preflight takes an intent only for the

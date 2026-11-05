@@ -119,6 +119,10 @@ Own OAuth server (consent, token step, grants): `server/mcp/oauth/CLAUDE.md`.
   for the agent of a person without the switch, on every tool (`src/api/CLAUDE.md`, "Locked folders"). `folders.create` takes `preset` to add the two
   standard folders to an older project. The folder texts sit in `INSTRUCTIONS`, so the tool list stays under its size limit (`toolSize.test.ts`).
   Test: `folderTools.test.ts`.
+- Resources (fbk_078): `resources.list` is on the allowlist (AI switch `ai.readWork`); `resources.saveFolder`, `resources.updateFile` and `resources.delete` are on the
+  right list for `resources.manage` (AI switch `ai.projects`). An agent opens a file with `files.link` (`ai.projects`, as for a project file) and adds one with
+  `files.uploadContent` and `resources: true`. A locked folder and its files are missing for the agent of a person without `folder.locked`, on every tool. The tool
+  list was at its 110 KB cap: the cap is 112,000 bytes since the four tools (the owner or the lead approved it). Test: `resourceTools.test.ts`.
 - Chats: an agent sends as the person (author the agent, `actingForId` the person). A chat that the person may not open answers
   `not_found` for every kind. A read mark, an archive and a Notify choice write for the person, never for the agent (`ctx.authority`);
   a read by the agent is not a read by the person. An agent edits or deletes only a message of its person or of its agent

@@ -7,6 +7,9 @@ The Projects screen, the New and Edit project sheets, the form fields, the templ
   opens one starts its reads on pointerdown with `usePrefetchCall`: `usePrepareNewProject` (the New project button and the Search command)
   and `MenuItem.onPrepare` (the "Edit project" and "Apply a template" items of `ProjectActions`). `ClosedSheetReads.test.tsx` pins it. A new
   sheet that reads data follows the same rule.
+- Resources (fbk_078): on a desk the Projects controls row ends with a quiet "Resources" link (`ms-auto`, `text-link`), never a second main button; it starts
+  the reads of the page on pointerdown. A phone has no link: Resources is the 4th part of the Work switch (`features/work/WorkSwitch.tsx`). The page:
+  `features/resources/CLAUDE.md`.
 - A project row prefetches `projects.get` on pointerdown, never on hover. Never put a router hook in a row body: a row part that needs one is
   its own small component, as `RowMenu` in `ProjectListRow.tsx`.
 - The list shows two groups, "Projects" and "Internal" (`ProjectsBody`), only while it holds both kinds; else it is one list with no

@@ -10,7 +10,7 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
 - Guides of the whole of `src/`: `api/` (the contract and the fake API), `i18n/` (words, What's new), `design/` (tokens, fonts).
 - Guides that load only in their folder: `app/` (routes, shell, boot, data pipeline, phone shell), `app/insight/` (PostHog), `components/`,
   `features/map/`, `features/inbox/` (chat, presence, emoji), `features/files/` (attachments, Download all, picture preview),
-  `features/meetings/`, `features/project/`, `features/projects/`, `features/settings/` (Admin, rights sheet, push, Google Calendar,
+  `features/meetings/`, `features/project/`, `features/projects/`, `features/resources/` (the office files, fbk_078), `features/settings/` (Admin, rights sheet, push, Google Calendar,
   quiet hours, What reaches the Admin), `features/home/`, `features/focus/`, `features/space/`, `features/dashboard/`, `features/work/`.
 - Push in the screens: `features/settings/CLAUDE.md`. Download all: `features/files/CLAUDE.md`. The bubble handlers
   (`BubbleActionsContext`): `features/inbox/CLAUDE.md`.

@@ -18,6 +18,8 @@ screens are in `src/CLAUDE.md`. The remote sign-in, realtime and storage ports a
   (`TabPillMarked.test.tsx`). The To-do list (`/tasks`) marks Tasks, because it shows to-dos. Only the Deadlines list
   (`/tasks?mode=deadlines`) marks the Dashboard. Before 2026-10-28 every `/tasks` link marked the Dashboard (tsk_488). The phone bar has its own
   rule (`phoneTabOf`: `/tasks` is in the Me tab, with a back link to the Dashboard).
+- Resources (`/resources`, fbk_078) is opened from Projects, so it marks the Projects tab (`isNavActive`) and, on a phone, the Work tab (`phoneTabOf`,
+  `PHONE_EXACT`). On a phone it is the 4th part of `WorkSwitch` and keeps the Work header; the screen key is `/work`. The desk has no Resources tab.
 - Layer numbers: the tab pill and the corner buttons `z-30`, Focus `z-[35]`, the dim layer of a sheet `z-40`, sheets, picture viewer and menus
   `z-50`, toasts `z-80`. Pin every new layer against these.
 - The person menu (`PersonMenu.tsx`, from 640 px) has three groups with a hairline before each: `quick` (Away only with a live port; Mode and

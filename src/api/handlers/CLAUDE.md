@@ -73,6 +73,12 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   asks `project.archive` and no reason, because the date of a reminder is no plan date. `runScheduledTriggers` (`notify.ts`)
   sends `resume_due` once for each person and each date (the dedupe key holds the day).
 
+## Resources
+- `handlers/resources.ts` (fbk_078): the rules are in `src/api/CLAUDE.md`, "Resources". The upload branch of `files.upload` (`resources: true`) calls
+  `uploadResourceFile`; the other upload branches never see a resource file (their same-name test needs a project or a task). `requireResourceFolder`
+  and `requireResourceFile` read a locked folder or file as missing before `assertCan`. The reasons: `file_resource`, `resource_folder_missing`,
+  `resource_folder_limit`, `folder_name_taken`, `folder_locked`. A file name may repeat in a place (only an upload by name makes a version).
+
 ## Project templates
 - Ids inside a template (`r1`, `s1`, `t1`) are unique in it. `ProjectTemplate.partSeq` is the highest part number ever given,
   so a part id is never given twice. `tasks.delete` and `stages.replace` add the removed part id to `droppedPartIds`, and
