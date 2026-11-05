@@ -33,8 +33,26 @@ export function docFrameHtml(body: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${STYLE}</style></head><body>${body}</body></html>`;
 }
 
-export function OfficeDoc({ html, name }: { html: string; name: string }) {
+/**
+ * With `fill` (the big center window on a desk, fbk_079) the page takes the whole body and scrolls inside its frame. The frame sits in an
+ * absolute box, so its height needs no percent chain through the flex boxes above it.
+ */
+export function OfficeDoc({ html, name, fill = false }: { html: string; name: string; fill?: boolean }) {
   const { t } = useTranslation();
+  if (fill) {
+    return (
+      <div className="relative min-h-0 flex-1 rounded-2xl bg-fill">
+        <div className="absolute inset-1.5">
+          <iframe
+            sandbox=""
+            title={t('officePreview.docFrame', { name })}
+            srcDoc={docFrameHtml(html)}
+            className={`${PRIVATE} block h-full w-full rounded-xl bg-white`}
+          />
+        </div>
+      </div>
+    );
+  }
   return (
     // The grey edge makes the white page visible on the white sheet.
     <div className="rounded-2xl bg-fill p-1.5">

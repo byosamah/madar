@@ -239,3 +239,43 @@ describe('a file that a crafted file would make heavy (tsk_495 review)', () => {
     expect(await within(sheet).findByText('This file has too many cells to show here. Download it to open it.')).toBeInTheDocument();
   }, 20_000);
 });
+
+describe('a Word or Excel file in the big center window on a desk (fbk_079)', () => {
+  it('opens a Word file in the center window and lets its frame fill the body', async () => {
+    renderPreview(view('fil_960', 'Report.docx', DOCX), { mode: 'prototype', bytes: await sampleDocx() });
+    const sheet = await screen.findByRole('dialog', { name: 'Report.docx' });
+    expect(sheet).toHaveAttribute('data-sheet-mode', 'center');
+    const frame = await waitFor(() => {
+      const found = sheet.querySelector('iframe');
+      if (!found) throw new Error('No frame yet.');
+      return found;
+    });
+    expect(frame.className).toContain('h-full');
+    expect(frame.className).not.toContain('62dvh');
+    expect(within(sheet).getByRole('button', { name: 'Download' })).toBeInTheDocument();
+  });
+
+  it('opens an Excel file in the center window and lets its table box fill the body and scroll inside', async () => {
+    renderPreview(view('fil_961', 'Quantities.xlsx', XLSX), { mode: 'prototype', bytes: await sampleXlsx([{ name: 'Only', rows: [['Item', 'Count'], ['Columns', 12]] }]) });
+    const sheet = await screen.findByRole('dialog', { name: 'Quantities.xlsx' });
+    expect(sheet).toHaveAttribute('data-sheet-mode', 'center');
+    await within(sheet).findByRole('cell', { name: 'Columns' });
+    const box = sheet.querySelector('#sheet-panel') as HTMLElement;
+    expect(box.className).toContain('flex-1');
+    expect(box.className).toContain('overflow-auto');
+    expect(box.className).not.toContain('62dvh');
+  });
+
+  it('keeps the side sheet and the fixed heights on a phone', async () => {
+    stubPhone();
+    renderPreview(view('fil_962', 'Report.docx', DOCX), { mode: 'prototype', bytes: await sampleDocx() });
+    const sheet = await screen.findByRole('dialog', { name: 'Report.docx' });
+    expect(sheet).not.toHaveAttribute('data-sheet-mode');
+    const frame = await waitFor(() => {
+      const found = sheet.querySelector('iframe');
+      if (!found) throw new Error('No frame yet.');
+      return found;
+    });
+    expect(frame.className).toContain('62dvh');
+  });
+});

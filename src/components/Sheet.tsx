@@ -22,6 +22,12 @@ type SheetProps = {
   wide?: boolean;
   /** On a desk the sheet fills the screen, 12 px from each edge. A work area such as the template editor uses it. A phone is unchanged. */
   full?: boolean;
+  /**
+   * On a desk the sheet is one big window in the middle of the screen, over the scrim: 92 vw wide (1600 px at most) and 90 dvh high. The body
+   * is a flex column that the content fills (a PDF frame, a picture, a table box): the content takes `min-h-0 flex-1`. A file preview uses it
+   * (fbk_079). It needs a blocking sheet. A phone ignores it and keeps the bottom sheet.
+   */
+  center?: boolean;
   footer?: ReactNode;
   /** One quiet action next to the title, for example Focus on the task panel. */
   headerAction?: ReactNode;
@@ -131,6 +137,8 @@ const widthOf = (wide: boolean, full = false) => (full ? 'w-[calc(100vw-1.5rem)]
  * end of the pill, with the bell and its count, and the person could not press the bell next to the task panel (owner,
  * 2026-10-06). Both kinds of sheet use it. The meeting view has no pill, so there a sheet keeps the 12 px.
  */
+/** The place of the center window (fbk_079): fixed, all four sides at 0, and auto margins centre the box that has a width and a height. */
+const DESK_CENTER = 'inset-0 m-auto h-[90dvh] w-[min(92vw,1600px)]';
 const DESK_EDGE = 'top-3 [:root:has([data-pill])_&]:top-[5.25rem] bottom-3 end-3';
 /**
  * A bottom sheet on a phone leaves a strip at the top of the screen, 84 px below the safe area. While a sheet is open, the
@@ -142,7 +150,7 @@ const PHONE_HEIGHT = 'max-h-[calc(100dvh_-_5.25rem_-_env(safe-area-inset-top))]'
 const PHONE_TALL = 'h-[calc(100dvh_-_5.25rem_-_env(safe-area-inset-top))]';
 
 /** The inside of a sheet or a panel: the title row with its Close button, the content, and the footer. */
-function Frame({ heading, onClose, headerAction, footer, children }: { heading: ReactNode; onClose: () => void; headerAction?: ReactNode; footer?: ReactNode; children: ReactNode }) {
+function Frame({ heading, onClose, headerAction, footer, fill = false, children }: { heading: ReactNode; onClose: () => void; headerAction?: ReactNode; footer?: ReactNode; fill?: boolean; children: ReactNode }) {
   const { t } = useTranslation();
   return (
     <>
@@ -158,7 +166,7 @@ function Frame({ heading, onClose, headerAction, footer, children }: { heading: 
           <AnimatedIcon icon={XIcon} size={18} aria-hidden />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{children}</div>
+      <div className={`min-h-0 flex-1 overflow-y-auto px-5 pb-5 ${fill ? 'flex flex-col' : ''}`}>{children}</div>
       {footer && <div className="flex flex-wrap justify-end gap-2 px-5 pb-5 pt-3">{footer}</div>}
     </>
   );
@@ -229,10 +237,12 @@ function SidePanel({ open, onOpenChange, title, description, descriptionPrivate,
  * A blocking sheet dims the page and holds the focus. A non-blocking panel (the task panel) leaves the page usable.
  */
 export function Sheet(props: SheetProps) {
-  const { open, onOpenChange, title, description, descriptionPrivate, blocking = true, wide = false, full = false, footer, headerAction, keepOnOutsidePress = false, tall = false, phoneHeader, onClosed, children } = props;
+  const { open, onOpenChange, title, description, descriptionPrivate, blocking = true, wide = false, full = false, footer, headerAction, keepOnOutsidePress = false, tall = false, phoneHeader, onClosed, children, center = false } = props;
   const phone = useIsPhone();
-  const direction = phone ? 'bottom' : isRtl() ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   const modal = phone || blocking;
+  // The center window is a desk mode of a blocking sheet. It rises from the bottom edge and stops in the middle (vaul has no centre direction).
+  const centered = center && !phone && modal;
+  const direction = phone || centered ? 'bottom' : isRtl() ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   usePanelOpen(open && modal);
   // The toasts make way for every open sheet, the panel too: see useSheetToasts (owner, 2026-10-06).
   useSheetToasts(open);
@@ -263,7 +273,9 @@ export function Sheet(props: SheetProps) {
   // corners (owner, 2026-10-05, item 5).
   const shape = phone
     ? `inset-x-0 bottom-0 ${PHONE_HEIGHT} ${tall ? PHONE_TALL : ''} rounded-t-sheet pb-[env(safe-area-inset-bottom)]`
-    : `${DESK_EDGE} rounded-sheet after:hidden ${widthOf(wide, full)}`;
+    : centered
+      ? `${DESK_CENTER} rounded-sheet after:hidden`
+      : `${DESK_EDGE} rounded-sheet after:hidden ${widthOf(wide, full)}`;
   const described = description ? {} : { 'aria-describedby': undefined };
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} direction={direction} modal handleOnly={!phone}>
@@ -272,6 +284,7 @@ export function Sheet(props: SheetProps) {
         <Drawer.Content
           ref={content}
           {...described}
+          data-sheet-mode={centered ? 'center' : undefined}
           onOpenAutoFocus={(event) => {
             event.preventDefault();
             focusInto(content.current, phone);
@@ -304,6 +317,7 @@ export function Sheet(props: SheetProps) {
             onClose={() => onOpenChange(false)}
             headerAction={headerAction}
             footer={footer}
+            fill={centered}
           >
             {children}
           </Frame>

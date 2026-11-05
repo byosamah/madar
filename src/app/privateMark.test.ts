@@ -22,8 +22,8 @@ describe('the private mark', () => {
   });
 
   it('is in every file that calls useFileUrl', () => {
+    // The preview of a file moved to useFileLink (fbk_079: it needs `broken`), so no screen may call useFileUrl now. The rule holds for a new one.
     const users = SOURCES.filter((file) => /\buseFileUrl\(/.test(read(file)));
-    expect(users.length).toBeGreaterThanOrEqual(1);
     expect(users.filter((file) => !read(file).includes('PRIVATE'))).toEqual([]);
   });
 

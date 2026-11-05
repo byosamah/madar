@@ -23,6 +23,13 @@ phone are in `src/app/CLAUDE.md`.
   same lights for AI agent pictures. `glow.test.ts` and `pictureLook.test.ts` pin both.
 - `MadarMark` ("Turning doors") shows only in the sign-in frame, the app frame and the office card of the Open space. Never put it in a
   project list (`MadarMark.test.tsx` lists the files).
+- `Sheet` has a desk mode `center` (fbk_079, owner 2026-11-05): one big window in the middle of the screen over the scrim, 92 vw wide (1600 px
+  at most) and 90 dvh high (`DESK_CENTER`: `inset-0 m-auto` with a width and a height). It marks the dialog `data-sheet-mode="center"`. It is a
+  blocking vaul sheet that rises from the bottom edge (direction `bottom`, no handle, no drag), so the focus rules hold: the focus moves in
+  and comes back, Escape belongs to the layer that holds the focus, a press on the scrim closes, `onClosed` fires after the close. Its body
+  is a flex column: the content takes `min-h-0 flex-1` (a PDF frame), or sits in a `relative min-h-0 flex-1` box with an absolute child (a
+  picture with `object-contain`, the Word frame). A phone ignores `center`; so does a non-blocking panel. Set `center` only when the content
+  fills the window: a short line in a 90 dvh window looks empty. `SheetCenter.test.tsx` pins it. The file preview is the only user.
 - Icons: animated Lucide icons through `icons/AnimatedIcon.tsx`. An animated icon is an inline svg in a div, so it sits on the text line and
   rises about 2 px. Where it must sit in the middle of a box, give the holder `[&_svg]:block` (`PhoneTabBar`). `icons/animatedIcons.test.tsx`
   tests every file in `icons/animated/` by a glob: the export name must end in `Icon`, and no attribute or style may hold `undefined` or `NaN`.

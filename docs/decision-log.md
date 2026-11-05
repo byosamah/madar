@@ -12,6 +12,10 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   Admin can give it to any role. Reading needs no switch (the owner said every person reads). Private papers reuse the switch "Locked folders"
   (`folder.locked`): a locked folder of Resources and its files show only to its holders, and do not exist for everyone else. The Arabic name is
   «ملفات المكتب». The folders live in the office settings (no table, no migration); a resource file is a file record with `resource: true`.
+- File preview window (fbk_079, owner, Faisal's report): on a desk every file preview (PDF, picture, Word, Excel) opens in one big window in the
+  center of the screen, "big center window, all files". The side panel was 640 px wide at most, and a landscape A3 drawing was too small to
+  read. The window is 92 vw wide (1600 px at most) and 90 dvh high. The phone is unchanged. The video keeps its full screen player, which is
+  already larger than the window.
 - Project boxes (fbk_080, owner): Home ("Your projects") and the Projects page get a second view, Boxes, beside Rows. The owner picked option B
   (tile boxes) of three mockups: A cover boxes, B tile boxes, C shape squares. No project had a cover picture on 2026-11-05, so the cover boxes
   would have shown only the drawn tile at a large size. The choice stays in the browser and serves both screens. This replaces the old calm

@@ -20,7 +20,7 @@ const view = (id: string, name: string, mimeType: string): FileView => ({
 function renderSheet(
   files: FileView | FileView[],
   mode: Runtime['mode'],
-  o: { index?: number; onIndex?: (index: number) => void; hold?: boolean } = {},
+  o: { index?: number; onIndex?: (index: number) => void; onClose?: () => void; hold?: boolean } = {},
 ) {
   initI18n('en');
   const views = Array.isArray(files) ? files : [files];
@@ -45,7 +45,7 @@ function renderSheet(
   const runtime: Runtime = { api, mode };
   const result = render(
     <RuntimeProvider runtime={runtime} queryClient={createQueryClient()}>
-      <ToastProvider><PreviewSheet views={views} index={o.index ?? 0} onIndex={o.onIndex ?? (() => undefined)} onClose={() => undefined} /></ToastProvider>
+      <ToastProvider><PreviewSheet views={views} index={o.index ?? 0} onIndex={o.onIndex ?? (() => undefined)} onClose={o.onClose ?? (() => undefined)} /></ToastProvider>
     </RuntimeProvider>,
   );
   return { ...result, calls, release: () => { for (const resolve of waiting.splice(0)) resolve(); } };
@@ -179,5 +179,93 @@ describe('the preview of a video (owner, 2026-11-03)', () => {
       unmount();
       vi.restoreAllMocks();
     }
+  });
+});
+
+describe('the preview in the big center window on a desk (fbk_079)', () => {
+  it('opens a PDF in the center window with a frame that takes the whole body, and keeps Download', async () => {
+    phoneMedia(false);
+    const { calls } = renderSheet(view('fil_906', 'Spec.pdf', 'application/pdf'), 'remote');
+    const dialog = await screen.findByRole('dialog', { name: 'Spec.pdf' });
+    expect(dialog).toHaveAttribute('data-sheet-mode', 'center');
+    const frame = await waitFor(() => {
+      const found = dialog.querySelector('iframe');
+      if (!found) throw new Error('No frame yet.');
+      return found;
+    });
+    expect(frame).toHaveAttribute('src', 'https://store.test/link-1');
+    // The frame grows with the body: no fixed height of 70 dvh any more.
+    expect(frame.className).toContain('flex-1');
+    expect(frame.className).not.toContain('70dvh');
+    expect(calls[0]).toEqual({ name: 'files.link', input: { id: 'fil_906', letter: 'B', variant: 'full', disposition: 'inline' } });
+    expect(within(dialog).getByRole('button', { name: 'Download' })).toBeInTheDocument();
+  });
+
+  it('shows no "no preview" line while the link of a PDF is on its way', async () => {
+    phoneMedia(false);
+    renderSheet(view('fil_906', 'Spec.pdf', 'application/pdf'), 'remote', { hold: true });
+    const dialog = await screen.findByRole('dialog', { name: 'Spec.pdf' });
+    expect(within(dialog).queryByText('There is no preview for this file type.')).toBeNull();
+    expect(dialog.querySelector('iframe')).toBeNull();
+  });
+
+  it('fits a picture inside the center window, whole and never cropped', async () => {
+    phoneMedia(false);
+    renderSheet(view('fil_903', 'Plan.png', 'image/png'), 'remote');
+    const dialog = await screen.findByRole('dialog', { name: 'Plan.png' });
+    expect(dialog).toHaveAttribute('data-sheet-mode', 'center');
+    const picture = await within(dialog).findByRole('img', { name: 'Plan.png' });
+    expect(picture.className).toContain('object-contain');
+    expect(picture.className).not.toContain('object-cover');
+  });
+
+  it('keeps the small side panel for a file that has no frame (a picture that the store keeps as a download)', async () => {
+    phoneMedia(false);
+    renderSheet(view('fil_902', 'Site plan.svg', 'image/svg+xml'), 'remote');
+    const dialog = await screen.findByRole('dialog', { name: 'Site plan.svg' });
+    expect(dialog).not.toHaveAttribute('data-sheet-mode');
+  });
+
+  it('moves with Previous and Next, and downloads, inside the center window', async () => {
+    phoneMedia(false);
+    const clicks: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { clicks.push(this.href); });
+    const moves: number[] = [];
+    const { calls } = renderSheet([view('fil_906', 'Spec.pdf', 'application/pdf'), view('fil_907', 'Detail.pdf', 'application/pdf')], 'remote', { onIndex: (index) => moves.push(index) });
+    const dialog = await screen.findByRole('dialog', { name: 'Spec.pdf' });
+    expect(within(dialog).getByRole('button', { name: 'Previous drawing' })).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Next drawing' }));
+    expect(moves).toEqual([1]);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(clicks.length).toBe(1));
+    expect(calls.at(-1)).toEqual({ name: 'files.link', input: { id: 'fil_906', letter: 'B', variant: 'full', disposition: 'attachment' } });
+  });
+
+  it('closes on Escape', async () => {
+    phoneMedia(false);
+    const closed = vi.fn();
+    renderSheet(view('fil_906', 'Spec.pdf', 'application/pdf'), 'remote', { onClose: closed });
+    const dialog = await screen.findByRole('dialog', { name: 'Spec.pdf' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(closed).toHaveBeenCalled());
+    expect(dialog).toBeDefined();
+  });
+
+  it('closes on the Close button', async () => {
+    phoneMedia(false);
+    const closed = vi.fn();
+    renderSheet(view('fil_903', 'Plan.png', 'image/png'), 'remote', { onClose: closed });
+    const dialog = await screen.findByRole('dialog', { name: 'Plan.png' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(closed).toHaveBeenCalled();
+  });
+
+  it('leaves the phone as it was: a PDF is the sheet with one link, with no center mode', async () => {
+    phoneMedia(true);
+    renderSheet(view('fil_906', 'Spec.pdf', 'application/pdf'), 'remote');
+    const sheet = await screen.findByRole('dialog', { name: 'Spec.pdf' });
+    expect(sheet).not.toHaveAttribute('data-sheet-mode');
+    expect(await within(sheet).findByRole('link', { name: 'Open the PDF' })).toHaveAttribute('href', 'https://store.test/link-1');
+    expect(sheet.querySelector('iframe')).toBeNull();
   });
 });

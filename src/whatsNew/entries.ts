@@ -17,6 +17,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
   // Resources: the files of the whole office (building codes, policies), opened from the Projects page (fbk_078, owner 2026-11-05). The lead sets the real release day before the test deploy.
   { id: '2026-11-05-152', day: '2026-11-05', to: '/resources' },
+  // On a computer, every file preview (PDF, picture, Word, Excel) opens in one big window in the middle of the screen (fbk_079, owner 2026-11-05). The lead sets the real release day before the test deploy.
+  { id: '2026-11-05-151', day: '2026-11-05' },
   // A project list shows rows or boxes by the choice of the person: the View button of Projects and a round toggle on Home (fbk_080, owner 2026-11-05). The lead sets the real release day before the test deploy.
   { id: '2026-11-05-150', day: '2026-11-05', to: '/projects' },
   // The switch Share files also holds for AI assistants in a project chat and on the comments of a to-do: without it, only files that the person or the agent uploaded (owner, 2026-11-03: "Server follows switch"). The lead sets the real release day before the test deploy.

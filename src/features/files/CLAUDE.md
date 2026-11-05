@@ -29,7 +29,8 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
 
 ## PDF preview in a bubble or comment (tsk_485)
 - A PDF (`mimeType` `application/pdf`) in `AttachmentList` is a chip named "Preview <name>". A press opens `PreviewSheet`
-  (`features/project/files/PreviewSheet.tsx`), the preview of the Files tab: a frame on a desk, and on a phone a sheet with one real link
+  (`features/project/files/PreviewSheet.tsx`), the preview of the Files tab: on a desk one big window in the middle of the screen (the `center`
+  mode of `Sheet`, fbk_079) whose PDF frame takes the whole body, and on a phone a sheet with one real link
   (Safari for iPhone blocks a window that opens after a wait; do not change this). The chip list takes the `preview` prop
   (`FileChip`, `FileChips`). Posts and the Tracker pass none, so their PDF chips still download.
 - The file saves only from the "Download" button inside the preview (`DownloadFoot` in `PreviewSheet.tsx`, desk and phone). The preview asks
@@ -45,6 +46,9 @@ The parts that chats, comments, posts and the Tracker share to pick, upload, sho
 - `office/officeKind.ts` decides (`officeKindOf`): the type first, the file name only when the type says nothing (octet-stream, zip, empty).
   It is small and sits in the first load (the chip and `canPreview` import it). It also holds the limits (`OFFICE_MAX_BYTES` 15 MB,
   `SHEET_LIMITS`). `PreviewSheet` loads `OfficeBody` in its own chunk (`lazyOverlay`).
+- On a desk the preview opens in the big center window (`Sheet` `center`, 92 vw up to 1600 px by 90 dvh; owner, 2026-11-05, fbk_079). The Word
+  frame and the Excel table box take the free height of the body and scroll inside (`fill` on `OfficeBody`, `OfficeDoc`, `OfficeSheets`).
+  A phone keeps its fixed heights and the tall bottom sheet. The video keeps its own full screen player.
 - The reading runs in a Web Worker with a budget of 8 seconds (`officeRunner.ts`, `officeWorker.ts`, `officeWorkerCore.ts`). The worker holds
   mammoth, read-excel-file and fflate (361 kB, its own file). The page sends the bytes (no copy) and gets plain data back. Over the budget,
   on a worker error or with no worker, the page ends the worker and `OfficeBody` shows the quiet line "This file cannot show here" with

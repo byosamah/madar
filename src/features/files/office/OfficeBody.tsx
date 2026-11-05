@@ -65,7 +65,8 @@ async function draw(runtime: Runtime, o: { id: string; letter?: string; kind: Of
   }
 }
 
-export function OfficeBody({ fileId, letter, name, kind, size }: { fileId: string; letter?: string; name: string; kind: OfficeKind; size?: number }) {
+/** `fill`: the big center window on a desk (fbk_079). The page or the table takes the free height of the body and scrolls inside. */
+export function OfficeBody({ fileId, letter, name, kind, size, fill = false }: { fileId: string; letter?: string; name: string; kind: OfficeKind; size?: number; fill?: boolean }) {
   const { t } = useTranslation();
   const runtime = useRuntime();
   const [drawn, setDrawn] = useState<Drawn>({ kind: 'loading' });
@@ -91,8 +92,8 @@ export function OfficeBody({ fileId, letter, name, kind, size }: { fileId: strin
     );
   }
   return (
-    <div className="flex flex-col gap-3">
-      {drawn.kind === 'html' ? <OfficeDoc html={drawn.html} name={name} /> : <OfficeSheets sheets={drawn.sheets} moreSheets={drawn.moreSheets} />}
+    <div className={`flex flex-col gap-3 ${fill ? 'min-h-0 flex-1' : ''}`}>
+      {drawn.kind === 'html' ? <OfficeDoc html={drawn.html} name={name} fill={fill} /> : <OfficeSheets sheets={drawn.sheets} moreSheets={drawn.moreSheets} fill={fill} />}
       <p className="text-footnote text-label-2">{t('officePreview.note')}</p>
     </div>
   );

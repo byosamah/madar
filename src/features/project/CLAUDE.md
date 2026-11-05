@@ -134,7 +134,9 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   only `useHasPostDraft` (a boolean from the same store), so a key in the update box does not render the header. The Project chat
   link and the file-share "Open" action send `state.from = pathname + search` for Back.
 - The Files tab previews a picture, a PDF, a Word file (.docx), an Excel file (.xlsx) and a video (MP4, WebM, QuickTime): the "Preview" item of
-  the row menu (`canPreview(type, name)` in `files/PreviewSheet.tsx`), and on a phone the press of the name. Word and Excel are drawn in the
+  the row menu (`canPreview(type, name)` in `files/PreviewSheet.tsx`), and on a phone the press of the name. On a desk a picture, a PDF, a
+  Word file and an Excel file open in one big window in the middle of the screen (`Sheet` `center`, fbk_079); the picture fits whole
+  (`object-contain`), the PDF frame takes the whole body. A phone is unchanged. Word and Excel are drawn in the
   sheet, on a desk and on a phone (`src/features/files/CLAUDE.md`, "Word and Excel preview"). A video plays in the full screen player
   (same guide, "Video"). PowerPoint, .doc, .xls and other videos have no Preview item.
 - The Tracker log form is a `Sheet` that stays mounted, so the type and the side stay for the next line. A PDF opens a sheet with a real
