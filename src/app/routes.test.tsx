@@ -35,6 +35,7 @@ const SCREENS: Shape[] = [
       { path: 'projects', screen: 'ProjectsScreen', error: 'plain' },
       { path: 'projects/code/:code', screen: 'ProjectByCode', error: 'plain' },
       { path: 'projects/:projectId', screen: 'ProjectScreen', error: 'plain' },
+      { path: 'resources', screen: 'ResourcesScreen', error: 'plain' },
       { path: 'work', screen: 'WorkScreen', error: 'plain' },
       { path: 'meetings', screen: 'MeetingsScreen', error: 'plain' },
       { path: 'dashboard', screen: 'DashboardScreen', error: 'plain' },
@@ -71,7 +72,7 @@ describe('the routes before the screens load (performance audit BND-1)', () => {
     for (const remote of [false, true]) {
       const routes = every(appRoutes(remote));
       const lazy = routes.filter((route) => route.lazy);
-      expect(lazy.length).toBe(remote ? 22 : 17);
+      expect(lazy.length).toBe(remote ? 23 : 18);
       for (const route of lazy) expect(route.Component).toBeUndefined();
       expect(routes.filter((route) => route.element).map((route) => (route.element as ReactElement).type)).toHaveLength(remote ? 4 : 3);
       for (const route of routes) expect(route.errorElement !== undefined || route.path === undefined).toBe(true);
@@ -108,7 +109,7 @@ describe('the routes of both builds (plan U2)', () => {
     for (const remote of [false, true]) {
       const routes = every(appRoutes(remote));
       expect(routes.filter((route) => route.lazy)).toEqual([]);
-      expect(routes.filter((route) => route.Component)).toHaveLength(remote ? 22 : 17);
+      expect(routes.filter((route) => route.Component)).toHaveLength(remote ? 23 : 18);
     }
   });
 

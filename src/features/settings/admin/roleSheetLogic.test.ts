@@ -16,7 +16,7 @@ describe('the sections of the role sheet', () => {
   it('give each power a word key that no other power has', () => {
     const keys = SHEET_SECTIONS.flatMap((section) => section.powers.map((power) => power.key));
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toHaveLength(93);
+    expect(keys).toHaveLength(94);
     expect(powerKey('project.create')).toBe('projectCreate');
     expect(powerKey('templates.taskSave')).toBe('templatesTaskSave');
     expect(powerKey('subCompanies.manage')).toBe('subCompaniesManage');

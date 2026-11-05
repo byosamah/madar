@@ -159,7 +159,8 @@ describe('the minified function bundles (performance audit SRV-11)', () => {
     // on top of quiet hours and @everyone: 853,323, so the bound is 900,000.
     // MCP parity (the email code guard, chat files, uploads, bulk to-dos), Continuous projects and request statuses (2026-10-26),
     // on top of the Daftra link and tile shapes: 916,094, so the bound is 950,000.
-    expect(text.length).toBeLessThan(950_000);
+    // The Resources page (fbk_078: four calls, the locked-folder rule, the signals, the loaders and the MCP texts) took 939,975 to 955,069, so the bound is 970,000.
+    expect(text.length).toBeLessThan(970_000);
     expect(text.includes('JWTExpired')).toBe(true);
     expect(text.includes('@param {import(')).toBe(false);
     expect(checkBundles('server', dirname(file)).ok).toBe(true);
