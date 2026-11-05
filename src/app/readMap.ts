@@ -53,7 +53,8 @@ const RULES: Record<string, ReadRule> = {
     (_input, data) => field(typeof data === 'object' && data !== null ? (data as { task?: unknown }).task : undefined, 'projectId')),
   // The view rule of a task reads its project and team, and the people of an office task (owner, 2026-10-06).
   'comments.list': rule('project', ['comments', 'files', 'members', 'projects', 'tasks', 'updates', 'users']),
-  'files.list': rule('project', ['files', 'members', 'projects', 'tasks', 'users'], byProjectId),
+  // settings: the folder of a file of Resources (files.list with resources: true, fbk_078).
+  'files.list': rule('project', ['files', 'members', 'projects', 'settings', 'tasks', 'users'], byProjectId),
   'payments.list': rule('project', ['members', 'payments', 'projects', 'users'], byProjectId),
   'tracker.list': rule('project', ['files', 'meetings', 'members', 'projects', 'tracker', 'users'], byProjectId),
   'tracker.export': rule('project', ['events', 'files', 'members', 'projects', 'tracker', 'users'], byProjectId),

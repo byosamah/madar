@@ -151,9 +151,14 @@ pure handlers, an additive contract, a table for a new collection, a test count 
   folders: no table, no migration. `settings.get` and `settings.update` leave that list out (`settingsOut`, `handlers/people.ts`): a locked folder must never
   reach a person without the lock switch.
 - Calls (`handlers/resources.ts`): `resources.list`, `resources.saveFolder` (no id: make; id: rename and lock), `resources.updateFile` (rename and move),
-  `resources.delete` (a file or a folder by its id). An upload is `files.upload` with `resources: true` and `folderId`; its link is `files.link`.
+  `resources.delete` (a file or a folder by its id). The screens use them. The shared file and folder calls take a Resources target too, through the same functions
+  (`saveResourceFolder`, `updateResourceFile`, `deleteResourceFolder`, `deleteResourceFile`), so the screens and an agent get one answer: `files.list` with
+  `resources: true` (each view has `folder`), `folders.create` with `resources: true`, `folders.rename`, `folders.setLock` and `folders.delete` with the id of a Resources
+  folder (an id that no project holds), `files.move` (no stage) and `files.delete` with the id of a Resources file. An upload is `files.upload` with `resources: true` and
+  `folderId`; its link is `files.link`.
   A second file of the same name in the same place is the next version. The limit is the project limit (500 MB). Every other carrier of a file refuses a
-  resource file with the reason `file_resource` (`files.delete`, `files.move`, `files.markDelivered`, `files.share`, posts, comments, chats, the Tracker).
+  resource file with the reason `file_resource` (`files.markDelivered`, `files.share`, `files.move` to a stage, posts, comments, chats, the Tracker).
+- The shared rules `fileHiddenByLock`, `eventHiddenByLock` and `eventForViewer` (`folderLock.ts`) also apply the Resources rules, so no path needs a second call.
 - Locked folders: the rule is `resourceLock.ts` (`resourceFoldersFor`, `resourceFileHidden`, `resourceFileLocked`, `eventTouchesLockedResources`,
   `resourceEventForViewer`), the twin of `folderLock.ts`; the holder is `holdsLockedFolders`. A locked folder and its files answer a person without the lock
   switch as an unknown id (same code, text and details) on `resources.*`, `files.link`, `files.get`, `search.query`, the History and the Undo. The switch

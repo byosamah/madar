@@ -9,7 +9,7 @@ import { computeHealth, isOverdue } from './health';
 import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectResource, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { ensureRights } from './rights';
 import { eventForViewer, eventHiddenByLock, fileHiddenByLock, foldersFor } from './folderLock';
-import { resourceEventForViewer, resourceFileHidden } from './resourceLock';
+import { resourceFileHidden } from './resourceLock';
 import { mayWriteMinutes } from './meetingGates';
 import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
@@ -420,7 +420,7 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
 
 /** viewer: the person who reads the change. A person without the switch "Locked folders" gets no locked folder out of a folder list (fbk_074). */
 export function eventViewOf(state: State, event: Event, viewer?: User): EventView {
-  return { event: viewer ? resourceEventForViewer(state, viewer, eventForViewer(state, viewer, event)) : event, actor: cardOf(state, event.actorId) };
+  return { event: viewer ? eventForViewer(state, viewer, event) : event, actor: cardOf(state, event.actorId) };
 }
 
 /** What an open task waits for. A done task waits for nothing, and a task with no prerequisites skips the scan. An office task waits for nothing. */

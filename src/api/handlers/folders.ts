@@ -1,16 +1,23 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { FOLDER_NAME_MAX, FOLDER_PRESET_NAMES, FolderId, FolderPreset, MAX_FOLDERS, ProjectFolder, ProjectId, StageId, type FileRec, type Project } from '../contract/entities';
+import { FOLDER_NAME_MAX, FOLDER_PRESET_NAMES, FolderId, FolderPreset, MAX_FOLDERS, ProjectFolder, ProjectId, StageId, type FileRec, type Project, type ResourceFolder } from '../contract/entities';
 import { invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
 import { folderHiddenFrom, foldersFor } from '../folderLock';
 import { nextId, trackerOf } from '../store';
 import { assertCan, requireProject, requireStage, roleIn, seesProject } from './shared';
+import { deleteResourceFolder, saveResourceFolder } from './resources';
 
 /** The folder name as the folders compare it: trimmed, and with no difference of capital letters. */
 const nameKey = (name: string): string => name.trim().toLowerCase();
 
 const FolderName = z.string().trim().min(1).max(FOLDER_NAME_MAX);
+
+/** True when a project holds the folder (so the call is about a project folder). Any other id is a folder of Resources, which the shared rules of resources.ts read (fbk_078). */
+const isProjectFolder = (ctx: Ctx, id: string): boolean => Object.values(ctx.state.projects).some((project) => project.folders?.some((item) => item.id === id));
+
+/** A folder of Resources as the folder calls answer: the folder of the whole office has no stage. */
+const asFolder = (folder: ResourceFolder): ProjectFolder => ({ ...folder, stageId: null });
 
 /**
  * A folder by id with the project that holds it (fbk_066). A folder of a project that the person does not see reads as a missing folder:
@@ -93,11 +100,17 @@ export function freeProjectFolderName(folders: readonly ProjectFolder[], name: s
 
 export const foldersCreate = defineCall({
   /** stageId null or absent: a folder of the whole project. preset: one of the two standard folders (the name is then its English name). */
-  input: z.object({ projectId: ProjectId, stageId: StageId.nullable().optional(), name: FolderName.optional(), preset: FolderPreset.optional() })
-    .refine((value) => value.name !== undefined || value.preset !== undefined, { path: ['name'], message: 'Name the folder.' }),
+  input: z.object({ projectId: ProjectId.optional(), resources: z.literal(true).optional(), stageId: StageId.nullable().optional(), name: FolderName.optional(), preset: FolderPreset.optional() })
+    .refine((value) => value.name !== undefined || value.preset !== undefined, { path: ['name'], message: 'Name the folder.' })
+    .refine((value) => (value.projectId !== undefined) !== (value.resources === true), { path: ['projectId'], message: 'Name the project, or send resources true for Resources.' }),
   output: ProjectFolder,
   run(input, ctx) {
-    const project = requireProject(ctx, input.projectId);
+    if (input.resources === true) {
+      // A folder of Resources: no stage, no standard folder (fbk_078).
+      if (input.stageId || input.preset) throw invalid('resources', 'A folder of Resources has no stage and no standard folder.', 'file_resource');
+      return asFolder(saveResourceFolder(ctx, { name: input.name }));
+    }
+    const project = requireProject(ctx, input.projectId!);
     assertMayOrganize(ctx, project);
     const stageId = input.stageId ?? null;
     if (stageId) requireStage(ctx, project.id, stageId);
@@ -129,6 +142,7 @@ export const foldersRename = defineCall({
   input: z.object({ id: FolderId, name: FolderName }),
   output: ProjectFolder,
   run(input, ctx) {
+    if (!isProjectFolder(ctx, input.id)) return asFolder(saveResourceFolder(ctx, { id: input.id, name: input.name }));
     const { project, folder } = requireFolder(ctx, input.id);
     assertMayOrganize(ctx, project);
     if (folder.name === input.name) return folder;
@@ -145,6 +159,7 @@ export const foldersSetLock = defineCall({
   input: z.object({ id: FolderId, locked: z.boolean() }),
   output: ProjectFolder,
   run(input, ctx) {
+    if (!isProjectFolder(ctx, input.id)) return asFolder(saveResourceFolder(ctx, { id: input.id, locked: input.locked }));
     const { project, folder } = requireFolder(ctx, input.id);
     // A folder that the person sees is not locked, or the person holds the switch. The switch comes first, then the upload right of the project.
     assertCan(ctx, 'folder.locked');
@@ -170,6 +185,7 @@ export const foldersDelete = defineCall({
   input: z.object({ id: FolderId }),
   output: z.object({ deleted: z.literal(true) }),
   run(input, ctx) {
+    if (!isProjectFolder(ctx, input.id)) return deleteResourceFolder(ctx, input.id);
     const { project, folder } = requireFolder(ctx, input.id);
     assertMayOrganize(ctx, project);
     const inside = Object.values(ctx.state.files).filter((file) => file.projectId === project.id && file.folderId === folder.id);

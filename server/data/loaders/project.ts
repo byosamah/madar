@@ -39,7 +39,9 @@ export async function stagesReplace(L: Load, input: Input): Promise<void> {
 export async function foldersDelete(L: Load, input: Input): Promise<void> {
   const id = str(input.id) ?? '';
   const project = Object.values(L.office.projects).find((item) => item.folders?.some((folder) => folder.id === id));
+  // A folder that no project holds is a folder of Resources: the files that go back to its root are the files of Resources (fbk_078).
   if (project) await L.select({ c: 'files', where: [{ col: 'project_id', in: [project.id] }] });
+  else await resourceFiles(L);
 }
 
 /**
@@ -83,6 +85,8 @@ async function officeFiles(L: Load, taskId: string | undefined): Promise<void> {
 
 /** files.list: every file of P (the filters run in the handler), or every file of one office task. */
 export async function filesList(L: Load, input: Input): Promise<void> {
+  // The files of Resources (fbk_078).
+  if (input.resources === true) return resourceFiles(L);
   if (!str(input.projectId)) return officeFiles(L, str(input.taskId));
   await L.select({ c: 'files', where: [{ col: 'project_id', in: [str(input.projectId) ?? ''] }] });
 }

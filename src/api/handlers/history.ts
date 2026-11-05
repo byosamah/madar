@@ -8,7 +8,7 @@ import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag
 import { noticeProjectHidden } from '../hiddenNotice';
 import { feedbackNoticeHidden } from '../notify';
 import { eventHiddenByLock, eventTouchesLocked } from '../folderLock';
-import { eventHiddenByResourceLock, isResourceFileEvent, isResourceFoldersEvent } from '../resourceLock';
+import { isResourceFileEvent, isResourceFoldersEvent } from '../resourceLock';
 import { undoResourceFolders } from './resources';
 import { eventProjectViewer, goneProjectsOf, viewsGoneProject } from '../projectView';
 import { ensureRights, withRights } from '../rights';
@@ -77,8 +77,6 @@ export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = c
   if (event.projectId && !seesProjectEvent(ctx, event.projectId, viewer)) return false;
   // A change of a locked folder, or of a file in one, shows only to the people who hold the switch "Locked folders" (fbk_074).
   if (eventHiddenByLock(ctx.state, viewer, event)) return false;
-  // The same for a change of a locked folder of Resources, or of a file in one (fbk_078).
-  if (eventHiddenByResourceLock(ctx.state, viewer, event)) return false;
   return !event.officeTaskId || can(viewer, 'task.view', officeOf(ctx, event, undo, viewer));
 }
 

@@ -61,16 +61,25 @@ function assertFolderNameFree(ctx: Ctx, name: string, exceptId?: string): void {
   if (taken) throw invalid('name', 'Resources has a folder with this name.', 'folder_name_taken');
 }
 
+/** The files of Resources that the person may see, with the folder of each, by name. */
+export function resourceViewsOf(ctx: Ctx): FileView[] {
+  const folders = new Map(resourceFoldersFor(ctx.state, ctx.authority).map((folder) => [folder.id, folder]));
+  return Object.values(ctx.state.files)
+    .filter((file) => file.resource === true && !resourceFileHidden(ctx.state, ctx.authority, file))
+    .map((file) => {
+      const folder = file.folderId ? folders.get(file.folderId) : undefined;
+      return { ...fileViewOf(ctx.state, file, ctx.authority), ...(folder ? { folder: { id: folder.id, name: folder.name, ...(folder.locked === true ? { locked: true } : {}) } } : {}) };
+    })
+    .sort((a, b) => a.file.name.localeCompare(b.file.name));
+}
+
 export const resourcesList = defineCall({
   input: z.object({}),
   output: ResourcesView,
   readOnly: true,
   run(_input, ctx) {
     const folders = resourceFoldersFor(ctx.state, ctx.authority);
-    const files = Object.values(ctx.state.files)
-      .filter((file) => file.resource === true && !resourceFileHidden(ctx.state, ctx.authority, file))
-      .map((file) => fileViewOf(ctx.state, file, ctx.authority))
-      .sort((a, b) => a.file.name.localeCompare(b.file.name));
+    const files = resourceViewsOf(ctx);
     return {
       folders: [...folders].sort((a, b) => a.name.localeCompare(b.name)),
       files,
@@ -79,63 +88,69 @@ export const resourcesList = defineCall({
   },
 });
 
+/** No id: makes a folder (name needed). An id: renames it (name), locks or unlocks it (locked), or both. The one door of the screens and the folder tools. */
+export function saveResourceFolder(ctx: Ctx, input: { id?: string; name?: string; locked?: boolean }): ResourceFolder {
+  const folders = [...resourceFoldersOf(ctx.state)];
+  if (input.id === undefined) {
+    assertCan(ctx, 'resources.manage');
+    // A new locked folder needs the lock switch too, as the lock of a folder does.
+    if (input.locked === true) assertCan(ctx, 'folder.locked');
+    if (folders.length >= MAX_FOLDERS) throw invalid('name', `Resources holds up to ${MAX_FOLDERS} folders.`, 'resource_folder_limit');
+    assertFolderNameFree(ctx, input.name!);
+    const folder: ResourceFolder = {
+      id: nextId(ctx.state, 'fld'), name: input.name!, createdBy: ctx.actor.id, createdAt: ctx.stamp, ...(input.locked === true ? { locked: true } : {}),
+    };
+    saveFolders(ctx, [...folders, folder]);
+    return folder;
+  }
+  // The view check comes first, so a locked folder reads as missing for a person without the switch "Locked folders".
+  const folder = requireResourceFolder(ctx, input.id);
+  assertCan(ctx, 'resources.manage');
+  const lockChanges = input.locked !== undefined && (folder.locked === true) !== input.locked;
+  if (lockChanges) assertCan(ctx, 'folder.locked');
+  const renames = input.name !== undefined && input.name !== folder.name;
+  if (renames) assertFolderNameFree(ctx, input.name!, folder.id);
+  if (!renames && !lockChanges) return folder;
+  const { locked: _locked, ...rest } = folder;
+  const next: ResourceFolder = {
+    ...rest, ...(renames ? { name: input.name! } : {}),
+    ...((lockChanges ? input.locked === true : folder.locked === true) ? { locked: true } : {}),
+  };
+  saveFolders(ctx, folders.map((item) => (item.id === folder.id ? next : item)));
+  return next;
+}
+
 export const resourcesSaveFolder = defineCall({
   /** No id: a new folder (name needed). An id: a rename (name), a lock or an unlock (locked), or both. */
   input: z.object({ id: FolderId.optional(), name: FolderName.optional(), locked: z.boolean().optional() })
     .refine((value) => value.id !== undefined || value.name !== undefined, { path: ['name'], message: 'Name the folder.' })
     .refine((value) => value.id === undefined || value.name !== undefined || value.locked !== undefined, { path: ['name'], message: 'Change the name or the lock.' }),
   output: ResourceFolder,
-  run(input, ctx) {
-    const folders = [...resourceFoldersOf(ctx.state)];
-    if (input.id === undefined) {
-      assertCan(ctx, 'resources.manage');
-      // A new locked folder needs the lock switch too, as the lock of a folder does.
-      if (input.locked === true) assertCan(ctx, 'folder.locked');
-      if (folders.length >= MAX_FOLDERS) throw invalid('name', `Resources holds up to ${MAX_FOLDERS} folders.`, 'resource_folder_limit');
-      assertFolderNameFree(ctx, input.name!);
-      const folder: ResourceFolder = {
-        id: nextId(ctx.state, 'fld'), name: input.name!, createdBy: ctx.actor.id, createdAt: ctx.stamp, ...(input.locked === true ? { locked: true } : {}),
-      };
-      saveFolders(ctx, [...folders, folder]);
-      return folder;
-    }
-    // The view check comes first, so a locked folder reads as missing for a person without the switch "Locked folders".
-    const folder = requireResourceFolder(ctx, input.id);
-    assertCan(ctx, 'resources.manage');
-    const lockChanges = input.locked !== undefined && (folder.locked === true) !== input.locked;
-    if (lockChanges) assertCan(ctx, 'folder.locked');
-    const renames = input.name !== undefined && input.name !== folder.name;
-    if (renames) assertFolderNameFree(ctx, input.name!, folder.id);
-    if (!renames && !lockChanges) return folder;
-    const { locked: _locked, ...rest } = folder;
-    const next: ResourceFolder = {
-      ...rest, ...(renames ? { name: input.name! } : {}),
-      ...((lockChanges ? input.locked === true : folder.locked === true) ? { locked: true } : {}),
-    };
-    saveFolders(ctx, folders.map((item) => (item.id === folder.id ? next : item)));
-    return next;
-  },
+  run: (input, ctx) => saveResourceFolder(ctx, input),
 });
+
+/** Renames a file (name) or moves it (folderId, null: the root). The one door of the screens and the file tools. */
+export function updateResourceFile(ctx: Ctx, input: { id: string; name?: string; folderId?: string | null }): FileView {
+  const file = requireResourceFile(ctx, input.id);
+  assertCan(ctx, 'resources.manage');
+  const name = input.name ?? file.name;
+  const folderId = input.folderId === undefined ? (file.folderId ?? null) : input.folderId;
+  checkResourceFolder(ctx, folderId);
+  const renames = name !== file.name;
+  const moves = folderId !== (file.folderId ?? null);
+  // A file saved before folders has no folderId. The event keeps the old value, so the Undo can put it back.
+  if (moves && file.folderId === undefined) file.folderId = null;
+  if (renames) applyPatch(ctx, file, { name }, { projectId: null, verb: 'file.renamed', targetType: 'file', targetId: file.id });
+  if (moves) applyPatch(ctx, file, { folderId }, { projectId: null, verb: 'file.moved', targetType: 'file', targetId: file.id });
+  return fileViewOf(ctx.state, file, ctx.authority);
+}
 
 export const resourcesUpdateFile = defineCall({
   /** name: a new name. folderId: a new place (a folder, or null for the root of Resources). */
   input: z.object({ id: FileId, name: FileName.optional(), folderId: FolderId.nullable().optional() })
     .refine((value) => value.name !== undefined || value.folderId !== undefined, { path: ['name'], message: 'Change the name or the folder.' }),
   output: FileView,
-  run(input, ctx) {
-    const file = requireResourceFile(ctx, input.id);
-    assertCan(ctx, 'resources.manage');
-    const name = input.name ?? file.name;
-    const folderId = input.folderId === undefined ? (file.folderId ?? null) : input.folderId;
-    checkResourceFolder(ctx, folderId);
-    const renames = name !== file.name;
-    const moves = folderId !== (file.folderId ?? null);
-    // A file saved before folders has no folderId. The event keeps the old value, so the Undo can put it back.
-    if (moves && file.folderId === undefined) file.folderId = null;
-    if (renames) applyPatch(ctx, file, { name }, { projectId: null, verb: 'file.renamed', targetType: 'file', targetId: file.id });
-    if (moves) applyPatch(ctx, file, { folderId }, { projectId: null, verb: 'file.moved', targetType: 'file', targetId: file.id });
-    return fileViewOf(ctx.state, file, ctx.authority);
-  },
+  run: (input, ctx) => updateResourceFile(ctx, input),
 });
 
 /**
@@ -146,12 +161,12 @@ export const resourcesDelete = defineCall({
   input: z.object({ id: z.union([FolderId, FileId]) }),
   output: z.object({ deleted: z.literal(true) }),
   run(input, ctx) {
-    if (input.id.startsWith('fld_')) return deleteFolder(ctx, input.id);
-    return deleteFile(ctx, input.id);
+    if (input.id.startsWith('fld_')) return deleteResourceFolder(ctx, input.id);
+    return deleteResourceFile(ctx, input.id);
   },
 });
 
-function deleteFolder(ctx: Ctx, id: string): { deleted: true } {
+export function deleteResourceFolder(ctx: Ctx, id: string): { deleted: true } {
   const folder = requireResourceFolder(ctx, id);
   assertCan(ctx, 'resources.manage');
   // The files of a deleted folder go back to the root, where everyone sees them, and the History would show their names. So a locked folder is
@@ -167,7 +182,7 @@ function deleteFolder(ctx: Ctx, id: string): { deleted: true } {
   return { deleted: true as const };
 }
 
-function deleteFile(ctx: Ctx, id: string): { deleted: true } {
+export function deleteResourceFile(ctx: Ctx, id: string): { deleted: true } {
   const file = requireResourceFile(ctx, id);
   assertCan(ctx, 'resources.manage');
   recordDelete(ctx, { projectId: null, verb: 'file.deleted', targetType: 'file', targetId: file.id, entity: file });

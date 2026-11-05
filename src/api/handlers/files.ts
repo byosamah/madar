@@ -12,7 +12,7 @@ import { assertAgentMayOpenChatFile, fileViewOf, mayDeleteFile, mayOpenFile, may
 import { assertCan, requireProject, requireStage, requireTask, roleIn, taskRole, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 import { assertFitsLockedFolder, checkPlace } from './folders';
-import { uploadResourceFile } from './resources';
+import { deleteResourceFile, resourceViewsOf, updateResourceFile, uploadResourceFile } from './resources';
 import { fileHiddenByLock, fileInLockedFolder, foldersFor } from '../folderLock';
 
 /** The refusal text for a file of Resources in a call of the project files (reason file_resource). */
@@ -44,11 +44,15 @@ export function officeTaskOfCall(ctx: Ctx, taskId: string | null | undefined): T
 }
 
 export const filesList = defineCall({
-  /** No projectId: the files of one office task (taskId) that the person sees (owner, 2026-10-06). */
-  input: z.object({ projectId: ProjectId.optional(), stageId: StageId.optional(), taskId: TaskId.optional() }),
+  /** No projectId: the files of one office task (taskId) that the person sees (owner, 2026-10-06). resources: true lists the files of Resources instead (fbk_078). */
+  input: z.object({ projectId: ProjectId.optional(), stageId: StageId.optional(), taskId: TaskId.optional(), resources: z.literal(true).optional() }),
   output: z.array(FileView),
   readOnly: true,
   run(input, ctx) {
+    if (input.resources === true) {
+      if (input.projectId !== undefined || input.stageId !== undefined || input.taskId !== undefined) throw invalid('resources', 'Resources has no project, stage or task.', 'file_resource');
+      return resourceViewsOf(ctx);
+    }
     const projectId = input.projectId ?? null;
     if (projectId === null) officeTaskOfCall(ctx, input.taskId);
     else requireProject(ctx, projectId);
@@ -299,8 +303,8 @@ export const filesDelete = defineCall({
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
     if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
-    // A file of Resources has its own delete (resources.delete), with its own switch.
-    if (file.resource === true) throw invalid('id', RESOURCE_STAYS, 'file_resource');
+    // A file of Resources is deleted with the switch "Manage office resources", by the one rule of resources.ts (fbk_078).
+    if (file.resource === true) return deleteResourceFile(ctx, file.id);
     if (!mayDeleteFile(ctx.state, ctx.authority, file)) throw forbidden('Only the uploader or the project leader can delete this file.');
     const project = file.projectId === null ? undefined : ctx.state.projects[file.projectId];
     if (project?.coverFileId === file.id) {
@@ -327,7 +331,11 @@ export const filesMove = defineCall({
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
     if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
-    if (file.resource === true) throw invalid('id', RESOURCE_STAYS, 'file_resource');
+    // A file of Resources moves between the folders of Resources (no stage) with the switch "Manage office resources" (fbk_078).
+    if (file.resource === true) {
+      if (input.stageId !== null) throw invalid('stageId', RESOURCE_STAYS, 'file_resource');
+      return updateResourceFile(ctx, { id: file.id, folderId: input.folderId });
+    }
     if (file.projectId === null) throw invalid('id', 'A file of an office task stays on its task.', 'file_office_task');
     const project = requireProject(ctx, file.projectId);
     assertCan(ctx, 'file.upload', { projectRole: roleIn(ctx, project.id) });

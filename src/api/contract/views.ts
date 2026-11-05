@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { NOTIFY_LEVELS } from './limits';
 import {
-  Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, GeoPoint, HealthValue,
+  Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, FolderId, Gender, GeoPoint, HealthValue,
   MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectFolder, ProjectTemplateId, ResourceFolder, Team,
   ProjectId, ProjectShape, ProjectStatus, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerId, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
@@ -367,7 +367,11 @@ export const ChatThread = z.object({
 export type ChatThread = z.infer<typeof ChatThread>;
 
 /** "canDelete" comes from the same rule as files.delete, so the screen never keeps a rule of its own (audit 2026-10-03, PRJ-16). */
-export const FileView =z.object({ file: FileRec, latest: FileVersion, uploader: UserCard, canDelete: z.boolean() });
+export const FileView = z.object({
+  file: FileRec, latest: FileVersion, uploader: UserCard, canDelete: z.boolean(),
+  /** A file of Resources in a folder: the id and the name of the folder (files.list with resources: true, fbk_078). Optional, so older answers parse. */
+  folder: z.object({ id: FolderId, name: z.string(), locked: z.boolean().optional() }).optional(),
+});
 export type FileView = z.infer<typeof FileView>;
 
 /**

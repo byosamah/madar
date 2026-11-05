@@ -96,7 +96,7 @@ export function readSweep(office: State): SweepCall[] {
   // A locked folder and its file must read as missing for everyone without the switch "Locked folders", on the scoped load as on the whole office.
   if (Object.values(office.files).some((f) => f.resource === true)) {
     for (const actor of [...humans, ...agents]) {
-      calls.push(['resources.list', {}, actor], ['search.query', { text: 'resource-codes' }, actor], ['search.query', { text: 'hidden-policy' }, actor]);
+      calls.push(['resources.list', {}, actor], ['files.list', { resources: true }, actor], ['search.query', { text: 'resource-codes' }, actor], ['search.query', { text: 'hidden-policy' }, actor]);
     }
   }
   for (const actor of agents) {
@@ -393,16 +393,27 @@ export function resourceWrites(office: State): SweepCall[] {
     ['resources.updateFile', { id: hidden.id, folderId: null }, member],
     ['resources.delete', { id: hidden.id }, member],
     ['resources.delete', { id: locked.id }, member],
+    // The folder and file calls with a Resources target (lead decision, 2026-11-05): the same refusals and the same missing answers.
+    ['folders.create', { resources: true, name: 'Member folder' }, member],
+    ['folders.rename', { id: locked.id, name: 'Member rename' }, member],
+    ['folders.setLock', { id: open.id, locked: true }, member],
+    ['folders.delete', { id: locked.id }, member],
+    ['files.delete', { id: hidden.id }, member],
+    ['files.move', { id: hidden.id, stageId: null, folderId: null }, member],
     ['files.upload', { resources: true, name: 'Member.pdf', uploadId: 'upl_res_member' }, member, prepared],
     ['files.upload', { resources: true, folderId: locked.id, name: 'Member.pdf', uploadId: 'upl_res_member_2' }, member, prepared],
     ['resources.saveFolder', { name: 'Sweep resources' }, ADMIN],
     ['files.upload', { resources: true, folderId: open.id, name: 'Sweep.pdf', uploadId: 'upl_res_admin' }, ADMIN, prepared],
+    ['folders.create', { resources: true, name: 'Admin folder' }, ADMIN],
+    ['files.move', { id: root.id, stageId: null, folderId: open.id }, ADMIN],
+    ['files.move', { id: root.id, stageId: null, folderId: null }, ADMIN],
     ['resources.updateFile', { id: root.id, name: 'Renamed.pdf' }, ADMIN],
     ['resources.updateFile', { id: root.id, folderId: open.id }, ADMIN],
     ['resources.saveFolder', { id: open.id, name: 'Codes renamed' }, ADMIN],
     ['resources.saveFolder', { id: open.id, locked: true }, ADMIN],
     ['resources.saveFolder', { id: open.id, locked: false }, ADMIN],
-    ['resources.delete', { id: root.id }, ADMIN],
+    ['files.delete', { id: root.id }, ADMIN],
+    ['folders.rename', { id: open.id, name: 'Codes again' }, ADMIN],
     ['resources.delete', { id: open.id }, ADMIN],
     ['resources.delete', { id: locked.id }, ADMIN],
   ];

@@ -83,10 +83,11 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'files.delete': ['events', 'files', 'projects'],
   // Folders live in the project (fbk_066). A delete puts the files of the folder back at the root of their stage.
   'files.move': ['events', 'files'],
-  'folders.create': ['events', 'projects'],
-  'folders.rename': ['events', 'projects'],
-  'folders.setLock': ['events', 'projects'],
-  'folders.delete': ['events', 'files', 'projects'],
+  // A folder call may name a folder of Resources, which lives in the office settings (fbk_078).
+  'folders.create': ['events', 'projects', 'settings'],
+  'folders.rename': ['events', 'projects', 'settings'],
+  'folders.setLock': ['events', 'files', 'projects', 'settings'],
+  'folders.delete': ['events', 'files', 'projects', 'settings'],
   // The Resources page (fbk_078): the folders live in the office settings.
   'resources.saveFolder': ['events', 'files', 'settings'],
   'resources.updateFile': ['events', 'files'],

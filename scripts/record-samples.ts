@@ -253,18 +253,6 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     const spareDeadline = first(Object.values(s().deadlines).filter((d) => d.name === 'Sample deadline to delete'), 'new deadline');
     await run('deadlines.delete', { id: spareDeadline.id });
 
-    // The Resources page (fbk_078): the list, a folder made and renamed, a file renamed and moved into it, and both deleted. The file comes from a direct upload
-    // (callApi records no sample), because an agent adds one with files.uploadContent. The Admin of the sample run holds the switch "Manage office resources".
-    await run('resources.list', {});
-    await run('resources.saveFolder', { name: 'Building codes' });
-    const resourceFolder = first((s().settings.resourceFolders ?? []).filter((f) => f.name === 'Building codes'), 'new Resources folder');
-    await run('resources.saveFolder', { id: resourceFolder.id, name: 'Building codes 2026' });
-    await make('files.upload', { resources: true, name: 'Saudi Building Code.pdf', blob: new Blob(['%PDF-1.4 sample'], { type: 'application/pdf' }) });
-    const resourceFile = first(Object.values(s().files).filter((f) => f.resource === true), 'new Resources file');
-    await run('resources.updateFile', { id: resourceFile.id, name: 'Saudi Building Code SBC 201.pdf', folderId: resourceFolder.id });
-    await run('resources.delete', { id: resourceFile.id });
-    await run('resources.delete', { id: resourceFolder.id });
-
     // To-dos: a template, a to-do from it, a new version of a finished to-do, the delete, and the template calls.
     await run('taskTemplates.save', { name: 'Check the drainage levels', stageName: stageOf.name, description: 'Compare the levels with the survey.', checklist: ['Read the survey', 'Compare the levels'], needsReview: true, schedule: 'static' });
     const template = first(Object.values(s().taskTemplates ?? {}).filter((t) => t.name === 'Check the drainage levels'), 'new task template');

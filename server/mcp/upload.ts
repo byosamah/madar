@@ -48,7 +48,7 @@ export const FilesUploadContentInput = z.strictObject({
   projectId: ProjectId.optional(),
   conversationId: ConversationId.optional(),
   meetingId: MeetingId.optional(),
-  resources: z.literal(true).optional().describe('true: the Resources page.'),
+  resources: z.literal(true).optional(),
   stageId: StageId.nullable().optional(),
   taskId: TaskId.nullable().optional(),
   folderId: FolderId.nullable().optional(),

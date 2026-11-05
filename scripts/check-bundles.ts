@@ -47,8 +47,10 @@ export const SEED_MARKERS = ['Hala Nasser', 'Faisal Al-Harbi', 'Corniche Office 
  * after the speed release of 2026-10-21: 985,040 B raw, 302,322 B gzip (level 9, one file at a time, summed) and 33 files. The old
  * limit of 1,350,000 B sat 113 KB above the real size, so the growth of 2026-10-08 to 2026-10-20 passed. A change that adds code to
  * the first load fails here. Then lazy-load the code, or raise the limit in the same commit with the reason.
+ * 2026-11-05: Resources (fbk_078) adds 1,195 B of registry lines that the first load needs (the catalog line, the Action, the route and its
+ * loader, the nav marks, the read and write maps, READ_CALLS, the What's new entry). The real size is 970,524 B raw and 295,401 B gzip, so the raw limit is 972,000.
  */
-export const FIRST_LOAD_MAX_BYTES = 970_000;
+export const FIRST_LOAD_MAX_BYTES = 972_000;
 export const FIRST_LOAD_MAX_GZIP = 296_000;
 export const FIRST_LOAD_MAX_FILES = 35;
 

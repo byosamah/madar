@@ -343,7 +343,7 @@ describe('a locked folder and its file answer a person without the switch as mis
 });
 
 describe('a file of Resources stays on the Resources page', () => {
-  it('is refused by every carrier for a person who sees it', async () => {
+  it('is refused by every carrier that is no Resources call, for a person who sees it', async () => {
     const w = await world();
     const made = await as(w, ADMIN, () => w.t.api.call('projects.create', { name: 'Villa Noor', teamIds: [SARA] }));
     const task = await as(w, ADMIN, () => w.t.api.call('tasks.create', { projectId: made.project.id, title: 'Read it' }));
@@ -353,9 +353,7 @@ describe('a file of Resources stays on the Resources page', () => {
       ['comments.create', { targetType: 'task', targetId: task.task.id, body: 'x', fileIds: [w.ids.root] }],
       ['files.share', { fileId: w.ids.root, target: { kind: 'project_chat' } }],
       ['files.share', { fileId: w.ids.root, target: { kind: 'task', taskId: task.task.id } }],
-      ['files.delete', { id: w.ids.root }],
       ['files.markDelivered', { id: w.ids.root }],
-      ['files.move', { id: w.ids.root, stageId: null, folderId: null }],
     ];
     for (const [name, input] of attempts) {
       const refused = await as(w, ADMIN, () => failure(() => w.t.api.call(name as 'files.share', input as never)));

@@ -1,5 +1,6 @@
 import type { Event, FileRec, Project, ProjectFolder, User } from './contract/entities';
 import { holdsRight } from './permissions';
+import { eventHiddenByResourceLock, resourceEventForViewer, resourceFileHidden } from './resourceLock';
 import { ensureRights } from './rights';
 import type { State } from './store';
 
@@ -36,7 +37,9 @@ export function folderHiddenFrom(state: Rights, viewer: User, folders: readonly 
 }
 
 /** True when a file sits in a locked folder that the person may not see. A file of no project, and a file at the root, are never hidden here. */
-export function fileHiddenByLock(state: Places, viewer: User, file: Pick<FileRec, 'projectId' | 'folderId'>): boolean {
+export function fileHiddenByLock(state: Places, viewer: User, file: Pick<FileRec, 'projectId' | 'folderId'> & { resource?: true }): boolean {
+  // A file of Resources reads the locked folders of the office settings (fbk_078): the one shared rule covers both places.
+  if (file.resource === true) return resourceFileHidden(state, viewer, file);
   if (file.projectId === null || !file.folderId) return false;
   return folderHiddenFrom(state, viewer, state.projects[file.projectId]?.folders, file.folderId);
 }
@@ -100,7 +103,7 @@ export function eventTouchesLocked(state: Pick<State, 'projects' | 'files'>, eve
 
 /** True when the person may not see the change because it touches a locked folder. */
 export function eventHiddenByLock(state: Pick<State, 'settings' | 'projects' | 'files'>, viewer: User, event: EventFacts): boolean {
-  return eventTouchesLocked(state, event) && !holdsLockedFolders(state, viewer);
+  return (eventTouchesLocked(state, event) && !holdsLockedFolders(state, viewer)) || eventHiddenByResourceLock(state, viewer, event);
 }
 
 /**
@@ -108,7 +111,11 @@ export function eventHiddenByLock(state: Pick<State, 'settings' | 'projects' | '
  * the event keeps (a project creation holds its folders, and so does its delete, and a change of one folder holds the whole list). A holder of the
  * switch gets the event as it is.
  */
-export function eventForViewer<T extends Pick<Event, 'projectId' | 'before' | 'after'>>(state: Pick<State, 'settings' | 'projects'>, viewer: User, event: T): T {
+export function eventForViewer<T extends Pick<Event, 'projectId' | 'before' | 'after'> & Partial<Pick<Event, 'verb' | 'targetType' | 'targetId'>>>(state: Pick<State, 'settings' | 'projects'>, viewer: User, event: T): T {
+  // The lists of Resources folders that an event keeps (fbk_078).
+  if (event.verb !== undefined && event.targetType !== undefined && event.targetId !== undefined) {
+    event = resourceEventForViewer(state, viewer, event as T & Pick<Event, 'verb' | 'targetType' | 'targetId'>);
+  }
   const hasFolders = (side: unknown) => (foldersOfSide(side)?.length ?? 0) > 0;
   if (!hasFolders(event.before) && !hasFolders(event.after)) return event;
   const locked = lockedNow(state, event.projectId);

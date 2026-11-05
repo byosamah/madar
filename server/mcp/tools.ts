@@ -48,7 +48,7 @@ export const MCP_ALLOW = [
   // the person (fbk_011, owner 2026-10-18). subCompanies.list gives its logos only with withPictures. meetings.list and meetings.get read
   // the meetings of the person and of a project (fbk_022, owner 2026-10-19). pictures.get gives one picture (owner, 2026-10-21).
   READ_FIRST, PICTURES_GET, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
-  'deadlines.list', 'files.list', 'resources.list', 'users.list', 'events.list', 'chats.list', 'subCompanies.list',
+  'deadlines.list', 'files.list', 'users.list', 'events.list', 'chats.list', 'subCompanies.list',
   'chats.messages', 'chats.waiting', 'meetings.list', 'meetings.get', 'clients.list', 'projectTemplates.list',
   // Writes (35). tasks.createMany and tasks.updateMany run tasks.create and tasks.update for up to 50 and 100 items (owner, 2026-10-26). stages.replace renames, adds, removes and orders the stages of one project. tasks.help joins your person to a task as a helper, or takes them off it (fbk_035). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
   // project posts are comments.create and updates.create). stages.setDates sets the dates of one stage, as the Schedule tab does.
@@ -139,10 +139,6 @@ export const MCP_BY_RIGHT = {
   'subCompanies.save': 'subCompanies.manage',
   'subCompanies.delete': 'subCompanies.manage',
   'settings.update': 'office.settings',
-  // The Resources page (fbk_078, owner 2026-11-05): resources.list is open to every person. The writes need the switch "Manage office resources" and the AI switch ai.projects.
-  'resources.saveFolder': 'resources.manage',
-  'resources.updateFile': 'resources.manage',
-  'resources.delete': 'resources.manage',
 } as const satisfies Readonly<Partial<Record<SharedCallName | ServerCallName | typeof FEEDBACK_SEND_WITH_SCREENSHOTS, OfficeRight>>>;
 const RIGHT_TOOLS = Object.keys(MCP_BY_RIGHT) as (keyof typeof MCP_BY_RIGHT)[];
 
@@ -180,6 +176,9 @@ export const MCP_DENY = [
   // The Daftra link (owner, 2026-10-26): a person links a payment to a Daftra invoice in the Madar screens, and Daftra then sets Received. An agent
   // never touches Daftra: it cannot link, unlink, search a Daftra client, match one, or read the state of a Daftra account.
   'daftra.status', 'daftra.paymentLink', 'daftra.findClients', 'daftra.matchClient', 'payments.linkInvoice', 'payments.unlinkInvoice',
+  // The Resources page (fbk_078): the four calls of its screen. An agent uses the file and folder tools with a Resources target (files.list and folders.create with
+  // resources true, folders.rename, folders.setLock, folders.delete, files.move and files.delete with a Resources id, files.uploadContent with resources true). The tool list has no room for four more tools.
+  'resources.list', 'resources.saveFolder', 'resources.updateFile', 'resources.delete',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
 /**
