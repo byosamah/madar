@@ -10,7 +10,7 @@ import { normalizeForSearch } from '../../../src/lib/text';
 import type { Cond } from './query';
 import type { Load } from './build';
 import { taskRowsUnread } from './chat';
-import { resourceHits } from './resources';
+import { hiddenResourceEventIds, resourceHits } from './resources';
 import { privateMeetingsOf } from './meetings';
 import { covers, eventProjectConds, eventTargets, feed, LIVE, officeState, officeTasks, projectConds, tasksOf, visibleIds, visibleProjects } from './steps';
 
@@ -219,6 +219,9 @@ export async function eventsList(L: Load, input: Input): Promise<void> {
   // A change of a project that the person does not see is not in the list, so the limit counts only the changes the person reads
   // (hidden projects, owner 2026-10-22). A deleted project shows its changes to the people who saw it (viewsGoneProject).
   where.push(...await eventProjectConds(L));
+  // A change of a locked folder of Resources, or of a file in one, is no change for a person without the switch "Locked folders" (fbk_078).
+  const hiddenInResources = await hiddenResourceEventIds(L);
+  if (hiddenInResources.length > 0) where.push({ col: 'id', notIn: hiddenInResources });
   const events = (await L.select({ c: 'events', where, order: { col: 'seq', desc: true }, limit: (input.limit as number | undefined) ?? 50 })) as Event[];
   await eventTargets(L, events);
 }

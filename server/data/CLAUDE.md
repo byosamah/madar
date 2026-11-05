@@ -112,7 +112,8 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   search leaves the locked folders out in SQL for a person without the switch, so the limit of 5 equals the cut of the handler. A change inside a locked
   folder of Resources goes only as person signals to every active holder of `folder.locked`, with no project (`Diff.locked` under `RESOURCES_LOCK_KEY`,
   `lockedHoldersOf`); a folder that gets locked or unlocked, and a file that leaves or enters a locked folder, is heard by all. Test:
-  `resourceSignals.test.ts`.
+  `resourceSignals.test.ts`. The History (`events.list`) leaves the hidden events out in SQL by id (`hiddenResourceEventIds`), because its limit counts
+  the events that the SQL passes: without it the scoped load would give fewer than 20 rows for a person without the lock switch.
 - Locked folders (fbk_074): a change inside a locked folder goes only as person signals to the holders of `folder.locked` who view the project
   (`lockedAudienceFinder`, `Diff.locked` in `save.ts`); a folder that gets locked or unlocked, and a file that leaves or enters one, is heard by
   all. Test: `lockedFolderSignals.test.ts`.

@@ -3,6 +3,7 @@ import { REFERENCES } from '../../../src/api/references';
 import { OFFICE_COLLECTIONS } from '../../core/types';
 import type { TableCollection } from '../tables';
 import type { Load } from './build';
+import { RESOURCE_FILES } from './resources';
 import { eventTargets, goneProjects, tasksOf } from './steps';
 
 /**
@@ -55,7 +56,7 @@ export async function storyCall(L: Load, input: Input): Promise<void> {
 
   // The Undo of a change of the Resources folders reads the files of Resources: a file that points at a folder that is gone goes back to the root (fbk_078).
   if (story.some((event) => event.targetType === 'settings' && event.verb === 'resources.folders_changed')) {
-    await L.select({ c: 'files', where: [{ field: 'resource', in: ['true'] }] });
+    await L.select({ c: 'files', where: [...RESOURCE_FILES] });
   }
 
   for (const event of story) {
