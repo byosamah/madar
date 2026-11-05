@@ -1421,3 +1421,6 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
   at c0b38511.
 - [ ] Open from the same batch: fbk_079 (tsk_634, file preview in a big center window on a desk) and fbk_078 (tsk_635, a Resources page;
   the place in the menu and who adds files wait on the owner).
+
+## Team report fbk_078 (owner answers of 2026-11-05)
+- [ ] fbk_078 (Faisal): Resources, a page for the files of the whole office (building codes, policies), inside Projects. Built on `rb/resources`, not yet merged. Every person reads; the new switch "Manage office resources" (off for every role but the Admin) changes; a locked folder reuses "Locked folders". What's new 152. Open: the first-load limit (970,000 B) and the tool list cap (110 KB) each need an owner decision (the feature adds 1,195 B and about 1,620 B).
