@@ -3068,3 +3068,25 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   about 10:00 UTC. Live checks: health from supabase, 158 calls; database, lock and asyncContext ok; /mcp with no token 401; the page title
   Madar and `/favicon.ico` 200; madar.vado.sa serves `index-BJwz2FbE.js`, the same as the deploy address; `words.en-TdWWrXdo.js` holds
   "AI assistants follow Share files".
+
+### Release record: production at c0b38511 (2026-11-05, fbk_080: a project list shows rows or boxes)
+- Why (owner report fbk_080: "allow me to change the layout of the projects to boxes, create mockups before implement it"): three
+  mockups on a canvas (A cover boxes, B tile boxes, C shape squares); the owner picked B ("b for sure"), then "release it to production
+  when ready". No active project had a cover picture (0 of 16), so A would have shown only the drawn fallback.
+- What shipped (`rb/boxes`, one commit, tests first): `ProjectBox` (its code sits in `ProjectListRow.tsx`, because a separate module
+  took the first load from 32 to 37 files), the choice `madar.projects.view` (rows first, one choice for Home and Projects, kept by the
+  browser), the View button beside Filter on a desk Projects page, a round toggle on a phone Projects page and on a desk Home.
+  `NextDeadlineLabel` takes `wrap` in a box: the name may take 2 lines, the date stays whole. What's new `2026-11-05-150`
+  (`real/fbk080.*.json`). Guides: `src/CLAUDE.md` (the "No grid view" line), `DESIGN.md`, `src/features/projects`, `src/features/home`,
+  the decision log. MCP: no change (a view choice in the browser).
+- Gates, each once. The builder: npm test 12,800 passed, 0 red (before the last three small changes); typecheck, build and
+  build:remote test passed; the first load is 969,329 B of the 970,000 B limit (671 B left). After the merge: typecheck and the touched
+  tests (68 files, 544 tests) passed; the prototype smoke passed (136 of 136). test:db, test:it, test:mcp, test:lite and test:office were
+  not run: no file under `server/`, `src/api/` or `supabase/` changed. WebKit (Safari 26.6 engine): the name stops at 2 lines on every
+  screen, 390 and 1440 px, English and Arabic; every deadline date is whole at 390 px.
+- Test copy: `all.sh test` of c0b38511 passed on the first try (health from supabase, 158 calls; database, lock and asyncContext ok; /mcp
+  with no token 401). Checked by hand in Chrome as the admin sample: Projects shows 9 boxes, Home 2 across. The deploy suite was not run
+  (no server change; the owner asked for production when ready).
+- `echo production | scripts/deploy/all.sh production` by Claude, 2026-11-05 about 08:45 UTC. Live checks: health from supabase, 158
+  calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and `/favicon.ico` 200; madar.vado.sa serves
+  `index-DJy7R08w.js`, the same as the deploy address; `words.en-D1xMWMgp.js` holds "Show your projects as boxes".

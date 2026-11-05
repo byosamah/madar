@@ -1411,3 +1411,13 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
   passed, and `meetingLeaks.test.ts` (a time limit at a load of 214) passed alone on a fresh stack. npm test: 3 red at a load of 70 to 140;
   `EmojiPanel` and `EarlierMessages` passed alone, `focusInert` fails on main too (above). The smoke was not run: no screen code changed.
 - [x] Release: test copy, then production by Claude after the owner picked "Yes, to production". Done 2026-11-03: production at eed1c5a7.
+
+## Projects as boxes (fbk_080; owner picked mockup B, then "release it to production when ready", 2026-11-05; branch `rb/boxes`)
+- [x] A project list shows rows or boxes: the View button beside Filter on a desk Projects page, a round toggle on a phone Projects
+  page and on a desk Home. One choice for both screens, kept by the browser. The deadline name wraps in a box and the date stays whole.
+  Madar to-do tsk_633. Record: proof.md, "Release record: production at c0b38511".
+- [ ] The first load is 969,329 B of the 970,000 B limit (671 B left): the next change that adds first-load code must look at the limit.
+- [x] Release: test copy, then production by Claude after the owner's "release it to production when ready". Done 2026-11-05: production
+  at c0b38511.
+- [ ] Open from the same batch: fbk_079 (tsk_634, file preview in a big center window on a desk) and fbk_078 (tsk_635, a Resources page;
+  the place in the menu and who adds files wait on the owner).
