@@ -9,6 +9,7 @@ import { computeHealth, isOverdue } from './health';
 import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectResource, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { ensureRights } from './rights';
 import { eventForViewer, eventHiddenByLock, fileHiddenByLock, foldersFor } from './folderLock';
+import { resourceEventForViewer, resourceFileHidden } from './resourceLock';
 import { mayWriteMinutes } from './meetingGates';
 import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
@@ -419,7 +420,7 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
 
 /** viewer: the person who reads the change. A person without the switch "Locked folders" gets no locked folder out of a folder list (fbk_074). */
 export function eventViewOf(state: State, event: Event, viewer?: User): EventView {
-  return { event: viewer ? eventForViewer(state, viewer, event) : event, actor: cardOf(state, event.actorId) };
+  return { event: viewer ? resourceEventForViewer(state, viewer, eventForViewer(state, viewer, event)) : event, actor: cardOf(state, event.actorId) };
 }
 
 /** What an open task waits for. A done task waits for nothing, and a task with no prerequisites skips the scan. An office task waits for nothing. */
@@ -508,7 +509,7 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
 /** The files of a comment or a message. A deleted file keeps its place with no name and no type. */
 /** The file ids that a person may see: a file in a locked folder leaves the list of a person without the switch (fbk_074), as a file that the person may not view leaves a chat message. */
 export function shownFileIds(state: State, fileIds: string[] | undefined, viewer: User): string[] {
-  return (fileIds ?? []).filter((id) => { const file = state.files[id]; return !file || !fileHiddenByLock(state, viewer, file); });
+  return (fileIds ?? []).filter((id) => { const file = state.files[id]; return !file || (!fileHiddenByLock(state, viewer, file) && !resourceFileHidden(state, viewer, file)); });
 }
 
 export function attachmentsOf(state: State, fileIds: string[] | undefined, viewer?: User): Attachment[] {
@@ -549,6 +550,8 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
  * a file of an office task: its uploader while on the task, the maker of the task or the Admin (owner, 2026-10-06).
  */
 export function mayDeleteFile(state: State, viewer: User, file: FileRec): boolean {
+  // A file of Resources is deleted with the switch "Manage office resources" (fbk_078).
+  if (file.resource === true) return can(ensureRights(state, viewer), 'resources.manage');
   // A file of a direct chat or a group stays with its messages: nobody deletes it (owner, 2026-10-19). The same for a file of a meeting.
   if (file.conversationId !== undefined || file.meetingId !== undefined) return false;
   // Both rules read switches (task.officeAll, the scope rights), so they need the attached office rights.
@@ -565,6 +568,8 @@ export function mayDeleteFile(state: State, viewer: User, file: FileRec): boolea
  * and a chat or a meeting that is gone leaves its files to nobody.
  */
 export function mayViewFile(state: State, viewer: User, file: FileRec): boolean {
+  // A file of Resources: every person reads it, except a file in a locked folder, which reads as a missing file for a person without the switch "Locked folders" (fbk_078).
+  if (file.resource === true) return !resourceFileHidden(state, viewer, file);
   if (file.conversationId !== undefined) {
     const conversation = state.conversations[file.conversationId];
     return conversation !== undefined && canSeeConversation(state, conversation, viewer);

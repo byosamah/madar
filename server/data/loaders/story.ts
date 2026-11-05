@@ -53,6 +53,11 @@ export async function storyCall(L: Load, input: Input): Promise<void> {
   const folderProjects = [...new Set(story.flatMap((event) => (event.verb === 'project.folders_changed' && event.projectId ? [event.projectId] : [])))];
   if (folderProjects.length > 0) await L.select({ c: 'files', where: [{ col: 'project_id', in: folderProjects }] });
 
+  // The Undo of a change of the Resources folders reads the files of Resources: a file that points at a folder that is gone goes back to the root (fbk_078).
+  if (story.some((event) => event.targetType === 'settings' && event.verb === 'resources.folders_changed')) {
+    await L.select({ c: 'files', where: [{ field: 'resource', in: ['true'] }] });
+  }
+
   for (const event of story) {
     const before = (event.before ?? {}) as Record<string, unknown>;
     await L.byKey('tasks', [typeof before.taskId === 'string' ? before.taskId : undefined]);

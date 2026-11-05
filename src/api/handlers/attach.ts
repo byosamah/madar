@@ -36,6 +36,11 @@ function lockedFileStays(): never {
   throw invalid('fileIds', 'A file of a locked folder stays in its folder.', 'file_locked');
 }
 
+/** A file of Resources stays on the Resources page: no chat, task, post or Tracker entry carries it (fbk_078). The person already sees the file, so the refusal tells nothing. */
+function resourceFileStays(): never {
+  throw invalid('fileIds', 'A file of Resources stays on the Resources page.', 'file_resource');
+}
+
 /** A file of a meeting with no project stays with its meeting: no chat, task, post or Tracker entry carries it (wave 2). */
 function meetingFileStays(): never {
   throw invalid('fileIds', 'A file of a meeting stays with its meeting.', 'file_meeting');
@@ -49,6 +54,7 @@ export function assertFilesInProject(ctx: Ctx, fileIds: string[], projectId: str
   for (const file of requireFiles(ctx, fileIds)) {
     if (file.conversationId !== undefined) chatFileStays();
     if (file.meetingId !== undefined) meetingFileStays();
+    if (file.resource === true) resourceFileStays();
     if (fileInLockedFolder(ctx.state, file)) lockedFileStays();
     if (projectId === null) {
       if (file.projectId !== null || file.taskId !== officeTaskId) officeFileStays();
@@ -86,6 +92,7 @@ export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: 
       continue;
     }
     if (file.meetingId !== undefined) meetingFileStays();
+    if (file.resource === true) resourceFileStays();
     if (file.projectId === null) officeFileStays();
     if (fileInLockedFolder(ctx.state, file)) lockedFileStays();
     // A project file goes into a direct chat or a group only with the switch "Share files", as files.share asks it (fbk_070).

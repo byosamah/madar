@@ -12,7 +12,11 @@ import { assertAgentMayOpenChatFile, fileViewOf, mayDeleteFile, mayOpenFile, may
 import { assertCan, requireProject, requireStage, requireTask, roleIn, taskRole, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 import { assertFitsLockedFolder, checkPlace } from './folders';
+import { uploadResourceFile } from './resources';
 import { fileHiddenByLock, fileInLockedFolder, foldersFor } from '../folderLock';
+
+/** The refusal text for a file of Resources in a call of the project files (reason file_resource). */
+export const RESOURCE_STAYS = 'A file of Resources is changed on the Resources page.';
 
 /** A, B, ... Z, AA, AB: the version letters. */
 export function nextLetter(previous: string): string {
@@ -88,6 +92,8 @@ const UploadFields = z.object({
   conversationId: ConversationId.optional(),
   /** A meeting with no project (fbk_022, wave 2). The file stays with that meeting: no project, no stage, no task, no cover. */
   meetingId: MeetingId.optional(),
+  /** The Resources page (fbk_078): a file of the whole office, in a folder of Resources or at its root. It needs the switch resources.manage. */
+  resources: z.literal(true).optional(),
   name: z.string().trim().min(1).max(200),
   stageId: StageId.nullable().default(null),
   /** A folder of the stage (fbk_066). The file takes the stage of the folder; a stage that differs is refused. Optional, so older calls still parse. */
@@ -208,6 +214,10 @@ export const filesUpload = defineCall({
     return { blobKey, size: input.blob.size, mimeType: input.blob.type || 'application/octet-stream' };
   },
   run(input, ctx, prepared) {
+    if (input.resources === true) {
+      if (input.projectId !== undefined || input.conversationId !== undefined || input.meetingId !== undefined) throw invalid('resources', 'Resources has no project, chat or meeting.', 'file_resource');
+      return uploadResourceFile(ctx, input, prepared);
+    }
     if (input.meetingId !== undefined) {
       if (input.projectId !== undefined || input.conversationId !== undefined) throw invalid('meetingId', 'Name the project, the chat or the meeting of the file, only one.', 'file_meeting');
       return uploadMeetingFile(ctx, input, prepared);
@@ -267,6 +277,7 @@ export const filesMarkDelivered = defineCall({
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
     if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
+    if (file.resource === true) throw invalid('id', RESOURCE_STAYS, 'file_resource');
     // An office task has no client, so its files are never delivered (owner, 2026-10-06).
     if (file.projectId === null) throw invalid('id', 'A file of an office task stays on its task.', 'file_office_task');
     // The Tracker line names the file, and the Tracker shows to the whole project (fbk_074).
@@ -288,6 +299,8 @@ export const filesDelete = defineCall({
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
     if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
+    // A file of Resources has its own delete (resources.delete), with its own switch.
+    if (file.resource === true) throw invalid('id', RESOURCE_STAYS, 'file_resource');
     if (!mayDeleteFile(ctx.state, ctx.authority, file)) throw forbidden('Only the uploader or the project leader can delete this file.');
     const project = file.projectId === null ? undefined : ctx.state.projects[file.projectId];
     if (project?.coverFileId === file.id) {
@@ -314,6 +327,7 @@ export const filesMove = defineCall({
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
     if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
+    if (file.resource === true) throw invalid('id', RESOURCE_STAYS, 'file_resource');
     if (file.projectId === null) throw invalid('id', 'A file of an office task stays on its task.', 'file_office_task');
     const project = requireProject(ctx, file.projectId);
     assertCan(ctx, 'file.upload', { projectRole: roleIn(ctx, project.id) });

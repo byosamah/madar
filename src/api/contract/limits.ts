@@ -56,10 +56,12 @@ export const MAX_FILE_BYTES = MAX_PROJECT_FILE_BYTES;
  * The place of an upload, as the screens and the calls name it: a project (projectId), a direct chat or a group (conversationId), a
  * meeting (meetingId), or an office to-do (taskId alone).
  */
-export type UploadPlace = { projectId?: string | null; conversationId?: string | null; meetingId?: string | null };
+export type UploadPlace = { projectId?: string | null; conversationId?: string | null; meetingId?: string | null; resources?: boolean | null };
 
 /** True for an upload that lands in the files of a project: it names a project and no chat and no meeting. */
 export function isProjectUpload(place: UploadPlace): boolean {
+  // The Resources page takes the limit of a project file (fbk_078, owner 2026-11-05).
+  if (place.resources === true) return true;
   return place.projectId != null && place.conversationId == null && place.meetingId == null;
 }
 

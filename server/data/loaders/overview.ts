@@ -10,6 +10,7 @@ import { normalizeForSearch } from '../../../src/lib/text';
 import type { Cond } from './query';
 import type { Load } from './build';
 import { taskRowsUnread } from './chat';
+import { resourceHits } from './resources';
 import { privateMeetingsOf } from './meetings';
 import { covers, eventProjectConds, eventTargets, feed, LIVE, officeState, officeTasks, projectConds, tasksOf, visibleIds, visibleProjects } from './steps';
 
@@ -146,6 +147,8 @@ export async function searchQuery(L: Load, input: Input): Promise<void> {
   await officeTasks(L, [{ col: 'search_text', contains: query }], { limit: 5 });
   // Every file of a project, and the files of the office tasks that the person sees. A file with a project names one that exists.
   await L.select({ c: 'files', where: [...projectConds(L), { col: 'search_text', contains: query }], limit: 5 });
+  // The files of Resources (fbk_078): every person reads them, but a locked folder reads as missing without the switch "Locked folders".
+  await resourceHits(L, query);
   const seenTasks = (await officeTasks(L, [], { pick: OFFICE_TASK_HIT })).map((task) => task.id);
   await L.select({ c: 'files', where: [{ col: 'project_id', eq: null }, { col: 'task_id', in: seenTasks }, { col: 'search_text', contains: query }], limit: 5 });
   await messageHits(L, input, seenTasks);

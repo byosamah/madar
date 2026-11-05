@@ -8,6 +8,8 @@ import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag
 import { noticeProjectHidden } from '../hiddenNotice';
 import { feedbackNoticeHidden } from '../notify';
 import { eventHiddenByLock, eventTouchesLocked } from '../folderLock';
+import { eventHiddenByResourceLock, isResourceFileEvent, isResourceFoldersEvent } from '../resourceLock';
+import { undoResourceFolders } from './resources';
 import { eventProjectViewer, goneProjectsOf, viewsGoneProject } from '../projectView';
 import { ensureRights, withRights } from '../rights';
 import { can, holdsAdminRights, mayViewMeeting, mayViewProject, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
@@ -75,6 +77,8 @@ export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = c
   if (event.projectId && !seesProjectEvent(ctx, event.projectId, viewer)) return false;
   // A change of a locked folder, or of a file in one, shows only to the people who hold the switch "Locked folders" (fbk_074).
   if (eventHiddenByLock(ctx.state, viewer, event)) return false;
+  // The same for a change of a locked folder of Resources, or of a file in one (fbk_078).
+  if (eventHiddenByResourceLock(ctx.state, viewer, event)) return false;
   return !event.officeTaskId || can(viewer, 'task.view', officeOf(ctx, event, undo, viewer));
 }
 
@@ -307,6 +311,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       return need('post.editOwn', { authorId: principalOf(ctx.state, authorId) });
     }
     case 'file': {
+      // A change of a file of Resources is taken back with the switch "Manage office resources" (fbk_078).
+      if (isResourceFileEvent(ctx.state, event)) return need('resources.manage');
       const file = (ctx.state.files[event.targetId] ?? event.before) as FileRec | null;
       const uploader = file?.versions?.[0]?.uploadedBy ?? '';
       // The Undo of an upload asks the right to upload. The Undo of a delete asks the right to delete: any file, or your own.
@@ -391,6 +397,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       }
       return;
     case 'settings':
+      // A change of the folders of Resources follows the switch of Resources (fbk_078).
+      if (isResourceFoldersEvent(event)) return need('resources.manage');
       // A role change lives in the office settings. An agent of the Admin holds the rights of the Admin.
       // It never changes a role, so it never takes one back (MCP deny list: roles.*, users.update).
       // The rule holds for events.undo and for events.undoStory, because both end here.
@@ -544,7 +552,7 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   }
   // A role change lives in the office settings, not in a collection, so its own Undo takes it back (handlers/roles.ts).
   if (event.verb === 'project.folders_changed') assertUndoKeepsLockedFiles(ctx, event);
-  const undo = isRoleEvent(event) ? undoRoleChange(ctx, event) : undoEvent(ctx, event.id);
+  const undo = isRoleEvent(event) ? undoRoleChange(ctx, event) : isResourceFoldersEvent(event) ? undoResourceFolders(ctx, event) : undoEvent(ctx, event.id);
   // rev is not in the event of a meeting. A change that comes back is a new copy for a calendar, so rev grows again (fbk_022).
   const meeting = event.targetType === 'meeting' ? ctx.state.meetings?.[event.targetId] : undefined;
   if (meeting && undo.after !== null) meeting.rev += 1;

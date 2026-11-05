@@ -457,12 +457,21 @@ export const clientsUpdate = defineCall({
   },
 });
 
+/**
+ * The settings as a person reads them. The folders of Resources stay out (fbk_078): a locked folder must not reach a person without the switch
+ * "Locked folders", and the Resources page reads its folders from resources.list.
+ */
+function settingsOut(settings: Settings): Settings {
+  const { resourceFolders: _folders, ...rest } = settings;
+  return rest;
+}
+
 export const settingsGet = defineCall({
   input: Empty,
   output: Settings,
   readOnly: true,
   run(_input, ctx) {
-    return ctx.state.settings;
+    return settingsOut(ctx.state.settings);
   },
 });
 
@@ -487,7 +496,7 @@ export const settingsUpdate = defineCall({
       throw invalid('workHours', 'The default work hours must include the hours that the office keeps notifications on.', 'work_hours_default_lock');
     }
     applyPatch(ctx, ctx.state.settings, workHours ? { ...input, workHours } : input, { projectId: null, verb: 'settings.updated', targetType: 'settings', targetId: 'settings' });
-    return ctx.state.settings;
+    return settingsOut(ctx.state.settings);
   },
 });
 

@@ -1,7 +1,7 @@
 import { ApiError, invalid, notFound } from '../../src/api/errors';
 import type { Db, FileStoreKind, Query } from '../core/ports';
 import { sqlFor } from '../data/dialect';
-import { chatUploadPrefix, meetingUploadPrefix, officeUploadPrefix } from './keys';
+import { chatUploadPrefix, meetingUploadPrefix, officeUploadPrefix, RESOURCES_UPLOAD_PREFIX } from './keys';
 import { intentLifeSeconds } from './links';
 
 /**
@@ -111,7 +111,7 @@ export async function readIntents(db: Db, ids: string[]): Promise<Map<string, In
  */
 export function checkIntent(
   intent: Intent | undefined,
-  o: { id: string; actorId: string; now: Date; field: string; projectId: string | null; officeTaskId?: string; conversationId?: string; meetingId?: string; allowUsed?: boolean },
+  o: { id: string; actorId: string; now: Date; field: string; projectId: string | null; officeTaskId?: string; conversationId?: string; meetingId?: string; resources?: boolean; allowUsed?: boolean },
 ): Intent {
   if (!intent || intent.actorId !== o.actorId) throw notFound('Upload', o.id);
   const screenshot = intent.projectId === null && intent.key.startsWith('feedback/');
@@ -121,7 +121,11 @@ export function checkIntent(
   const chatFile = intent.projectId === null && o.conversationId !== undefined && intent.key.startsWith(chatUploadPrefix(o.conversationId));
   // An upload of a meeting with no project has no project, and its key sits in the folder of that meeting (wave 2).
   const meetingFile = intent.projectId === null && o.meetingId !== undefined && intent.key.startsWith(meetingUploadPrefix(o.meetingId));
-  if (o.meetingId !== undefined) {
+  // An upload of the Resources page has no project, and its key sits in the folder of Resources (fbk_078).
+  const resourcesFile = intent.projectId === null && o.resources === true && intent.key.startsWith(RESOURCES_UPLOAD_PREFIX);
+  if (o.resources === true) {
+    if (o.projectId !== null || o.officeTaskId !== undefined || o.conversationId !== undefined || o.meetingId !== undefined || !resourcesFile) throw invalid(o.field, 'This upload does not belong to Resources.');
+  } else if (o.meetingId !== undefined) {
     if (o.projectId !== null || o.officeTaskId !== undefined || o.conversationId !== undefined || !meetingFile) throw invalid(o.field, 'This upload belongs to another meeting.');
   } else if (o.conversationId !== undefined) {
     if (o.projectId !== null || o.officeTaskId !== undefined || !chatFile) throw invalid(o.field, 'This upload belongs to another chat.');

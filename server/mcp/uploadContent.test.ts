@@ -74,7 +74,7 @@ describe('files.uploadContent is a tool (owner, 2026-10-26)', () => {
     expect(tool.takesStory).toBe(true);
     expect(tool.annotations.destructiveHint).toBe(false);
     expect(Object.keys(tool.inputSchema.properties as object).sort()).toEqual([
-      'contentBase64', 'conversationId', 'folderId', 'meetingId', 'name', 'projectId', 'receivedFromClient', 'stageId', 'storyId', 'taskId', 'type',
+      'contentBase64', 'conversationId', 'folderId', 'meetingId', 'name', 'projectId', 'receivedFromClient', 'resources', 'stageId', 'storyId', 'taskId', 'type',
     ]);
     expect(tool.inputSchema.required).toEqual(['name', 'type', 'contentBase64']);
   });

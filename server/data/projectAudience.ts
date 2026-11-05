@@ -86,14 +86,23 @@ export function audienceFinder(before: State, after: State): (projectId: string)
  */
 export function lockedAudienceFinder(before: State, after: State): (projectId: string) => ReadonlySet<string> {
   const viewersOf = audienceFinder(before, after);
+  const holders = lockedHoldersOf(before, after);
+  return (projectId) => {
+    const viewers = viewersOf(projectId);
+    return new Set([...holders].filter((id) => viewers === null || viewers.has(id)));
+  };
+}
+
+/**
+ * The active people who hold the switch "Locked folders" in the State before the change or after it (fbk_078). They are the people who hear a change of a
+ * locked folder of Resources: Resources belongs to no project, so every holder of the switch hears it.
+ */
+export function lockedHoldersOf(before: State, after: State): Set<string> {
   const holders = new Set<string>();
   for (const state of [before, after]) {
     for (const user of Object.values(state.users)) {
       if (user.kind === 'human' && user.active && holdsRight(withOfficeRights(user, state.settings?.roles), LOCKED_RIGHT)) holders.add(user.id);
     }
   }
-  return (projectId) => {
-    const viewers = viewersOf(projectId);
-    return new Set([...holders].filter((id) => viewers === null || viewers.has(id)));
-  };
+  return holders;
 }

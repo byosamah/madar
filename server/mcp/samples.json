@@ -471,6 +471,19 @@
   "reports.office": {
     "period": "month"
   },
+  "resources.delete": {
+    "id": "fld_002"
+  },
+  "resources.list": {},
+  "resources.saveFolder": {
+    "id": "fld_002",
+    "name": "Building codes 2026"
+  },
+  "resources.updateFile": {
+    "id": "fil_061",
+    "name": "Saudi Building Code SBC 201.pdf",
+    "folderId": "fld_002"
+  },
   "roles.create": {
     "name": "Site supervisors",
     "nameAr": "مشرفو المواقع",

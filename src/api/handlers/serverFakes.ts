@@ -59,7 +59,12 @@ const storyStart = defineCall({
 const filesUploadStart = defineCall({
   ...c['files.uploadStart'],
   run(input, ctx) {
-    if (input.meetingId !== undefined) {
+    if (input.resources === true) {
+      // A file of the Resources page: a person with the switch "Manage office resources" (fbk_078).
+      if (input.projectId !== undefined || input.conversationId !== undefined || input.meetingId !== undefined) throw invalid('resources', 'Resources has no project, chat or meeting.', 'file_resource');
+      assertCan(ctx, 'resources.manage');
+      if (input.stageId || input.taskId) throw invalid(input.stageId ? 'stageId' : 'taskId', 'A file of Resources belongs to no stage and no task.', 'file_resource');
+    } else if (input.meetingId !== undefined) {
       // A file of a meeting with no project: a person who may write its minutes adds it, after the end (wave 2).
       if (input.projectId !== undefined || input.conversationId !== undefined) throw invalid('meetingId', 'Name the project, the chat or the meeting of the file, only one.', 'file_meeting');
       const meeting = requireMeeting(ctx, input.meetingId);

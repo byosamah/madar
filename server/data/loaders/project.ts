@@ -1,5 +1,6 @@
 import type { Payment, TrackerEntry } from '../../../src/api/contract/entities';
 import type { Load } from './build';
+import { resourceFiles } from './resources';
 import { attachedFiles, covers, feed, fileById, lineMinutes, namedFiles, projectView, tasksOf, trackerScope, type FeedFilter } from './steps';
 
 /**
@@ -91,6 +92,8 @@ export async function filesList(L: Load, input: Input): Promise<void> {
  * a direct chat or a group (owner, 2026-10-19) reads nothing: the chat is in the office, and a second file with the same name is a new file.
  */
 export async function filesUpload(L: Load, input: Input): Promise<void> {
+  // An upload into Resources reads every file of Resources, because a file of the same name in the same folder gets the next version (fbk_078).
+  if (input.resources === true) return resourceFiles(L);
   // A file of a meeting with no project (wave 2) reads the meeting by id (a meeting is not an office list), and no other file.
   if (str(input.meetingId)) return L.byKey('meetings', [str(input.meetingId)]);
   if (str(input.conversationId)) return;

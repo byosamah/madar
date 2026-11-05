@@ -24,6 +24,9 @@ export const EXPECTED_REFUSALS: Readonly<Record<string, string>> = {
   // list has no screenshot.
   'files.upload': 'not_found',
   'feedback.screenshot': 'not_found',
+  // The sample office has no file or folder of Resources (fbk_078).
+  'resources.updateFile': 'not_found',
+  'resources.delete': 'not_found',
   // Rules of the office after the earlier entries of the list (the sweep inputs of task C2). tasks.update is ok: projects.setLeader
   // gives prj_001 a new leader first, but the old leader made the task and stays on the team, so he still changes it (owner, 2026-10-07).
   'tasks.sendBack': 'invalid_input',
@@ -168,6 +171,13 @@ function rest(office: State): Record<string, [unknown, string?]> {
     // and the extension adds one.
     'meetings.extend': [{ seriesId: series }],
     'meetings.saveMinutes': [{ id: meeting, text: 'Minutes of the sweep', fileIds: [] }],
+    // The Resources page (fbk_078). The sample office has no resource file (the upload needs an upload intent) and the folder numbers move with the
+    // other folder calls of the list, so the two calls below refuse a record that is not there; the traps of the loader sweep (sweep.ts,
+    // resourceTrap and resourceWrites) cover them with real files and folders.
+    'resources.list': [{}],
+    'resources.saveFolder': [{ name: 'Sweep resources' }],
+    'resources.updateFile': [{ id: 'fil_999', name: 'Renamed.pdf' }],
+    'resources.delete': [{ id: 'fld_999' }],
   };
 }
 

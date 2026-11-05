@@ -180,7 +180,9 @@ function assertReferencesExist(state: State, targetType: EventTarget, values: Re
   // A file goes back into a folder only while the folder stands (fbk_066). The folders live in the projects.
   if (targetType === 'file' && typeof values.folderId === 'string') {
     const folderId = values.folderId;
-    if (!Object.values(state.projects).some((project) => project.folders?.some((folder) => folder.id === folderId))) {
+    const inProject = Object.values(state.projects).some((project) => project.folders?.some((folder) => folder.id === folderId));
+    // The folders of Resources live in the office settings (fbk_078).
+    if (!inProject && !(state.settings.resourceFolders ?? []).some((folder) => folder.id === folderId)) {
       throw conflict('Something this change needs is gone. Undo is not available.');
     }
   }

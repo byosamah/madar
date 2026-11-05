@@ -1,7 +1,7 @@
 import type { State } from '../../src/api/store';
 import type { Query } from '../core/ports';
 import type { ChangeSignal } from '../core/types';
-import { diffState } from '../data/save';
+import { diffState, RESOURCES_LOCK_KEY } from '../data/save';
 
 /**
  * The free checks that the db-mode harness runs after each call (TM 3.5, checks 2 to 5; task D1). Check 1, the shadow run, is in
@@ -123,7 +123,7 @@ export function callProblems(c: CallCheck): string[] {
   // actor or the story to it. Each part keeps one id (review 2026-10-06).
   // A change that touches a locked folder (fbk_074) goes as person signals to the holders of the switch who view the project, with one id of its own
   // when the save has a public part too. Such a signal may name a project only for a holder of that project.
-  const lockedPeople = new Set([...diff.locked.values()].flatMap((part) => [...part.people]));
+  const lockedPeople = new Set([...diff.locked.entries()].filter(([id]) => id !== RESOURCES_LOCK_KEY).flatMap(([, part]) => [...part.people]));
   const ofLocked = rest.filter((s) => s.channel !== 'office' && lockedPeople.has(s.channel.slice('person:'.length)) && s.projects.some((id) => diff.locked.has(id)));
   for (const s of ofLocked) {
     for (const id of s.projects.filter((one) => diff.locked.has(one) && !diff.projects.has(one))) {
@@ -131,7 +131,17 @@ export function callProblems(c: CallCheck): string[] {
     }
   }
   if (new Set(ofLocked.map((s) => s.id)).size > 1) problems.push(`${c.name} sent the locked folder part with more than one id.`);
-  const lockedOnly = [...diff.locked.keys()].filter((id) => !diff.projects.has(id) && !diff.hidden.has(id));
+  // The locked part of Resources (fbk_078) names no project: its holders hear its kinds on their person channel.
+  const resourcesPart = diff.locked.get(RESOURCES_LOCK_KEY);
+  if (resourcesPart) {
+    for (const person of resourcesPart.people) {
+      const heard = c.signals.find((s) => s.channel === `person:${person}`);
+      for (const kind of resourcesPart.kinds) {
+        if (!heard?.kinds.includes(kind)) problems.push(`${c.name} did not tell ${person} about the locked files of Resources (${kind}).`);
+      }
+    }
+  }
+  const lockedOnly = [...diff.locked.keys()].filter((id) => id !== RESOURCES_LOCK_KEY && !diff.projects.has(id) && !diff.hidden.has(id));
   for (const id of lockedOnly) {
     for (const person of diff.locked.get(id)!.people) {
       if (!c.signals.some((s) => s.channel === `person:${person}` && s.projects.includes(id))) problems.push(`${c.name} did not tell ${person} about the locked folders of ${id}.`);

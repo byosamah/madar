@@ -92,6 +92,13 @@ export function readSweep(office: State): SweepCall[] {
   for (const actor of [...humans, ...agents]) {
     calls.push(['search.query', { text: 'licence' }, actor], ['search.query', { text: 'chat-photo' }, actor], ['search.query', { text: 'meeting-notes' }, actor]);
   }
+  // The Resources page (fbk_078): every person and every agent reads the list and searches the names of the open and the locked file of resourceTrap.
+  // A locked folder and its file must read as missing for everyone without the switch "Locked folders", on the scoped load as on the whole office.
+  if (Object.values(office.files).some((f) => f.resource === true)) {
+    for (const actor of [...humans, ...agents]) {
+      calls.push(['resources.list', {}, actor], ['search.query', { text: 'resource-codes' }, actor], ['search.query', { text: 'hidden-policy' }, actor]);
+    }
+  }
   for (const actor of agents) {
     calls.push(
       ['tasks.list', { filter: 'mine' }, actor], ['tasks.list', {}, actor], ['events.list', { limit: 20 }, actor], ['chats.list', {}, actor],
@@ -278,6 +285,7 @@ export function writeSweep(office: State): SweepCall[] {
     ['tasks.create', { title: 'Office errand', ownerId: 'usr_005', helperIds: ['usr_006'], dueDate: '2026-10-08' }, 'usr_004'],
     ...officeWrites(office),
     ...chatFileWrites(office),
+    ...resourceWrites(office),
     ...meetingWrites(office),
     ...meetingFileWrites(office),
     ...meetingMinutesWrites(office),
@@ -342,6 +350,61 @@ export function officeWrites(office: State): SweepCall[] {
     ['events.undoStory', { correlationId: 'cor_trap_office_review' }, 'usr_005'],
     ['events.undoStory', { correlationId: 'cor_trap_office_review' }, 'usr_003'],
     ['chats.markRead', { conversationId: led.id }, 'usr_005'],
+  ];
+}
+
+/** The names of the folders and the files of resourceTrap. The locked file must reach no person without the switch "Locked folders". */
+export const RESOURCE_OPEN_FOLDER = 'Office codes';
+export const RESOURCE_LOCKED_FOLDER = 'Private papers';
+
+/**
+ * The Resources page (fbk_078): an open folder, a locked folder, and a file at the root, in the open folder and in the locked folder, all made by real
+ * calls of the Admin. The reads of resources.list, files.link, search.query and events.list, and the writes below, must give the same answers on the
+ * scoped load as on the whole office, for the Admin, for every other person and for the agents.
+ */
+function resourceTrap(state: State): void {
+  const prepared = (n: number) => ({ blobKey: `blob_trap_resource_${n}`, mimeType: 'application/pdf', size: 9 });
+  const open = apply(state, 'resources.saveFolder', { name: RESOURCE_OPEN_FOLDER }, ADMIN, 'cor_trap_resource_open') as { id: string };
+  const locked = apply(state, 'resources.saveFolder', { name: RESOURCE_LOCKED_FOLDER, locked: true }, ADMIN, 'cor_trap_resource_locked') as { id: string };
+  apply(state, 'files.upload', { resources: true, name: 'Resource-handbook.pdf', uploadId: 'upl_trap_res_1' }, ADMIN, 'cor_trap_resource_root', prepared(1));
+  apply(state, 'files.upload', { resources: true, folderId: open.id, name: 'Resource-codes.pdf', uploadId: 'upl_trap_res_2' }, ADMIN, 'cor_trap_resource_file', prepared(2));
+  apply(state, 'files.upload', { resources: true, folderId: locked.id, name: 'Hidden-policy.pdf', uploadId: 'upl_trap_res_3' }, ADMIN, 'cor_trap_resource_hidden', prepared(3));
+}
+
+/**
+ * The writes on the Resources of resourceTrap: a Member (no switch) tries every write, the Admin does them, and the Admin tries a write on a file
+ * of the locked folder. A person who may not manage gets a refusal, and a locked folder reads as missing for a person without the lock switch,
+ * on the scoped load as on the whole office. None on an office without the trap.
+ */
+export function resourceWrites(office: State): SweepCall[] {
+  const files = Object.values(office.files).filter((f) => f.resource === true);
+  const open = (office.settings.resourceFolders ?? []).find((f) => f.name === RESOURCE_OPEN_FOLDER);
+  const locked = (office.settings.resourceFolders ?? []).find((f) => f.name === RESOURCE_LOCKED_FOLDER);
+  const root = files.find((f) => f.name === 'Resource-handbook.pdf');
+  const hidden = files.find((f) => f.name === 'Hidden-policy.pdf');
+  if (!open || !locked || !root || !hidden) return [];
+  const member = Object.values(office.users).find((u) => u.kind === 'human' && u.active && u.systemRole === 'member')!.id;
+  const prepared = { blobKey: 'blob_sweep_resource', mimeType: 'application/pdf', size: 6 };
+  return [
+    ['resources.saveFolder', { name: 'Member folder' }, member],
+    ['resources.saveFolder', { id: locked.id, name: 'Member rename' }, member],
+    ['resources.saveFolder', { id: open.id, locked: true }, member],
+    ['resources.updateFile', { id: root.id, name: 'Member rename.pdf' }, member],
+    ['resources.updateFile', { id: hidden.id, folderId: null }, member],
+    ['resources.delete', { id: hidden.id }, member],
+    ['resources.delete', { id: locked.id }, member],
+    ['files.upload', { resources: true, name: 'Member.pdf', uploadId: 'upl_res_member' }, member, prepared],
+    ['files.upload', { resources: true, folderId: locked.id, name: 'Member.pdf', uploadId: 'upl_res_member_2' }, member, prepared],
+    ['resources.saveFolder', { name: 'Sweep resources' }, ADMIN],
+    ['files.upload', { resources: true, folderId: open.id, name: 'Sweep.pdf', uploadId: 'upl_res_admin' }, ADMIN, prepared],
+    ['resources.updateFile', { id: root.id, name: 'Renamed.pdf' }, ADMIN],
+    ['resources.updateFile', { id: root.id, folderId: open.id }, ADMIN],
+    ['resources.saveFolder', { id: open.id, name: 'Codes renamed' }, ADMIN],
+    ['resources.saveFolder', { id: open.id, locked: true }, ADMIN],
+    ['resources.saveFolder', { id: open.id, locked: false }, ADMIN],
+    ['resources.delete', { id: root.id }, ADMIN],
+    ['resources.delete', { id: open.id }, ADMIN],
+    ['resources.delete', { id: locked.id }, ADMIN],
   ];
 }
 
@@ -722,6 +785,7 @@ export function trapOffice(seed: State): State {
   officeTraps(state);
   meetingTraps(state);
   chatFileTrap(state);
+  resourceTrap(state);
   meetingFileTrap(state);
   meetingMinutesTraps(state);
   hiddenProjectTraps(state);

@@ -53,6 +53,8 @@ const SHARE_CALLS = ['files.share'];
 // The client tracker (owner request, 2026-10-01). A file marked as delivered logs a tracker entry.
 // The folders of the Files & Links tab and the move of a file (fbk_066, owner 2026-10-26).
 const FOLDER_CALLS = ['folders.create', 'folders.rename', 'folders.setLock', 'folders.delete', 'files.move'];
+// The Resources page (fbk_078, owner 2026-11-05): the files of the whole office. One read and three writes.
+const RESOURCE_CALLS = ['resources.list', 'resources.saveFolder', 'resources.updateFile', 'resources.delete'];
 const TRACKER_CALLS = ['tracker.list', 'tracker.log', 'tracker.close', 'tracker.update', 'tracker.delete', 'tracker.assignReply', 'tracker.export', 'files.markDelivered'];
 // Payment milestones (colleague comment 6, owner, 2026-10-01).
 const PAYMENT_CALLS = ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived', 'payments.delete'];
@@ -83,7 +85,7 @@ const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedbac
 const DAFTRA_PAYMENT_CALLS = ['payments.linkInvoice', 'payments.unlinkInvoice'];
 // Meetings, client meetings and site visits (fbk_022, owner 2026-10-19).
 const MEETING_CALLS = ['meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.delete', 'meetings.settle', 'meetings.extend', 'meetings.saveMinutes'];
-const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS, ...ROLE_CALLS, ...REPORT_CALLS, ...MEETING_CALLS, ...FOLDER_CALLS, ...DAFTRA_PAYMENT_CALLS];
+const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS, ...ROLE_CALLS, ...REPORT_CALLS, ...MEETING_CALLS, ...FOLDER_CALLS, ...RESOURCE_CALLS, ...DAFTRA_PAYMENT_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'chats.waiting', 'chats.insertProjects', 'push.mine']);
 // Server reads named one by one, so the name rule does not decide them by accident.
 const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'live.ticket', 'google.status', 'google.connectStart', 'chats.typing', 'daftra.status', 'daftra.paymentLink', 'daftra.findClients']);
@@ -92,7 +94,7 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 18 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(180);
+    expect(Object.keys(calls)).toHaveLength(184);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -128,17 +130,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 162 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(162);
-    expect(Object.keys(mapCalls)).toHaveLength(162);
+  it('has 166 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(166);
+    expect(Object.keys(mapCalls)).toHaveLength(166);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 158 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 162 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(158);
+    expect(names).toHaveLength(162);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

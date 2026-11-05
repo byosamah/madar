@@ -48,6 +48,7 @@ export const FilesUploadContentInput = z.strictObject({
   projectId: ProjectId.optional(),
   conversationId: ConversationId.optional(),
   meetingId: MeetingId.optional(),
+  resources: z.literal(true).optional().describe('true: the Resources page.'),
   stageId: StageId.nullable().optional(),
   taskId: TaskId.nullable().optional(),
   folderId: FolderId.nullable().optional(),
@@ -181,6 +182,7 @@ function fileAnswer(view: { file: Record<string, any>; latest: Record<string, an
       taskId: file.taskId ?? null,
       ...(file.conversationId !== undefined ? { conversationId: file.conversationId } : {}),
       ...(file.meetingId !== undefined ? { meetingId: file.meetingId } : {}),
+      ...(file.resource === true ? { resources: true } : {}),
     },
   };
 }
@@ -200,7 +202,7 @@ async function runFilesUploadContent(args: Record<string, unknown>, ctx: UploadC
   const { bytes } = decoded;
 
   const start = await callAs(ctx, 'files.uploadStart', {
-    ...fieldsOf(input, ['projectId', 'conversationId', 'meetingId', 'stageId', 'taskId']), name: input.name, size: bytes.length, mimeType: input.type,
+    ...fieldsOf(input, ['projectId', 'conversationId', 'meetingId', 'resources', 'stageId', 'taskId']), name: input.name, size: bytes.length, mimeType: input.type,
   });
   if (!start.ok) return start;
   const { uploadId, put } = start.output as { uploadId: string; put: SignedPut };
@@ -209,7 +211,7 @@ async function runFilesUploadContent(args: Record<string, unknown>, ctx: UploadC
   if (sent) return sent;
 
   const saved = await callAs(ctx, 'files.upload', {
-    ...fieldsOf(input, ['projectId', 'conversationId', 'meetingId', 'stageId', 'taskId', 'folderId', 'receivedFromClient']), name: input.name, uploadId,
+    ...fieldsOf(input, ['projectId', 'conversationId', 'meetingId', 'resources', 'stageId', 'taskId', 'folderId', 'receivedFromClient']), name: input.name, uploadId,
   }, typeof storyId === 'string' && storyId !== '' ? storyId : undefined);
   if (!saved.ok) return saved;
   return { ok: true, output: fileAnswer(saved.output as { file: Record<string, any>; latest: Record<string, any> }), changed: true, ...(saved.storyId !== undefined ? { storyId: saved.storyId } : {}) };

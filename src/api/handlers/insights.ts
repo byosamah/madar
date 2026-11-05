@@ -344,7 +344,7 @@ export const SearchView = z.object({
    */
   subCompanies: z.array(z.object({ id: SubCompanyId, name: z.string(), nameAr: z.string(), projects: Count })).max(5).optional(),
   /** taskId: the task of the file. A file of an office task (projectId null) opens on its task (owner, 2026-10-06). */
-  files: z.array(z.object({ id: FileId, name: z.string(), projectId: ProjectId.nullable(), projectCode: z.string(), taskId: TaskId.nullable() })).max(5),
+  files: z.array(z.object({ id: FileId, name: z.string(), projectId: ProjectId.nullable(), projectCode: z.string(), taskId: TaskId.nullable(), resource: z.literal(true).optional() })).max(5),
   /** The newest chat messages that hold every word, at most 5, last in the answer (chat design 2026-10-19, item 16). */
   messages: z.array(MessageHit).max(MESSAGE_HITS).default([]),
 });
@@ -390,7 +390,7 @@ export const searchQuery = defineCall({
       files: Object.values(state.files)
         .filter((f) => f.conversationId === undefined && f.meetingId === undefined && (f.projectId !== null ? sees({ id: f.projectId }) && !fileHiddenByLock(state, ctx.authority, f) : mayViewFile(state, ctx.authority, f)) && hit(f.name))
         .slice(0, 5)
-        .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId), taskId: f.taskId })),
+        .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId), taskId: f.taskId, ...(f.resource === true ? { resource: true as const } : {}) })),
       // An agent reads chat messages only when its person holds the switch for chats (ai.readChats). A person at the screen reads their own chats.
       messages: ctx.actor.kind === 'agent' && !can(ctx.authority, 'ai.readChats') ? [] : messageHits(state, ctx.authority, searchWords(input.text)),
     };

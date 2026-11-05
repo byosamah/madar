@@ -14,6 +14,7 @@ import {
 import { projectsDelete } from './projectDelete';
 import { pushMine, pushRegister, pushRemove } from './push';
 import { reportsOffice } from './report';
+import { resourceFileCall, resourceFiles } from './resources';
 import { storyCall } from './story';
 import {
   chatsSend, commentCall, commentsCreate, commentsList, filesShare, taskCall, tasksArrange, tasksCreate, tasksCreateFromTemplate, tasksTake, taskTemplatesSave,
@@ -161,6 +162,12 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   // A lock reads the files of the folder (a to-do file or the cover cannot be locked in), as the delete does (fbk_074).
   'folders.setLock': project(foldersLock),
   'folders.delete': project(foldersDelete),
+
+  // The Resources page (fbk_078): the folders are in the office settings; the files are read by the marker "resource".
+  'resources.list': project(resourceFiles),
+  'resources.saveFolder': office,
+  'resources.updateFile': project(resourceFileCall),
+  'resources.delete': project(resourceFiles),
 
   'events.list': overview(eventsList),
   'events.undo': { loader: 'story', load: storyCall },

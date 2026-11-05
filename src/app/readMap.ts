@@ -58,6 +58,8 @@ const RULES: Record<string, ReadRule> = {
   'tracker.list': rule('project', ['files', 'meetings', 'members', 'projects', 'tracker', 'users'], byProjectId),
   'tracker.export': rule('project', ['events', 'files', 'members', 'projects', 'tracker', 'users'], byProjectId),
   'events.list': rule('project', ['events', 'files', 'members', 'projects', 'stages', 'tasks', 'tracker', 'users'], byProjectId),
+  // The Resources page (fbk_078): the folders are in the office settings, the files are rows of the files table. users: the uploader card.
+  'resources.list': rule('office', ['files', 'settings', 'users']),
   'projects.list': rule('office', [...PROJECT_DETAIL, 'projectTouched', 'settings', 'teams']),
   // events: the day each task in review went to review. payments: the money panel (owner, 2026-10-06).
   'dashboard.get': rule('office', ['deadlines', 'events', 'members', 'payments', 'projects', 'settings', 'stages', 'subCompanies', 'tasks', 'teams', 'tracker', 'users']),

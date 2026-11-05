@@ -10,10 +10,10 @@ import type { BatchScope, Principal, ServerCall } from '../core/types';
 import { confirmThumb, confirmUpload, fileTooLarge } from '../files/confirm';
 import { projectBlobKeys, removeNowOrLater, stashProjectKeys } from '../files/effects';
 import { checkIntent, declaredType, insertIntents, intentExpiry, newUploadId, readIntents, useIntents } from '../files/intents';
-import { chatUploadKey, chatUploadThumbKey, meetingUploadKey, meetingUploadThumbKey, officeUploadKey, officeUploadThumbKey, stagingKey, stagingThumbKey, uploadKey, uploadThumbKey } from '../files/keys';
+import { chatUploadKey, chatUploadThumbKey, meetingUploadKey, meetingUploadThumbKey, officeUploadKey, officeUploadThumbKey, resourcesUploadKey, resourcesUploadThumbKey, stagingKey, stagingThumbKey, uploadKey, uploadThumbKey } from '../files/keys';
 import { isPictureType } from '../files/links';
 import { projectOfTask, readFile, readFiles, readMeeting, readTask } from '../files/records';
-import { assertMayPost, assertMayUploadToChat, assertMayUploadToMeeting, assertMayView, assertMayViewChatFile, assertMayViewMeetingFile, assertMayViewOfficeFile, authorityOf, mayViewOfficeTask } from '../files/rights';
+import { assertMayPost, assertMayUploadToChat, assertMayUploadToMeeting, assertMayUploadToResources, assertMayView, assertMayViewChatFile, assertMayViewMeetingFile, assertMayViewOfficeFile, assertMayViewResourceFile, authorityOf, mayViewOfficeTask } from '../files/rights';
 
 /**
  * The file calls of the server (plan 5.2; plan 2b, points 1 and 7; proof.md, Z0a item 6; task F2), on the active store
@@ -42,7 +42,13 @@ export const filesUploadStart: ServerCall<'files.uploadStart'> = async (input, c
   authorityOf((id) => office.lists.users[id], userId);
   // The place of the upload: a project, or one office task (owner, 2026-10-06). It names the final key.
   let place: { projectId: string | null; key: (intent: string) => string; thumb: (intent: string) => string };
-  if (input.meetingId !== undefined) {
+  if (input.resources === true) {
+    // A file of the Resources page (fbk_078): a person with the switch "Manage office resources", and no project, chat, meeting, stage or task.
+    if (input.projectId !== undefined || input.conversationId !== undefined || input.meetingId !== undefined) throw invalid('resources', 'Resources has no project, chat or meeting.', 'file_resource');
+    assertMayUploadToResources(office, userId);
+    if (input.stageId || input.taskId) throw invalid(input.stageId ? 'stageId' : 'taskId', 'A file of Resources belongs to no stage and no task.', 'file_resource');
+    place = { projectId: null, key: (intent) => resourcesUploadKey(intent), thumb: (intent) => resourcesUploadThumbKey(intent) };
+  } else if (input.meetingId !== undefined) {
     // A file of a meeting with no project (wave 2): a person who may write its minutes now, and no project, chat, stage or task.
     if (input.projectId !== undefined || input.conversationId !== undefined) throw invalid('meetingId', 'Name the project, the chat or the meeting of the file, only one.', 'file_meeting');
     const meeting = assertMayUploadToMeeting(office, userId, await readMeeting(deps.db, input.meetingId), input.meetingId, now);
@@ -107,8 +113,10 @@ export const filesLink: ServerCall<'files.link'> = async (input, ctx) => {
   const held = ctx.batch.files;
   const file = held?.has(input.id) ? held.get(input.id) : await readFile(deps.db, input.id);
   if (!file) throw notFound('File', input.id);
+  // A file of Resources: every active person, except a file in a locked folder for a person without the switch "Locked folders" (fbk_078).
+  if (file.resource === true) assertMayViewResourceFile(office, userId, file);
   // A file of a meeting with no project: the people who see that meeting, right before the signing (wave 2).
-  if (file.meetingId !== undefined) assertMayViewMeetingFile(office, userId, await readMeeting(deps.db, file.meetingId), file.id);
+  else if (file.meetingId !== undefined) assertMayViewMeetingFile(office, userId, await readMeeting(deps.db, file.meetingId), file.id);
   // A file of a direct chat or a group: the people who read its messages, right before the signing (owner, 2026-10-19).
   else if (file.conversationId !== undefined) assertMayViewChatFile(office, userId, file.conversationId, file.id);
   // A file of an office task: the view right on that task, right before the signing (owner, 2026-10-06).
@@ -156,7 +164,7 @@ export async function prefetchLinkRun(deps: Deps, batch: BatchScope, principal: 
 }
 
 /** No projectId: an upload of the office task taskId (owner, 2026-10-06), of the chat conversationId (owner, 2026-10-19), or of the meeting meetingId (wave 2). */
-type UploadInput = { projectId?: string; uploadId: string; taskId?: string | null; conversationId?: string; meetingId?: string };
+type UploadInput = { projectId?: string; uploadId: string; taskId?: string | null; conversationId?: string; meetingId?: string; resources?: true };
 
 /**
  * files.upload on the server. The preflight (before the lock) checks the intent, then the object and its copy on the final key
@@ -165,9 +173,10 @@ type UploadInput = { projectId?: string; uploadId: string; taskId?: string | nul
  */
 export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
   async preflight(input, { actorId, now, deps }): Promise<UploadPrepared> {
-    const { projectId, uploadId, taskId, conversationId, meetingId } = input as UploadInput;
+    const { projectId, uploadId, taskId, conversationId, meetingId, resources } = input as UploadInput;
     // No project: the intent must be one of the meeting the call names (wave 2), of the chat it names (owner, 2026-10-19), or of the office task it names (owner, 2026-10-06).
-    const place = meetingId !== undefined ? { projectId: projectId ?? null, meetingId, ...(conversationId !== undefined ? { conversationId } : {}) }
+    const place = resources === true ? { projectId: null, resources: true }
+      : meetingId !== undefined ? { projectId: projectId ?? null, meetingId, ...(conversationId !== undefined ? { conversationId } : {}) }
       : conversationId !== undefined ? { projectId: projectId ?? null, conversationId }
       : projectId !== undefined ? { projectId } : { projectId: null, officeTaskId: taskId ?? '' };
     const intent = checkIntent((await readIntents(deps.db, [uploadId])).get(uploadId), { id: uploadId, actorId, now, field: 'uploadId', ...place, allowUsed: true });
@@ -175,7 +184,7 @@ export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
     // replays the stored answer of the key, and without one prepare refuses with conflict.
     if (intent.usedAt !== null) return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(intent.thumbKey ? { thumbKey: intent.thumbKey } : {}) };
     const remove = (keys: string[]) => removeNowOrLater(deps, keys);
-    await confirmUpload(deps.files, { staging: intent.stagingKey, final: intent.key, field: 'uploadId', want: intent, maxBytes: fileLimit(deps, { projectId, conversationId, meetingId }), remove });
+    await confirmUpload(deps.files, { staging: intent.stagingKey, final: intent.key, field: 'uploadId', want: intent, maxBytes: fileLimit(deps, { projectId, conversationId, meetingId, resources }), remove });
     const thumb = intent.thumbKey !== null && (await confirmThumb(deps.files, { staging: stagingThumbKey(intent.id), final: intent.thumbKey, field: 'uploadId', remove }));
     return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(thumb && intent.thumbKey ? { thumbKey: intent.thumbKey } : {}) };
   },

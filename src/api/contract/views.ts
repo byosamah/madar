@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { NOTIFY_LEVELS } from './limits';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, GeoPoint, HealthValue,
-  MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectFolder, ProjectTemplateId, Team,
+  MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectFolder, ProjectTemplateId, ResourceFolder, Team,
   ProjectId, ProjectShape, ProjectStatus, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerId, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
 import { ReportPeriodKind } from '../reportPeriod';
@@ -369,6 +369,18 @@ export type ChatThread = z.infer<typeof ChatThread>;
 /** "canDelete" comes from the same rule as files.delete, so the screen never keeps a rule of its own (audit 2026-10-03, PRJ-16). */
 export const FileView =z.object({ file: FileRec, latest: FileVersion, uploader: UserCard, canDelete: z.boolean() });
 export type FileView = z.infer<typeof FileView>;
+
+/**
+ * The Resources page as a screen reads it (fbk_078): the folders and the files of the whole office that the person may see (a locked folder and its
+ * files only for a holder of the switch "Locked folders"), and two flags. manage: the person may add, rename, move and delete (resources.manage).
+ * lock: the person may also lock or unlock a folder (resources.manage with folder.locked).
+ */
+export const ResourcesView = z.object({
+  folders: z.array(ResourceFolder),
+  files: z.array(FileView),
+  viewerCan: z.object({ manage: z.boolean(), lock: z.boolean() }),
+});
+export type ResourcesView = z.infer<typeof ResourcesView>;
 
 /**
  * The minutes of a meeting as a screen reads them (fbk_022, wave 2): the text, the files that the viewer may see, and who wrote them last.

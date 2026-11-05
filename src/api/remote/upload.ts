@@ -111,7 +111,7 @@ async function sessionLimit(ctx: AdapterCtx): Promise<number | undefined> {
 }
 
 /** The fields of files.upload that go on the wire next to the upload ID (the wire form is strict). */
-const SHARED_FIELDS = ['projectId', 'conversationId', 'meetingId', 'name', 'stageId', 'folderId', 'taskId', 'asCover', 'receivedFromClient'] as const;
+const SHARED_FIELDS = ['projectId', 'conversationId', 'meetingId', 'resources', 'name', 'stageId', 'folderId', 'taskId', 'asCover', 'receivedFromClient'] as const;
 
 type ScreenUpload = {
   /** None: a file of the office task taskId (owner, 2026-10-06), or of the direct chat or group conversationId (owner, 2026-10-19). */
@@ -119,6 +119,8 @@ type ScreenUpload = {
   conversationId?: string;
   /** A meeting with no project (wave 2). */
   meetingId?: string;
+  /** The Resources page (fbk_078). With folderId (a folder of Resources) or none (its root). */
+  resources?: true;
   name: string;
   blob: Blob;
   stageId?: string | null;
@@ -163,6 +165,7 @@ export function uploadAdapter(o: {
       ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       ...(input.conversationId !== undefined ? { conversationId: input.conversationId } : {}),
       ...(input.meetingId !== undefined ? { meetingId: input.meetingId } : {}),
+      ...(input.resources !== undefined ? { resources: input.resources } : {}),
       name: input.name,
       size: blob.size,
       mimeType: blob.type || 'application/octet-stream',

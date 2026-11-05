@@ -87,6 +87,10 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'folders.rename': ['events', 'projects'],
   'folders.setLock': ['events', 'projects'],
   'folders.delete': ['events', 'files', 'projects'],
+  // The Resources page (fbk_078): the folders live in the office settings.
+  'resources.saveFolder': ['events', 'files', 'settings'],
+  'resources.updateFile': ['events', 'files'],
+  'resources.delete': ['events', 'files', 'settings'],
   'events.undo': EVERY_KIND,
   'events.undoStory': EVERY_KIND,
   'notifications.markRead': ['notifications'],

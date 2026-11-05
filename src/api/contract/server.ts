@@ -54,6 +54,8 @@ const filesUploadStart = {
     conversationId: ConversationId.optional(),
     /** A meeting with no project (fbk_022, wave 2). The file stays with that meeting: no project, no stage, no task. */
     meetingId: MeetingId.optional(),
+    /** The Resources page (fbk_078): a file of the whole office. It needs the switch resources.manage. No project, chat, meeting, stage or task. */
+    resources: z.literal(true).optional(),
     name: z.string().trim().min(1).max(200),
     /** The size is checked against the limit of the active file store, with the reason file_too_large and the limit in details. */
     size: z.number().int().min(0),

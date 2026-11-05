@@ -1,9 +1,10 @@
-import type { Conversation, Meeting, Task, User } from '../../src/api/contract/entities';
+import type { Conversation, FileRec, Meeting, Task, User } from '../../src/api/contract/entities';
 import { assertAiSwitch } from '../../src/api/aiOff';
 import { canSeeConversation, chatForUpload } from '../../src/api/chatState';
 import { ApiError, forbidden, invalid, notFound } from '../../src/api/errors';
 import { minutesRefusal } from '../../src/api/handlers/meetings';
 import { type Actor, can, mayViewMeeting, projectResource, projectRoleOf, taskResource } from '../../src/api/permissions';
+import { resourceFileHidden } from '../../src/api/resourceLock';
 import { withOfficeRights, withRights } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 import type { Db } from '../core/ports';
@@ -100,6 +101,23 @@ export function assertMayUploadToChat(office: OfficeSnapshot, userId: string, co
   const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
   // An agent also needs the AI switch "AI sends messages" (chatForUpload asks it after the member check).
   return chatForUpload(office.lists as unknown as State, conversationId, authority, office.lists.users[userId] ?? authority);
+}
+
+/**
+ * The view right on a file of Resources, right before a link is signed (fbk_078): every active person reads it, except a file in a locked folder,
+ * which reads as a missing file for a person without the switch "Locked folders". The person check comes first.
+ */
+export function assertMayViewResourceFile(office: OfficeSnapshot, userId: string, file: FileRec): User {
+  const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
+  if (resourceFileHidden(office.lists as unknown as State, authority, file)) throw notFound('File', file.id);
+  return authority;
+}
+
+/** The switch "Manage office resources", checked before an upload link into Resources is signed: the rule of files.upload with `resources`. */
+export function assertMayUploadToResources(office: OfficeSnapshot, userId: string): User {
+  const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
+  if (!can(authority, 'resources.manage')) throw forbidden('You cannot do this.', { action: 'resources.manage' });
+  return authority;
 }
 
 /** The State that the meeting rules read: the office lists, and the one meeting (a meeting is not an office list). */

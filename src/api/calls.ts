@@ -16,6 +16,7 @@ import { feedbackCalls } from './handlers/feedback';
 import { projectTemplateCalls } from './handlers/projectTemplates';
 import { rolesCalls } from './handlers/roles';
 import { reportsCalls } from './handlers/reports';
+import { resourceCalls } from './handlers/resources';
 import { pushCalls } from './handlers/push';
 import { stageTemplateCalls } from './handlers/stageTemplates';
 import { taskTemplateCalls } from './handlers/taskTemplates';
@@ -26,7 +27,7 @@ import { systemCalls } from './handlers/system';
 import { trackerCalls } from './handlers/tracker';
 import { serverFakes } from './handlers/serverFakes';
 
-/** The 120 calls of the call map. The server runs 116 of them (sharedCalls.ts). */
+/** The calls of the call map (calls.test.ts pins the number). The server runs all but the prototype controls (sharedCalls.ts). */
 export const mapCalls = {
   ...peopleCalls,
   ...systemCalls,
@@ -35,6 +36,7 @@ export const mapCalls = {
   ...contentCalls,
   ...fileCalls,
   ...folderCalls,
+  ...resourceCalls,
   ...shareCalls,
   ...historyCalls,
   ...notificationCalls,

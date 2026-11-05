@@ -7,7 +7,8 @@ import {
   COUNTERS_UPSERT_SQL, OFFICE_DELETES_SQL, deleteSql, rowOf, rowsParam, upsertSql, type Row,
 } from './rows';
 import { eventTouchesLocked, lockedFolderChange } from '../../src/api/folderLock';
-import { audienceFinder, lockedAudienceFinder } from './projectAudience';
+import { eventTouchesLockedResources, lockedResourceChange, resourceFileLocked } from '../../src/api/resourceLock';
+import { audienceFinder, lockedAudienceFinder, lockedHoldersOf } from './projectAudience';
 import { TABLES, type TableSpec } from './tables';
 
 /**
@@ -157,6 +158,12 @@ const PERSONAL_KINDS = new Set<Kind>(['chatReads', 'notifications', 'preferences
  * never counts here.
  */
 const PRIVATE_CHAT_KINDS = new Set<Kind>(['messages', 'conversations', 'chatReads', 'notifications', 'files']);
+/**
+ * The key of the locked part of Resources in Diff.locked (fbk_078). Resources belongs to no project, and this key is no project id (it holds a space),
+ * so it never reaches a signal as a project. Its people are the holders of the switch "Locked folders".
+ */
+export const RESOURCES_LOCK_KEY = ' resources';
+const RESOURCES_KEY = RESOURCES_LOCK_KEY;
 /** The collections whose records belong to no project. A change of one of them is an office change. */
 const OFFICE_SCOPE = new Set<string>(['clients', 'teams', 'settings', 'stageTemplates', 'taskTemplates', 'projectTemplates', 'feedback']);
 
@@ -324,6 +331,13 @@ export function diffState(before: State, after: State): Diff {
     part.kinds.add(kind);
     locked.set(projectId, part);
   };
+  /** A kind of a change that touches a locked folder of Resources: only the holders of the switch "Locked folders" hear it (fbk_078). */
+  const lockedResourcesPart = (kind: Kind) => {
+    kinds.add(kind);
+    const part = locked.get(RESOURCES_KEY) ?? { kinds: new Set<Kind>(), people: lockedHoldersOf(before, after) };
+    part.kinds.add(kind);
+    locked.set(RESOURCES_KEY, part);
+  };
   /** True when a file row sits in a locked folder of its project, in the State that holds the row. */
   const fileLocked = (state: State, file: Rec): boolean => typeof file.projectId === 'string' && typeof file.folderId === 'string'
     && state.projects[file.projectId]?.folders?.find((folder) => folder.id === file.folderId)?.locked === true;
@@ -367,6 +381,19 @@ export function diffState(before: State, after: State): Diff {
         }
         if (folderChange === 'toggle') projectPart('files', id);
         projectPart(old && rec && same(without(old, 'updatedAt'), without(rec, 'updatedAt')) ? 'projectTouched' : 'projects', id);
+        return;
+      }
+      case 'settings': {
+        // A change of the folders of Resources (fbk_078). A change inside the locked folders alone goes to the holders of the switch. A folder that gets
+        // locked or unlocked changes what everyone sees, so the folders and the files reload for all.
+        const change = lockedResourceChange(old?.resourceFolders as never, rec?.resourceFolders as never);
+        if (old && rec && change === 'inside' && same(without(old, 'resourceFolders'), without(rec, 'resourceFolders'))) {
+          lockedResourcesPart('settings');
+          return;
+        }
+        if (change === 'toggle') pub('files');
+        pub('settings');
+        markOffice();
         return;
       }
       case 'users': {
@@ -481,6 +508,10 @@ export function diffState(before: State, after: State): Diff {
           // The same for a change of a meeting with no project (fbk_022).
           priv('events');
           officeMeetings.add(rec!.officeMeetingId);
+        } else if (rec!.projectId === null && eventTouchesLockedResources(after, rec as never)
+          && lockedResourceChange((rec!.before as { resourceFolders?: never } | null)?.resourceFolders, (rec!.after as { resourceFolders?: never } | null)?.resourceFolders) !== 'toggle') {
+          // A change of a locked folder of Resources, or of a file in one, shows in the History of the holders only. A lock or an unlock is heard by all.
+          lockedResourcesPart('events');
         } else if (typeof rec!.projectId === 'string' && eventTouchesLocked(after, rec as never)
           && lockedFolderChange((rec!.before as { folders?: never } | null)?.folders, (rec!.after as { folders?: never } | null)?.folders) !== 'toggle') {
           // A change of a locked folder, or of a file in one, shows in the History of the holders only (fbk_074). A lock or an unlock is heard by all.
@@ -493,6 +524,11 @@ export function diffState(before: State, after: State): Diff {
         if (OFFICE_SCOPE.has(spec.collection)) {
           pub(spec.collection);
           markOffice();
+        } else if (spec.collection === 'files' && sides.every((side) => side.resource === true)
+          && (!old || resourceFileLocked(before, old as never)) && (!rec || resourceFileLocked(after, rec as never))) {
+          // A file of Resources that sits in a locked folder before and after the change goes to the holders of the switch (fbk_078). A file that comes out
+          // of a locked folder, or goes into one, is a change that the others see too, so it keeps the public part below.
+          lockedResourcesPart('files');
         } else if (spec.collection === 'files' && sides.every((side) => typeof side.projectId === 'string')
           && (!old || fileLocked(before, old)) && (!rec || fileLocked(after, rec))) {
           // A file that sits in a locked folder before and after the change goes to the holders of the switch (fbk_074). A file that comes out of one,
@@ -796,7 +832,7 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
       const plain = inOtherPart(userId) ? plainOf(userId) : { v: 1 as const, office: false, projects: [] as string[], kinds: [] as Kind[], storyId: story.storyId, actorId: story.actorId };
       return {
         ...plain, id: hiddenId,
-        projects: [...new Set([...plain.projects, ...own.map(([projectId]) => projectId)])].sort(),
+        projects: [...new Set([...plain.projects, ...own.map(([projectId]) => projectId).filter((projectId) => projectId !== RESOURCES_KEY)])].sort(),
         kinds: [...new Set([...plain.kinds, ...own.flatMap(([, part]) => [...part.kinds])])].sort(),
       };
     };

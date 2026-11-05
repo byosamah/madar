@@ -9,6 +9,7 @@
  *   office/<task>/<intent>/file   a confirmed upload of an office task (owner, 2026-10-06), with office/<task>/<intent>/thumb
  *   chat/<chat>/<intent>/file     a confirmed upload of a direct chat or a group (owner, 2026-10-19), with chat/<chat>/<intent>/thumb
  *   meeting/<meeting>/<intent>/file  a confirmed upload of a meeting with no project (wave 2), with meeting/<meeting>/<intent>/thumb
+ *   resources/<intent>/file       a confirmed upload of the Resources page (fbk_078), with resources/<intent>/thumb
  *
  * The server names a confirmed upload by its intent (task F2): the preflight copies the object before the lock, and the file id
  * and the version letter come later, from run() inside the lock. An intent id is unique, so the key is too.
@@ -112,6 +113,20 @@ export function meetingUploadKey(meetingId: string, intentId: string): string {
 
 export function meetingUploadThumbKey(meetingId: string, intentId: string): string {
   return `${meetingUploadPrefix(meetingId)}${part(intentId)}/thumb`;
+}
+
+/**
+ * The folder of the uploads of the Resources page (fbk_078). A resource file belongs to no project, task, chat or meeting, so its files sit under
+ * "resources", which is never the key part of a project id (prj-...), "office", "chat" or "meeting". Resources is one place, so it has no id part.
+ */
+export const RESOURCES_UPLOAD_PREFIX = 'resources/';
+
+export function resourcesUploadKey(intentId: string): string {
+  return `${RESOURCES_UPLOAD_PREFIX}${part(intentId)}/file`;
+}
+
+export function resourcesUploadThumbKey(intentId: string): string {
+  return `${RESOURCES_UPLOAD_PREFIX}${part(intentId)}/thumb`;
 }
 
 export function screenshotKey(intentId: string): string {
