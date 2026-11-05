@@ -11,7 +11,7 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   switch "Manage office resources" (`resources.manage`) adds, renames, moves and deletes files and folders; only the Admin holds it by default, and the
   Admin can give it to any role. Reading needs no switch (the owner said every person reads). Private papers reuse the switch "Locked folders"
   (`folder.locked`): a locked folder of Resources and its files show only to its holders, and do not exist for everyone else. The Arabic name is
-  «ملفات المكتب». The folders live in the office settings (no table, no migration); a resource file is a file record with `resource: true`.
+  «المراجع» (the first choice «ملفات المكتب» did not fit in the Work switch of a phone, so the release changed it on 2026-11-05). The folders live in the office settings (no table, no migration); a resource file is a file record with `resource: true`.
 - File preview window (fbk_079, owner, Faisal's report): on a desk every file preview (PDF, picture, Word, Excel) opens in one big window in the
   center of the screen, "big center window, all files". The side panel was 640 px wide at most, and a landscape A3 drawing was too small to
   read. The window is 92 vw wide (1600 px at most) and 90 dvh high. The phone is unchanged. The video keeps its full screen player, which is

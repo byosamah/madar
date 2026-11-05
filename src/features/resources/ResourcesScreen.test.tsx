@@ -194,7 +194,7 @@ describe('the Resources page in Arabic', () => {
       world()(state);
       state.users.usr_001.preferences.language = 'ar';
     });
-    expect(await screen.findByRole('heading', { level: 1, name: 'ملفات المكتب' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'المراجع' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
   });
 });

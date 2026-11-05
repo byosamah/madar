@@ -17,4 +17,4 @@ locked folders are in `src/api/CLAUDE.md`, "Resources". The Files tab of a proje
 
 ## Tests
 - `ResourcesScreen.test.tsx`: the controls with and without the switch, the locked folder, the empty page, the link on Projects, the Work switch on a phone.
-- Words: `resources.*` in `src/i18n/real/fbk078.*`. The Arabic name of the page is «ملفات المكتب».
+- Words: `resources.*` in `src/i18n/real/fbk078.*`. The Arabic name of the page is «المراجع». The first choice «ملفات المكتب» was cut in the Work switch of a phone (the word was wider than its part at 360 px and 390 px, in Chromium and WebKit).

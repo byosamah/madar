@@ -118,7 +118,7 @@ async function expectPressArea(control: Locator): Promise<void> {
 
 for (const width of [360, 390]) {
   for (const lang of ['en', 'ar'] as const) {
-    test(`Work at ${width}px in ${lang}: title, three parts of 44 px, no sideways scroll`, async ({ page }) => {
+    test(`Work at ${width}px in ${lang}: title, four parts of 44 px, no cut label, no sideways scroll`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       if (lang === 'ar') await useArabic(page);
       for (const path of ['/#/work', '/#/meetings', '/#/projects']) {
@@ -127,13 +127,23 @@ for (const width of [360, 390]) {
         await expect(title, path).toHaveText(lang === 'en' ? 'Work' : 'العمل');
         const group = page.getByRole('radiogroup').first();
         const radios = group.getByRole('radio');
-        await expect(radios, path).toHaveCount(3);
-        for (let n = 0; n < 3; n += 1) {
+        await expect(radios, path).toHaveCount(4);
+        for (let n = 0; n < 4; n += 1) {
           const radio = radios.nth(n);
           const box = await radio.boundingBox();
           expect(box!.height, `${path} part ${n}`).toBeGreaterThanOrEqual(44);
           // A word never cuts inside its part.
           expect(await radio.evaluate((el) => el.scrollWidth <= el.clientWidth), `${path} part ${n} word`).toBe(true);
+          // The label does not cut: the text of the part is not wider than the part. The scrollWidth alone misses a label that grows to the start side.
+          const label = await radio.evaluate((el) => {
+            const texts = [...el.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE);
+            const range = document.createRange();
+            range.setStartBefore(texts[0]);
+            range.setEndAfter(texts[texts.length - 1]);
+            return { text: el.textContent, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, textWidth: range.getBoundingClientRect().width };
+          });
+          expect(label.scrollWidth, `${path} part ${n} ${label.text} scrollWidth`).toBeLessThanOrEqual(label.clientWidth);
+          expect(label.textWidth, `${path} part ${n} ${label.text} text width`).toBeLessThanOrEqual(label.clientWidth);
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth), path).toBeLessThanOrEqual(width);
         // The title and the main button do not overlap.

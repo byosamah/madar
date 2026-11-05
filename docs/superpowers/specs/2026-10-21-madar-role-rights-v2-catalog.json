@@ -1216,7 +1216,7 @@
         {
           "power": "resources.manage",
           "en": "Manage office resources",
-          "ar": "إدارة ملفات المكتب",
+          "ar": "إدارة المراجع",
           "hint": "Add, rename, move and delete the files and folders of Resources.",
           "switches": [
             {
