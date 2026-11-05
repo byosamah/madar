@@ -160,6 +160,40 @@ for (const width of [360, 390]) {
   }
 }
 
+for (const width of [360, 390]) {
+  for (const lang of ['en', 'ar'] as const) {
+    test(`Work title row at ${width}px in ${lang}: title, View toggle and main button on one line, nothing cut`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      if (lang === 'ar') await useArabic(page);
+      await page.goto('/#/work');
+      const title = page.getByRole('heading', { level: 1 });
+      await expect(title).toHaveText(lang === 'en' ? 'Work' : 'العمل');
+      const row = title.locator('xpath=ancestor::div[contains(@class, "justify-between")][1]');
+      await expect(row.getByRole('button')).toHaveCount(2);
+      // The screen slides in on a route change: measure after it stops.
+      await page.waitForTimeout(900);
+      const boxes = [await title.boundingBox(), await row.getByRole('button').nth(0).boundingBox(), await row.getByRole('button').nth(1).boundingBox()];
+      for (const box of boxes) expect(box).not.toBeNull();
+      // One line: the three parts share the same band of the row.
+      const top = Math.min(...boxes.map((b) => b!.y));
+      const bottom = Math.max(...boxes.map((b) => b!.y + b!.height));
+      expect(bottom - top, 'the title row is one line').toBeLessThanOrEqual(48);
+      // Nothing sticks out of the screen.
+      for (const box of boxes) {
+        expect(box!.x, 'part start').toBeGreaterThanOrEqual(-0.5);
+        expect(box!.x + box!.width, 'part end').toBeLessThanOrEqual(width + 0.5);
+      }
+      // The main button does not cut its label.
+      const main = row.getByRole('button').nth(1);
+      expect(await main.evaluate((el) => el.scrollWidth <= el.clientWidth), 'main button word').toBe(true);
+      // The parts do not overlap each other.
+      const ordered = [...boxes].sort((a, b) => a!.x - b!.x);
+      for (let n = 1; n < ordered.length; n += 1) expect(ordered[n]!.x, `part ${n} apart`).toBeGreaterThanOrEqual(ordered[n - 1]!.x + ordered[n - 1]!.width - 0.5);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    });
+  }
+}
+
 test('the Board lane snaps and shows four dots', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#/work');

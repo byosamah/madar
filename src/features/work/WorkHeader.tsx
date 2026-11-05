@@ -12,8 +12,9 @@ const VIEWS = ['/work', '/meetings', '/projects', '/resources'] as const;
 /**
  * The top of the Work views (phone design D): To-dos, Meetings, Projects and, on a phone, Resources (fbk_078). Each view draws its own header with its own main
  * button, so each screen keeps the state of its own sheet.
- * - A phone gets the title "Work", the main button of the view at its end, and one row under it: the full-width switch and, in the To-dos
- *   view, the View toggle (`trailing`).
+ * - A phone gets the title "Work" and, at the end of the title row, the View toggle (`trailing`, To-dos view only) first and then the main
+ *   button of the view, with a small gap. Under the title, the switch has the whole row: with four parts, a toggle beside it cut the labels
+ *   at 360 px. The To-dos main button has a 16 px side padding on a phone (`WorkScreen`), so the Arabic title row fits at 360 px.
  * - A desk gets what it had: the title "Tasks" with the switch and the View button in the row under it.
  * The header also tells the tab bar which view the person used last (`rememberWorkView`). On a phone it moves the focus to the checked part of
  * the switch after a keyboard change of view: the route change mounts a new header, and the focus would be lost. The desk keeps its way.
@@ -44,14 +45,17 @@ export function WorkHeader({ action, trailing }: { action?: ReactNode; trailing?
       </>
     );
   }
+  const end = trailing || action ? (
+    <div className="flex shrink-0 items-center gap-1.5">
+      {trailing}
+      {action}
+    </div>
+  ) : undefined;
   return (
     <>
-      <ScreenTitle title={t('phoneWork.title')} action={action} />
-      <div ref={row} className="flex items-center gap-3 pb-4">
-        <div className="min-w-0 flex-1">
-          <WorkSwitch />
-        </div>
-        {trailing}
+      <ScreenTitle title={t('phoneWork.title')} action={end} />
+      <div ref={row} className="pb-4">
+        <WorkSwitch />
       </div>
     </>
   );

@@ -7,6 +7,7 @@ import { todayISO } from '../../lib/dates';
 import { renderHeldRemoteApp } from '../../test/heldRemoteApp';
 import { phoneMedia } from '../../test/phoneMedia';
 import { renderApp } from '../../test/render';
+import { without } from '../../test/rr2work';
 import { meetingsListInput } from '../meetings/readInputs';
 
 // The Work header on a phone (phone design D, task W7): the title Work, the three-part switch and the View toggle. usr_001 is the Admin.
@@ -103,10 +104,48 @@ describe('the Work header on a phone', () => {
       state.users.usr_001.preferences.language = 'ar';
     });
     const title = await screen.findByRole('heading', { level: 1, name: 'العمل' });
-    // The title row holds one heading and one button.
+    // The title row holds one heading, the View toggle and the main button.
     const row = title.parentElement!.parentElement!;
     expect(row.querySelectorAll('h1')).toHaveLength(1);
-    expect(row.querySelectorAll('button')).toHaveLength(1);
+    expect(row.querySelectorAll('button')).toHaveLength(2);
+  });
+
+  it('puts the View toggle in the title row, before the main button, and gives the switch the whole row under it', async () => {
+    phone();
+    await renderApp('/work', as('usr_001'));
+    const title = await screen.findByRole('heading', { level: 1, name: 'Work' });
+    const titleRow = title.parentElement!.parentElement!;
+    const toggle = screen.getByRole('button', { name: 'Board' });
+    const main = screen.getByRole('button', { name: 'New office to-do' });
+    expect(titleRow).toContainElement(toggle);
+    expect(titleRow).toContainElement(main);
+    // The toggle comes first, then the main button.
+    expect(toggle.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The switch row holds only the switch.
+    const group = screen.getByRole('radiogroup', { name: 'Show' });
+    const switchRow = group.parentElement!;
+    expect(switchRow).not.toBe(titleRow);
+    expect(switchRow.contains(toggle)).toBe(false);
+    expect(switchRow.contains(main)).toBe(false);
+    expect(switchRow.querySelectorAll('button:not([role="radio"])')).toHaveLength(0);
+    expect(within(switchRow).getAllByRole('radio')).toHaveLength(4);
+    expect(titleRow.contains(group)).toBe(false);
+  });
+
+  it('puts the View toggle alone at the end of the title row when the person has no main button', async () => {
+    phone();
+    await renderApp('/work', (state) => {
+      state.session.currentUserId = 'usr_005';
+      state.settings.roles = without('task.add.office');
+    });
+    const title = await screen.findByRole('heading', { level: 1, name: 'Work' });
+    const titleRow = title.parentElement!.parentElement!;
+    const toggle = screen.getByRole('button', { name: 'Board' });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'New office to-do' })).toBeNull());
+    expect(titleRow).toContainElement(toggle);
+    expect(titleRow.querySelectorAll('button')).toHaveLength(1);
+    const group = screen.getByRole('radiogroup', { name: 'Show' });
+    expect(group.parentElement!.contains(toggle)).toBe(false);
   });
 
   it('starts the reads of a view on pointer down', async () => {

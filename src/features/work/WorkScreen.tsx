@@ -42,7 +42,7 @@ export function WorkScreen() {
     <div className="flex flex-col">
       <WorkHeader
         action={mayAdd ? (
-          <Button variant="primary" className="shrink-0" onClick={() => setAdding(true)}>
+          <Button variant="primary" className="shrink-0 max-sm:px-4" onClick={() => setAdding(true)}>
             <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
             {t('office.new')}
           </Button>

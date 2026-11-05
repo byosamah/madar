@@ -9,7 +9,7 @@
   `/work?task=<id>`. Office to-do rules: `src/features/project/CLAUDE.md`.
   The sheet shows the busy-week note under the due date (`BusyWeekNote`, `src/features/project/CLAUDE.md`).
 - The Board (`WorkBoard.tsx`): the small "View" button (`WorkViewButton.tsx`) sits at the end of the To-dos and Meetings row, in the To-dos
-  view only. The choice stays on this device (`usePersistentChoice`, key `madar.work.view` in `workView.ts`, List at first). The Board is
+  view only. On a phone it sits in the title row, before the main button, so the switch has the whole row. The choice stays on this device (`usePersistentChoice`, key `madar.work.view` in `workView.ts`, List at first). The Board is
   `TaskBoard` of the project tab with two options: `reviews` may be a function of the row, and `across` makes a card name its project, or the
   word Office, and say "Your review" on a card of mine to review.
 - `WorkBoard.tsx` merges three reads into one card for each to-do (`boardRows.ts`): the review queue first (`review_for_me`), my open

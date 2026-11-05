@@ -146,9 +146,11 @@ New phone code sits in lazy chunks.
   `(pointer: coarse)` and restores `matchMedia` after the test). `features/inbox/phoneHarness.ts` and `src/test/renderPanel.tsx` wrap it. For
   reduced motion use `reduceMotion()` (`features/project/tasks/testMotion.ts`). After a test lifts a drag, end it, or the dnd-kit click guard
   stays on `document`.
-- Work tab (`features/work/WorkHeader.tsx`): the title "Work" with the main button of the view, then the full-width `SegmentedControl`
-  (`layoutId="work-switch"`) and the View toggle. After a keyboard change of view the focus goes to the checked part (route state
-  `focusSwitch`). The Board on a phone is a snap lane, and a touch drop reads the point from `touchmove` and `touchend`.
+- Work tab (`features/work/WorkHeader.tsx`): the title row holds the title "Work", then the View toggle and then the main button of the
+  view, with a small gap (the toggle alone when the view has no main button). The main button "New office to-do" has `max-sm:px-4`: in Arabic at 360 px the row
+  has 4 px to spare, so keep the button this narrow. The full-width `SegmentedControl` (`layoutId="work-switch"`)
+  has the whole row under it, because four parts and a toggle in one row cut the labels at 360 px. After a keyboard change of view the
+  focus goes to the checked part (route state `focusSwitch`). The Board on a phone is a snap lane, and a touch drop reads the point from `touchmove` and `touchend`.
 - Meetings on a phone: `MeetingCard` with Join as a secondary anchor, and `useMinuteTick` (one 60 s tick that stops while the page is hidden).
 - Home on a phone: `src/features/home/CLAUDE.md`. Project page on a phone: `src/features/project/CLAUDE.md`. Inbox and chat on a phone:
   `src/features/inbox/CLAUDE.md`.
