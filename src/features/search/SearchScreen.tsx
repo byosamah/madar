@@ -110,7 +110,7 @@ function Results({ query, onPerson, messagesFirst }: { query: string; onPerson: 
               key={file.id}
               value={`file-${file.id}`}
               // A file of an office task opens on its task, which holds its files (owner, 2026-10-06).
-              onSelect={() => navigate(file.projectId === null ? taskLink(null, file.taskId ?? '') : `/projects/${file.projectId}?tab=files&file=${file.id}`)}
+              onSelect={() => navigate(file.resource === true ? `/resources?file=${file.id}` : file.projectId === null ? taskLink(null, file.taskId ?? '') : `/projects/${file.projectId}?tab=files&file=${file.id}`)}
             >
               <bdi className="min-w-0 flex-1 truncate">{file.name}</bdi>
               <span className="tabular text-footnote text-label-2">{file.projectId === null ? t('office.word') : shownKey(file.projectCode, t)}</span>

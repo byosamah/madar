@@ -7,10 +7,10 @@ import { ScreenControls } from '../../components/ScreenControls';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { WorkSwitch } from './WorkSwitch';
 
-const VIEWS = ['/work', '/meetings', '/projects'] as const;
+const VIEWS = ['/work', '/meetings', '/projects', '/resources'] as const;
 
 /**
- * The top of the three Work views (phone design D): To-dos, Meetings and Projects. Each view draws its own header with its own main
+ * The top of the Work views (phone design D): To-dos, Meetings, Projects and, on a phone, Resources (fbk_078). Each view draws its own header with its own main
  * button, so each screen keeps the state of its own sheet.
  * - A phone gets the title "Work", the main button of the view at its end, and one row under it: the full-width switch and, in the To-dos
  *   view, the View toggle (`trailing`).

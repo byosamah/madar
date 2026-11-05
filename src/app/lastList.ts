@@ -13,7 +13,7 @@ let workView = '/work';
 const workListeners = new Set<() => void>();
 
 /** The Work tab opens the Work view that the person used last in this visit (a reload resets it to /work). */
-export function rememberWorkView(pathname: '/work' | '/meetings' | '/projects'): void {
+export function rememberWorkView(pathname: '/work' | '/meetings' | '/projects' | '/resources'): void {
   if (workView === pathname) return;
   workView = pathname;
   for (const listener of [...workListeners]) listener();

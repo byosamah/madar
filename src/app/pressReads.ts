@@ -45,6 +45,7 @@ export const PRESS_READS: Record<string, (reach: AdminReach) => GuardRead[]> = {
   '/dashboard': () => GUARD_READS.dashboard!(new URLSearchParams(), undefined),
   '/work': () => [read('tasks.list', MINE_OPEN), read('tasks.list', REVIEW_FOR_ME)],
   '/meetings': () => [read('meetings.list', meetingsListInput(todayISO()))],
+  '/resources': () => [read('resources.list', {})],
   '/me': () => [read('settings.get', {}), ...(REMOTE ? [read('google.status', {})] : [])],
   '/inbox': () => [read('chats.list', {})],
   '/notifications': () => [read('notifications.list', {})],

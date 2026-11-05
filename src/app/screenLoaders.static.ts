@@ -15,6 +15,7 @@ import { ProjectScreen } from '../features/project/ProjectScreen';
 import { ProjectsScreen } from '../features/projects/ProjectsScreen';
 import { MeScreen } from '../features/me/MeScreen';
 import { MeSectionScreen } from '../features/me/MeSectionScreen';
+import { ResourcesScreen } from '../features/resources/ResourcesScreen';
 import { SearchScreen } from '../features/search/SearchScreen';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
 import { AdminScreen } from '../features/settings/admin/AdminScreen';
@@ -30,6 +31,7 @@ import { WorkScreen } from '../features/work/WorkScreen';
 export const LOADERS = {
   projects: () => Promise.resolve(ProjectsScreen),
   project: () => Promise.resolve(ProjectScreen),
+  resources: () => Promise.resolve(ResourcesScreen),
   work: () => Promise.resolve(WorkScreen),
   meetings: () => Promise.resolve(MeetingsScreen),
   inbox: () => Promise.resolve(InboxScreen),

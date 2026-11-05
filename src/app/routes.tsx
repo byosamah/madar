@@ -45,6 +45,8 @@ function routeTable(remote: boolean): Entry[] {
         { path: 'projects', screen: 'projects' },
         { path: 'projects/code/:code', screen: 'projectByCode' },
         { path: 'projects/:projectId', screen: 'project' },
+        // Resources: the files of the whole office, opened from the Projects page (fbk_078).
+        { path: 'resources', screen: 'resources' },
         { path: 'work', screen: 'work' },
         // Meetings are the second view of the Tasks tab (fbk_022).
         { path: 'meetings', screen: 'meetings' },

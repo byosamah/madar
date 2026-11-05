@@ -1,0 +1,29 @@
+{
+  "resources": {
+    "title": "Resources",
+    "emptyTitle": "No office files yet",
+    "emptyReader": "Building codes and office policies will be here.",
+    "emptyManager": "Add building codes and office policies here. Everyone in the office can read them.",
+    "folders": "Folders",
+    "files": "Files",
+    "renameTitle": "Rename {{name}}",
+    "fileName": "File name",
+    "rename": "Rename",
+    "fileRenamed": "File renamed."
+  },
+  "errors": {
+    "reasons": {
+      "file_resource": "A file of Resources is changed on the Resources page.",
+      "resource_folder_missing": "This folder is not in Resources.",
+      "resource_folder_limit": "Resources can hold 100 folders at most."
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-05-152": {
+        "title": "Resources",
+        "body": "Office files such as building codes and policies, in one place. Open it from the Projects page."
+      }
+    }
+  }
+}

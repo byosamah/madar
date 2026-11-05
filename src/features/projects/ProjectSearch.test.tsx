@@ -106,12 +106,12 @@ describe('the project search on a phone', () => {
     expect(window.location.hash).toContain('status=all');
   });
 
-  it('draws Work, three parts, then the search field and Filter on one row', async () => {
+  it('draws Work, four parts, then the search field and Filter on one row', async () => {
     phone();
     await renderApp('/projects', as('usr_001'));
     expect(await screen.findByRole('heading', { level: 1, name: 'Work' })).toBeInTheDocument();
     const group = screen.getByRole('radiogroup', { name: 'Show' });
-    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['To-dos', 'Meetings', 'Projects']);
+    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['To-dos', 'Meetings', 'Projects', 'Resources']);
     expect(within(group).getByRole('radio', { name: 'Projects' })).toBeChecked();
     expect(box()).toHaveClass('field');
     expect(await screen.findAllByRole('button', { name: 'New Project' })).toHaveLength(1);

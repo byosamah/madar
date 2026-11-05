@@ -13,7 +13,7 @@ export function screenKey(pathname: string, phone: boolean): string {
   if (pathname.startsWith('/admin/')) return '/admin';
   if (pathname === '/meetings') return '/work';
   if (phone) {
-    if (pathname === '/projects') return '/work';
+    if (pathname === '/projects' || pathname === '/resources') return '/work';
     if (pathname === '/notifications') return '/inbox';
   }
   return pathname;

@@ -5,12 +5,12 @@ import { usePrefetchCall } from '../../app/prefetch';
 import { useIsPhone } from '../../app/useIsPhone';
 import { SegmentedControl } from '../../components/SegmentedControl';
 
-type Part = 'tasks' | 'meetings' | 'projects';
-const PATH: Record<Part, string> = { tasks: '/work', meetings: '/meetings', projects: '/projects' };
+type Part = 'tasks' | 'meetings' | 'projects' | 'resources';
+const PATH: Record<Part, string> = { tasks: '/work', meetings: '/meetings', projects: '/projects', resources: '/resources' };
 
 /**
  * The switch under the title of Work (fbk_022, owner 2026-10-19; phone design D, 2026-10-22). On a desk: "Tasks" and "Meetings", two views
- * of one tab. On a phone: "To-dos", "Meetings" and "Projects", three equal parts over the full width, with a thumb that slides across the
+ * of one tab. On a phone: "To-dos", "Meetings", "Projects" and "Resources" (fbk_078), four equal parts over the full width, with a thumb that slides across the
  * change of view (the `layoutId` is fixed, so the new header takes the thumb of the old one). The switch reads the address, so a link to
  * /meetings opens the second view. A press on a part starts the reads of its view before the click ends (`usePressReads`).
  */
@@ -21,11 +21,11 @@ export function WorkSwitch() {
   const phone = useIsPhone();
   const pressReads = usePressReads();
   const prefetch = usePrefetchCall();
-  const value: Part = pathname === '/meetings' ? 'meetings' : phone && pathname.startsWith('/projects') ? 'projects' : 'tasks';
+  const value: Part = pathname === '/meetings' ? 'meetings' : phone && pathname === '/resources' ? 'resources' : phone && pathname.startsWith('/projects') ? 'projects' : 'tasks';
   const options: { value: Part; label: string }[] = [
     { value: 'tasks', label: t('meetings.switch.todos') },
     { value: 'meetings', label: t('meetings.switch.meetings') },
-    ...(phone ? [{ value: 'projects' as const, label: t('screens.projects') }] : []),
+    ...(phone ? [{ value: 'projects' as const, label: t('screens.projects') }, { value: 'resources' as const, label: t('resources.title') }] : []),
   ];
   return (
     <SegmentedControl

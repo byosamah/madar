@@ -17,12 +17,12 @@ const flush = (ms = 20) => act(async () => { await new Promise((resolve) => setT
 const phone = () => phoneMedia({ phone: true, coarse: true });
 
 describe('the Work header on a phone', () => {
-  it('draws the title Work, three parts in order, and one main button', async () => {
+  it('draws the title Work, four parts in order (Resources is the fourth, fbk_078), and one main button', async () => {
     phone();
     await renderApp('/work', as('usr_001'));
     expect(await screen.findByRole('heading', { level: 1, name: 'Work' })).toBeInTheDocument();
     const group = screen.getByRole('radiogroup', { name: 'Show' });
-    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['To-dos', 'Meetings', 'Projects']);
+    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['To-dos', 'Meetings', 'Projects', 'Resources']);
     expect(within(group).getByRole('radio', { name: 'To-dos' })).toBeChecked();
     expect(screen.getAllByRole('button', { name: 'New office to-do' })).toHaveLength(1);
     // The switch fills the row and slides (layoutId of the Work switch).
@@ -88,7 +88,7 @@ describe('the Work header on a phone', () => {
     });
     const group = await screen.findByRole('radiogroup');
     const radios = within(group).getAllByRole('radio');
-    expect(radios).toHaveLength(3);
+    expect(radios).toHaveLength(4);
     radios[0]!.focus();
     // In right to left, the end-side arrow is the left arrow.
     fireEvent.keyDown(radios[0]!, { key: 'ArrowLeft' });

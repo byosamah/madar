@@ -219,7 +219,7 @@ describe('who may change the Resources', () => {
     expect(await failure(() => w.t.api.call('files.upload', { ...base, projectId: made.project.id }))).toMatchObject({ code: 'invalid_input', details: { reason: 'file_resource' } });
     expect(await failure(() => w.t.api.call('files.upload', { ...base, asCover: true }))).toMatchObject({ code: 'invalid_input', details: { reason: 'file_resource' } });
     expect(await failure(() => w.t.api.call('files.upload', { ...base, receivedFromClient: true }))).toMatchObject({ code: 'invalid_input', details: { reason: 'file_resource' } });
-    expect(await failure(() => w.t.api.call('files.upload', { ...base, folderId: 'fld_999' }))).toMatchObject({ code: 'invalid_input', details: { reason: 'folder_missing' } });
+    expect(await failure(() => w.t.api.call('files.upload', { ...base, folderId: 'fld_999' }))).toMatchObject({ code: 'invalid_input', details: { reason: 'resource_folder_missing' } });
   });
 
   it('does not delete a locked folder, and does not delete a file with its folder', async () => {

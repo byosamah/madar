@@ -43,8 +43,9 @@ export function isNavActive(to: string, pathname: string, search = ''): boolean 
     const deadlines = new URLSearchParams(search).get('mode') === 'deadlines';
     return to === (deadlines ? '/dashboard' : '/work');
   }
-  // Meetings are the second view of the Tasks tab (fbk_022).
+  // Meetings are the second view of the Tasks tab (fbk_022). Resources is opened from Projects, so it marks the Projects tab (fbk_078).
   if (to === '/work' && pathname === '/meetings') return true;
+  if (to === '/projects' && pathname === '/resources') return true;
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
@@ -61,7 +62,7 @@ export const PHONE_NAV: { tab: PhoneTab; to: string; key: string; animated: Anim
 const PHONE_EXACT: Record<string, PhoneTab> = {
   '/': 'today',
   '/inbox': 'inbox', '/notifications': 'inbox',
-  '/work': 'work', '/meetings': 'work', '/projects': 'work',
+  '/work': 'work', '/meetings': 'work', '/projects': 'work', '/resources': 'work',
   '/me': 'me', '/settings': 'me', '/whats-new': 'me', '/dashboard': 'me', '/tasks': 'me', '/admin': 'me',
 };
 const PHONE_PREFIX: [string, PhoneTab][] = [['/inbox/', 'inbox'], ['/projects/', 'work'], ['/me/', 'me'], ['/admin/', 'me']];

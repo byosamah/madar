@@ -3,13 +3,14 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
 import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../app/choices';
 import { rememberProjectsList } from '../../app/lastList';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import type { ProjectSummary } from '../../api/contract/views';
+import { usePressReads } from '../../app/pressReads';
 import { useCall } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
 import { useIsPhone } from '../../app/useIsPhone';
@@ -127,6 +128,7 @@ function ProjectsFind({ filterButton, chips, rows, first, view, error, onRetry, 
 export function ProjectsScreen() {
   const { t } = useTranslation();
   const phone = useIsPhone();
+  const pressReads = usePressReads();
   const lang = useLang();
   const nameOf = usePersonName();
   const byName = useByPersonName();
@@ -325,6 +327,14 @@ export function ProjectsScreen() {
         {filterButton}
         {viewButton}
         {chips}
+        {/* Resources, the files of the whole office, is a quiet link at the end of the row, not a second main button (fbk_078). A phone has it in the Work switch. */}
+        <Link
+          to="/resources"
+          onPointerDown={() => pressReads('/resources')}
+          className="ms-auto inline-flex min-h-11 items-center px-1 text-subheadline font-semibold text-link hover:underline"
+        >
+          {t('resources.title')}
+        </Link>
       </ScreenControls>
       <ProjectsBody rows={list.data} first={first} view={view} error={list.error} onRetry={retry} onShowAll={showAll} />
       {mayCreate && <NewProjectSheet open={creating} onOpenChange={setCreating} />}

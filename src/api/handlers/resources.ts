@@ -41,7 +41,7 @@ export function requireResourceFile(ctx: Ctx, id: string): FileRec {
 export function checkResourceFolder(ctx: Ctx, folderId: string | null): void {
   if (folderId === null) return;
   if (!resourceFoldersFor(ctx.state, ctx.authority).some((item) => item.id === folderId)) {
-    throw invalid('folderId', 'This folder is not in Resources.', 'folder_missing');
+    throw invalid('folderId', 'This folder is not in Resources.', 'resource_folder_missing');
   }
 }
 
@@ -91,7 +91,7 @@ export const resourcesSaveFolder = defineCall({
       assertCan(ctx, 'resources.manage');
       // A new locked folder needs the lock switch too, as the lock of a folder does.
       if (input.locked === true) assertCan(ctx, 'folder.locked');
-      if (folders.length >= MAX_FOLDERS) throw invalid('name', `Resources holds up to ${MAX_FOLDERS} folders.`, 'folder_limit');
+      if (folders.length >= MAX_FOLDERS) throw invalid('name', `Resources holds up to ${MAX_FOLDERS} folders.`, 'resource_folder_limit');
       assertFolderNameFree(ctx, input.name!);
       const folder: ResourceFolder = {
         id: nextId(ctx.state, 'fld'), name: input.name!, createdBy: ctx.actor.id, createdAt: ctx.stamp, ...(input.locked === true ? { locked: true } : {}),
