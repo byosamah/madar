@@ -159,6 +159,33 @@ function uploadSuites(v: Variant): void {
       expect(decodeURIComponent(response.headers.get('content-disposition')?.split("UTF-8''")[1] ?? '')).toBe(ARABIC_NAME);
     });
 
+    it('a file of Resources goes up with the manage switch and comes down for a member; a locked folder holds it back from a person without the lock switch', async () => {
+      // The leader holds no manage switch: no upload link is signed.
+      expect(await call(leader, 'files.uploadStart', { resources: true, name: 'code.pdf', size: 14, mimeType: 'application/pdf' })).toMatchObject({ ok: false, error: { code: 'forbidden' } });
+      const folder = okOf<{ id: string }>(await call(ADMIN, 'resources.saveFolder', { name: `Private papers ${v.kind}`, locked: true }));
+      const begin = okOf<Start>(await call(ADMIN, 'files.uploadStart', { resources: true, name: 'policy.pdf', size: 14, mimeType: 'application/pdf' }));
+      expect((await put(begin.put.url, begin.put.headers, '%PDF-1.4 rules')).status).toBe(200);
+      const intent = await intentOf(begin.uploadId);
+      expect(intent.key).toMatch(/^resources\/upl-[a-z0-9]+\/file$/);
+      const file = okOf<FileView>(await call(ADMIN, 'files.upload', { resources: true, name: 'policy.pdf', uploadId: begin.uploadId, folderId: folder.id }));
+      expect(file.file).toMatchObject({ resource: true, projectId: null, folderId: folder.id });
+      expect(await store.head(intent.key)).toEqual({ size: 14, mimeType: 'application/pdf' });
+      // A person without the lock switch gets the answer of a missing file, and no link is signed.
+      const before = signed.length;
+      const hidden = await call(leader, 'files.link', { id: file.file.id, variant: 'full', disposition: 'inline' });
+      const gone = await call(leader, 'files.link', { id: 'fil_999', variant: 'full', disposition: 'inline' });
+      expect(hidden).toMatchObject({ ok: false, error: { code: 'not_found' } });
+      expect(JSON.stringify(hidden).split(file.file.id).join('@')).toBe(JSON.stringify(gone).split('fil_999').join('@'));
+      expect(signed.length).toBe(before);
+      expect(JSON.stringify(await call(leader, 'resources.list', {}))).not.toMatch(/Private papers|policy\.pdf/);
+      // The Admin holds the lock switch and gets the file. After the unlock the leader reads it too.
+      const link = okOf<{ url: string; name: string }>(await call(ADMIN, 'files.link', { id: file.file.id, variant: 'full', disposition: 'inline' }));
+      expect(await (await fetch(link.url)).text()).toBe('%PDF-1.4 rules');
+      okOf(await call(ADMIN, 'resources.saveFolder', { id: folder.id, locked: false }));
+      okOf(await call(leader, 'files.link', { id: file.file.id, variant: 'full', disposition: 'inline' }));
+      expect(JSON.stringify(okOf(await call(leader, 'resources.list', {})))).toContain('policy.pdf');
+    });
+
     if (v.kind === 'supabase') {
       it('refuses a second PUT to up/<intentId> before files.upload (no upsert), and the upload keeps the first object', async () => {
         const begin = await start(leader, {});
