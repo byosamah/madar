@@ -55,10 +55,10 @@ const foldersOfSide = (side: unknown): ProjectFolder[] | undefined => {
 };
 
 /** The folders that differ between two lists, by id and by value: both forms of a changed folder, so an unlock counts as a change of a locked folder. */
-function changedFolders(before: readonly ProjectFolder[], after: readonly ProjectFolder[]): ProjectFolder[] {
+export function changedFolders<T extends { id: string }>(before: readonly T[], after: readonly T[]): T[] {
   const was = new Map(before.map((folder) => [folder.id, folder]));
   const now = new Map(after.map((folder) => [folder.id, folder]));
-  const out: ProjectFolder[] = [];
+  const out: T[] = [];
   for (const id of new Set([...was.keys(), ...now.keys()])) {
     if (JSON.stringify(was.get(id)) === JSON.stringify(now.get(id))) continue;
     for (const folder of [was.get(id), now.get(id)]) if (folder) out.push(folder);

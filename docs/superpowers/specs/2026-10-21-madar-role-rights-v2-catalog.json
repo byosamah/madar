@@ -1212,6 +1212,26 @@
               "needs": []
             }
           ]
+        },
+        {
+          "power": "resources.manage",
+          "en": "Manage office resources",
+          "ar": "إدارة ملفات المكتب",
+          "hint": "Add, rename, move and delete the files and folders of Resources.",
+          "switches": [
+            {
+              "id": "resources.manage",
+              "scope": null,
+              "basic": false,
+              "newPower": true,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
         }
       ]
     },
@@ -2005,6 +2025,7 @@
             "tracker.list",
             "deadlines.list",
             "files.list",
+            "resources.list",
             "users.list",
             "subCompanies.list",
             "pictures.get",
@@ -2242,6 +2263,10 @@
             "folders.setLock",
             "folders.delete",
             "files.move",
+            "resources.saveFolder",
+            "resources.deleteFolder",
+            "resources.updateFile",
+            "resources.deleteFile",
             "projects.setLeader",
             "projects.pause",
             "projects.resume",

@@ -451,6 +451,14 @@ export const ProjectFolder = z.object({
 });
 export type ProjectFolder = z.infer<typeof ProjectFolder>;
 
+/**
+ * A folder of the Resources page (fbk_078, owner 2026-11-05): the shared files of the whole office, such as building codes and office policies.
+ * One level deep, with no stage and no preset. The office settings keep the list (Settings.resourceFolders, as a project keeps its folders), so no
+ * table is needed. A locked folder, and every file in it, shows only to the people who hold the switch "Locked folders" (folder.locked).
+ */
+export const ResourceFolder = ProjectFolder.omit({ stageId: true, preset: true });
+export type ResourceFolder = z.infer<typeof ResourceFolder>;
+
 export const Project = z.object({
   id: ProjectId,
   /** The old form KH-26-014, or the new form YYMMSSINI-CLS-Type (owner, 2026-10-05, lib/projectCode.ts). Two projects of one contract share one code. */
@@ -1053,6 +1061,12 @@ export const FileRec = z.object({
    * missing: the file sits at the root of its stage. Optional, so older files load.
    */
   folderId: FolderId.nullable().optional(),
+  /**
+   * A file of the Resources page (fbk_078, owner 2026-11-05): a file of the whole office, with no project, no stage and no task. Every person reads it
+   * and downloads it. folderId names a folder of Settings.resourceFolders, or none (the root of Resources). A file in a locked folder shows only to the
+   * holders of the switch "Locked folders". Optional, so older files load.
+   */
+  resource: z.literal(true).optional(),
   name: z.string().trim().min(1).max(200),
   versions: z.array(FileVersion).min(1),
 });
@@ -1237,6 +1251,8 @@ export const Settings = z.object({
    * on. Read it with officeWorkHoursOf (lib/quietHours.ts).
    */
   workHours: OfficeWorkHours.optional(),
+  /** The folders of the Resources page (fbk_078). Optional, so an office saved before Resources loads. Read it with resourceFoldersFor, never raw. */
+  resourceFolders: z.array(ResourceFolder).max(MAX_FOLDERS).optional(),
 });
 export type Settings = z.infer<typeof Settings>;
 

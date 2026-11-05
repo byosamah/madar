@@ -32,11 +32,11 @@ describe('the catalog module equals the catalog JSON in docs', () => {
     expect(fromModule).toEqual(fromJson);
   });
 
-  it('counts 13 sections, 93 powers and 122 switches (Locked folders added 1 power and 1 switch on 2026-10-29; Mention everyone added 1 power and 1 switch on 2026-10-22; hidden projects added 3 powers and 4 switches; AI project set-up added 1 power and 1 switch on 2026-10-25; the two AI switches of the MCP parity track added 2 powers and 2 switches on 2026-10-26; Link Daftra invoices added 1 power and 1 switch on 2026-10-26)', () => {
+  it('counts 13 sections, 94 powers and 123 switches (Manage office resources added 1 power and 1 switch on 2026-11-05; Locked folders added 1 power and 1 switch on 2026-10-29; Mention everyone added 1 power and 1 switch on 2026-10-22; hidden projects added 3 powers and 4 switches; AI project set-up added 1 power and 1 switch on 2026-10-25; the two AI switches of the MCP parity track added 2 powers and 2 switches on 2026-10-26; Link Daftra invoices added 1 power and 1 switch on 2026-10-26)', () => {
     expect(CATALOG_SECTIONS).toHaveLength(13);
-    expect(CATALOG_SECTIONS.flatMap((s) => s.powers)).toHaveLength(93);
-    expect(CATALOG_RIGHT_IDS).toHaveLength(122);
-    expect(new Set(CATALOG_RIGHT_IDS).size).toBe(122);
+    expect(CATALOG_SECTIONS.flatMap((s) => s.powers)).toHaveLength(94);
+    expect(CATALOG_RIGHT_IDS).toHaveLength(123);
+    expect(new Set(CATALOG_RIGHT_IDS).size).toBe(123);
     expect(CATALOG_RIGHT_IDS).toEqual(switches.map((w) => w.id));
   });
 
@@ -89,8 +89,8 @@ describe('the catalog module equals the catalog JSON in docs', () => {
     expect(MCP_TOOLS_BY_SWITCH['ai.readChats']).toEqual(['chats.list', 'chats.messages', 'chats.waiting', 'chats.unreadCount']);
     // pictures.get came after the catalog was written (owner, 2026-10-21): it reads work data, with the rights of the screens.
     expect(MCP_TOOLS_BY_SWITCH['ai.readWork']).toContain('pictures.get');
-    expect(MCP_TOOLS_BY_SWITCH['ai.readWork']).toHaveLength(22);
-    expect(Object.values(MCP_TOOLS_BY_SWITCH).flatMap((tools) => [...(tools ?? [])])).toHaveLength(157);
+    expect(MCP_TOOLS_BY_SWITCH['ai.readWork']).toHaveLength(23);
+    expect(Object.values(MCP_TOOLS_BY_SWITCH).flatMap((tools) => [...(tools ?? [])])).toHaveLength(162);
   });
 
   it('keeps every need inside the catalog, and every .all switch needs its .lead or .team sibling', () => {
@@ -128,6 +128,6 @@ describe('expandRights and withNeeds', () => {
     for (const id of CATALOG_RIGHT_IDS) expect(STORED_RIGHT_IDS).toContain(id);
     for (const id of LEGACY_RIGHT_IDS) expect(STORED_RIGHT_IDS).toContain(id);
     expect(new Set(STORED_RIGHT_IDS).size).toBe(STORED_RIGHT_IDS.length);
-    expect(STORED_RIGHT_IDS).toHaveLength(122 + 12);
+    expect(STORED_RIGHT_IDS).toHaveLength(123 + 12);
   });
 });

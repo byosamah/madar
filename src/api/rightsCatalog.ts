@@ -1,5 +1,5 @@
 /**
- * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 93 powers, 122 switches. It is a plain copy of
+ * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 94 powers, 123 switches. It is a plain copy of
  * docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json, without the words (the labels and the hints are word keys of the
  * screens). A test (rightsCatalog.test.ts) checks that this file and the JSON agree. permissions.ts is in the first load of the real
  * build, so this file takes no value from zod or from the schema files.
@@ -35,7 +35,7 @@ export type CatalogPower = {
 
 export type CatalogSection = { readonly key: string; readonly powers: readonly CatalogPower[] };
 
-/** The 121 switch ids, in the order of the sections of the role sheet. */
+/** The 123 switch ids, in the order of the sections of the role sheet. */
 export const CATALOG_RIGHT_IDS = [
   'project.create', 'client.create', 'project.details.lead', 'project.details.all', 'project.team.lead', 'project.team.all',
   'project.stages.lead', 'project.stages.all', 'project.deadlines.lead', 'project.deadlines.all', 'project.template.lead',
@@ -48,7 +48,7 @@ export const CATALOG_RIGHT_IDS = [
   'meeting.any.all', 'meeting.minutesAny.lead', 'meeting.minutesAny.all', 'post.create.team', 'post.create.all',
   'comment.create.team', 'comment.create.all', 'post.editOwn', 'project.links.team', 'project.links.all', 'file.upload.team',
   'file.upload.all', 'file.deliver.team', 'file.deliver.all', 'file.share', 'file.deleteOwn', 'file.deleteAny.lead',
-  'file.deleteAny.all', 'folder.locked', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.project.team', 'chat.project.all',
+  'file.deleteAny.all', 'folder.locked', 'resources.manage', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.project.team', 'chat.project.all',
   'chat.mentionEveryone', 'tracker.log.team', 'tracker.log.all', 'tracker.reply', 'tracker.export', 'tracker.deleteOwn', 'tracker.deleteAny.lead',
   'tracker.deleteAny.all', 'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove',
   'clients.change', 'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive',
@@ -355,6 +355,12 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'folder.locked', scope: null, basic: false, newPower: true, needs: [] },
         ],
       },
+      {
+        power: 'resources.manage',
+        switches: [
+          { id: 'resources.manage', scope: null, basic: false, newPower: true, needs: [] },
+        ],
+      },
     ],
   },
   {
@@ -593,7 +599,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.readWork', mcpTools: ['projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'meetings.list', 'meetings.get', 'tracker.list', 'deadlines.list', 'files.list', 'users.list', 'subCompanies.list', 'pictures.get', 'dashboard.get', 'events.list', 'search.query', 'notifications.list', 'notifications.count', 'users.get', 'teams.list', 'settings.get'],
+        power: 'ai.readWork', mcpTools: ['projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'meetings.list', 'meetings.get', 'tracker.list', 'deadlines.list', 'files.list', 'resources.list', 'users.list', 'subCompanies.list', 'pictures.get', 'dashboard.get', 'events.list', 'search.query', 'notifications.list', 'notifications.count', 'users.get', 'teams.list', 'settings.get'],
         switches: [
           { id: 'ai.readWork', scope: null, basic: true, needs: ['ai.connect'] },
         ],
@@ -635,7 +641,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'stages.replace', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.setLock', 'folders.delete', 'files.move', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink', 'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'members.add', 'members.addTeam', 'members.remove', 'members.update', 'stages.setPrerequisites', 'deadlines.delete', 'files.link', 'files.delete', 'files.markDelivered', 'files.share', 'files.uploadContent'],
+        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'stages.replace', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.setLock', 'folders.delete', 'files.move', 'resources.saveFolder', 'resources.deleteFolder', 'resources.updateFile', 'resources.deleteFile', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink', 'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'members.add', 'members.addTeam', 'members.remove', 'members.update', 'stages.setPrerequisites', 'deadlines.delete', 'files.link', 'files.delete', 'files.markDelivered', 'files.share', 'files.uploadContent'],
         switches: [
           { id: 'ai.projects', scope: null, basic: true, needs: ['ai.connect'] },
         ],
