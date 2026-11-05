@@ -21,9 +21,11 @@ describe('the private mark', () => {
     expect(users.filter((file) => !read(file).includes('PRIVATE'))).toEqual([]);
   });
 
-  it('is in every file that calls useFileUrl', () => {
-    // The preview of a file moved to useFileLink (fbk_079: it needs `broken`), so no screen may call useFileUrl now. The rule holds for a new one.
-    const users = SOURCES.filter((file) => /\buseFileUrl\(/.test(read(file)));
+  it('is in every file that calls useFileUrl or useFileLink', () => {
+    // useFileUrl has no caller left (the file preview moved to useFileLink in fbk_079, which needs `broken`). The check stays on both hooks, so a new caller of either needs the mark, and it keeps a minimum so that a check that finds nothing fails.
+    const users = SOURCES.filter((file) => /\buse(FileUrl|FileLink)\(/.test(read(file)));
+    expect(users.length).toBeGreaterThanOrEqual(5);
+    expect(users).toContain('src/features/project/files/PreviewSheet.tsx');
     expect(users.filter((file) => !read(file).includes('PRIVATE'))).toEqual([]);
   });
 
