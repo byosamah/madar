@@ -68,6 +68,12 @@ export function stubOf(parts: OfficeParts): OfficeStub {
     health: () => parts.health(),
     status: (input) => parts.status(input),
     init: (input, net) => parts.init(input, net),
+    setState: (input) => parts.setState(input),
+    setLimits: (input) => parts.setLimits(input),
+    setIdentity: (input) => parts.setIdentity(input),
+    setPlatformOwners: (input) => parts.setPlatformOwners(input),
+    person: (input) => parts.person(input),
+    reinvite: (input, net) => parts.reinvite(input, net),
     // As Office.fetch: the office ops of exit wave 4 under /office/, else the socket. The drop of a spare object is workerd only.
     fetch: (request) => (new URL(request.url).pathname.startsWith('/office/') ? parts.ops(request) : parts.socket(request)),
   };

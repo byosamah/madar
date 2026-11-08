@@ -35,11 +35,11 @@ import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, TICKET_REFUSED, accep
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
 import { EnterpriseFacts } from '../enterprise/facts';
 import { EnterpriseGate } from '../enterprise/gate';
-import { initEnterprise } from '../enterprise/lifecycle';
+import { initEnterprise, reinviteAdmin, writeIdentity, writeLimits, writePlatformOwners, writeState } from '../enterprise/lifecycle';
 import { runMailRoute } from '../enterprise/mailRoute';
 import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { enterpriseStatusOf } from '../enterprise/status';
-import type { EnterpriseInit, EnterpriseStatus } from '../enterprise/types';
+import type { EnterpriseInit, EnterpriseLimits, EnterpriseState, EnterpriseStatus } from '../enterprise/types';
 import { officeTyping, socketClosed, stateMessage } from './presence';
 import { importBegin, importFinish, importPart, importStepOf, type ImportStep } from './import';
 import { netPorts, type NetApi } from './net';
@@ -123,6 +123,18 @@ export type OfficeParts = {
   status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus>;
   /** The first start of an enterprise (plan C): its row, its settings, the first Admin and the invitation. A repeat changes nothing. */
   init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>>;
+  /**
+   * The changes that the platform makes (plan C, Task 6). setState runs on a paused object too, so a resume works. The other four refuse
+   * a paused object. Each one names the id in ent, and the gate checks it first.
+   */
+  setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void>;
+  setLimits(input: { ent: EnterpriseId; limits: EnterpriseLimits }): Promise<void>;
+  setIdentity(input: { ent: EnterpriseId; name: string; nameAr: string; logo: string | null }): Promise<void>;
+  setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
+  /** The Madar person behind a sign-in id, or null for a turned-off, a removed, an agent or an unknown one. */
+  person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
+  /** The invitation of the first Admin again. */
+  reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>>;
   /** One office op of the Worker (exit wave 4): /office/export, /office/import and /office/peek, as JSON in and out. */
   ops(request: Request): Promise<Response>;
   /** The counts of the UTC day of now: the day row and the counts that the meter holds in memory still (exit wave 4). */
@@ -559,6 +571,62 @@ export function officeParts(o: PartsInput): OfficeParts {
         return { ok: true, value: out };
       } catch (error) {
         log.error('The first start of an enterprise failed.', { ent: input.ent, error: error instanceof Error ? error.message : String(error) });
+        return { ok: false, error: runErrorOf(error) };
+      }
+    },
+    async setState(input) {
+      const refused = await guard(input.ent, { allow: 'paused' });
+      if (refused) throw refusalError(refused);
+      meter.request();
+      await writeState({ db, gate, facts }, input.state);
+      // A paused enterprise has no live screen: every socket closes, and a person who comes back meets the paused answer.
+      if (input.state === 'paused') {
+        for (const socket of o.sockets.list('office')) {
+          try {
+            socket.close(1012, 'Paused.');
+          } catch {
+            // The socket is closed already.
+          }
+        }
+      }
+    },
+    async setLimits(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      await writeLimits({ db, gate, facts }, input.limits);
+    },
+    async setIdentity(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      await writeIdentity(db, { name: input.name, nameAr: input.nameAr, logo: input.logo });
+    },
+    async setPlatformOwners(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      await writePlatformOwners({ db, facts }, input.userIds);
+    },
+    async person(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      try {
+        const principal = o.principal({ kind: 'browser', authUserId: input.authUserId }, await office());
+        return { userId: principal.userId };
+      } catch {
+        return null;
+      }
+    },
+    async reinvite(input, net) {
+      const refused = await guard(input.ent);
+      if (refused) return { ok: false, error: refused };
+      meter.request();
+      try {
+        return { ok: true, value: await reinviteAdmin({ db, clock, depsFor: () => depsFor(net) }) };
+      } catch (error) {
+        if (!(error instanceof ApiError)) log.error('The invitation of the first Admin did not go out.', { error: error instanceof Error ? error.message : String(error) });
         return { ok: false, error: runErrorOf(error) };
       }
     },

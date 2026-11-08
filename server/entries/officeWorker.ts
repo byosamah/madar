@@ -19,7 +19,7 @@ import { padTo } from '../enterprise/pad';
 import type { PlatformStub } from '../enterprise/platform/stub';
 import { entRouter, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
 import { challengeOf } from '../mcp/metadata';
-import type { EnterpriseInit, EnterpriseStatus } from '../enterprise/types';
+import type { EnterpriseInit, EnterpriseLimits, EnterpriseState, EnterpriseStatus } from '../enterprise/types';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
 import { runInHost } from '../core/after';
@@ -104,6 +104,12 @@ export type OfficeStub = {
   health(): Promise<OfficeHealth>;
   status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus>;
   init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>>;
+  setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void>;
+  setLimits(input: { ent: EnterpriseId; limits: EnterpriseLimits }): Promise<void>;
+  setIdentity(input: { ent: EnterpriseId; name: string; nameAr: string; logo: string | null }): Promise<void>;
+  setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
+  person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
+  reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>>;
   fetch(request: Request): Promise<Response>;
 };
 

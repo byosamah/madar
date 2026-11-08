@@ -1,10 +1,14 @@
 import { User, defaultPreferences } from '../../src/api/contract/entities';
+import { ApiError } from '../../src/api/errors';
 import { emptyState } from '../../src/api/store';
+import { hitLimit } from '../auth/rateLimit';
+import { RESEND_PER_DAY } from '../calls/people';
 import { INVITE_KIND, inviteRow } from '../auth/invite';
 import { importSigninRows, type SigninExportRow } from '../auth/own/import';
 import { processOutbox, writeOutbox } from '../core/effects';
 import type { Clock, Deps } from '../core/ports';
-import type { LiteDb } from '../data/lite/db';
+import { liteDbOf, type LiteDb } from '../data/lite/db';
+import { readLiteOffice, writeOfficeSnapshot } from '../data/lite/office';
 import { insertRow } from '../data/lite/save';
 import { DEFAULT_SETTINGS } from '../data/lite/schema';
 import { rowOf } from '../data/rows';
@@ -12,7 +16,7 @@ import { TABLES } from '../data/tables';
 import type { EnterpriseFacts } from './facts';
 import type { EnterpriseGate } from './gate';
 import { normalizeEmail } from './ids';
-import type { EnterpriseInit } from './types';
+import type { EnterpriseInit, EnterpriseLimits, EnterpriseState } from './types';
 
 /**
  * The life of one enterprise object (Madar enterprises, plan C): the first start (init) and the changes that the platform makes later
@@ -83,4 +87,62 @@ export async function initEnterprise(o: InitOptions, input: EnterpriseInit): Pro
     await processOutbox(o.depsFor(), ids);
   }
   return { adminUserId: FIRST_ADMIN_ID };
+}
+
+// ---- The changes of a made enterprise (plan C, Task 6) ----
+
+/** The limits of the object, as the table enterprise keeps them (JSON text), and the facts in memory. */
+export async function writeLimits(o: Pick<InitOptions, 'db' | 'gate' | 'facts'>, limits: EnterpriseLimits): Promise<void> {
+  await o.db.tx('write', (q) => q('update enterprise set limits = ?1', [JSON.stringify(limits)]));
+  o.gate.forget();
+  await o.gate.load();
+  o.facts.set({ limits });
+}
+
+/** The state of the object: active or paused. A creating row is never written back (the platform keeps that state). */
+export async function writeState(o: Pick<InitOptions, 'db' | 'gate' | 'facts'>, state: EnterpriseState): Promise<void> {
+  if (state === 'creating') throw new ApiError('invalid_input', 'An object takes the state active or paused.');
+  await o.db.tx('write', (q) => q('update enterprise set state = ?1', [state]));
+  o.gate.forget();
+  await o.gate.load();
+  o.facts.set({ state });
+}
+
+/**
+ * The name, the Arabic name and the logo, into the Settings row. One transaction: the row, the office version and the snapshot, so the next
+ * read of the office sees them (the rule of lite/office.ts).
+ */
+export async function writeIdentity(db: LiteDb, brand: { name: string; nameAr: string; logo: string | null }): Promise<void> {
+  await db.tx('write', async (q) => {
+    const office = await readLiteOffice(liteDbOf(q), q);
+    const { enterpriseLogo: _old, ...rest } = office.lists.settings;
+    const settings = { ...rest, enterpriseName: brand.name, enterpriseNameAr: brand.nameAr, ...(brand.logo ? { enterpriseLogo: brand.logo } : {}) };
+    await q("update settings set doc = ?1 where id = 'office'", [JSON.stringify(settings)]);
+    const [meta] = await q<{ version: number }>('update office_meta set version = version + 1 where id = 1 returning version');
+    await writeOfficeSnapshot(q, { ...office.lists, settings }, Number(meta.version));
+  });
+}
+
+/** The user ids that are platform owners in this enterprise (enterprise_use.owners), and the facts in memory. */
+export async function writePlatformOwners(o: Pick<InitOptions, 'db' | 'facts'>, userIds: readonly string[]): Promise<void> {
+  const owners = [...new Set(userIds)].sort();
+  await o.db.tx('write', (q) => q('update enterprise_use set owners = ?1 where id = 1', [JSON.stringify(owners)]));
+  o.facts.set({ owners });
+}
+
+/** The invitation of the first Admin, again. It refuses when the Admin set a password, and after 5 sends in a day (the rule of users.resendInvite). */
+export async function reinviteAdmin(o: Pick<InitOptions, 'db' | 'clock' | 'depsFor'>): Promise<{ sentAt: string }> {
+  const [admin] = await o.db.statement<{ password_set: number }>('read', 'select password_set from auth_users where user_id = ?1', [FIRST_ADMIN_ID]);
+  if (!admin) throw new ApiError('not_found', 'This enterprise has no first Admin yet.');
+  if (Number(admin.password_set) === 1) throw new ApiError('conflict', 'This person accepted the invitation already.', { reason: 'already_accepted' });
+  const now = o.clock.now();
+  const ids = await o.db.tx('write', async (q) => {
+    const limit = await hitLimit(q, { key: `invite:${FIRST_ADMIN_ID}`, limit: RESEND_PER_DAY, windowMs: 24 * 60 * 60 * 1000, now });
+    if (!limit.ok) {
+      throw new ApiError('conflict', `This person got ${RESEND_PER_DAY} invitations today. Try again tomorrow.`, { reason: 'invite_limit', retryAfterMs: limit.retryAfterMs });
+    }
+    return writeOutbox(q, [inviteRow(FIRST_ADMIN_ID)]);
+  });
+  await processOutbox(o.depsFor(), ids);
+  return { sentAt: now.toISOString() };
 }
