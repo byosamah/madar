@@ -17,6 +17,8 @@ import { BadAnswer, clientAnswerOf, clientsAnswerOf, invoiceAnswerOf, invoicesAn
  */
 
 export const DAFTRA_TIMEOUT_MS = 10_000;
+/** The start of the path of every Daftra request. The Worker side of the office port (server/office/net.ts) checks it too. */
+export const DAFTRA_API_PREFIX = '/api2/';
 
 /** `read_only`: the guard of readOnly.ts refused a request that is not a read. It never leaves Madar, and it never comes back on a retry. */
 export type DaftraErrorCode = 'bad_key' | 'refused' | 'not_found' | 'rate_limited' | 'server' | 'timeout' | 'unreachable' | 'bad_answer' | 'read_only';
@@ -71,7 +73,7 @@ export function daftraClientOf(settings: DaftraSettings): DaftraClient {
   async function get(path: string, query: Record<string, string> = {}): Promise<unknown> {
     // The read-only lock (readOnly.ts): every request goes through it, so a request that is not a GET never leaves Madar.
     const run = readOnlyFetch(settings.fetch ?? globalThis.fetch);
-    const url = `https://${settings.site}/api2/${path}${Object.keys(query).length > 0 ? `?${new URLSearchParams(query).toString()}` : ''}`;
+    const url = `https://${settings.site}${DAFTRA_API_PREFIX}${path}${Object.keys(query).length > 0 ? `?${new URLSearchParams(query).toString()}` : ''}`;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const limit = new Promise<never>((_, reject) => {

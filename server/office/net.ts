@@ -1,6 +1,7 @@
 import { isPushEndpoint } from '../../src/api/contract/push';
 import type { Config, FileStoreKind, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
-import { DAFTRA_TIMEOUT_MS } from '../daftra/client';
+import { DAFTRA_API_PREFIX, DAFTRA_TIMEOUT_MS } from '../daftra/client';
+import { readOnlyFetch } from '../daftra/readOnly';
 import { GOOGLE_CONNECT_CALL_MS } from '../google/api';
 import { MailSendError } from '../mail/resend';
 import { PushSendError } from '../push/send';
@@ -130,6 +131,8 @@ export function googleRequest(run: typeof globalThis.fetch) {
 
 /** The Daftra GET in the Worker: the account is found by its site, the key comes from the Worker, 10 s at most. */
 export function daftraRequest(accounts: NonNullable<Config['daftra']>, run: typeof globalThis.fetch) {
+  // The read-only lock of the Daftra link (server/daftra/readOnly.ts) holds at this door too.
+  const guarded = readOnlyFetch(run);
   return async (req: { url: string }): Promise<NetAnswer<NetHttpReply>> => {
     let parsed: URL;
     try {
@@ -138,10 +141,10 @@ export function daftraRequest(accounts: NonNullable<Config['daftra']>, run: type
       return refusal('an address that is not an address');
     }
     const account = Object.values(accounts).find((one) => one.site.toLowerCase() === parsed.hostname);
-    if (!account || parsed.protocol !== 'https:' || parsed.username !== '' || parsed.password !== '' || parsed.port !== '' || !parsed.pathname.startsWith('/api2/')) {
+    if (!account || parsed.protocol !== 'https:' || parsed.username !== '' || parsed.password !== '' || parsed.port !== '' || !parsed.pathname.startsWith(DAFTRA_API_PREFIX)) {
       return refusal('a Daftra address');
     }
-    return outsideAnswer(() => run(parsed.href, { method: 'GET', headers: { apikey: account.key, Accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(DAFTRA_TIMEOUT_MS) }));
+    return outsideAnswer(() => guarded(parsed.href, { method: 'GET', headers: { apikey: account.key, Accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(DAFTRA_TIMEOUT_MS) }));
   };
 }
 
