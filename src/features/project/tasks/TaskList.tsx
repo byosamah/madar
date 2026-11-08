@@ -88,7 +88,11 @@ export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
         const hidden = doneCounts[stage.id] ?? 0;
         const total = stageRows.length + hidden;
         const done = hidden + stageRows.filter((row) => row.task.status === 'done').length;
-        const count = phone && !filtered && total > 0 ? t('phoneProject.tasks.doneOf', { done, total }) : t('tasks.count', { n: stageRows.length });
+        // Under the filter All, a phone says "n of m done" and a desk says "n open, m done"; the hidden done to-dos are in the total. Any other
+        // filter lists fewer rows from the server, so both would lie there and the plain count stays.
+        const count = filtered || total === 0
+          ? t('tasks.count', { n: stageRows.length })
+          : phone ? t('phoneProject.tasks.doneOf', { done, total }) : t('tasks.openDone', { open: total - done, done });
         const add = detail.viewerCan.addTask && <QuickAdd detail={detail} stage={stage} onOpen={onOpen} />;
         return (
         <section key={stage.id} aria-labelledby={`stage-${stage.id}`} className="surface overflow-hidden rounded-card pb-2">

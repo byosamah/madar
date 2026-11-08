@@ -432,7 +432,6 @@
     "addedFromTemplate": "Added “{{title}}” from a template.",
     "versionBadge": "v{{n}}",
     "versionLabel": "Version {{n}}",
-    "view": "To-do view",
     "views": {
       "list": "List",
       "board": "Board"

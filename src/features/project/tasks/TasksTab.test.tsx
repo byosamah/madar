@@ -60,7 +60,9 @@ describe('the Tasks tab list', () => {
   it('does not count the board view as a filter', async () => {
     await renderApp(TASKS);
     await screen.findByText('Stair details');
-    await userEvent.click(within(await filter()).getByRole('radio', { name: 'Board' }));
+    // The view choice has its own View button now (fbk_085): it leaves the Filter box.
+    await userEvent.click(await screen.findByRole('button', { name: 'View' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'View' })).getByRole('radio', { name: 'Board' }));
     await userEvent.keyboard('{Escape}');
     expect(await screen.findByRole('button', { name: 'Filter' })).toBeInTheDocument();
   });

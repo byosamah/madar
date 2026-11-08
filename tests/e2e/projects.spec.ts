@@ -12,12 +12,12 @@ async function expectNoSeriousA11yIssues(page: Page): Promise<void> {
   expect.soft(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 }
 
-/** The task Filter dialog holds the View choice. Pick Board, then close the dialog. */
+/** The View button beside Filter holds the View choice (fbk_085). Pick Board, then close the dialog. */
 async function chooseBoard(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^Filter/ }).click();
-  await page.getByRole('dialog', { name: 'Filter' }).getByRole('radio', { name: 'Board' }).click();
+  await page.getByRole('button', { name: 'View', exact: true }).click();
+  await page.getByRole('dialog', { name: 'View' }).getByRole('radio', { name: 'Board' }).click();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Filter' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'View' })).toHaveCount(0);
 }
 
 async function useArabic(page: Page): Promise<void> {

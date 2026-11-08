@@ -454,6 +454,7 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User,
     overdue: isOverdue(task, today),
     canMove: mayChangeTask(viewer, 'work', resource),
     canEditPeople: mayAssignTask(viewer, resource),
+    canEditDetails: mayChangeTask(viewer, 'details', resource),
     waitingFor: waitingOf(state, task, index),
   };
 }

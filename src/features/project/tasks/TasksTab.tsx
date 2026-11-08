@@ -4,9 +4,9 @@ import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../../app/choices';
 import type { ProjectDetail, TaskRow } from '../../../api/contract/views';
 import { useCall } from '../../../app/runtime';
-import { useIsPhone } from '../../../app/useIsPhone';
 import { useStableHandler } from '../../../app/useStableHandler';
 import { FilterButton } from '../../../components/FilterButton';
+import { todayISO } from '../../../lib/dates';
 import { oneOf } from '../../../lib/params';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { TASK_PANEL, usePanelLink } from '../panelLink';
@@ -15,7 +15,8 @@ import { setFilterParam, type TabProps } from '../tabs';
 import { TaskBoard } from './TaskBoard';
 import { TaskList } from './TaskList';
 import { TaskSheet } from './TaskSheet';
-import { ViewButton } from './ViewButton';
+import { WorkViewButton } from '../../work/WorkViewButton';
+import { boardWindowRows } from './boardWindow';
 
 const FILTERS = ['all', 'mine', 'overdue', 'flagged', 'no_lead'] as const;
 /** The Show choices of the tab, for the read that the project page starts with projects.get (tabs.tsx, FET-2). */
@@ -37,7 +38,6 @@ const TasksBody = memo(function TasksBody({ detail, filter, showDone, view, rows
   onOpen: (taskId: string, thread?: boolean) => void; onSendBack: (taskId: string) => void; onRetry: () => void;
 }) {
   const { t } = useTranslation();
-  const phone = useIsPhone();
   // Hidden done tasks still count, so a finished stage says so instead of "No tasks here yet." (plan 5 clarification 3).
   const doneCounts: Record<string, number> = {};
   for (const row of rows ?? []) if (row.task.status === 'done' && row.task.stageId) doneCounts[row.task.stageId] = (doneCounts[row.task.stageId] ?? 0) + 1;
@@ -57,17 +57,9 @@ const TasksBody = memo(function TasksBody({ detail, filter, showDone, view, rows
               {t('tasks.showDone')}
             </label>
           )}
-          {/* A phone has its own View button next to Filter. */}
-          {!phone && (
-            <fieldset className="flex flex-col border-t border-hairline pt-2">
-              <legend className={LEGEND}>{t('tasks.view')}</legend>
-              {VIEWS.map((value) => (
-                <RadioChoice key={value} name="tasks-view" checked={view === value} label={t(`tasks.views.${value}`)} onChange={() => onView(value)} />
-              ))}
-            </fieldset>
-          )}
         </FilterButton>
-        {phone && <ViewButton view={view} onView={onView} />}
+        {/* The View button sits beside Filter on a desk and a phone, with the look of the View button of Work (fbk_085, tsk_443). */}
+        <WorkViewButton view={view} onView={onView} inline />
         {unledCount > 0 && filter !== 'no_lead' && (
           <p className="text-footnote text-ink-2">
             {t('lead.countLine', { count: unledCount })}{' '}
@@ -79,7 +71,13 @@ const TasksBody = memo(function TasksBody({ detail, filter, showDone, view, rows
       {error && rows === undefined ? <LoadFailed error={error} onRetry={onRetry} /> : null}
       {rows && (view === 'list'
         ? <TaskList detail={detail} rows={showDone ? rows : rows.filter((row) => row.task.status !== 'done')} filtered={filter !== 'all'} onOpen={onOpen} doneCounts={showDone ? {} : doneCounts} />
-        : <TaskBoard rows={rows} reviews={detail.viewerCan.review} onOpen={onOpen} onSendBack={onSendBack} />)}
+        : (
+          // The stages of a continuous project run together: its board has one column for each stage (fbk_085). Any other board holds the
+          // open to-dos and the done to-dos of the last 7 days.
+          detail.project.continuous
+            ? <TaskBoard rows={rows} reviews={detail.viewerCan.review} stages={detail.stages} onOpen={onOpen} onSendBack={onSendBack} />
+            : <TaskBoard rows={boardWindowRows(rows, todayISO())} reviews={detail.viewerCan.review} showStage doneNote={t('phoneWork.board.doneRange')} onOpen={onOpen} onSendBack={onSendBack} />
+        ))}
     </>
   );
 });

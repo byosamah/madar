@@ -108,8 +108,8 @@ describe('press and hold on a Board card', () => {
       task.ownerId = null;
       task.status = 'todo';
     });
-    // On a phone the project To-dos tab switches List and Board with one press of its View button (track P).
-    await userEvent.click(await screen.findByRole('button', { name: /^View/ }));
+    // On a phone the project To-dos tab switches List and Board with the round View toggle of Work (fbk_085, tsk_443).
+    await userEvent.click(await screen.findByRole('button', { name: 'Board' }));
     await screen.findByRole('region', { name: /^To do/ });
     const card = cardOf('Specifications draft', /^To do/);
     layout(card);

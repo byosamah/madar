@@ -10,8 +10,8 @@ const as = (userId: string) => (state: State) => {
 const TASKS = '/projects/prj_001?tab=tasks';
 
 async function openBoard() {
-  await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('radio', { name: 'Board' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'View' }));
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'View' })).getByRole('radio', { name: 'Board' }));
   await userEvent.keyboard('{Escape}');
   await screen.findByRole('region', { name: /^To do/ });
 }

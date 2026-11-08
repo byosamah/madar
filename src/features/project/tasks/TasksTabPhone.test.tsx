@@ -23,11 +23,12 @@ function busiestStage(state: State) {
 }
 
 describe('the To-dos tab on a phone (phone D, P7)', () => {
-  it('shows two buttons: Filter and View', async () => {
+  it('shows two buttons: Filter and the round View toggle of Work (fbk_085, tsk_443)', async () => {
     phoneMedia(true);
     await renderApp(TASKS, as('usr_002'));
     expect(await screen.findByRole('button', { name: /^Filter/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'View: List' })).toHaveClass('min-h-11');
+    expect(screen.getByRole('button', { name: 'Board' })).toHaveClass('size-11', 'rounded-full');
+    expect(screen.queryByRole('button', { name: /^View:/ })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: /^Filter/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Filter' });
     expect(within(sheet).queryByRole('radio', { name: 'Board' })).toBeNull();
@@ -37,8 +38,8 @@ describe('the To-dos tab on a phone (phone D, P7)', () => {
   it('switches to the board in one press and keeps the choice on the device', async () => {
     phoneMedia(true);
     await renderApp(TASKS, as('usr_002'));
-    await userEvent.click(await screen.findByRole('button', { name: 'View: List' }));
-    expect(screen.getByRole('button', { name: 'View: Board' })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Board' }));
+    expect(screen.getByRole('button', { name: 'Board' })).toHaveAttribute('aria-pressed', 'true');
     expect(window.localStorage.getItem('madar.tasks.view')).toBe('board');
   });
 
@@ -118,11 +119,12 @@ describe('the To-dos tab on a phone (phone D, P7)', () => {
     expect(await screen.findByRole('button', { name: 'Show them' })).toBeInTheDocument();
   });
 
-  it('keeps the Filter and View choices of the desk in one box', async () => {
+  it('keeps the View choice of the desk out of the Filter box, in its own View button', async () => {
     await renderApp(TASKS, as('usr_002'));
     await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
     const box = await screen.findByRole('dialog', { name: 'Filter' });
-    expect(within(box).getByRole('radio', { name: 'Board' })).toBeInTheDocument();
+    expect(within(box).queryByRole('radio', { name: 'Board' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'View' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^View:/ })).toBeNull();
   });
 });

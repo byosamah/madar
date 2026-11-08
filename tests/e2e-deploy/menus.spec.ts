@@ -82,8 +82,8 @@ test('header menu reaches every item at 390', async ({ page }) => {
 test('board Move menu on the last Done card reaches every item', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await goto(page, '/projects/prj_001?tab=tasks');
-  await page.getByRole('button', { name: /^Filter/ }).click();
-  await page.getByRole('dialog', { name: 'Filter' }).getByRole('radio', { name: 'Board' }).check();
+  await page.getByRole('button', { name: 'View', exact: true }).click();
+  await page.getByRole('dialog', { name: 'View' }).getByRole('radio', { name: 'Board' }).check();
   await page.keyboard.press('Escape');
   const done = page.getByRole('region', { name: /^Done: \d+/ });
   await expect(done).toBeVisible();

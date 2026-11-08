@@ -196,6 +196,11 @@ export const TaskRow = z.object({
    * of the row opens its small pop-up only then (feedback fbk_006, 2026-10-11). Optional, so older answers still parse.
    */
   canEditPeople: z.boolean().optional(),
+  /**
+   * The viewer may change the details of this task (title, description, stage, flag): the rule of `tasks.update` for those fields
+   * (`task.details`). The board of a continuous project moves a card to another stage only then (fbk_085). Optional, so older answers still parse.
+   */
+  canEditDetails: z.boolean().optional(),
   /** What an open task waits for: the tasks it needs and the stages its stage needs, while they are not done. Empty for a done task. */
   waitingFor: z.object({
     tasks: z.array(z.object({ id: TaskId, title: z.string() })),
