@@ -1,6 +1,6 @@
 import { RpcTarget } from 'cloudflare:workers';
-import type { FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
-import { answerOf, postPush, type NetAnswer, type NetApi } from './net';
+import type { Config, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
+import { answerOf, daftraRequest, googleRequest, postPush, type NetAnswer, type NetApi, type NetHttpReply, type NetHttpRequest } from './net';
 
 /**
  * The network port of the Worker (exit wave 3, server/office/net.ts): the Worker passes one into each office object call, and the
@@ -10,12 +10,18 @@ export class WorkerNet extends RpcTarget implements NetApi {
   readonly #files: FilesPort;
   readonly #mail: MailPort;
   readonly #post: ReturnType<typeof postPush>;
+  readonly #google: ReturnType<typeof googleRequest>;
+  readonly #daftra: ReturnType<typeof daftraRequest> | null;
 
-  constructor(o: { files: FilesPort; mail: MailPort; fetch?: typeof globalThis.fetch }) {
+  /** `daftra`: the Daftra accounts of the Worker. The keys stay here. */
+  constructor(o: { files: FilesPort; mail: MailPort; fetch?: typeof globalThis.fetch; daftra?: NonNullable<Config['daftra']> }) {
     super();
     this.#files = o.files;
     this.#mail = o.mail;
-    this.#post = postPush(o.fetch ?? ((input, init) => fetch(input, init)));
+    const run = o.fetch ?? ((input, init) => fetch(input, init));
+    this.#post = postPush(run);
+    this.#google = googleRequest(run);
+    this.#daftra = o.daftra ? daftraRequest(o.daftra, run) : null;
   }
 
   presignPut(key: string, o: { mimeType: string; size?: number }): Promise<NetAnswer<PresignedPut>> {
@@ -44,5 +50,14 @@ export class WorkerNet extends RpcTarget implements NetApi {
 
   pushPost(endpoint: string, headers: Record<string, string>, timeoutMs: number): Promise<NetAnswer<{ status: number }>> {
     return this.#post(endpoint, headers, timeoutMs);
+  }
+
+  googleFetch(req: NetHttpRequest): Promise<NetAnswer<NetHttpReply>> {
+    return this.#google(req);
+  }
+
+  async daftraGet(req: { url: string }): Promise<NetAnswer<NetHttpReply>> {
+    if (!this.#daftra) return { ok: false, failure: { name: 'NetworkError', message: 'The Worker holds no Daftra account.' } };
+    return this.#daftra(req);
   }
 }

@@ -1,5 +1,7 @@
 import { isPushEndpoint } from '../../src/api/contract/push';
-import type { FileStoreKind, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
+import type { Config, FileStoreKind, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
+import { DAFTRA_TIMEOUT_MS } from '../daftra/client';
+import { GOOGLE_CONNECT_CALL_MS } from '../google/api';
 import { MailSendError } from '../mail/resend';
 import { PushSendError } from '../push/send';
 import { PushConfigError } from '../push/vapid';
@@ -16,6 +18,9 @@ import { PushConfigError } from '../push/vapid';
 
 export type NetFailure = { name: string; message: string; status?: number | null; code?: string; retryable?: boolean };
 export type NetAnswer<T> = { ok: true; value: T } | { ok: false; failure: NetFailure };
+/** A Google request that the object asks the Worker to send. The object adds the token; the Worker keeps only three headers. */
+export type NetHttpRequest = { url: string; method: string; headers: Record<string, string>; body: string | null };
+export type NetHttpReply = { status: number; body: string };
 
 /** What the office object asks the Worker to do on the network. Every answer is a NetAnswer, never a throw. */
 export interface NetApi {
@@ -26,6 +31,10 @@ export interface NetApi {
   remove(keys: string[]): Promise<NetAnswer<null>>;
   sendMail(mail: Mail): Promise<NetAnswer<{ id: string }>>;
   pushPost(endpoint: string, headers: Record<string, string>, timeoutMs: number): Promise<NetAnswer<{ status: number }>>;
+  /** One Google request (the sign-in token address and the Calendar API only). Any HTTP status is a value, not a failure. */
+  googleFetch(req: NetHttpRequest): Promise<NetAnswer<NetHttpReply>>;
+  /** One Daftra GET. The object sends the address only: the Worker adds the key of the account, so the key never crosses to the object. */
+  daftraGet(req: { url: string }): Promise<NetAnswer<NetHttpReply>>;
 }
 
 /** The fields of an error that a caller on the other side reads. */
@@ -72,6 +81,70 @@ export function postPush(fetchImpl: typeof globalThis.fetch) {
     });
 }
 
+/** The longest answer body of a Google or Daftra request, in characters. */
+export const NET_HTTP_MAX_CHARS = 1_000_000;
+const GOOGLE_METHODS: ReadonlySet<string> = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+const GOOGLE_HEADERS: ReadonlySet<string> = new Set(['authorization', 'content-type', 'accept']);
+const GOOGLE_BODY_MAX_CHARS = 64_000;
+const OUTSIDE_FAILURE = 'The outside request did not finish.';
+
+/** True for the Google addresses that the office object may use: the token and revoke addresses, and the Calendar API. */
+export function isGoogleApiUrl(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:' || parsed.username !== '' || parsed.password !== '' || parsed.port !== '') return false;
+  if (parsed.hostname === 'oauth2.googleapis.com') return (parsed.pathname === '/token' || parsed.pathname === '/revoke') && parsed.search === '';
+  return parsed.hostname === 'www.googleapis.com' && parsed.pathname.startsWith('/calendar/v3/calendars');
+}
+
+/** The answer of one outside request: the status and the text. The text of an error never leaves, only a fixed message. */
+async function outsideAnswer(work: () => Promise<Response>): Promise<NetAnswer<NetHttpReply>> {
+  try {
+    const response = await work();
+    const body = await response.text();
+    if (body.length > NET_HTTP_MAX_CHARS) throw new Error('The answer is too long.');
+    return { ok: true, value: { status: response.status, body } };
+  } catch (error) {
+    const name = (error as { name?: unknown } | null)?.name === 'TimeoutError' ? 'TimeoutError' : 'NetworkError';
+    return { ok: false, failure: { name, message: OUTSIDE_FAILURE } };
+  }
+}
+
+const refusal = (what: string): NetAnswer<NetHttpReply> => ({ ok: false, failure: { name: 'NetworkError', message: `The Worker refused ${what}.` } });
+
+/** The Google request in the Worker: a Google address only, three headers only, no redirect, 10 s at most. */
+export function googleRequest(run: typeof globalThis.fetch) {
+  return async (req: NetHttpRequest): Promise<NetAnswer<NetHttpReply>> => {
+    if (!isGoogleApiUrl(req.url)) return refusal('an address that is not a Google address');
+    if (!GOOGLE_METHODS.has(req.method)) return refusal('a method');
+    if (req.body !== null && req.body.length > GOOGLE_BODY_MAX_CHARS) return refusal('a long body');
+    const headers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(req.headers)) if (GOOGLE_HEADERS.has(name.toLowerCase())) headers[name.toLowerCase()] = value;
+    return outsideAnswer(() => run(req.url, { method: req.method, headers, ...(req.body === null ? {} : { body: req.body }), redirect: 'manual', signal: AbortSignal.timeout(GOOGLE_CONNECT_CALL_MS) }));
+  };
+}
+
+/** The Daftra GET in the Worker: the account is found by its site, the key comes from the Worker, 10 s at most. */
+export function daftraRequest(accounts: NonNullable<Config['daftra']>, run: typeof globalThis.fetch) {
+  return async (req: { url: string }): Promise<NetAnswer<NetHttpReply>> => {
+    let parsed: URL;
+    try {
+      parsed = new URL(req.url);
+    } catch {
+      return refusal('an address that is not an address');
+    }
+    const account = Object.values(accounts).find((one) => one.site.toLowerCase() === parsed.hostname);
+    if (!account || parsed.protocol !== 'https:' || parsed.username !== '' || parsed.password !== '' || parsed.port !== '' || !parsed.pathname.startsWith('/api2/')) {
+      return refusal('a Daftra address');
+    }
+    return outsideAnswer(() => run(parsed.href, { method: 'GET', headers: { apikey: account.key, Accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(DAFTRA_TIMEOUT_MS) }));
+  };
+}
+
 /**
  * The most network calls of one object method call. A Worker on Free has 50 subrequests for each invocation; the token check
  * can use one for the key set, and the office object call itself counts with the internal services (1,000). A link on R2 is
@@ -95,7 +168,7 @@ export class NetBudgetSpent extends Error {
 export const NET_IN_TRANSACTION = 'The office object makes no network call inside a transaction: the transaction holds every other request.';
 
 export type NetGuard = { open(): boolean; now(): Date };
-export type NetPorts = { files: FilesPort; mail: MailPort; pushFetch: typeof globalThis.fetch; used(): number };
+export type NetPorts = { files: FilesPort; mail: MailPort; pushFetch: typeof globalThis.fetch; googleFetch: typeof globalThis.fetch; daftraFetch: typeof globalThis.fetch; used(): number };
 
 export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind; maxFileBytes: number }): NetPorts {
   let used = 0;
@@ -130,5 +203,18 @@ export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind;
     const { status } = await call(true, () => net.pushPost(String(input), headers, PUSH_TIMEOUT_MS));
     return new Response(null, { status });
   }) as typeof globalThis.fetch;
-  return { files, mail, pushFetch, used: () => used };
+  // The Google client (server/google/api.ts) gets this fetch. The Worker sends the request and answers the status and the text.
+  const googleFetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const headers = Object.fromEntries(new Headers(init?.headers).entries());
+    const body = typeof init?.body === 'string' ? init.body : null;
+    const reply = await call(true, () => net.googleFetch({ url: String(input), method: (init?.method ?? 'GET').toUpperCase(), headers, body }));
+    return new Response(reply.body === '' ? null : reply.body, { status: reply.status });
+  }) as typeof globalThis.fetch;
+  // The Daftra client (server/daftra/client.ts) gets this fetch. It sends the address only: the key stays in the Worker.
+  const daftraFetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if ((init?.method ?? 'GET').toUpperCase() !== 'GET') throw new Error('Madar only reads Daftra.');
+    const reply = await call(true, () => net.daftraGet({ url: String(input) }));
+    return new Response(reply.body === '' ? null : reply.body, { status: reply.status });
+  }) as typeof globalThis.fetch;
+  return { files, mail, pushFetch, googleFetch, daftraFetch, used: () => used };
 }
