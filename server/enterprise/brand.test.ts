@@ -33,11 +33,12 @@ describe('mailOptionsOf', () => {
     const doc = { enterpriseName: 'Acme', enterpriseNameAr: 'أكمي', enterpriseLogo: 'data:image/png;base64,AAAA' };
     expect(await mailOptionsOf(await deps(doc, 'ent_002'), 'en')).toEqual({ appUrl: APP, brand: { name: 'Acme', logoUrl: `${APP}/api/enterprise-logo/ent_002` } });
     expect((await mailOptionsOf(await deps(doc, 'ent_002'), 'ar')).brand?.name).toBe('أكمي');
-    expect((await mailOptionsOf(await deps(doc), 'en')).brand).toEqual({ name: 'Acme' });
+    // The Postgres path (no enterprise id) reads nothing and keeps the Madar header.
+    expect(await mailOptionsOf(await deps(doc), 'en')).toEqual({ appUrl: APP });
   });
 
   it('reads the Settings row', async () => {
-    const d = await deps({ enterpriseName: 'Acme' });
+    const d = await deps({ enterpriseName: 'Acme' }, 'ent_002');
     expect(await readBrand(d)).toMatchObject({ name: 'Acme', named: true });
   });
 });

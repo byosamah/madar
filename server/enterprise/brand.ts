@@ -38,13 +38,15 @@ export function enterpriseLogoUrl(appUrl: string, ent: EnterpriseId): string {
 export type MailBrand = { name: string; logoUrl?: string };
 
 /**
- * The options that a mail caller passes to a template: the app address, and the brand when the enterprise set a name. A caller with no
- * enterprise id (the Postgres path) passes the name only.
+ * The options that a mail caller passes to a template: the app address, and the brand when the enterprise set a name. The Postgres path (no
+ * enterprise id in the config) reads nothing and keeps the Madar header: it is only the way back for ENT_VADO, and a Settings read there costs three
+ * round trips of a mail that already runs after the answer (server/http/roundTrips.test.ts).
  */
 export async function mailOptionsOf(deps: Pick<Deps, 'db' | 'config'>, lang: Language): Promise<{ appUrl: string; brand?: MailBrand }> {
   const appUrl = deps.config.appUrl;
+  const ent = deps.config.ent;
+  if (ent === undefined) return { appUrl };
   const brand = await readBrand(deps);
   if (!brand.named) return { appUrl };
-  const ent = deps.config.ent;
-  return { appUrl, brand: { name: lang === 'ar' ? brand.nameAr : brand.name, ...(brand.logo && ent ? { logoUrl: enterpriseLogoUrl(appUrl, ent) } : {}) } };
+  return { appUrl, brand: { name: lang === 'ar' ? brand.nameAr : brand.name, ...(brand.logo ? { logoUrl: enterpriseLogoUrl(appUrl, ent) } : {}) } };
 }
