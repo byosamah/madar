@@ -3137,3 +3137,20 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   database, lock and asyncContext ok; /mcp with no token 401; madar.vado.sa serves `bootstrap-KI40ZyNJ.js`, the same as the deploy
   address, and it holds `[2e3,6e3]`.
 - Next on `rb/read-retry`: the PostHog managed proxy on `relay.madar.vado.sa` (What's new `2026-11-08-154`), after its certificate.
+
+## Madar enterprises: core spikes S2 and S3
+Probe: `scripts/proof/ent-core/` (`node scripts/proof/ent-core/run.mjs`, local workerd, sandbox off, it never deploys). Run on 2026-11-08.
+- S3, how an object knows its own name: **yes**. An object made with `idFromName('ent_001')` reports `ctx.id.name` equal to `ent_001` in
+  its constructor, in a method, and after `evictDurableObject`. An object made with `newUniqueId()` reports no name. Decision: the gate
+  compares the object name with the row id (`EnterpriseGate`, option `name`).
+- S2, the directory read of a sign-in. One primary-key read of a `directory` table: a hit reads 1 row, a miss reads 0 rows, and both write
+  0 rows. This holds warm and after an evict (cold: the `create table if not exists` check adds no counted row). A sign-in by email adds
+  one Durable Object request (the platform object) before the request to the enterprise object. A sign-in with an unknown email adds the
+  same one request and sends nothing to an enterprise object.
+- S2, the refusal of an unknown email. `runSigninOp` on empty sign-in tables inside the directory object, with keys that throw when read,
+  answers `invalid_credentials`, the same answer as a wrong password in the office object (`PinOffice.signin`).
+- Time of the two paths on local workerd, 20 runs each, in ms: the office object path has a median of 12.8 and a p95 of 14.5; the
+  refusal path in the directory object has a median of 12.4 and a p95 of 13.4. The difference is inside the noise. (A first run on a cold
+  workerd showed a median of 27.7 and 24.9, a p95 of 84.8 and 79.6, because of the start of the object. Take the warm run.) The refusal
+  path runs one PBKDF2 like the real step, so both answer in about the same time.
+- Rows of the first `put` into the directory: 1 read, 5 written (the table, its index and the row).
