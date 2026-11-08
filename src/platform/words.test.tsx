@@ -120,7 +120,7 @@ describe('the site asks for no key that its words lack', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Pause' }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     // The same in Arabic.
-    await userEvent.click(screen.getByRole('button', { name: 'العربية' }));
+    await userEvent.click(screen.getByRole('button', { name: /العربية/ }));
     await userEvent.click(await screen.findByRole('button', { name: /أكمي/ }));
     dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'إلغاء' }));

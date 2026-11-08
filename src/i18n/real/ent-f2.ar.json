@@ -16,6 +16,9 @@
     "theme": {
       "toDark": "الوضع الداكن",
       "toLight": "الوضع الفاتح"
+    },
+    "language": {
+      "change": "غيّر اللغة إلى {{language}}"
     }
   }
 }

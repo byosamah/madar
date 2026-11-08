@@ -8,6 +8,7 @@ import { PLATFORM_CALL_NAMES, type PlatformApi } from '../api/contract/platform'
 import { ApiError } from '../api/errors';
 import { ToastProvider } from '../app/toasts';
 import { initI18n } from '../i18n';
+import { LogoPicker } from '../features/enterprises/LogoPicker';
 import { EnterprisesScreen } from './EnterprisesScreen';
 import { createSiteQueryClient } from './queryClient';
 import { PlatformProvider } from './usePlatform';
@@ -20,7 +21,7 @@ const row = (o: Record<string, unknown> = {}) => ({
 });
 const METER = {
   day: '2026-11-08', limits: { requests: 100000, rowsRead: 5000000, rowsWritten: 100000, mails: 100 }, total: { requests: 70000, rowsRead: 100, rowsWritten: 10, mails: 3 },
-  share: 0.1, warn: ['requests'], stop: false, enterprises: [],
+  share: 0.1, warn: ['requests'], stop: false, enterprises: [] as { id: string; name: string; nameAr: string; day: { requests: number; rowsRead: number; rowsWritten: number; mails: number } }[],
 };
 
 function fake(o: { rows?: ReturnType<typeof row>[]; createOpen?: boolean; meter?: typeof METER } = {}) {
@@ -75,9 +76,33 @@ describe('the page Madar enterprises', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'New enterprise' })).toBeDisabled());
   });
 
-  it('shows the stop line when the account reached the stop line', async () => {
+  it('names the company of ent_001 in the stop line: it keeps working, the others stop until 03:00 Riyadh', async () => {
+    const day = { requests: 0, rowsRead: 0, rowsWritten: 0, mails: 0 };
+    const meter = { ...METER, stop: true, enterprises: [{ id: 'ent_001', name: "VADOs' Companies", nameAr: 'شركات فادو', day }, { id: 'ent_002', name: 'Acme Co', nameAr: 'أكمي', day }] };
+    await open(fake({ meter }));
+    expect(await screen.findByText("VADOs' Companies keeps working. The other companies stop until 03:00 Riyadh.")).toBeInTheDocument();
+    expect(screen.queryByText(/platform owner/i)).toBeNull();
+    await act(async () => { await i18n.changeLanguage('ar'); });
+    expect(await screen.findByText('تستمر شركات فادو بالعمل. وتتوقف بقية الشركات حتى الساعة 3 فجرًا بتوقيت الرياض.')).toBeInTheDocument();
+    await act(async () => { await i18n.changeLanguage('en'); });
+  });
+
+  it('shows the stop line with no name when the row of ent_001 is not in the meter', async () => {
     await open(fake({ meter: { ...METER, stop: true } }));
-    expect(await screen.findByText(/Other companies wait until 03:00 Riyadh/)).toBeInTheDocument();
+    expect(await screen.findByText('The other companies stop until 03:00 Riyadh.')).toBeInTheDocument();
+  });
+
+  it('keeps the file types of the logo hint inside the sentence in Arabic, so no type is alone on a line', async () => {
+    await act(async () => { await i18n.changeLanguage('ar'); });
+    const view = render(<LogoPicker id="hint-logo" label="Logo" value={null} onChange={() => undefined} name="A" />);
+    const hint = view.container.querySelector('p') as HTMLElement;
+    expect(hint.textContent).toContain('WebP أو JPEG أو PNG');
+    // A full stop after a Latin word moves to the other side in a right-to-left line and can sit alone: the sentence ends in an Arabic word.
+    expect(hint.textContent).not.toMatch(/[A-Za-z]\.?\s*$/);
+    view.unmount();
+    await act(async () => { await i18n.changeLanguage('en'); });
+    const english = render(<LogoPicker id="hint-logo" label="Logo" value={null} onChange={() => undefined} name="A" />);
+    expect(english.container.querySelector('p')?.textContent).toBe('A square picture fits best. It must be a WebP, JPEG or PNG picture.');
   });
 
   it('sends create with the storage in bytes, and shows address_taken and email_taken under their fields', async () => {

@@ -1,12 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '../components/Button';
-import { MadarMark } from '../components/MadarMark';
 import type { PlatformSite } from './client';
 import { EnterprisesScreen } from './EnterprisesScreen';
 import { SignInScreen } from './SignInScreen';
-import { LanguageSwitch, ThemeSwitch } from './SiteControls';
+import { SiteHeader } from './SiteHeader';
 import { PlatformProvider } from './usePlatform';
 
 /**
@@ -30,17 +28,7 @@ export function PlatformApp({ site }: { site: PlatformSite }) {
   return (
     <PlatformProvider api={site.api}>
       <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pb-16 pt-[max(1rem,env(safe-area-inset-top))] text-ink sm:pt-8">
-        <header className="-me-3 flex items-center justify-between gap-3 pb-6">
-          <p data-madar-brand="" className="flex items-center gap-2.5 text-headline text-ink">
-            <MadarMark size={28} />
-            <span>{t('app.name')}</span>
-          </p>
-          <div className="flex flex-wrap items-center justify-end">
-            <ThemeSwitch />
-            <LanguageSwitch />
-            <Button onClick={() => void site.signOut()}>{t('platformSite.signOut')}</Button>
-          </div>
-        </header>
+        <SiteHeader onSignOut={() => void site.signOut()} />
         <main className="min-w-0 flex-1">
           <EnterprisesScreen />
         </main>

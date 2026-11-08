@@ -3,10 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '../components/Button';
 import { TextField } from '../components/Fields';
 import { FormError } from '../components/FormError';
-import { MadarMark } from '../components/MadarMark';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { PlatformSignInFailure, type PlatformSite, type SiteNotice } from './client';
-import { LanguageSwitch, ThemeSwitch } from './SiteControls';
+import { SiteHeader } from './SiteHeader';
 
 /** One sentence for each reason. A wrong email, a wrong password and a turned-off account give the same one, so no one learns which emails exist. */
 function failureKey(error: unknown): string {
@@ -43,16 +42,7 @@ export function SignInScreen({ site, notice }: { site: PlatformSite; notice: Sit
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col px-4 pb-10 pt-[max(1rem,env(safe-area-inset-top))] text-ink sm:pt-16">
-      <div className="-me-3 flex items-center justify-between gap-3 pb-6">
-        <p data-madar-brand="" className="flex items-center gap-2.5 text-headline text-ink">
-          <MadarMark size={28} />
-          {t('enterprises.title')}
-        </p>
-        <div className="flex items-center">
-          <ThemeSwitch />
-          <LanguageSwitch />
-        </div>
-      </div>
+      <SiteHeader />
       <ScreenTitle title={t('platformSite.signIn.title')} />
       <div className="panel flex flex-col gap-4 p-5">
         {notice && <p role="status" className="text-subheadline text-ink-2">{t(notice === 'off' ? 'platformSite.signIn.off' : 'platformSite.signIn.ended')}</p>}

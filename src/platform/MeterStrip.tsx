@@ -3,8 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useLang } from '../app/lang';
 import { LoadFailed } from '../components/LoadFailed';
 import { formatNumber } from '../lib/dates';
+import { nameOf } from './EnterpriseSheet';
 import { usePlatform } from './usePlatform';
 
+/** The id of the company that the day cap never refuses (ENT_VADO in server/enterprise/ids.ts; the site imports no server code). */
+const KEEPS_WORKING = 'ent_001';
 const BARS = ['requests', 'rowsRead', 'rowsWritten', 'mails'] as const;
 
 /** A part of 100, whole, never above 100 for the width of a bar. */
@@ -21,7 +24,9 @@ export function MeterStrip() {
   const meter = useQuery({ queryKey: ['platform', 'meter'], queryFn: () => platform['platform.meter.get']({}), refetchInterval: 5 * 60_000 });
   if (meter.isPending) return null;
   if (meter.isError) return <LoadFailed query={meter} />;
-  const { total, limits, warn, stop } = meter.data;
+  const { total, limits, warn, stop, enterprises } = meter.data;
+  // The day cap never refuses the first company of the list (ent_001, design D2), so the line names it from the list.
+  const keeper = enterprises.find((row) => row.id === KEEPS_WORKING);
   return (
     <section aria-labelledby="meter-title" className="surface flex flex-col gap-4 rounded-card p-5">
       <h2 id="meter-title" className="text-headline text-ink">{t('enterprises.meter.title')}</h2>
@@ -46,7 +51,7 @@ export function MeterStrip() {
           {t('enterprises.meter.warn', { limit: t(`enterprises.meter.${key}`), percent: percentOf(total[key as (typeof BARS)[number]], limits[key as (typeof BARS)[number]]) })}
         </p>
       ))}
-      {stop && <p className="text-subheadline text-late">{t('enterprises.meter.stop')}</p>}
+      {stop && <p className="text-subheadline text-late">{keeper ? t('enterprises.meter.stop', { name: nameOf(keeper, lang) }) : t('enterprises.meter.stopOthers')}</p>}
     </section>
   );
 }

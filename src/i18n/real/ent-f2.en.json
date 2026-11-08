@@ -16,6 +16,9 @@
     "theme": {
       "toDark": "Dark mode",
       "toLight": "Light mode"
+    },
+    "language": {
+      "change": "Change language to {{language}}"
     }
   }
 }
