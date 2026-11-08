@@ -1538,6 +1538,7 @@ order; builders run on Sonnet 5.5. Each track merges into `rb/enterprises`; the 
 - [ ] Proposed (another session's words on main): the Arabic hint of quiet hours (WAR.offHint, QuietHoursSection.test.tsx) writes «إشعاراً»; src/i18n/CLAUDE.md puts the tanween before the alif.
 - [x] Wave 3 merged: plan D tasks 2, 6, 8 to 11, 13 (tracks ent-d2 and ent-d3), the file guard with a required enterprise id, and the Postgres path gives the enterprise ent_001 (f1f9aa74)
 - [x] The full gate, run once (2026-11-08, 19:03 to 19:45): typecheck, the server project (4,323), the unit project (9,541), build:server, test:office (58), test:mcp (679, no new conformance failure) and the smoke tests by hand (140) passed. Four failures, all new on the branch: the prototype bundle holds "supabase" (the real platform client), the first load of the real build is over its limits (972,122 B, gzip 297,948 B, 39 files), src/api/fakeDirectory.test.ts runs in test:lite and test:db with no fake IndexedDB, and two it tests expect the old mail keys.
-- [ ] The gate fix step on `rb/ent-fix` (one builder), then the failed steps again
-- [ ] The full merge gate on `rb/enterprises`, screenshots, then main
-- [ ] Plan E: the move of VADOs' Companies (owner OK at each production step)
+- [x] The gate fix step on `rb/ent-fix` (merged a21ae609): the prototype bundle has no real platform client, the first load is 967,901 B, gzip 295,187 B, 32 files (limits unchanged), fakeDirectory.test.ts is out of test:lite and test:db, the two it tests take the new mail keys. Again: build, build:remote, test:lite, test:db, the two it files and the smoke (140) passed; then the server project (4,324) and the unit project (9,544) on the merge
+- [x] The full merge gate on `rb/enterprises`, screenshots, then main (owner: "Onto main now", 2026-11-08)
+- [ ] Plan E: the move of VADOs' Companies (owner OK at each production step). Owner, 2026-11-08: the test week starts soon after the main merge.
+- [ ] Owner OK needed: remove the worktrees ~/dev/madar-rb/enterprises, ent-a, ent-b, ent-c, ent-d, ent-d2, ent-d3, ent-ui, ent-fix and their branches (all merged)
