@@ -9,11 +9,11 @@ import { serverCallMap } from '../../core/serverCallMap';
 import { readLiteOffice } from '../../data/lite/office';
 import { DAFTRA_MAX_CALLS, DAFTRA_MAX_MS, daftra, paidActorOf, problemOf, queuesOf } from './daftra';
 import { DaftraError } from '../../daftra/client';
+import { NetBudgetSpent } from '../../office/net';
 
 /**
  * The daftra step of the 15-minute job (the Daftra link, owner 2026-10-26; one Daftra account for each sub-company), run on the sample office on
- * node:sqlite with a fake Daftra for each account. No test reaches Daftra. The real step returns at once on the office object path, so each test
- * passes `onOffice` (the daftraOffice helper does); the test of the return at once does not.
+ * node:sqlite with a fake Daftra for each account. No test reaches Daftra. The step runs the same on SQLite and on Postgres.
  *
  * pay_003 (320,000, due 2026-10-14) is of prj_001, client cli_001, sub-company MAZJ. pay_006 (120,000, due 2026-10-30) is of prj_002, Vado.
  * The run is at 2026-10-26 09:00 Riyadh.
@@ -46,17 +46,35 @@ const linkedBoth = (seed: State) => {
   seed.payments!.pay_006.daftra = link('VADO', '7', { linkedAt: '2026-10-21T10:00:00.000+03:00' });
 };
 
-describe('the step returns at once', () => {
+describe('the start of the step, and a spent network budget', () => {
   it('with no Daftra account in the config: no request, no read', async () => {
     const t = await daftraOffice();
     expect(await t.step()).toEqual({ skipped: 'no_config' });
   });
 
-  it('on the office object path (SQLite) when it is not turned on for a test: no request, nothing written', async () => {
-    const { t, mazj, vado } = await build({ edit: linkedBoth, mazj: [invoice('1830', '842', PAID_ON_22)] });
-    expect(await daftra(t.deps as never, new Date('2026-10-26T06:00:00Z'))).toEqual({ skipped: 'office' });
-    expect(mazj.requests.length + vado.requests.length).toBe(0);
-    expect((await t.payment('pay_003'))?.receivedOn).toBeNull();
+  it('runs on the SQLite data without an option, and sets the payment to Received through the fake', async () => {
+    const { t } = await build({ edit: linkedBoth, mazj: [invoice('1830', '842', PAID_ON_22)], vado: [invoice('7', '55')] });
+    // The office object sets Deps.daftraRun; here the test sets it to the internal run.
+    (t.deps as { daftraRun?: unknown }).daftraRun = t.internal;
+    expect(await daftra(t.deps as never, new Date('2026-10-26T06:00:00Z'))).toMatchObject({ accounts: 2, calls: 2, paid: 1 });
+    expect((await t.payment('pay_003'))?.receivedOn).toBe('2026-10-22');
+  });
+
+  it('stops at a spent network budget, keeps the item, and still saves the state', async () => {
+    const { t, mazj } = await build({ edit: linkedBoth, mazj: [invoice('1830', '842', PAID_ON_22)], vado: [invoice('7', '55')] });
+    const routed = (t.deps as { daftraFetch: typeof fetch }).daftraFetch;
+    let n = 0;
+    (t.deps as { daftraFetch: typeof fetch }).daftraFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      n += 1;
+      if (n > 1) throw new NetBudgetSpent(new Date());
+      return routed(input, init);
+    }) as typeof fetch;
+    const report = await t.step();
+    expect(report).toMatchObject({ accounts: 2, calls: 1, left: 1, problems: [] });
+    expect(mazj.requests).toHaveLength(1);
+    const keys = ((await t.db.statement('read', "select key from job_runs where key like 'daftra:%'")) as { key: string }[]).map((row) => row.key);
+    expect(keys).toContain('daftra:read:MAZJ');
+    expect(keys.filter((key) => key.startsWith('daftra:problem:'))).toEqual([]);
   });
 });
 

@@ -7,10 +7,10 @@ import {
   allMatches, checkedTimes, linkedUnpaid, openUnlinked, putInvoices, saveChecked, saveGoodRead, saveProblem, type DaftraProblem, type PaymentFacts,
 } from '../../daftra/store';
 import { dayMinus } from '../../daftra/suggest';
+import { retryAtOf } from '../../core/retryAt';
 import { createRunCall, type RunCall } from '../../core/runCall';
 import type { Deps } from '../../core/ports';
 import type { OfficeSnapshot } from '../../core/types';
-import { isLite } from '../../data/dialect';
 
 /**
  * The daftra step of the 15-minute job (the Daftra link, owner 2026-10-26; server/daftra/CLAUDE.md). It reads Daftra, one account at a time, and
@@ -31,8 +31,9 @@ import { isLite } from '../../data/dialect';
  *     account cannot starve the others. When the budget ends, the rest waits for the next run. The step is safe to run twice.
  *   - One account that fails (a wrong key, a key role that refuses, Daftra down) stops only its own items for this run. The others go on.
  *   - It logs codes, ids and account names only: never a key, a site, a text of a Daftra answer, or a name of a client.
- *   - With no Daftra account in the config it returns at once. On the office object path (SQLite) it also returns at once, until the office
- *     has a NetApi method for it (server/daftra/CLAUDE.md, TASKS.md). A test turns the office path on with `onOffice`.
+ *   - With no Daftra account in the config it returns at once. On the office object path (SQLite) it runs as on Postgres: each Daftra read goes
+ *     through the network port (`NetApi.daftraGet`), and the Worker adds the key (server/office/net.ts). A spent network budget stops the run
+ *     and keeps the item for the next run. It is no Daftra problem.
  */
 
 export const DAFTRA_MAX_CALLS = 20;
@@ -43,16 +44,14 @@ export const CACHE_AHEAD_DAYS = 30;
 export const CACHE_BACK_DAYS = 60;
 
 export type DaftraStepOptions = {
-  /** For a test: run the step on the SQLite data. The real step returns at once there. */
-  onOffice?: boolean;
-  /** For a test: the runner of the internal call. Default: the Postgres runCall on the private map. */
+  /** For a test: the runner of the internal call. Default: `deps.daftraRun` (the office object), else the Postgres runCall on the private map. */
   run?: RunCall;
   /** For a test: the clock of the budget, in milliseconds. */
   nowMs?: () => number;
 };
 
 export type DaftraReport =
-  | { skipped: 'no_config' | 'office' }
+  | { skipped: 'no_config' }
   | {
     accounts: number;
     /** The Daftra calls of this run. */
@@ -131,7 +130,6 @@ export function queuesOf(o: {
 export async function daftra(deps: Deps, at: Date, o: DaftraStepOptions = {}): Promise<DaftraReport> {
   const accounts = daftraAccountsOf(deps);
   if (accounts.length === 0) return { skipped: 'no_config' };
-  if (isLite(deps.db) && !o.onOffice) return { skipped: 'office' };
 
   const nowMs = o.nowMs ?? (() => performance.now());
   const startedAt = nowMs();
@@ -148,7 +146,7 @@ export async function daftra(deps: Deps, at: Date, o: DaftraStepOptions = {}): P
   }));
   const matched = new Map(matches.map((match) => [`${match.account}/${match.clientId}`, match.daftraId]));
   const queues = queuesOf({ office, accounts, linked, open, matches: matched, checked });
-  const run = o.run ?? createRunCall({ calls: DAFTRA_INTERNAL_CALLS });
+  const run = o.run ?? deps.daftraRun ?? createRunCall({ calls: DAFTRA_INTERNAL_CALLS });
 
   const clients = new Map<string, DaftraClient>();
   const clientOf = (account: string): DaftraClient | undefined => {
@@ -164,10 +162,12 @@ export async function daftra(deps: Deps, at: Date, o: DaftraStepOptions = {}): P
 
   // The accounts take turns: one item each, until every queue is empty, an account has failed, or the budget ends.
   let moved = true;
-  while (moved && !overBudget()) {
+  // The network budget of the office object (NetBudgetSpent) ended: the rest waits for the next run.
+  let spent = false;
+  while (moved && !overBudget() && !spent) {
     moved = false;
     for (const account of accounts) {
-      if (overBudget()) break;
+      if (overBudget() || spent) break;
       const queue = queues.get(account) ?? [];
       const item = problem.has(account) ? undefined : queue.shift();
       if (!item) continue;
@@ -202,6 +202,13 @@ export async function daftra(deps: Deps, at: Date, o: DaftraStepOptions = {}): P
           report.filled += 1;
         }
       } catch (error) {
+        // The office object met its network budget. The read did not happen: the item goes back, the call is not counted, and the run ends.
+        if (retryAtOf(error) !== null) {
+          queue.unshift(item);
+          report.calls -= 1;
+          spent = true;
+          break;
+        }
         if (!(error instanceof DaftraError)) throw error;
         // Daftra no longer has this invoice: it goes to the back of the line, so it never blocks the other links (code review, 2026-10-26).
         if (error.code === 'not_found' && item.kind === 'paid') await deps.db.tx('write', (q) => saveChecked(q, account, item.payment.daftra.invoiceId, at));
