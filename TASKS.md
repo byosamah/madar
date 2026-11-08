@@ -1550,5 +1550,7 @@ order; builders run on Sonnet 5.5. Each track merges into `rb/enterprises`; the 
   - [ ] Plan F lead step 4: screenshots of the platform site (sign-in and the list, EN and AR, light and dark, 390 px and desk) and of the companies' person menu and Me tab without the line
   - [ ] Plan F lead step 5 (later, with the owner): the DNS record of `platform.madar.vado.sa` and its custom domain on the Pages project
   - [ ] Plan F lead check: the contract `src/api/contract/platform.ts` still names `ent` in `platform.me` and `hasOwner` in the list row (the server answers `ent_000` and `false`); drop both keys with the screens of track ent-f2
+- [x] Owner OK (2026-11-08): the Pages project madar-platform exists. Cloudflare gave it the address madar-platform-d6c.pages.dev (the pages.dev names are global), so the test host is preview.madar-platform-d6c.pages.dev and the production host madar-platform-d6c.pages.dev.
+- [ ] Plan F follow-up: PLATFORM_HOSTS and scripts/office/platform-account.ts take the real hosts (one list, no copy); a Pages config file of the site holds the service bindings (MADAR_SERVER_TEST on preview, MADAR_SERVER_PRODUCTION on production), and pages-platform.sh deploys with it
 - [ ] Proposed: scripts/proof/server-time.ts signs in with the own sign-in on an office copy (its page member leg gets 401 today)
 - [ ] Owner OK needed: remove the worktrees ~/dev/madar-rb/enterprises, ent-a, ent-b, ent-c, ent-d, ent-d2, ent-d3, ent-ui, ent-fix and their branches (all merged)
