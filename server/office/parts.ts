@@ -22,7 +22,7 @@ import type { JobReport } from '../jobs/run';
 import { outboxMailPort } from '../mail/outboxDriver';
 import { utcDay } from '../mail/quota';
 import { mcpApp } from '../mcp/app';
-import { agentTokenChecker } from '../mcp/auth';
+import { agentTokenChecker, signInAgain } from '../mcp/auth';
 import { liteAgentOf } from '../mcp/oauth/agent';
 import { mountOAuth } from '../mcp/oauth/routes';
 import { stateKeyFrom } from '../mcp/reasons';
@@ -76,7 +76,8 @@ export type OfficeMailWork = { ent: EnterpriseId; route: OfficeMailRoute; value:
  * the object runs the MCP app (server/mcp/app.ts) with the own token check, the agent check on SQLite and each tool call through
  * the batch path. later: the mails and pushes of a tool call, which the Worker runs after the answer (runEffects).
  */
-export type OfficeMcpInput = { ent: EnterpriseId; url: string; method: string; headers: [string, string][]; body: string | null; worker: number };
+/** mcpUrl (Madar enterprises): the MCP address of this request, built by the Worker from its own MCP_URL and the address name. */
+export type OfficeMcpInput = { ent: EnterpriseId; mcpUrl: string; url: string; method: string; headers: [string, string][]; body: string | null; worker: number };
 export type OfficeMcpAnswer = { status: number; headers: [string, string][]; body: string; later: string[] };
 /** The report of the job, the sockets that the sweep closed, and the day row of the meters after the run. */
 export type OfficeCronReport = JobReport & { closed: number; day: DayRow | null; status: EnterpriseStatus };
@@ -422,9 +423,17 @@ export function officeParts(o: PartsInput): OfficeParts {
         log.error('The MCP address of the office object is off.', { error: error instanceof Error ? error.message : String(error) });
         return mcpRefusal(503, 'The MCP server of this copy is not set up yet.');
       }
-      const deps = depsFor(net);
-      const mcpUrl = values.config.mcpUrl;
+      // The address of this request (Madar enterprises): the config copy, the keys, the metadata, the challenge and the audience all use it.
+      // The Worker builds it from its own MCP_URL; the object refuses one that is not under its own, so an address never comes from a
+      // header of the browser.
+      const base = values.config.mcpUrl.replace(/\/+$/, '');
+      const mcpUrl = input.mcpUrl.replace(/\/+$/, '');
+      if (mcpUrl !== base && !mcpUrl.startsWith(`${base}/`)) return mcpRefusal(401, 'Sign in to continue.');
       const issuer = ownIssuer(mcpUrl);
+      const addressKeys: SigningKeys = { ...keys, issuer, mcpUrl: issuer };
+      const plain = depsFor(net);
+      const deps: Deps = { ...plain, config: { ...plain.config, mcpUrl } };
+      ledgers.set(deps, ledgers.get(plain)!);
       const later: string[] = [];
       let officeChanged = false;
       // Each tool call is a batch of one entry on the batch path of the object: the agent who, its effects and the office flag.
@@ -442,15 +451,21 @@ export function officeParts(o: PartsInput): OfficeParts {
         if (out.officeChanged) officeChanged = true;
         return out.results[0];
       };
+      const checkAgent = agentTokenChecker({ issuer, audience: mcpUrl, jwks: ownKeySet(secret), requireEnt: true });
       const app = mcpApp(deps, {
         issuer,
-        checkToken: agentTokenChecker({ issuer, audience: mcpUrl, jwks: ownKeySet(secret), requireEnt: true }),
+        checkToken: async (header) => {
+          const token = await checkAgent(header);
+          // A good signature is not enough: the claim must name this enterprise (design 5.2).
+          if (token.ent !== gate.id()) throw signInAgain();
+          return token;
+        },
         agentOf: liteAgentOf,
         runCall: toolRun,
         readOffice: () => office(),
         stateKey: await stateKeyOf(),
         fetch: NO_HOP,
-        oauth: (routes) => mountOAuth(routes, localSigninOffice({ db, clock, log, config: values.config, keys, ent: gate.id() }), { mcpUrl, jwks: ownPublicJwks(secret) }),
+        oauth: (routes) => mountOAuth(routes, localSigninOffice({ db, clock, log, config: deps.config, keys: addressKeys, ent: gate.id() }), { mcpUrl, jwks: ownPublicJwks(secret) }),
       });
       const root = new Hono();
       root.route('/mcp', app);

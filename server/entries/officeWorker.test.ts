@@ -11,7 +11,7 @@ import { hasOfficeBinding, LIVE_PATH, OFFICE_NAME, OFFICE_OPS_PREFIX, officeRout
 
 const STATUS = { ent: 'ent_001', people: 0, invited: 0, storageBytes: 0, lastWriteAt: null, day: { requests: 0, rowsRead: 0, rowsWritten: 0, mails: 0 }, name: '', nameAr: '' };
 /** A platform object that lists ENT_VADO and one more enterprise, and counts its reads. */
-const PLATFORM = { listed: async () => ['ent_001', 'ent_002'], resolveAddress: async () => null };
+const PLATFORM = { listed: async () => ['ent_001', 'ent_002'], resolveAddress: async ({ address }: { address: string }) => (address === 'globex' ? { ent: 'ent_002' } : null) };
 const TICKET = 'a'.repeat(64);
 const BODY = JSON.stringify({ v: 1, calls: [{ i: 0, name: 'session.get', input: {} }] });
 const ANSWER = '{"v":1,"serverTime":"2026-10-04T09:00:00.000+03:00","results":[]}';
@@ -289,6 +289,52 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
       expect(waits).toHaveLength(1);
       await Promise.all(waits);
       expect(seen.effects.map((e) => [e.ids, e.net])).toEqual([[['9'], net], [['9'], net]]);
+    });
+
+    it('an unknown address gets the 401 of a missing token with the challenge of that address, and makes no stub', async () => {
+      const { seen, routes } = setup();
+      for (const path of ['/mcp/nope', '/mcp/Globex', '/mcp/a', '/mcp/g%6Cobex', '/mcp/mcp']) {
+        const answer = await mcpPost(routes, path, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}');
+        expect(answer.status, path).toBe(401);
+        expect(await answer.json()).toMatchObject({ jsonrpc: '2.0', id: null, error: { code: 401 } });
+        expect(answer.headers.get('www-authenticate'), path).toMatch(/^Bearer resource_metadata="http:\/\/127\.0\.0\.1:54321\/functions\/v1\/mcp(\/nope)?\/oauth-protected-resource"/);
+      }
+      expect(seen.created).toEqual([]);
+      expect(seen.mcps).toEqual([]);
+    });
+
+    it('an unknown address answers a request with no token as the object does, and a request with a token as an unreadable token', async () => {
+      const { routes } = setup();
+      const none = await routes.fetch(new Request('https://madar-server.internal/mcp/nope', { method: 'POST', body: '{}' }), {});
+      expect((await none.json()) as { error: { message: string } }).toMatchObject({ error: { message: 'Send the Madar access token in the Authorization header.' } });
+      const some = await mcpPost(routes, '/mcp/nope', '{}');
+      expect(some.headers.get('www-authenticate')).toContain('error="invalid_token"');
+    });
+
+    it('the object gets the rewritten path and mcpUrl = <config.mcpUrl>/globex, with the query kept', async () => {
+      const { seen, routes, deps } = setup();
+      const answer = await mcpPost(routes, '/mcp/globex/oauth/register?x=1', '{}');
+      expect(answer.status).toBe(200);
+      expect(seen.created).toEqual(['ent_002']);
+      expect(seen.mcps).toHaveLength(1);
+      expect(seen.mcps[0].input).toMatchObject({ ent: 'ent_002', mcpUrl: `${deps.config.mcpUrl}/globex`, url: 'https://madar-server.internal/mcp/oauth/register?x=1' });
+    });
+
+    it('/mcp/oauth/token and the metadata paths go to ENT_VADO with the mcpUrl of the copy', async () => {
+      const { seen, routes, deps } = setup();
+      await mcpPost(routes, '/mcp/oauth/token', '{}');
+      await routes.fetch(new Request('https://madar-server.internal/mcp/oauth-protected-resource'), {});
+      await routes.fetch(new Request('https://madar-server.internal/mcp/.well-known/openid-configuration'), {});
+      expect(seen.mcps.map((one) => [one.input.ent, one.input.mcpUrl, new URL(one.input.url).pathname])).toEqual([
+        ['ent_001', deps.config.mcpUrl, '/mcp/oauth/token'], ['ent_001', deps.config.mcpUrl, '/mcp/oauth-protected-resource'], ['ent_001', deps.config.mcpUrl, '/mcp/.well-known/openid-configuration'],
+      ]);
+      expect(seen.created).toEqual(['ent_001', 'ent_001', 'ent_001']);
+    });
+
+    it('a header, a query value or a body that names an enterprise changes nothing: only the address does', async () => {
+      const { seen, routes } = setup();
+      await routes.fetch(new Request('https://madar-server.internal/mcp?ent=ent_002&enterprise=ent_002', { method: 'POST', headers: { 'x-madar-ent': 'ent_002', host: 'globex.madar.test' }, body: '{"ent":"ent_002"}' }), {});
+      expect(seen.mcps[0].input.ent).toBe('ent_001');
     });
 
     it('answers a JSON-RPC refusal when the office object is busy, with no answer of the object', async () => {

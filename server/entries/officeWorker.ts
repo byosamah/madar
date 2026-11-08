@@ -14,7 +14,8 @@ import { runFanout, selfTransport } from '../enterprise/fanout';
 import { ENT_VADO, untag, type EnterpriseId } from '../enterprise/ids';
 import { padTo } from '../enterprise/pad';
 import type { PlatformStub } from '../enterprise/platform/stub';
-import { entRouter, newListedCache, type EntRouter } from '../enterprise/router';
+import { entRouter, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
+import { challengeOf } from '../mcp/metadata';
 import type { EnterpriseStatus } from '../enterprise/types';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
@@ -133,6 +134,16 @@ function mcpError(status: number, message: string, reason?: string): Response {
   return Response.json({ jsonrpc: '2.0', id: null, error: { code: status, message, ...(reason ? { data: { reason } } : {}) } }, { status });
 }
 
+/**
+ * The 401 of an MCP request that names no enterprise: the words and the challenge that the MCP app gives a request with no token, or with a
+ * token it cannot read. The address is the one the request named, so the challenge points at that address and tells a stranger nothing.
+ */
+function mcpUnauthorized(mcpUrl: string, tokenCame: boolean): Response {
+  const message = tokenCame ? 'This access token is not for Madar\'s MCP server.' : 'Send the Madar access token in the Authorization header.';
+  const challenge = challengeOf(mcpUrl, tokenCame ? { error: 'invalid_token', description: message } : {});
+  return Response.json({ jsonrpc: '2.0', id: null, error: { code: 401, message } }, { status: 401, headers: { 'WWW-Authenticate': challenge } });
+}
+
 /** The refusal of an office object call that threw: busy when Cloudflare marks the error overloaded or retryable. */
 export function officeErrorOf(error: unknown, log: Deps['log']): RunError {
   const marks = error as { overloaded?: unknown; retryable?: unknown } | null;
@@ -205,19 +216,33 @@ export function officeRoutes(o: OfficeRoutesOptions) {
         return mcpError(413, 'The request is too large.', 'too_large');
       }
     }
+    // The enterprise of the request comes from the address (design 5.5): /mcp serves ENT_VADO, /mcp/<address> serves the enterprise that the
+    // platform lists for that address. A bad or unknown address gets the 401 of a missing token and makes no object.
+    const url = new URL(request.url);
+    const base = o.deps.config.mcpUrl.replace(/\/+$/, '');
+    const parsed = mcpAddressOf(url.pathname);
+    const router = routerOf(env);
+    const target = parsed === 'bad' ? null : parsed.address === null ? { ent: ENT_VADO, stub: router.stub(ENT_VADO) } : await router.addressStub(parsed.address);
+    if (parsed === 'bad' || !target) {
+      // The text of the app for a request with no token or a token it cannot read, so a listed and an unlisted address answer alike.
+      const named = parsed !== 'bad' && parsed.address !== null ? `${base}/${parsed.address}` : base;
+      return mcpUnauthorized(named, request.headers.has('authorization'));
+    }
+    const mcpUrl = parsed.address === null ? base : `${base}/${parsed.address}`;
+    // The object routes the path without the address: the app serves /mcp, /mcp/oauth/... and /mcp/.well-known/....
+    const forward = new URL(request.url);
+    forward.pathname = parsed.rest;
     const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
     const net = o.net();
-    // Task 12 adds the address of an enterprise; until then /mcp serves ENT_VADO.
-    const stub = routerOf(env).stub(ENT_VADO);
     let out: OfficeMcpAnswer;
     try {
-      out = await stub.mcp({ ent: ENT_VADO, url: request.url, method: request.method, headers, body, worker: reported() }, net);
+      out = await target.stub.mcp({ ent: target.ent, mcpUrl, url: forward.toString(), method: request.method, headers, body, worker: reported() }, net);
     } catch (error) {
       const refusal = officeErrorOf(error, log);
       return refusal.details?.reason === 'busy' ? mcpError(503, refusal.message, 'busy') : mcpError(500, 'Something went wrong. Try again.');
     }
     if (out.later.length > 0) {
-      const work = stub.runEffects({ ent: ENT_VADO, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+      const work = target.stub.runEffects({ ent: target.ent, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
         log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
       });
       if (after) after(work);

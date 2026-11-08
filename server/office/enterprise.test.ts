@@ -34,7 +34,7 @@ function calls(parts: OfficeParts, ent: unknown) {
     signin: () => refusal(() => parts.signin({ ent: e, signin: 'auth.nothing', input: {} })),
     mailRoute: () => refusal(() => parts.mailRoute({ ent: e, route: 'forgot', body: '{}', address: '203.0.113.7' }, net)),
     mailWork: () => refusal(() => parts.mailWork({ ent: e, route: 'forgot', value: 'x@madar.test' }, net)),
-    mcp: () => refusal(() => parts.mcp({ ent: e, url: 'https://madar.test/mcp', method: 'POST', headers: [], body: '{}', worker: 0 }, net)),
+    mcp: () => refusal(() => parts.mcp({ ent: e, mcpUrl: 'https://madar.test/mcp', url: 'https://madar.test/mcp', method: 'POST', headers: [], body: '{}', worker: 0 }, net)),
     status: () => refusal(() => parts.status({ ent: e })),
   };
 }

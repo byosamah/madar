@@ -35,7 +35,7 @@ describe('address names', () => {
   it('accepts vados and refuses a reserved word, capitals and bad edges', () => {
     expect(isAddressName('vados')).toBe(true);
     expect(isAddressName('globex-2')).toBe(true);
-    for (const bad of ['oauth', 'Vados', 'a', 'a-', '-ab', 'mcp', 'api', 'platform', 'admin', 'www', 'a'.repeat(33), 5, null]) expect(isAddressName(bad)).toBe(false);
+    for (const bad of ['oauth', 'oauth-protected-resource', 'Vados', 'a', 'a-', '-ab', 'mcp', 'api', 'platform', 'admin', 'www', 'a'.repeat(33), 5, null]) expect(isAddressName(bad)).toBe(false);
     expect(RESERVED_ADDRESSES).toContain('oauth');
   });
 });

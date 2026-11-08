@@ -86,3 +86,23 @@ export function entRouter(o: {
     },
   };
 }
+
+export type McpAddress = { address: string | null; rest: string } | 'bad';
+
+/**
+ * The enterprise address of an MCP path (Madar enterprises, design 5.5). /mcp serves VADOs' Companies. /mcp/<address>/... serves the
+ * enterprise of that address; rest is the path with the address taken out, which the MCP app routes. A first segment that starts with a
+ * dot (the discovery documents) or equals oauth (the OAuth routes) or oauth-protected-resource (the resource metadata) is a path word of
+ * the VADO address. Any other first segment that is no
+ * address name is bad: capitals, one letter, an encoded letter, a reserved word.
+ */
+export function mcpAddressOf(pathname: string): McpAddress {
+  if (pathname === '/mcp' || pathname === '/mcp/') return { address: null, rest: '/mcp' };
+  if (!pathname.startsWith('/mcp/')) return 'bad';
+  const tail = pathname.slice('/mcp/'.length);
+  const slash = tail.indexOf('/');
+  const first = slash < 0 ? tail : tail.slice(0, slash);
+  if (first.startsWith('.') || first === 'oauth' || first === 'oauth-protected-resource') return { address: null, rest: pathname };
+  if (!isAddressName(first)) return 'bad';
+  return { address: first, rest: `/mcp${slash < 0 ? '' : tail.slice(slash)}` };
+}

@@ -71,7 +71,7 @@ export async function startLive() {
         emails: [],
       }] }));
     },
-    rows: async <R,>(text: string, values: unknown[] = []) => read<R[]>(await post('/test/rows', { text, values })),
+    rows: async <R,>(text: string, values: unknown[] = [], o: { ent?: string } = {}) => read<R[]>(await post('/test/rows', { text, values, ...o })),
     exec: async (text: string, values: unknown[] = []) => read<{ ok: true }>(await post('/test/exec', { text, values })),
     /** One method of the platform object (TestPlatform), through the test Worker: the Worker holds the stub, not Node. */
     platform: async <T,>(method: string, ...args: unknown[]) => (await read<{ value: T }>(await post('/test/platform', { method, args }))).value,
@@ -84,10 +84,10 @@ export async function startLive() {
       const response = await post('/api/batch', { v: 1, calls: calls.map((c, i) => ({ i, ...c })) }, { authorization: `Bearer ${o.ent ? `${o.ent}:` : ''}${userId}` });
       return { status: response.status, body: (await response.json()) as WireResponse & { error?: RunError } };
     },
-    agent: async (ownerId: string) => read<{ authId: string; clientId: string; sessionId: string }>(await post('/test/agent', { ownerId })),
+    agent: async (ownerId: string, o: { ent?: string } = {}) => read<{ authId: string; clientId: string; sessionId: string }>(await post('/test/agent', { ownerId, ...o })),
     /** One 2025-era MCP request with an agent token (or none), and its JSON answer (one SSE event or plain JSON). */
-    mcp: async (token: string | null, method: string, params: Record<string, unknown> = {}) => {
-      const response = await post('/mcp', { jsonrpc: '2.0', id: 1, method, params }, {
+    mcp: async (token: string | null, method: string, params: Record<string, unknown> = {}, o: { path?: string } = {}) => {
+      const response = await post(o.path ?? '/mcp', { jsonrpc: '2.0', id: 1, method, params }, {
         accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-11-25', ...(token ? { authorization: `Bearer ${token}` } : {}),
       });
       const text = await response.text();

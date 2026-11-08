@@ -19,10 +19,11 @@ export class TestOffice extends Office {
     return principal;
   }
 
-  async seed(state: State): Promise<void> {
+  /** id: the id of the identity row. Default: the name of the object, as a real object is made. A test passes another id to test the name check. */
+  async seed(state: State, id?: string): Promise<void> {
     await this.parts.db.tx('write', (q) => liteWriteState(q, state));
     // The object was made: its identity row (Madar enterprises).
-    await this.parts.gate.create({ id: ENT_VADO, state: 'active', limits: { people: null, storageBytes: null }, now: new Date() });
+    await this.parts.gate.create({ id: id ?? this.ctx.id.name ?? ENT_VADO, state: 'active', limits: { people: null, storageBytes: null }, now: new Date() });
   }
 
   /** The status row of this enterprise with the rows it read (the meter counts the host rows since the last call). */

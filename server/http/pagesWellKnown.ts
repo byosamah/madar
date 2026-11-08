@@ -1,4 +1,5 @@
 import { copyOfPageHost, serverHostOf } from '../core/serverHost';
+import { isAddressName } from '../enterprise/ids';
 import type { PagesEnv } from './pagesForward';
 import { proxyMcp, type McpProxyOptions } from './pagesMcpProxy';
 
@@ -14,9 +15,19 @@ export const WELL_KNOWN_FORWARDS: Readonly<Record<string, string>> = {
   '/.well-known/openid-configuration/mcp': '/mcp/.well-known/openid-configuration',
 };
 
+/**
+ * The target of a discovery path (Madar enterprises): the two paths of VADOs' Companies, and the same two with an address name after
+ * /mcp, which go to /mcp/<address>/.well-known/<name>. Nothing else passes: not a capital, not a second segment, not a path word.
+ */
+export function wellKnownTarget(pathname: string): string | undefined {
+  if (Object.hasOwn(WELL_KNOWN_FORWARDS, pathname)) return WELL_KNOWN_FORWARDS[pathname];
+  const match = /^\/\.well-known\/(oauth-authorization-server|openid-configuration)\/mcp\/([^/]+)$/.exec(pathname);
+  return match && isAddressName(match[2]) ? `/mcp/${match[2]}/.well-known/${match[1]}` : undefined;
+}
+
 export async function proxyWellKnown(request: Request, fetcher: typeof fetch = fetch, env: PagesEnv = {}, o: McpProxyOptions = {}): Promise<Response> {
   const url = new URL(request.url);
-  const target = WELL_KNOWN_FORWARDS[url.pathname];
+  const target = wellKnownTarget(url.pathname);
   if (target === undefined || request.method !== 'GET') return new Response('Not found.', { status: 404 });
   // Only an office copy runs the own OAuth server (exit wave 4). Every other copy answers 404, as the Pages site did before.
   const copy = copyOfPageHost(url.hostname);

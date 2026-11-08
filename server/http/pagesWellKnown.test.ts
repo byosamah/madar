@@ -52,3 +52,26 @@ it('the two Pages Functions call proxyWellKnown', async () => {
     expect(text).toMatch(/export const onRequest = \(\{ request, env \}[^\n]*=> proxyWellKnown\(request, fetch, env\);/);
   }
 });
+
+describe('the discovery paths of an enterprise address (Madar enterprises)', () => {
+  const env = (seen: string[]) => ({ MADAR_SERVER_TEST: { fetch: async (request: Request) => (seen.push(new URL(request.url).pathname), Response.json({ issuer: 'x' })) } });
+  const setting = { test: 'office', production: 'supabase' } as const;
+  const ask = (path: string, seen: string[]) => proxyWellKnown(new Request(`https://preview.madar-46r.pages.dev${path}`), (async () => { throw new Error('no fetch'); }) as unknown as typeof fetch, env(seen), { setting, log: () => undefined });
+
+  it('maps /.well-known/<name>/mcp/<address> to /mcp/<address>/.well-known/<name>', async () => {
+    const seen: string[] = [];
+    expect((await ask('/.well-known/oauth-authorization-server/mcp/globex', seen)).status).toBe(200);
+    expect((await ask('/.well-known/openid-configuration/mcp/globex-2', seen)).status).toBe(200);
+    expect(seen).toEqual(['/mcp/globex/.well-known/oauth-authorization-server', '/mcp/globex-2/.well-known/openid-configuration']);
+  });
+
+  it('refuses a capital, a second segment, a path word, a reserved word, an encoded letter and an unknown name', async () => {
+    const seen: string[] = [];
+    for (const path of [
+      '/.well-known/oauth-authorization-server/mcp/Globex', '/.well-known/oauth-authorization-server/mcp/globex/x', '/.well-known/oauth-authorization-server/mcp/oauth',
+      '/.well-known/oauth-authorization-server/mcp/api', '/.well-known/oauth-authorization-server/mcp/g%6Cobex', '/.well-known/oauth-authorization-server/mcp/a',
+      '/.well-known/other/mcp/globex', '/.well-known/oauth-authorization-server/mcp/.well-known',
+    ]) expect((await ask(path, seen)).status, path).toBe(404);
+    expect(seen).toEqual([]);
+  });
+});

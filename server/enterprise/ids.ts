@@ -12,8 +12,11 @@ export const VADO_ADDRESS = 'vados';
 /** The name of the one platform object. */
 export const PLATFORM_OBJECT = 'platform';
 
-/** Words that an address name may not take. oauth is a path word of the OAuth routes: /mcp/oauth/token is never an address. */
-export const RESERVED_ADDRESSES: readonly string[] = ['oauth', 'mcp', 'api', 'platform', 'admin', 'www'];
+/**
+ * Words that an address name may not take. oauth is a path word of the OAuth routes (/mcp/oauth/token is never an address), and
+ * oauth-protected-resource is the path of the resource metadata (/mcp/oauth-protected-resource).
+ */
+export const RESERVED_ADDRESSES: readonly string[] = ['oauth', 'oauth-protected-resource', 'mcp', 'api', 'platform', 'admin', 'www'];
 
 /** The secret of a tag: base64url text of a link, a renew key or a socket ticket. */
 const TAG_SECRET = /^[A-Za-z0-9_-]{1,300}$/;

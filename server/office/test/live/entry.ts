@@ -32,7 +32,8 @@ const pushFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 const stubOf = (env: Env, ent: string = ENT_VADO) => env.OFFICE.get(env.OFFICE.idFromName(ent)) as Test;
 const platformOf = (env: Env) => env.PLATFORM.get(env.PLATFORM.idFromName(PLATFORM_OBJECT)) as unknown as PlatformStub;
 const routes = officeRoutes({
-  deps: { config: testConfig({ fileStore: 'r2' }), clock: { now: () => new Date() }, log: consoleLogger() },
+  // The MCP address of the Worker is the MCP_URL of the objects (wrangler.toml): the Worker builds the address of each request from it.
+  deps: { config: testConfig({ fileStore: 'r2', mcpUrl: 'https://madar.test/mcp' }), clock: { now: () => new Date() }, log: consoleLogger() },
   // No sign-in here: the token is the Madar user id (TestOffice.principal checks that the person acts now), or "<ent>:<user id>" for an
   // enterprise other than ENT_VADO (the claim ent of a real token).
   verifyToken: async (header) => {
@@ -82,7 +83,7 @@ export default {
       // An object of another name, made with a row of ENT_VADO: the gate compares the name with the row (spike S3).
       const { name } = (await request.json()) as { name: string };
       const other = env.OFFICE.get(env.OFFICE.idFromName(name)) as Test;
-      await other.seed(emptyState(''));
+      await other.seed(emptyState(''), ENT_VADO);
       try {
         await other.status({ ent: ENT_VADO });
         return Response.json({ ok: true });
@@ -92,12 +93,12 @@ export default {
     }
     if (pathname === '/test/readBack') return Response.json(await stubOf(env).readBack());
     if (pathname === '/test/rows') {
-      const { text, values } = (await request.json()) as { text: string; values?: unknown[] };
-      return Response.json(await stubOf(env).rows(text, values));
+      const { text, values, ent } = (await request.json()) as { text: string; values?: unknown[]; ent?: string };
+      return Response.json(await stubOf(env, ent).rows(text, values));
     }
     if (pathname === '/test/agent') {
-      const { ownerId } = (await request.json()) as { ownerId: string };
-      return Response.json(await stubOf(env).agent(ownerId));
+      const { ownerId, ent } = (await request.json()) as { ownerId: string; ent?: string };
+      return Response.json(await stubOf(env, ent).agent(ownerId));
     }
     if (pathname === '/test/exec') {
       const { text, values } = (await request.json()) as { text: string; values?: unknown[] };

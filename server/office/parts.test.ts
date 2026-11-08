@@ -407,7 +407,7 @@ describe('MCP in the office object (Office.mcp)', () => {
     const rpc = async (token: string | null, method: string, params: Record<string, unknown> = {}): Promise<Rpc & { later: string[] }> => {
       const headers: [string, string][] = [['content-type', 'application/json'], ['accept', 'application/json, text/event-stream'], ['mcp-protocol-version', '2025-11-25']];
       if (token) headers.push(['authorization', `Bearer ${token}`]);
-      const out = await t.parts.mcp({ ent: ENT_VADO, url: MCP_URL, method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: (id += 1), method, params }), worker: 1 }, t.net);
+      const out = await t.parts.mcp({ ent: ENT_VADO, mcpUrl: 'https://madar.test/mcp', url: MCP_URL, method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: (id += 1), method, params }), worker: 1 }, t.net);
       // A 2025-era answer may come as one SSE event.
       const json = out.body.startsWith('event:') ? out.body.split('\n').find((line) => line.startsWith('data: '))!.slice(6) : out.body;
       return { status: out.status, headers: Object.fromEntries(out.headers), body: json ? JSON.parse(json) : {}, later: out.later };
@@ -449,14 +449,14 @@ describe('MCP in the office object (Office.mcp)', () => {
 
   it('answers the metadata of the own sign-in from the object, with no token', async () => {
     const t = await mcpOffice();
-    const out = await t.parts.mcp({ ent: ENT_VADO, url: `${MCP_URL}/.well-known/oauth-authorization-server`, method: 'GET', headers: [], body: null, worker: 0 }, t.net);
+    const out = await t.parts.mcp({ ent: ENT_VADO, mcpUrl: 'https://madar.test/mcp', url: `${MCP_URL}/.well-known/oauth-authorization-server`, method: 'GET', headers: [], body: null, worker: 0 }, t.net);
     expect(out.status).toBe(200);
     expect(JSON.parse(out.body)).toMatchObject({ issuer: MCP_URL });
   });
 
   it('answers 503 with no key of the own sign-in, and runs nothing', async () => {
     const t = await office();
-    const out = await t.parts.mcp({ ent: ENT_VADO, url: MCP_URL, method: 'POST', headers: [['content-type', 'application/json']], body: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', worker: 0 }, t.net);
+    const out = await t.parts.mcp({ ent: ENT_VADO, mcpUrl: 'https://madar.test/mcp', url: MCP_URL, method: 'POST', headers: [['content-type', 'application/json']], body: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', worker: 0 }, t.net);
     expect([out.status, JSON.parse(out.body).error.code, out.later]).toEqual([503, -32603, []]);
   });
 });

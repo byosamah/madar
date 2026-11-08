@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OfficeStub } from '../entries/officeWorker';
-import { entRouter, LISTED_MISS_MS, LISTED_TTL_MS } from './router';
+import { entRouter, LISTED_MISS_MS, LISTED_TTL_MS, mcpAddressOf } from './router';
 
 function setup(o: { ids?: string[]; addresses?: Record<string, string> } = {}) {
   const state = { ids: o.ids ?? ['ent_001', 'ent_002'], addresses: o.addresses ?? { globex: 'ent_002' }, clock: 1_000_000 };
@@ -90,5 +90,31 @@ describe('the enterprise router', () => {
     expect(await router.addressStub('nope')).toBeNull();
     expect(seen.resolved).toEqual(['nope', 'nope']);
     expect(seen.stubFor).toEqual([]);
+  });
+});
+
+describe('mcpAddressOf', () => {
+  it('gives no address for /mcp and for the path words of the VADO address', () => {
+    expect(mcpAddressOf('/mcp')).toEqual({ address: null, rest: '/mcp' });
+    expect(mcpAddressOf('/mcp/')).toEqual({ address: null, rest: '/mcp' });
+    expect(mcpAddressOf('/mcp/oauth/token')).toEqual({ address: null, rest: '/mcp/oauth/token' });
+    expect(mcpAddressOf('/mcp/oauth')).toEqual({ address: null, rest: '/mcp/oauth' });
+    expect(mcpAddressOf('/mcp/.well-known/oauth-authorization-server')).toEqual({ address: null, rest: '/mcp/.well-known/oauth-authorization-server' });
+    expect(mcpAddressOf('/mcp/oauth-protected-resource')).toEqual({ address: null, rest: '/mcp/oauth-protected-resource' });
+    expect(mcpAddressOf('/mcp/globex/oauth-protected-resource')).toEqual({ address: 'globex', rest: '/mcp/oauth-protected-resource' });
+  });
+
+  it('takes the address out of the path and keeps the rest', () => {
+    expect(mcpAddressOf('/mcp/globex')).toEqual({ address: 'globex', rest: '/mcp' });
+    expect(mcpAddressOf('/mcp/globex/')).toEqual({ address: 'globex', rest: '/mcp/' });
+    expect(mcpAddressOf('/mcp/globex/oauth/token')).toEqual({ address: 'globex', rest: '/mcp/oauth/token' });
+    expect(mcpAddressOf('/mcp/globex/.well-known/openid-configuration')).toEqual({ address: 'globex', rest: '/mcp/.well-known/openid-configuration' });
+    expect(mcpAddressOf('/mcp/vados')).toEqual({ address: 'vados', rest: '/mcp' });
+  });
+
+  it('gives bad for a capital, one letter, an encoded letter, a reserved word, a path outside /mcp and a very long name', () => {
+    for (const path of ['/mcp/Globex', '/mcp/a', '/mcp/g%6Cobex', '/mcp/mcp', '/mcp/api/x', '/mcp/-ab', '/mcp/ab-', '/other', '/mcpx', '', '/mcp/' + 'a'.repeat(5000)]) {
+      expect(mcpAddressOf(path), path).toBe('bad');
+    }
   });
 });
