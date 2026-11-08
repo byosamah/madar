@@ -32,6 +32,7 @@ import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type Office
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
+import { ENT_VADO } from '../enterprise/ids';
 import { officeTyping, socketClosed, stateMessage } from './presence';
 import { importBegin, importFinish, importPart, importStepOf, type ImportStep } from './import';
 import { netPorts, type NetApi } from './net';
@@ -342,7 +343,7 @@ export function officeParts(o: PartsInput): OfficeParts {
         return { ok: false, error: runErrorOf(error) };
       }
       // runSigninOp answers a name that is not in SIGNIN_STEPS with not_found, so the cast gives no step that does not exist.
-      return runSigninOp({ db, clock, log, config: values.config, keys }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
+      return runSigninOp({ db, clock, log, config: values.config, keys, ent: ENT_VADO }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
     },
     async mailRoute(input, net) {
       meter.request();
@@ -412,13 +413,13 @@ export function officeParts(o: PartsInput): OfficeParts {
       };
       const app = mcpApp(deps, {
         issuer,
-        checkToken: agentTokenChecker({ issuer, audience: mcpUrl, jwks: ownKeySet(secret) }),
+        checkToken: agentTokenChecker({ issuer, audience: mcpUrl, jwks: ownKeySet(secret), requireEnt: true }),
         agentOf: liteAgentOf,
         runCall: toolRun,
         readOffice: () => office(),
         stateKey: await stateKeyOf(),
         fetch: NO_HOP,
-        oauth: (routes) => mountOAuth(routes, localSigninOffice({ db, clock, log, config: values.config, keys }), { mcpUrl, jwks: ownPublicJwks(secret) }),
+        oauth: (routes) => mountOAuth(routes, localSigninOffice({ db, clock, log, config: values.config, keys, ent: ENT_VADO }), { mcpUrl, jwks: ownPublicJwks(secret) }),
       });
       const root = new Hono();
       root.route('/mcp', app);

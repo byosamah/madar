@@ -4,6 +4,7 @@ import { importSigninRows, type SigninExportRow } from '../../auth/own/import';
 import { signingKeysOf } from '../../auth/own/keys';
 import { runSigninOp, type SigninOpName } from '../../auth/own/office';
 import { createRunCall } from '../../core/runCall';
+import { ENT_VADO } from '../../enterprise/ids';
 import type { RunResult } from '../../core/types';
 import { liteData } from '../../data/lite/callData';
 import { liteDb, type LiteDb } from '../../data/lite/db';
@@ -141,7 +142,7 @@ export class PinOffice extends DurableObject implements PinOfficeApi {
     const { db, deps } = await this.#ready();
     deps.clock.set(new Date(now));
     const keys = await signingKeysOf(privateJwk, deps.config.mcpUrl);
-    return runSigninOp({ db, clock: deps.clock, log: deps.log, config: deps.config, keys }, name as SigninOpName, input as never);
+    return runSigninOp({ db, clock: deps.clock, log: deps.log, config: deps.config, keys, ent: ENT_VADO }, name as SigninOpName, input as never);
   }
 
   async importSignins(rows: SigninExportRow[], now: string): Promise<number> {

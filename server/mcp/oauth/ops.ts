@@ -200,7 +200,7 @@ export type AgentTokenAnswer = { access_token: string; token_type: 'Bearer'; exp
 const invalidGrant = () => new OAuthError(400, 'invalid_grant', 'The code or the refresh token is not valid. Connect Madar again in the AI app.');
 
 async function agentAnswer(deps: SigninDeps, o: { authId: string; sessionId: string; clientId: string; refresh: string }): Promise<AgentTokenAnswer> {
-  const accessToken = await signAgentToken(deps.keys, { authId: o.authId, sessionId: o.sessionId, clientId: o.clientId, now: deps.clock.now() });
+  const accessToken = await signAgentToken(deps.keys, { authId: o.authId, sessionId: o.sessionId, clientId: o.clientId, now: deps.clock.now(), ent: deps.ent });
   return { access_token: accessToken, token_type: 'Bearer', expires_in: ACCESS_TTL_S, refresh_token: o.refresh, scope: 'madar' };
 }
 

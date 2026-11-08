@@ -58,6 +58,14 @@ describe('the agent token check', () => {
     expect(typeof result.expiresAt).toBe('number');
   });
 
+  it('returns ent of an agent token, and refuses one with no ent when the own key asks for it', async () => {
+    expect((await check(`Bearer ${await token(agentClaims({ ent: 'ent_002' }))}`)).ent).toBe('ent_002');
+    expect((await check(`Bearer ${await token()}`)).ent).toBeUndefined();
+    const own = agentTokenChecker({ issuer: ISSUER, audience: MCP_URL, jwks: createLocalJWKSet({ keys: [good.jwk] }), requireEnt: true });
+    await expect(own(`Bearer ${await token()}`)).rejects.toMatchObject({ code: 'unauthenticated' });
+    expect((await own(`Bearer ${await token(agentClaims({ ent: 'ent_001' }))}`)).ent).toBe('ent_001');
+  });
+
   it('accepts aud as a list that holds the MCP URL (jose checks both forms)', async () => {
     expect((await check(`Bearer ${await token(agentClaims({ aud: [MCP_URL] }))}`)).clientId).toBe(CLIENT);
   });

@@ -165,6 +165,29 @@ describe('browserTokenChecker (plan 5.1)', () => {
   });
 });
 
+describe('the ent claim (Madar enterprises)', () => {
+  const own = () => browserTokenChecker({ issuer: ISSUER, jwks: createLocalJWKSet(jwks), requireEnt: true });
+
+  it('returns ent from a token of the own key', async () => {
+    await expect(own()(`Bearer ${await token(claims({ ent: 'ent_002' }))}`)).resolves.toEqual({ authUserId: SUB, sessionId: 's1', ent: 'ent_002' });
+  });
+
+  it('refuses an own-key token with no ent as unauthenticated, with the text of a bad token', async () => {
+    const error = await refusal(own()(`Bearer ${await token(claims())}`));
+    expect([error.code, error.message]).toEqual(['unauthenticated', 'Sign in to continue.']);
+  });
+
+  it('refuses an ent that is not an enterprise id', async () => {
+    for (const ent of ['ENT_001', 'ent_1', 5, null, '', 'ent_001.x']) {
+      expect((await refusal(own()(`Bearer ${await token(claims({ ent }))}`))).code).toBe('unauthenticated');
+    }
+  });
+
+  it('accepts a token with no ent on the Supabase key and returns no ent (the Postgres way back)', async () => {
+    await expect(check()(`Bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB, sessionId: 's1' });
+  });
+});
+
 describe('verifyBrowserToken (the api function: the JWKS of SUPABASE_URL)', () => {
   function serveJwks() {
     const fetchJwks = vi.fn(async (_url: string | URL | Request) => Response.json(jwks));

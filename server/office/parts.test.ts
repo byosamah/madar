@@ -23,6 +23,7 @@ import { EffectLedger, type OfficeBatchInput } from './batch';
 import { officeParts } from './parts';
 import { principalOfWho } from './who';
 import { fakeSockets, openFor, recordingNet } from './test/fakes';
+import { ENT_VADO } from '../enterprise/ids';
 
 const TODAY = '2026-10-04';
 const NOW = '2026-10-04T06:00:00.000Z';
@@ -391,7 +392,7 @@ describe('MCP in the office object (Office.mcp)', () => {
       await q("insert into auth_sessions (id, auth_id, client_id, amr, refresh_hash, expires_at, created_at) values (?1, ?2, ?3, 'oauth', ?4, '2026-11-17T06:00:00.000Z', ?5)", [sessionId, authId, clientId, `h-${clientId}`, NOW]);
     });
     // jose checks the time of the token with the real clock, so the token gets the real time.
-    return signAgentToken(await signingKeysOf(jwk, MCP_URL), { authId, sessionId, clientId, now: new Date() });
+    return signAgentToken(await signingKeysOf(jwk, MCP_URL), { authId, sessionId, clientId, now: new Date(), ent: ENT_VADO });
   }
 
   async function mcpOffice() {

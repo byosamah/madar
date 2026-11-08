@@ -8,6 +8,7 @@ import type { Deps } from '../../core/ports';
 import { apiApp } from '../../http/app';
 import { offWith } from '../aiRoles.testing';
 import { oauthApp, TEST_MCP_URL } from './testApp';
+import { ENT_VADO } from '../../enterprise/ids';
 
 const CALLBACK = 'http://127.0.0.1:33418/callback';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
@@ -21,7 +22,7 @@ async function world() {
     const authId = await addSignIn(w.t, userId, { password: 'a good password' });
     const sessionId = crypto.randomUUID();
     w.t.raw.prepare("insert into auth_sessions (id, auth_id, amr, refresh_hash, expires_at) values (?, ?, 'password', ?, '2026-12-01T00:00:00.000Z')").run(sessionId, authId, `h-${sessionId}`);
-    return { authId, token: await signBrowserToken(w.keys, { authId, sessionId, now: new Date() }) };
+    return { authId, token: await signBrowserToken(w.keys, { authId, sessionId, now: new Date(), ent: ENT_VADO }) };
   };
   const call = async (path: string, token: string, o: { method?: string; body?: unknown } = {}) => {
     const response = await api.request(path, { method: o.method ?? 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, ...(o.body === undefined ? {} : { body: JSON.stringify(o.body) }) });
@@ -122,7 +123,7 @@ describe('the consent with the Madar approval inside (server/mcp/oauth/ops.ts)',
     const { w, person, call, request } = await world();
     const hala = await person('usr_002');
     const { id } = await request();
-    const agent = await signAgentToken(w.keys, { authId: hala.authId, sessionId: 's-a', clientId: 'c-a', now: new Date() });
+    const agent = await signAgentToken(w.keys, { authId: hala.authId, sessionId: 's-a', clientId: 'c-a', now: new Date(), ent: ENT_VADO });
     for (const [path, method] of [[`/oauth/authorizations/${id}`, 'GET'], [`/oauth/authorizations/${id}/consent`, 'POST'], ['/agents/approve', 'POST'], ['/oauth/grants', 'POST'], ['/oauth/grants/revoke', 'POST']] as const) {
       expect(await call(path, agent, { method, body: method === 'POST' ? { action: 'approve', authorizationId: id, client_id: 'c-a' } : undefined })).toMatchObject({ status: 403, body: { error: { details: { reason: 'agent_token' } } } });
     }

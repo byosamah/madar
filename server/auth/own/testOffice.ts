@@ -8,6 +8,7 @@ import type { LiteDb } from '../../data/lite/db';
 import { readLiteOffice, setLiteAuthLink } from '../../data/lite/office';
 import { freshLite } from '../../data/lite/testDb';
 import { liteWriteState } from '../../data/lite/whole';
+import { ENT_VADO, untag } from '../../enterprise/ids';
 import { fakeDeps, type FakeDeps } from '../../test/fakes/deps';
 import type { AuthAdmin } from '../admin';
 import { signingKeysOf } from './keys';
@@ -68,5 +69,8 @@ export async function addSignIn(t: TestOffice, userId: string, o: { password?: s
 
 /** The deps of the sign-in steps on the test office, with a new test key. */
 export async function signinDepsOf(t: TestOffice): Promise<SigninDeps> {
-  return { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys: await signingKeysOf(await testPrivateJwk(), t.deps.config.mcpUrl) };
+  return { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys: await signingKeysOf(await testPrivateJwk(), t.deps.config.mcpUrl), ent: ENT_VADO };
 }
+
+/** The bare secret of a tagged refresh token. The Worker untags it before a step runs (Madar enterprises). */
+export const bareToken = (token: string): string => untag(token)?.secret ?? token;

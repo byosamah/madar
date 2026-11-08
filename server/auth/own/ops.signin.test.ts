@@ -2,7 +2,8 @@ import { decodeJwt } from 'jose';
 import { describe, expect, it } from 'vitest';
 import { sha256Hex } from './crypto';
 import { passwordSignIn } from './ops';
-import { addSignIn, signinDepsOf, signinOffice } from './testOffice';
+import { untag } from '../../enterprise/ids';
+import { addSignIn, bareToken, signinDepsOf, signinOffice } from './testOffice';
 
 const ADDRESS = '203.0.113.7';
 
@@ -32,8 +33,16 @@ describe('the password sign-in of the own stack (server/auth/own/ops.ts)', () =>
     expect(claims).toMatchObject({ sub: authId, aud: 'authenticated', role: 'authenticated', iss: 'http://127.0.0.1:54321/functions/v1/mcp' });
     expect((claims.exp as number) - (claims.iat as number)).toBe(900);
     expect(t.raw.prepare('select id, auth_id, client_id, amr, refresh_hash, expires_at from auth_sessions').all()).toEqual([
-      { id: claims.session_id, auth_id: authId, client_id: null, amr: 'password', refresh_hash: await sha256Hex(answer.refresh_token), expires_at: '2026-11-16T06:00:00.000Z' },
+      { id: claims.session_id, auth_id: authId, client_id: null, amr: 'password', refresh_hash: await sha256Hex(bareToken(answer.refresh_token)), expires_at: '2026-11-16T06:00:00.000Z' },
     ]);
+  });
+
+  it('gives a token with the claim ent and a refresh token that untag reads as {ent, secret}', async () => {
+    const { email, deps } = await setup();
+    const answer = await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS });
+    expect(decodeJwt(answer.access_token).ent).toBe(deps.ent);
+    expect(untag(answer.refresh_token)).toEqual({ ent: deps.ent, secret: bareToken(answer.refresh_token) });
+    expect(bareToken(answer.refresh_token)).not.toContain('.');
   });
 
   it('gives the same answer for a wrong password and an unknown email', async () => {

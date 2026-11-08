@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildSeed } from '../../src/data/seed';
 import { signAgentToken, signingKeysOf } from '../auth/own/keys';
 import { startLive } from './test/live/harness';
+import { ENT_VADO } from '../enterprise/ids';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const MCP_URL = 'https://madar.test/mcp';
@@ -22,7 +23,7 @@ describe('MCP through the office object on local workerd', () => {
 
   const tokenFor = async (ownerId: string) => {
     const { authId, clientId, sessionId } = await live.agent(ownerId);
-    return signAgentToken(await signingKeysOf(live.jwk, MCP_URL), { authId, sessionId, clientId, now: new Date() });
+    return signAgentToken(await signingKeysOf(live.jwk, MCP_URL), { authId, sessionId, clientId, now: new Date(), ent: ENT_VADO });
   };
 
   it('gives an agent token the tools of its person and runs one tool call through the office object', async () => {
