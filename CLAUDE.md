@@ -177,6 +177,9 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 
 ## Rules that cross parts
 - `src/api` never imports `server/` or `src/app/`.
+- Madar enterprises: each enterprise has its own office object, and record ids (`usr_001`, `prj_001`) repeat in each one. A shared
+  store, key, topic, log line, cache or mail key never uses a bare record id: it carries the enterprise id (`server/enterprise/CLAUDE.md`).
+  A platform power is never a right in `can()`: it lives in the platform object and its owner check.
 - On Supabase almost every API call starts a new worker. A screen change that saves a call saves more than a server
   change: count the calls of each change (`server/CLAUDE.md`).
 - Never write to the database outside `runCall`. Handlers stay synchronous and pure. Outside work goes through the outbox.
