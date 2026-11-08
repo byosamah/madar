@@ -8,6 +8,7 @@ import { fakeDeps, testConfig } from '../test/fakes/deps';
 import { clientAddress } from '../auth/forgot';
 import { hasOfficeBinding, LIVE_PATH, OFFICE_NAME, OFFICE_OPS_PREFIX, officeRoutes, servesOffice, type OfficeCall, type OfficeRoute, type OfficeStub } from './officeWorker';
 
+const STATUS = { ent: 'ent_001', people: 0, invited: 0, storageBytes: 0, lastWriteAt: null, day: { requests: 0, rowsRead: 0, rowsWritten: 0, mails: 0 }, name: '', nameAr: '' };
 const TICKET = 'a'.repeat(64);
 const BODY = JSON.stringify({ v: 1, calls: [{ i: 0, name: 'session.get', input: {} }] });
 const ANSWER = '{"v":1,"serverTime":"2026-10-04T09:00:00.000+03:00","results":[]}';
@@ -19,7 +20,8 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: O
     batch: o.batch ?? (async (input, net) => (seen.batch.push({ input, net }), { ok: true, body: ANSWER, later: [] })),
     runEffects: async (input, net) => (seen.effects.push({ ...input, net }), { done: input.ids.length, failed: 0 }),
     health: async () => ((seen.health += 1), { schema: 3, lastJob: null }),
-    cron: async (input, net) => (seen.cron.push({ ...input, net }), { ok: true, at: input.at, steps: [], closed: 0, day: null }),
+    status: async () => STATUS,
+    cron: async (input, net) => (seen.cron.push({ ...input, net }), { ok: true, at: input.at, steps: [], closed: 0, day: null, status: STATUS }),
     signin: async (body) => (seen.signins.push(body), { ok: true, value: { echo: body.signin } }),
     mailRoute: async () => ({ status: 200, body: '{"v":1,"ok":true}' }),
     mailWork: async () => undefined,
@@ -78,7 +80,7 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     const answer = await post({ authorization: 'Bearer good' });
     expect([answer.status, answer.headers.get('content-type'), await answer.text()]).toEqual([200, 'application/json', ANSWER]);
     expect(seen.batch).toHaveLength(1);
-    expect(seen.batch[0].input).toEqual({ who: { kind: 'browser', authUserId: 'auth-1' }, calls: [{ i: 0, name: 'session.get', input: {} }], overviewCalls: 0, worker: 1 });
+    expect(seen.batch[0].input).toEqual({ ent: 'ent_001', who: { kind: 'browser', authUserId: 'auth-1' }, calls: [{ i: 0, name: 'session.get', input: {} }], overviewCalls: 0, worker: 1 });
     expect(seen.batch[0].net).toBe(net);
   });
 
@@ -94,7 +96,7 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     expect(answer.status).toBe(200);
     expect(waits).toHaveLength(1);
     await Promise.all(waits);
-    expect(seen.effects).toEqual([{ ids: ['7', '8'], worker: 0, net }]);
+    expect(seen.effects).toEqual([{ ent: 'ent_001', ids: ['7', '8'], worker: 0, net }]);
   });
 
   it('maps an overloaded or reset office object to busy, and any other error to a hidden failure', async () => {
@@ -147,7 +149,7 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     await get('/api/nothing');
     const at = new Date('2026-10-04T05:00:00Z');
     expect(await routes.scheduled(at, {})).toMatchObject({ ok: true });
-    expect(seen.cron).toEqual([{ at: at.toISOString(), worker: 2, net }]);
+    expect(seen.cron).toEqual([{ ent: 'ent_001', at: at.toISOString(), worker: 2, net }]);
   });
 
   it('mounts each route of the routes option under /api, with the office object, the network port and the after of its request', async () => {

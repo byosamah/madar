@@ -4,6 +4,7 @@ import { importSigninRows } from '../auth/own/import';
 import { hashPassword } from '../auth/own/password';
 import { ownIssuer } from '../auth/ownKeys';
 import { httpOf, nodeOffice } from './test/nodeOffice';
+import { ENT_VADO } from '../enterprise/ids';
 
 /**
  * The /api and /mcp routes of the office path in node (exit wave 4, Task 1 under the ruling of the main session): each request
@@ -93,10 +94,10 @@ describe('the routes of the office path, from the Worker into the object (server
   it('removes in the first Cron run after 00:00 UTC the sign-in links that ended more than a day ago, and keeps a new one', async () => {
     const t = await signedOffice('2026-10-05T00:05:00.000Z');
     t.raw.exec(`insert into auth_links (token_hash, auth_id, type, expires_at) values ('old', '${AUTH_ID}', 'recovery', '2026-10-03T00:00:00.000Z'), ('new', '${AUTH_ID}', 'recovery', '2026-10-05T01:00:00.000Z')`);
-    await t.parts.cron({ at: '2026-10-05T00:05:00.000Z', worker: 0 }, t.net);
+    await t.parts.cron({ ent: ENT_VADO, at: '2026-10-05T00:05:00.000Z', worker: 0 }, t.net);
     expect(t.raw.prepare('select token_hash from auth_links order by token_hash').all()).toEqual([{ token_hash: 'new' }]);
     t.raw.exec(`insert into auth_links (token_hash, auth_id, type, expires_at) values ('old2', '${AUTH_ID}', 'recovery', '2026-10-03T00:00:00.000Z')`);
-    await t.parts.cron({ at: '2026-10-05T06:00:00.000Z', worker: 0 }, t.net);
+    await t.parts.cron({ ent: ENT_VADO, at: '2026-10-05T06:00:00.000Z', worker: 0 }, t.net);
     expect(t.raw.prepare("select count(*) as n from auth_links where token_hash = 'old2'").get()).toEqual({ n: 1 });
   });
 });

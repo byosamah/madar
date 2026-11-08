@@ -32,11 +32,14 @@ import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type Office
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
-import { ENT_VADO } from '../enterprise/ids';
+import { EnterpriseGate } from '../enterprise/gate';
+import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
+import { enterpriseStatusOf } from '../enterprise/status';
+import type { EnterpriseStatus } from '../enterprise/types';
 import { officeTyping, socketClosed, stateMessage } from './presence';
 import { importBegin, importFinish, importPart, importStepOf, type ImportStep } from './import';
 import { netPorts, type NetApi } from './net';
-import { EXPORT_TABLES, exportPage, exportStepOf, META_ROW_LITE, OfficeHold, peek, testToolsOn, writesIn, type ExportStep } from './ops';
+import { EXPORT_TABLES, exportPage, exportStepOf, META_ROW_LITE, OFFICE_NAME_HEADER, OfficeHold, peek, testToolsOn, writesIn, type ExportStep } from './ops';
 import type { OfficeWho } from './who';
 
 /**
@@ -46,38 +49,44 @@ import type { OfficeWho } from './who';
  */
 
 export type OfficeHost = SqlHost & { readonly totals: { rowsRead: number; rowsWritten: number } };
-export type OfficeEffectsInput = { ids: string[]; worker: number };
+/**
+ * Madar enterprises: every input of an object call carries ent, the enterprise that the Worker found (from the token, a tag or an address).
+ * The gate of the object checks it against the identity row before any other work.
+ */
+export type OfficeEffectsInput = { ent: EnterpriseId; ids: string[]; worker: number };
 export type OfficeEffectsReport = { done: number; failed: number };
 export type OfficeHealth = { schema: number; lastJob: string | null };
 /** One Cron run: its time (ISO text) and the Worker requests since the last report. */
-export type OfficeCronInput = { at: string; worker: number };
+export type OfficeCronInput = { ent: EnterpriseId; at: string; worker: number };
 export type DayRow = { rows_read: number; rows_written: number; requests: number; calls: number; worker_requests: number };
 /** One step of the own sign-in (exit wave 2): its name in SIGNIN_STEPS (server/auth/own/office.ts) and its input. */
-export type OfficeSigninInput = { signin: string; input: unknown };
+export type OfficeSigninInput = { ent: EnterpriseId; signin: string; input: unknown };
 /**
  * The forgot and renew routes (exit wave 2) on the office path. mailRoute runs the shape check and the limits and answers at once,
  * with the value of the mail work (the email or the renew key); mailWork runs that work in a second call, after the answer of the
  * Worker, so the answer takes the same time for a known and an unknown email (server/office/signinRoutes.ts).
  */
 export type OfficeMailRoute = 'forgot' | 'renew';
-export type OfficeMailInput = { route: OfficeMailRoute; body: string; address: string };
+export type OfficeMailInput = { ent: EnterpriseId; route: OfficeMailRoute; body: string; address: string };
 export type OfficeMailAnswer = { status: number; body: string; work?: string };
-export type OfficeMailWork = { route: OfficeMailRoute; value: string };
+export type OfficeMailWork = { ent: EnterpriseId; route: OfficeMailRoute; value: string };
 /**
  * One request of /mcp on the office path (the merge of exit waves 2 and 3), as plain data: the Worker sends it on as it came, and
  * the object runs the MCP app (server/mcp/app.ts) with the own token check, the agent check on SQLite and each tool call through
  * the batch path. later: the mails and pushes of a tool call, which the Worker runs after the answer (runEffects).
  */
-export type OfficeMcpInput = { url: string; method: string; headers: [string, string][]; body: string | null; worker: number };
+export type OfficeMcpInput = { ent: EnterpriseId; url: string; method: string; headers: [string, string][]; body: string | null; worker: number };
 export type OfficeMcpAnswer = { status: number; headers: [string, string][]; body: string; later: string[] };
 /** The report of the job, the sockets that the sweep closed, and the day row of the meters after the run. */
-export type OfficeCronReport = JobReport & { closed: number; day: DayRow | null };
+export type OfficeCronReport = JobReport & { closed: number; day: DayRow | null; status: EnterpriseStatus };
 
 export type PartsInput = {
   host: OfficeHost;
   read: ReadEnv;
   sockets: Sockets;
   principal: (who: OfficeWho, office: OfficeSnapshot) => Principal;
+  /** The name of the object (ctx.id.name; spike S3). The gate refuses every call when it differs from the id of the identity row. */
+  name?: () => string | undefined;
   clock?: Clock;
   log?: Logger;
   calls?: ReadonlyMap<string, CallEntry>;
@@ -89,6 +98,8 @@ export type OfficeParts = {
   readonly tickets: LiveTickets;
   /** The hold of an export or an import (exit wave 4, server/office/ops.ts): in memory, so a restart of the object ends it. */
   readonly hold: OfficeHold;
+  /** The identity of the enterprise of this object (server/enterprise/gate.ts). */
+  readonly gate: EnterpriseGate;
   depsFor(net: NetApi): Deps;
   batch(input: OfficeBatchInput, net: NetApi): Promise<OfficeBatchOutput>;
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport>;
@@ -101,6 +112,8 @@ export type OfficeParts = {
   message(socket: LiveSocket, message: string | ArrayBuffer): void;
   closed(socket: LiveSocket, code: number): void;
   health(): Promise<OfficeHealth>;
+  /** The status row of this enterprise (Madar enterprises). A paused object answers it too. */
+  status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus>;
   /** One office op of the Worker (exit wave 4): /office/export, /office/import and /office/peek, as JSON in and out. */
   ops(request: Request): Promise<Response>;
   /** The counts of the UTC day of now: the day row and the counts that the meter holds in memory still (exit wave 4). */
@@ -119,6 +132,11 @@ function mcpRefusal(status: number, message: string, reason?: string): OfficeMcp
 /** The answer of a forgot or renew route that the hold refuses: the shape and status of errorResponse (server/http/errors.ts). */
 function mailRefusal(error: RunError): OfficeMailAnswer {
   return { status: statusOf(error), body: JSON.stringify({ v: 1, error }) };
+}
+
+/** An object method that throws its refusal (runEffects, cron, mailWork, status): the Worker maps a thrown ApiError to its status. */
+function refusalError(error: RunError): ApiError {
+  return new ApiError(error.code, error.message, error.details ?? {});
 }
 
 const toolCallsIn = (body: string | null): number => {
@@ -142,6 +160,7 @@ export function officeParts(o: PartsInput): OfficeParts {
   const meter = new OfficeMeter(o.host);
   const tickets = new LiveTickets();
   const hold = new OfficeHold();
+  const gate = new EnterpriseGate(db, o.name ? { name: o.name } : {});
   // The test tools (the peek route; the replace mode of the import, Task 10): MADAR_TEST_TOOLS = "on", never on production.
   const tools = testToolsOn(o.read);
   // The day cap of the test Worker (exit wave 4, server/office/cap.ts): MADAR_DAY_CAP, set for the test Worker only.
@@ -190,7 +209,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       mail: values.mail.driver === 'outbox' ? outboxMailPort(db) : ports.mail,
       signal: signals,
       authAdmin,
-      config: values.config,
+      // The enterprise of this object, once the gate has its row (every method checks the gate before it makes the deps).
+      config: gate.current() ? { ...values.config, ent: gate.id() } : values.config,
       log,
       pushFetch: ports.pushFetch,
       live: tickets,
@@ -248,12 +268,15 @@ export function officeParts(o: PartsInput): OfficeParts {
    * and the finish check it, and the finish or an abort ends it. After the finish every socket closes, so each open screen
    * reloads the new office.
    */
-  async function importStep(step: ImportStep, now: Date) {
+  async function importStep(step: ImportStep, now: Date, name: string | null) {
     if (step.step === 'begin') {
       if (step.mode === 'replace' && !tools) throw new ApiError('forbidden', 'The replace mode is a test tool, and it is off on this copy.');
       const id = hold.begin('import', now);
       try {
         await importBegin(db, step.mode);
+        // An object that was never made gets its identity row from the first import into an enterprise id. A rehearsal name and the old
+        // name "office" make no row, so those objects answer not_found on every other call.
+        if (!(await gate.load()) && isEnterpriseId(name)) await gate.create({ id: name, state: 'active', limits: { people: null, storageBytes: null }, now });
       } catch (error) {
         hold.end(id);
         throw error;
@@ -294,8 +317,11 @@ export function officeParts(o: PartsInput): OfficeParts {
     meter,
     tickets,
     hold,
+    gate,
     depsFor,
     async batch(input, net) {
+      const refused = await gate.refusal(input.ent);
+      if (refused) return { ok: false, error: refused };
       meter.request({ calls: input.calls.length, worker: input.worker });
       // An export refuses a batch with a write and serves a read batch; an import refuses every batch.
       const held = hold.refusal({ now: clock.now(), writes: writesIn(input.calls) }) ?? await capped(writesIn(input.calls));
@@ -307,6 +333,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       return { ok: true, body: out.body, later: out.later };
     },
     async runEffects(input, net) {
+      const refused = await gate.refusal(input.ent);
+      if (refused) throw refusalError(refused);
       meter.request({ worker: input.worker });
       // An import writes every table: the outbox rows wait for the Cron. An export lets them run (outbox and mail are drift tables).
       if (hold.active(clock.now())?.kind === 'import') return { done: 0, failed: 0 };
@@ -314,12 +342,14 @@ export function officeParts(o: PartsInput): OfficeParts {
       return { done: result.done.length, failed: result.failed.length };
     },
     async cron(input, net) {
+      const refused = await gate.refusal(input.ent);
+      if (refused) throw refusalError(refused);
       meter.request({ worker: input.worker });
       const at = new Date(input.at);
       if (hold.active(at)) {
         log.info('The office jobs wait: an export or an import holds the office.', { at: input.at });
         const closed = sweep(o.sockets, clock.now(), staleMs);
-        return { ok: true, at: input.at, steps: [], closed, day: null };
+        return { ok: true, at: input.at, steps: [], closed, day: null, status: await enterpriseStatusOf(db, gate.id(), await office(), await dayCounts(at), at) };
       }
       // One Deps, so the whole run shares one network budget: one Cron run is one Worker invocation (50 subrequests on Free).
       const deps = depsFor(net);
@@ -327,9 +357,12 @@ export function officeParts(o: PartsInput): OfficeParts {
       await db.tx('write', (q) => meter.flush(q, at));
       const closed = sweep(o.sockets, clock.now(), staleMs);
       const [day] = await db.statement<DayRow>('read', DAY_ROW_LITE, [utcDay(at)]);
-      return { ...report, closed, day: day ?? null };
+      return { ...report, closed, day: day ?? null, status: await enterpriseStatusOf(db, gate.id(), await office(), await dayCounts(at), at) };
     },
     async signin(body) {
+      // A paused object lets the sign-in steps through to the step: plan C decides each step of a paused object (design 5.8).
+      const refused = await gate.refusal(body.ent, { allow: 'paused' });
+      if (refused) return { ok: false, error: refused };
       meter.request();
       // An export lets the sign-in steps run (their rows are drift tables of server/office/ops.ts); an import refuses them. The
       // day cap counts a sign-in step as a read: it stops only over the rows read or the requests.
@@ -343,9 +376,11 @@ export function officeParts(o: PartsInput): OfficeParts {
         return { ok: false, error: runErrorOf(error) };
       }
       // runSigninOp answers a name that is not in SIGNIN_STEPS with not_found, so the cast gives no step that does not exist.
-      return runSigninOp({ db, clock, log, config: values.config, keys, ent: ENT_VADO }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
+      return runSigninOp({ db, clock, log, config: values.config, keys, ent: gate.id() }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
     },
     async mailRoute(input, net) {
+      const refused = await gate.refusal(input.ent, { allow: 'paused' });
+      if (refused) return mailRefusal(refused);
       meter.request();
       // The limits and the links of forgot and renew are drift tables: an export lets them run, an import refuses them.
       const held = hold.refusal({ now: clock.now(), writes: false }) ?? await capped(false);
@@ -362,6 +397,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       return { status: response.status, body: await response.text(), ...(work === undefined ? {} : { work }) };
     },
     async mailWork(input, net) {
+      const refused = await gate.refusal(input.ent, { allow: 'paused' });
+      if (refused) throw refusalError(refused);
       meter.request();
       if (hold.refusal({ now: clock.now(), writes: false })) {
         log.warn(input.route === 'forgot' ? 'A reset mail did not go out: an import holds the office.' : 'A renewed invitation did not go out: an import holds the office.');
@@ -376,6 +413,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       }
     },
     async mcp(input, net) {
+      const refused = await gate.refusal(input.ent);
+      if (refused) return mcpRefusal(statusOf(refused), refused.message, refused.details?.reason as string | undefined);
       meter.request({ calls: toolCallsIn(input.body), worker: input.worker });
       // An export lets the OAuth routes under /mcp run (their rows are drift tables); a request of /mcp itself may write, so it waits.
       const path = new URL(input.url).pathname;
@@ -419,7 +458,7 @@ export function officeParts(o: PartsInput): OfficeParts {
         readOffice: () => office(),
         stateKey: await stateKeyOf(),
         fetch: NO_HOP,
-        oauth: (routes) => mountOAuth(routes, localSigninOffice({ db, clock, log, config: values.config, keys, ent: ENT_VADO }), { mcpUrl, jwks: ownPublicJwks(secret) }),
+        oauth: (routes) => mountOAuth(routes, localSigninOffice({ db, clock, log, config: values.config, keys, ent: gate.id() }), { mcpUrl, jwks: ownPublicJwks(secret) }),
       });
       const root = new Hono();
       root.route('/mcp', app);
@@ -451,6 +490,13 @@ export function officeParts(o: PartsInput): OfficeParts {
         // The socket is closed already.
       }
     },
+    async status(input) {
+      const refused = await gate.refusal(input.ent, { allow: 'paused' });
+      if (refused) throw refusalError(refused);
+      meter.request();
+      const now = clock.now();
+      return enterpriseStatusOf(db, gate.id(), await office(), await dayCounts(now), now);
+    },
     async health() {
       meter.request();
       const [row] = await db.statement<{ done_at: string }>('read', JOBS_LAST_RUN_SQL);
@@ -462,7 +508,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       try {
         const path = new URL(request.url).pathname;
         if (path === '/office/export') return Response.json(await exportStep(exportStepOf(await bodyOf(request)), now));
-        if (path === '/office/import') return Response.json(await importStep(importStepOf(await bodyOf(request)), now));
+        if (path === '/office/import') return Response.json(await importStep(importStepOf(await bodyOf(request)), now, request.headers.get(OFFICE_NAME_HEADER)));
         if (path === '/office/peek') {
           if (!tools) throw new ApiError('forbidden', 'The test reads are off on this copy.');
           const body = await bodyOf(request);

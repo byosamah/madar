@@ -38,7 +38,7 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     const { seen, post } = setup();
     const answer = await post('/auth/token', { grant_type: 'password', email: 'hala@madar.test', password: 'a good password' });
     expect([answer.status, answer.headers.get('cache-control'), await answer.json()]).toEqual([200, 'no-store', { access_token: 't', step: 'auth.password' }]);
-    expect(seen.signins).toEqual([{ signin: 'auth.password', input: { email: 'hala@madar.test', password: 'a good password', address: ADDRESS } }]);
+    expect(seen.signins).toEqual([{ ent: 'ent_001', signin: 'auth.password', input: { email: 'hala@madar.test', password: 'a good password', address: ADDRESS } }]);
   });
 
   it('answers the public key set with no office object call', async () => {
@@ -71,12 +71,12 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     const waits: Promise<unknown>[] = [];
     const answer = await post('/auth/forgot', { email: 'hala@madar.test' }, { waitUntil: (work) => waits.push(work) });
     expect([answer.status, await answer.json()]).toEqual([200, { v: 1, ok: true }]);
-    expect(seen.mailRoutes).toEqual([{ route: 'forgot', body: JSON.stringify({ email: 'hala@madar.test' }), address: ADDRESS }]);
+    expect(seen.mailRoutes).toEqual([{ ent: 'ent_001', route: 'forgot', body: JSON.stringify({ email: 'hala@madar.test' }), address: ADDRESS }]);
     expect(seen.sleeps).toHaveLength(1);
     expect(seen.sleeps[0]).toBeGreaterThan(1400);
     expect(waits).toHaveLength(1);
     await Promise.all(waits);
-    expect(seen.mailWorks).toEqual([{ route: 'forgot', value: 'value-1' }]);
+    expect(seen.mailWorks).toEqual([{ ent: 'ent_001', route: 'forgot', value: 'value-1' }]);
     expect(net.calls).toEqual([]);
   });
 

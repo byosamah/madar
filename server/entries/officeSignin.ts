@@ -1,3 +1,4 @@
+import { ENT_VADO } from '../enterprise/ids';
 import type { JSONWebKeySet } from 'jose';
 import { CLIENT_ADDRESS_HEADER, FORGOT_MIN_MS, FORGOT_PATH } from '../auth/forgot';
 import type { OpInput, OpOutput, OpResult, SigninOffice, SigninOpName } from '../auth/own/office';
@@ -23,7 +24,7 @@ import { officeErrorOf, type OfficeRoute, type OfficeStub } from './officeWorker
 /** The SigninOffice of one request: each step runs in the office object of that request. */
 export function objectSigninOffice(stub: Pick<OfficeStub, 'signin'>): SigninOffice {
   return {
-    run: <N extends SigninOpName>(name: N, input: OpInput<N>) => stub.signin({ signin: name, input }) as Promise<OpResult<OpOutput<N>>>,
+    run: <N extends SigninOpName>(name: N, input: OpInput<N>) => stub.signin({ ent: ENT_VADO, signin: name, input }) as Promise<OpResult<OpOutput<N>>>,
   };
 }
 
@@ -60,12 +61,12 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
       const net = call.net();
       let answer: OfficeMailAnswer;
       try {
-        answer = await call.stub.mailRoute({ route, body, address }, net);
+        answer = await call.stub.mailRoute({ ent: ENT_VADO, route, body, address }, net);
       } catch (error) {
         return errorResponse(officeErrorOf(error, o.deps.log));
       }
       if (answer.work !== undefined) {
-        const work = call.stub.mailWork({ route, value: answer.work }, net).catch((error: unknown) => {
+        const work = call.stub.mailWork({ ent: ENT_VADO, route, value: answer.work }, net).catch((error: unknown) => {
           o.deps.log.warn(route === 'forgot' ? 'A reset mail did not go out.' : 'A renewed invitation did not go out.', { error: error instanceof Error ? error.message : String(error) });
         });
         if (call.after) call.after(work);

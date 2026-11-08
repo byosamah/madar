@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { liteSchemaSql } from '../data/lite/schema';
 import { DRIFT_TABLES, EXPORT_PAGE_ROWS, EXPORT_TABLES, HOLD_MS, ROWID_ALIAS, testToolsOn } from './ops';
 import { httpOf, NODE_NOW, nodeOffice } from './test/nodeOffice';
+import { ENT_VADO } from '../enterprise/ids';
 
 const post = (path: string, body: unknown) => new Request(`https://office.internal${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 const json = async <T,>(response: Response): Promise<T> => {
@@ -44,12 +45,12 @@ describe('the hold of an export (server/office/parts.ts)', () => {
   it('refuses a write batch and serves a read batch while an export holds the office, and both after the end', async () => {
     const t = await nodeOffice();
     const begin = await json<{ id: string }>(await t.parts.ops(post('/office/export', { step: 'begin' })));
-    const refused = await t.parts.batch({ who: { kind: 'browser', authUserId: 'x' }, calls: [write], overviewCalls: 0, worker: 0 }, t.net);
+    const refused = await t.parts.batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId: 'x' }, calls: [write], overviewCalls: 0, worker: 0 }, t.net);
     expect(refused).toMatchObject({ ok: false, error: { code: 'failed', details: { reason: 'busy' } } });
     expect(refused.ok === false && refused.error.message).toContain('nightly backup');
     expect(t.parts.hold.refusal({ now: t.clock.now(), writes: false })).toBeUndefined();
     // A read batch is not refused for the hold: it goes on to the token check of the person (x is no person here).
-    const served = await t.parts.batch({ who: { kind: 'browser', authUserId: 'x' }, calls: [read], overviewCalls: 0, worker: 0 }, t.net);
+    const served = await t.parts.batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId: 'x' }, calls: [read], overviewCalls: 0, worker: 0 }, t.net);
     expect(served.ok === false && served.error.details?.reason).not.toBe('busy');
     await json(await t.parts.ops(post('/office/export', { step: 'end', id: begin.id })));
     expect(t.parts.hold.refusal({ now: t.clock.now(), writes: true })).toBeUndefined();
@@ -106,7 +107,7 @@ describe('the hold of an export (server/office/parts.ts)', () => {
   it('runs no job step while an export holds the office, and closes the stale sockets still', async () => {
     const t = await nodeOffice();
     await json(await t.parts.ops(post('/office/export', { step: 'begin' })));
-    const report = await t.parts.cron({ at: NODE_NOW, worker: 0 }, t.net);
+    const report = await t.parts.cron({ ent: ENT_VADO, at: NODE_NOW, worker: 0 }, t.net);
     expect(report.steps).toEqual([]);
     expect(t.raw.prepare("select count(*) as n from job_runs where key = 'heartbeat'").get()).toEqual({ n: 0 });
   });
@@ -150,14 +151,14 @@ describe('the hold of an import (server/office/parts.ts)', () => {
   it('refuses every call, every sign-in step and the mail routes while an import holds the office', async () => {
     const t = await nodeOffice();
     t.parts.hold.begin('import', t.clock.now());
-    const batch = await t.parts.batch({ who: { kind: 'browser', authUserId: 'x' }, calls: [read], overviewCalls: 0, worker: 0 }, t.net);
+    const batch = await t.parts.batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId: 'x' }, calls: [read], overviewCalls: 0, worker: 0 }, t.net);
     expect(batch).toMatchObject({ ok: false, error: { code: 'failed', details: { reason: 'busy' } } });
     expect(batch.ok === false && batch.error.message).toContain('loads the office data');
-    expect(await t.parts.signin({ signin: 'auth.password', input: { email: 'a@madar.test', password: 'x' } })).toMatchObject({ ok: false, error: { details: { reason: 'busy' } } });
-    const forgot = await t.parts.mailRoute({ route: 'forgot', body: JSON.stringify({ email: 'a@madar.test' }), address: '203.0.113.7' }, t.net);
+    expect(await t.parts.signin({ ent: ENT_VADO, signin: 'auth.password', input: { email: 'a@madar.test', password: 'x' } })).toMatchObject({ ok: false, error: { details: { reason: 'busy' } } });
+    const forgot = await t.parts.mailRoute({ ent: ENT_VADO, route: 'forgot', body: JSON.stringify({ email: 'a@madar.test' }), address: '203.0.113.7' }, t.net);
     expect(forgot.status).toBe(500);
     expect(forgot.body).toContain('busy');
-    expect(await t.parts.runEffects({ ids: ['1'], worker: 0 }, t.net)).toEqual({ done: 0, failed: 0 });
+    expect(await t.parts.runEffects({ ent: ENT_VADO, ids: ['1'], worker: 0 }, t.net)).toEqual({ done: 0, failed: 0 });
   });
 
   it('ends the hold of an import by itself after 30 minutes', () => {

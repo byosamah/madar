@@ -7,6 +7,7 @@ import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from '../../auth
 import { browserTokenChecker, type TokenChecker } from '../../auth/verify';
 import type { Deps, Logger } from '../../core/ports';
 import { nodeHost } from '../../data/lite/host';
+import { ENT_VADO } from '../../enterprise/ids';
 import { applyLiteSchema } from '../../data/lite/schema';
 import { liteWriteState } from '../../data/lite/whole';
 import { officeSigninRoutes } from '../../entries/officeSignin';
@@ -61,6 +62,7 @@ function stubOf(parts: OfficeParts): OfficeStub {
     mailWork: (input, net) => parts.mailWork(input, net),
     mcp: (input, net) => parts.mcp(input, net),
     health: () => parts.health(),
+    status: (input) => parts.status(input),
     // As Office.fetch: the office ops of exit wave 4 under /office/, else the socket. The drop of a spare object is workerd only.
     fetch: (request) => (new URL(request.url).pathname.startsWith('/office/') ? parts.ops(request) : parts.socket(request)),
   };
@@ -70,7 +72,7 @@ function stubOf(parts: OfficeParts): OfficeStub {
  * The office parts on node:sqlite with a new own sign-in key, and the sample office unless seed is false. The Worker side of route
  * has the deps of the Worker: its database refuses every statement, as on the real office path.
  */
-export async function nodeOffice(o: { at?: string; env?: Record<string, string>; seed?: State | false } = {}) {
+export async function nodeOffice(o: { at?: string; env?: Record<string, string>; seed?: State | false; row?: false } = {}) {
   const raw = new DatabaseSync(':memory:');
   const host = Object.assign(nodeHost(raw), { totals: { rowsRead: 0, rowsWritten: 0 } });
   await applyLiteSchema(host);
@@ -81,6 +83,8 @@ export async function nodeOffice(o: { at?: string; env?: Record<string, string>;
   const log = keptLog();
   const sockets = fakeSockets();
   const parts = officeParts({ host, read, sockets, clock, log, principal: principalOfWho });
+  // An object that was made: its identity row (Madar enterprises). Without it, every call answers not_found.
+  if (o.row !== false) await parts.gate.create({ id: ENT_VADO, state: 'active', limits: { people: null, storageBytes: null }, now: new Date(NODE_NOW) });
   if (o.seed !== false) {
     const seed = o.seed ?? (await buildSeed(NODE_TODAY, async () => undefined));
     await parts.db.tx('write', (q) => liteWriteState(q, seed));

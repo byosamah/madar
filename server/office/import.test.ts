@@ -7,6 +7,7 @@ import { rowOf } from '../data/rows';
 import { TABLES, rowsOf } from '../data/tables';
 import { IMPORT_PART_ROWS, type ImportStep, type ServerRows } from './import';
 import { NODE_TODAY, nodeOffice } from './test/nodeOffice';
+import { ENT_VADO } from '../enterprise/ids';
 
 const post = async <T,>(t: Awaited<ReturnType<typeof nodeOffice>>, body: ImportStep | Record<string, unknown>): Promise<T> => {
   const response = await t.parts.ops(new Request('https://office.internal/office/import', { method: 'POST', body: JSON.stringify(body) }));
@@ -68,7 +69,7 @@ describe('the import steps of the office object (server/office/import.ts)', () =
     const seed = await buildSeed(NODE_TODAY, async () => undefined);
     const t = await nodeOffice({ seed: false });
     const { id } = await post<{ id: string }>(t, { step: 'begin', mode: 'empty' });
-    const read = await t.parts.batch({ who: { kind: 'browser', authUserId: 'x' }, calls: [{ i: 0, name: 'tasks.list', input: { scope: 'mine' } }], overviewCalls: 0, worker: 0 }, t.net);
+    const read = await t.parts.batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId: 'x' }, calls: [{ i: 0, name: 'tasks.list', input: { scope: 'mine' } }], overviewCalls: 0, worker: 0 }, t.net);
     expect(read.ok === false && read.error.message).toContain('loads the office data');
     await post(t, { step: 'abort', id });
     expect(t.parts.hold.active(t.clock.now())).toBeUndefined();
@@ -100,12 +101,12 @@ describe('the import steps of the office object (server/office/import.ts)', () =
     const seed = await buildSeed(NODE_TODAY, async () => undefined);
     const withRow = await nodeOffice({ seed: false, at: '2026-10-04T06:05:00.000Z' });
     await importState(withRow, seed, serverOf(seed, { jobRuns: [{ key: `summary:${NODE_TODAY}`, done_at: '2026-10-04T04:31:00.000Z' }] }));
-    await withRow.parts.cron({ at: '2026-10-04T06:05:00.000Z', worker: 0 }, withRow.net);
+    await withRow.parts.cron({ ent: ENT_VADO, at: '2026-10-04T06:05:00.000Z', worker: 0 }, withRow.net);
     expect(withRow.raw.prepare("select count(*) as n from mail_outbox where tag = 'summary'").get()).toEqual({ n: 0 });
     // The control: with no summary row, the same run mails the summary.
     const without = await nodeOffice({ seed: false, at: '2026-10-04T06:05:00.000Z' });
     await importState(without, seed);
-    await without.parts.cron({ at: '2026-10-04T06:05:00.000Z', worker: 0 }, without.net);
+    await without.parts.cron({ ent: ENT_VADO, at: '2026-10-04T06:05:00.000Z', worker: 0 }, without.net);
     expect(Number((without.raw.prepare("select count(*) as n from mail_outbox where tag = 'summary'").get() as { n: number }).n)).toBeGreaterThan(0);
   });
 

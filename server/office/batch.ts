@@ -6,6 +6,7 @@ import type { Deps } from '../core/ports';
 import type { CallData, CallTx, RunCall } from '../core/runCall';
 import type { BatchScope, OfficeSnapshot, Principal, RunError, RunRequest, RunResult } from '../core/types';
 import { liteData } from '../data/lite/callData';
+import type { EnterpriseId } from '../enterprise/ids';
 import { entryOf } from '../http/batch';
 import { runErrorOf } from '../http/errors';
 import type { OfficeMeter } from './meter';
@@ -19,7 +20,7 @@ import type { OfficeWho } from './who';
  * second call of the Worker (runEffects).
  */
 
-export type OfficeBatchInput = { who: OfficeWho; calls: WireCall[]; overviewCalls: number; worker: number };
+export type OfficeBatchInput = { ent: EnterpriseId; who: OfficeWho; calls: WireCall[]; overviewCalls: number; worker: number };
 export type OfficeBatchOutput = { ok: true; body: string; later: string[] } | { ok: false; error: RunError };
 
 /** The outbox rows of one batch: the kind of each row that a call wrote, and the rows whose transaction committed. */

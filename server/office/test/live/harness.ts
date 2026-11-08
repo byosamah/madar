@@ -65,6 +65,8 @@ export async function startLive() {
     },
     rows: async <R,>(text: string, values: unknown[] = []) => read<R[]>(await post('/test/rows', { text, values })),
     exec: async (text: string, values: unknown[] = []) => read<{ ok: true }>(await post('/test/exec', { text, values })),
+    statusRows: async () => read<{ status: Record<string, unknown>; rows: number }>(await worker().fetch('/test/statusRows')),
+    named: async (name: string) => read<{ ok: boolean; code?: string | null; message?: string }>(await post('/test/named', { name })),
     readBack: async () => read<State>(await worker().fetch('/test/readBack')),
     net: async () => read<NetSeen>(await worker().fetch('/test/net')),
     batch: async (userId: string, calls: BatchCall[]) => {
@@ -82,7 +84,7 @@ export async function startLive() {
       return { status: response.status, body: (json ? JSON.parse(json) : {}) as { result?: Record<string, any>; error?: { message: string } } };
     },
     open: (ticket: string) => openSocket(`${url.href.replace(/^http/, 'ws')}api/live?ticket=${ticket}`),
-    evict: () => worker().evictDurableObject('OFFICE', { name: 'office', webSockets: 'hibernate' }),
+    evict: () => worker().evictDurableObject('OFFICE', { name: 'ent_001', webSockets: 'hibernate' }),
     /** One office op through the Worker, with the secret of the test Worker (entry.ts); a status above 299 throws with it. */
     ops: async (op: string, body: unknown, o: { office?: string } = {}) => {
       const header = op === 'export' ? 'x-madar-export-secret' : 'x-madar-ops-secret';

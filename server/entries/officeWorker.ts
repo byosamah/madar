@@ -11,6 +11,8 @@ import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
 import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn } from '../office/ops';
 import { runFanout, selfTransport } from '../enterprise/fanout';
+import { ENT_VADO, type EnterpriseId } from '../enterprise/ids';
+import type { EnterpriseStatus } from '../enterprise/types';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
 import { runInHost } from '../core/after';
@@ -85,6 +87,7 @@ export type OfficeStub = {
   mailWork(input: OfficeMailWork, net: NetApi): Promise<void>;
   mcp(input: OfficeMcpInput, net: NetApi): Promise<OfficeMcpAnswer>;
   health(): Promise<OfficeHealth>;
+  status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus>;
   fetch(request: Request): Promise<Response>;
 };
 
@@ -152,13 +155,13 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const net = o.net();
     let out: OfficeBatchOutput;
     try {
-      out = await o.stub(env).batch({ who: { kind: 'browser', authUserId }, calls, overviewCalls, worker: reported() }, net);
+      out = await o.stub(env).batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId }, calls, overviewCalls, worker: reported() }, net);
     } catch (error) {
       return errorResponse(officeErrorOf(error, log));
     }
     if (!out.ok) return errorResponse(out.error);
     if (out.later.length > 0) {
-      const work = o.stub(env).runEffects({ ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+      const work = o.stub(env).runEffects({ ent: ENT_VADO, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
         log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
       });
       if (after) after(work);
@@ -185,13 +188,13 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const net = o.net();
     let out: OfficeMcpAnswer;
     try {
-      out = await o.stub(env).mcp({ url: request.url, method: request.method, headers, body, worker: reported() }, net);
+      out = await o.stub(env).mcp({ ent: ENT_VADO, url: request.url, method: request.method, headers, body, worker: reported() }, net);
     } catch (error) {
       const refusal = officeErrorOf(error, log);
       return refusal.details?.reason === 'busy' ? mcpError(503, refusal.message, 'busy') : mcpError(500, 'Something went wrong. Try again.');
     }
     if (out.later.length > 0) {
-      const work = o.stub(env).runEffects({ ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+      const work = o.stub(env).runEffects({ ent: ENT_VADO, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
         log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
       });
       if (after) after(work);
@@ -328,7 +331,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     async scheduled(at: Date, env: Env): Promise<OfficeCronReport | undefined> {
       seen += 1;
       try {
-        const report = await o.stub(env).cron({ at: at.toISOString(), worker: reported() }, o.net());
+        const report = await o.stub(env).cron({ ent: ENT_VADO, at: at.toISOString(), worker: reported() }, o.net());
         log.info('The office jobs ran.', { ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed, day: report.day });
         return report;
       } catch (error) {

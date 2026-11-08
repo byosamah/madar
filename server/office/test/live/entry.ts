@@ -1,6 +1,8 @@
 import { ApiError } from '../../../../src/api/errors';
+import { emptyState } from '../../../../src/api/store';
 import { consoleLogger } from '../../../core/deps';
 import { officeRoutes, type OfficeStub } from '../../../entries/officeWorker';
+import { ENT_VADO } from '../../../enterprise/ids';
 import { setEnvSource } from '../../../env';
 import { testConfig } from '../../../test/fakes/deps';
 import { fakeFiles } from '../../../test/fakes/files';
@@ -12,7 +14,7 @@ export { TestOffice };
 
 type Env = Record<string, unknown> & { OFFICE: { idFromName(name: string): unknown; get(id: unknown): unknown } };
 type Ctx = { waitUntil(work: Promise<unknown>): void };
-type Test = OfficeStub & Pick<TestOffice, 'seed' | 'readBack' | 'rows' | 'exec' | 'agent'>;
+type Test = OfficeStub & Pick<TestOffice, 'seed' | 'readBack' | 'rows' | 'exec' | 'agent' | 'statusRows'>;
 
 // The network of the test Worker: files and mail in memory, and a push service that takes every push. /test/net shows them.
 const files = fakeFiles({ kind: 'r2' });
@@ -23,7 +25,8 @@ const pushFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   return new Response(null, { status: 201 });
 }) as typeof fetch;
 
-const stubOf = (env: Env) => env.OFFICE.get(env.OFFICE.idFromName('office')) as Test;
+// The object of the test Worker is named with the enterprise id, as the real Worker names it (the gate compares the name with its row).
+const stubOf = (env: Env) => env.OFFICE.get(env.OFFICE.idFromName(ENT_VADO)) as Test;
 const routes = officeRoutes({
   deps: { config: testConfig({ fileStore: 'r2' }), clock: { now: () => new Date() }, log: consoleLogger() },
   // No sign-in here: the token is the Madar user id (TestOffice.principal checks that the person acts now).
@@ -34,7 +37,7 @@ const routes = officeRoutes({
   },
   stub: (env) => stubOf(env as Env),
   // The office ops of exit wave 4: an object by its name, and the two secrets of this test Worker (harness.ts sends them).
-  stubOf: (env, name) => (env as Env).OFFICE.get((env as Env).OFFICE.idFromName(name)) as Test,
+  stubOf: (env, name) => (env as Env).OFFICE.get((env as Env).OFFICE.idFromName(name === 'office' ? ENT_VADO : name)) as Test,
   net: () => new WorkerNet({ files, mail, fetch: pushFetch }),
   jobsSecret: () => 'test-jobs-secret',
   exportSecret: () => 'test-export-secret',
@@ -49,6 +52,19 @@ export default {
     if (pathname === '/test/seed') {
       await stubOf(env).seed(await request.json());
       return Response.json({ ok: true });
+    }
+    if (pathname === '/test/statusRows') return Response.json(await stubOf(env).statusRows());
+    if (pathname === '/test/named') {
+      // An object of another name, made with a row of ENT_VADO: the gate compares the name with the row (spike S3).
+      const { name } = (await request.json()) as { name: string };
+      const other = env.OFFICE.get(env.OFFICE.idFromName(name)) as Test;
+      await other.seed(emptyState(''));
+      try {
+        await other.status({ ent: ENT_VADO });
+        return Response.json({ ok: true });
+      } catch (error) {
+        return Response.json({ ok: false, code: (error as { code?: string }).code ?? null, message: (error as Error).message });
+      }
     }
     if (pathname === '/test/readBack') return Response.json(await stubOf(env).readBack());
     if (pathname === '/test/rows') {
