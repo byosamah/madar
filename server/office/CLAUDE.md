@@ -43,6 +43,9 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
   internal call of the Daftra step. The Worker needs the Google values and the `DAFTRA_<NAME>_*` pairs as secrets
   (`scripts/deploy/secrets.ts <env> --office` sends them). The port refuses a call inside a transaction and stops at `NET_BUDGET` calls for each object call
   (`NetBudgetSpent`: the outbox row waits a minute and keeps its attempt). Every network call keeps the 3 s rule (`net.ts`).
+  `WorkerNet` and `netPorts` need the enterprise id (`ent`, no default): the file folder and the mail pool work for it. `NetApi.mailReserve` asks the mail
+  pool of the platform object (`NetPorts.mailPool`, no count in `NET_BUDGET`; `server/enterprise/CLAUDE.md`, "Mail"). `depsFor` sets `Config.mailDayLimit`
+  and leaves `Deps.mailPool` out for the `outbox` mail driver. Every log line of the object carries `ent` from the identity row.
 - A batch reports an office change when any entry cleared `batch.office` (`runOfficeEntries`), so a turn-off with a read after it still
   closes the sockets of that person. The object has its own batch (`batch.ts`) and no first-read join.
 - `Deps.runCall` (`core/ports.ts`) is the run of a normal call for a job step. Only the object sets it (its own SQLite run, `parts.ts`).
@@ -89,7 +92,7 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
   header with `sameSecret` first: `x-madar-export-secret` (`MADAR_EXPORT_SECRET`, the nightly GitHub export) for `export`,
   `x-madar-ops-secret` (`MADAR_OPS_SECRET`, the Mac) for the others. A copy with no secret answers 401. Then the name (no `?office=` means
   `ent_001`): `export` and `import` take `office`, a rehearsal name or a listed enterprise id, `peek` `office` or a listed id, `drop` only a rehearsal
-  name (403 else). `platform-register` and `platform-owners` write the platform object (`server/enterprise/CLAUDE.md`). The body goes on to the object as a
+  name (403 else). The op `enterprises` (the export secret, no `?office=`) answers the ids of the listed enterprises for the nightly backup. `platform-register` and `platform-owners` write the platform object (`server/enterprise/CLAUDE.md`). The body goes on to the object as a
   stream, with the name in `x-madar-office-name`.
 - The test tools (`replace`, `peek`) need `MADAR_TEST_TOOLS = "on"` and refuse a production copy (`testToolsOn`). Only `[env.test.vars]` of
   `wrangler.server.toml` sets it. The test seed (`scripts/office/seed.ts`) replaces the office through them.
