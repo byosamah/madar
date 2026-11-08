@@ -29,6 +29,17 @@ class_name = "Office"
 tag = "office-v1"
 new_sqlite_classes = ["Office"]
 
+# The platform object of Madar enterprises (server/enterprise/platform/object.ts): the list of enterprises, the email directory, the owners
+# and the meters. One object named "platform". Like OFFICE, the binding is repeated in [env.test], and [env.production] turns the
+# migrations off until the switch (plan E adds both there).
+[[durable_objects.bindings]]
+name = "PLATFORM"
+class_name = "Platform"
+
+[[migrations]]
+tag = "platform-v1"
+new_sqlite_classes = ["Platform"]
+
 # The 15-minute job of the office object (wave 3), in UTC. scheduled() returns at once while MADAR_DATA is not "office", so on the
 # test Worker it does nothing before wave 5. It takes 1 of the 5 Cron Triggers of the account (Workers Free).
 [triggers]
@@ -61,6 +72,10 @@ id = "1c4fc4b830234fad8956b6e80c52f4fc"
 [[env.test.durable_objects.bindings]]
 name = "OFFICE"
 class_name = "Office"
+
+[[env.test.durable_objects.bindings]]
+name = "PLATFORM"
+class_name = "Platform"
 
 # The Cron fan-out of Madar enterprises (spike S1, server/enterprise/fanout.ts): this Worker calls itself once for each enterprise, so
 # each job has its own budget of outside calls. The binding names the Worker of this env.

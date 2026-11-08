@@ -2,17 +2,19 @@ import { ApiError } from '../../../../src/api/errors';
 import { emptyState } from '../../../../src/api/store';
 import { consoleLogger } from '../../../core/deps';
 import { officeRoutes, type OfficeStub } from '../../../entries/officeWorker';
-import { ENT_VADO } from '../../../enterprise/ids';
+import { ENT_VADO, PLATFORM_OBJECT } from '../../../enterprise/ids';
 import { setEnvSource } from '../../../env';
 import { testConfig } from '../../../test/fakes/deps';
 import { fakeFiles } from '../../../test/fakes/files';
 import { fakeMail } from '../../../test/fakes/mail';
 import { WorkerNet } from '../../workerNet';
 import { TestOffice } from './testOffice';
+import { TestPlatform } from './testPlatform';
 
-export { TestOffice };
+export { TestOffice, TestPlatform };
 
-type Env = Record<string, unknown> & { OFFICE: { idFromName(name: string): unknown; get(id: unknown): unknown } };
+type Namespace = { idFromName(name: string): unknown; get(id: unknown): unknown };
+type Env = Record<string, unknown> & { OFFICE: Namespace; PLATFORM: Namespace };
 type Ctx = { waitUntil(work: Promise<unknown>): void };
 type Test = OfficeStub & Pick<TestOffice, 'seed' | 'readBack' | 'rows' | 'exec' | 'agent' | 'statusRows'>;
 
@@ -52,6 +54,12 @@ export default {
     if (pathname === '/test/seed') {
       await stubOf(env).seed(await request.json());
       return Response.json({ ok: true });
+    }
+    if (pathname === '/test/platform') {
+      // One method of the platform object by name, or resolveRows (the rows of a directory read).
+      const { method, args } = (await request.json()) as { method: string; args: unknown[] };
+      const platform = env.PLATFORM.get(env.PLATFORM.idFromName(PLATFORM_OBJECT)) as unknown as Record<string, (...values: unknown[]) => Promise<unknown>>;
+      return Response.json({ value: (await platform[method](...args)) ?? null });
     }
     if (pathname === '/test/statusRows') return Response.json(await stubOf(env).statusRows());
     if (pathname === '/test/named') {

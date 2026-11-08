@@ -21,9 +21,17 @@ WORKER_REGION = "workers-local"
 name = "OFFICE"
 class_name = "Office"
 
+[[durable_objects.bindings]]
+name = "PLATFORM"
+class_name = "Platform"
+
 [[migrations]]
 tag = "office-v1"
 new_sqlite_classes = ["Office"]
+
+[[migrations]]
+tag = "platform-v1"
+new_sqlite_classes = ["Platform"]
 
 [triggers]
 crons = ["*/15 * * * *"]

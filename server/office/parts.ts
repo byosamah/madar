@@ -2,12 +2,12 @@ import { Hono } from 'hono';
 import { ApiError } from '../../src/api/errors';
 import { consoleLogger, serverEnvFrom, type ReadEnv } from '../core/deps';
 import { processOutbox } from '../core/effects';
-import { CLIENT_ADDRESS_HEADER, createForgotRoute, FORGOT_PATH, sendReset } from '../auth/forgot';
+import { sendReset } from '../auth/forgot';
 import { signingKeysOf, type SigningKeys } from '../auth/own/keys';
 import { liteAuthAdmin } from '../auth/own/liteAdmin';
 import { localSigninOffice, runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../auth/own/office';
 import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from '../auth/ownKeys';
-import { createRenewRoute, RENEW_PATH, renewInvitation } from '../auth/renew';
+import { renewInvitation } from '../auth/renew';
 import { runInHost } from '../core/after';
 import type { Clock, Deps, Logger } from '../core/ports';
 import { createRunCall, type RunCall } from '../core/runCall';
@@ -33,6 +33,7 @@ import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
 import { EnterpriseGate } from '../enterprise/gate';
+import { runMailRoute } from '../enterprise/mailRoute';
 import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { enterpriseStatusOf } from '../enterprise/status';
 import type { EnterpriseStatus } from '../enterprise/types';
@@ -385,16 +386,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       // The limits and the links of forgot and renew are drift tables: an export lets them run, an import refuses them.
       const held = hold.refusal({ now: clock.now(), writes: false }) ?? await capped(false);
       if (held) return mailRefusal(held);
-      let work: string | undefined;
-      const keep = async (value: string) => void (work = value);
-      // No after on this host: the route waits for keep, which only notes the value. The Worker pads the answer to the minimum time.
-      const host = () => ({ host: 'workers' as const });
-      const route = input.route === 'forgot' ? createForgotRoute({ minMs: 0, host, work: keep }) : createRenewRoute({ minMs: 0, host, work: keep });
-      const request = new Request(`https://office.internal/api${input.route === 'forgot' ? FORGOT_PATH : RENEW_PATH}`, {
-        method: 'POST', headers: { 'content-type': 'application/json', [CLIENT_ADDRESS_HEADER]: input.address }, body: input.body,
-      });
-      const response = await runInHost({ host: 'workers' }, () => route(request, depsFor(net)));
-      return { status: response.status, body: await response.text(), ...(work === undefined ? {} : { work }) };
+      return runMailRoute(depsFor(net), input);
     },
     async mailWork(input, net) {
       const refused = await gate.refusal(input.ent, { allow: 'paused' });

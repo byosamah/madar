@@ -65,6 +65,9 @@ export async function startLive() {
     },
     rows: async <R,>(text: string, values: unknown[] = []) => read<R[]>(await post('/test/rows', { text, values })),
     exec: async (text: string, values: unknown[] = []) => read<{ ok: true }>(await post('/test/exec', { text, values })),
+    /** One method of the platform object (TestPlatform), through the test Worker: the Worker holds the stub, not Node. */
+    platform: async <T,>(method: string, ...args: unknown[]) => (await read<{ value: T }>(await post('/test/platform', { method, args }))).value,
+    evictPlatform: () => worker().evictDurableObject('PLATFORM', { name: 'platform' }),
     statusRows: async () => read<{ status: Record<string, unknown>; rows: number }>(await worker().fetch('/test/statusRows')),
     named: async (name: string) => read<{ ok: boolean; code?: string | null; message?: string }>(await post('/test/named', { name })),
     readBack: async () => read<State>(await worker().fetch('/test/readBack')),

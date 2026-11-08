@@ -101,11 +101,12 @@ describe('the office object in wrangler.server.toml (exit wave 3)', () => {
   const read = (env?: 'test' | 'production') => unstable_readConfig({ config: file, env }, { hideWarnings: true });
 
   it('gives the office object to local runs and to the test Worker, and none to production', () => {
-    const office = [{ name: 'OFFICE', class_name: 'Office' }];
+    // Madar enterprises: the platform object next to the office object (migration platform-v1). Production has neither before the switch.
+    const office = [{ name: 'OFFICE', class_name: 'Office' }, { name: 'PLATFORM', class_name: 'Platform' }];
     expect(read().durable_objects.bindings).toEqual(office);
     expect(read('test').durable_objects.bindings).toEqual(office);
     expect(read('production').durable_objects.bindings).toEqual([]);
-    expect(read('test').migrations).toEqual([{ tag: 'office-v1', new_sqlite_classes: ['Office'] }]);
+    expect(read('test').migrations).toEqual([{ tag: 'office-v1', new_sqlite_classes: ['Office'] }, { tag: 'platform-v1', new_sqlite_classes: ['Platform'] }]);
     expect(read('production').migrations).toEqual([]);
   });
 

@@ -286,6 +286,20 @@ export function liteSchemaSql(): string[] {
   ];
 }
 
+/**
+ * The create statements of the named server tables, and the create statements of their indexes (Madar enterprises: the platform object
+ * keeps empty copies of the sign-in tables, so its refuse steps run the real sign-in code). A name that is no server table throws.
+ */
+export function serverTableSql(names: readonly string[]): string[] {
+  const own = (text: string) => /^create table (\w+) /.exec(text)?.[1];
+  const known = new Set(SERVER_SQL.flatMap((text) => own(text) ?? []));
+  for (const name of names) if (!known.has(name)) throw new Error(`There is no server table ${name} (server/data/lite/schema.ts).`);
+  return [
+    ...SERVER_SQL.filter((text) => names.includes(own(text) ?? '')),
+    ...SERVER_INDEXES.filter((index) => names.includes(index.table)).map(indexSql),
+  ];
+}
+
 /** The version row of an office, or undefined for a new office with no tables. One row read: sqlite_master has no index. */
 function versionOf(host: SqlHost): number | undefined {
   try {

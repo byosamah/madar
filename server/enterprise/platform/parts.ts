@@ -1,0 +1,159 @@
+import { ApiError } from '../../../src/api/errors';
+import { runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../../auth/own/office';
+import type { SigningKeys } from '../../auth/own/keys';
+import { consoleLogger, serverEnvFrom, type ReadEnv } from '../../core/deps';
+import type { Clock, Deps, Logger } from '../../core/ports';
+import { liteDb, type LiteDb } from '../../data/lite/db';
+import type { SqlHost } from '../../data/lite/host';
+import { RATE_LIMIT_KEEP_MS, RATE_LIMITS_CLEANUP_LITE } from '../../jobs/steps/cleanup';
+import type { OfficeMailAnswer, OfficeMailInput } from '../../office/parts';
+import { isEnterpriseId, normalizeEmail, type EnterpriseId } from '../ids';
+import { runMailRoute } from '../mailRoute';
+import type { DayCounts, EnterpriseRow, EnterpriseStatus } from '../types';
+import { PLATFORM_SCHEMA_VERSION } from './schema';
+import type { CapAnswer, PlatformStub } from './stub';
+
+/**
+ * The work of the platform object (Madar enterprises, plan B Task 7), apart from workerd: object.ts gives it the host of ctx.storage, and
+ * node tests give it node:sqlite. It holds the list of enterprises, the email directory, the owners, the status rows and the account
+ * meter. It never holds a record of an enterprise. The three refuse steps run the real code of an unknown input on empty tables.
+ */
+
+export type PlatformPartsInput = { host: SqlHost; read: ReadEnv; clock?: Clock; log?: Logger };
+export type PlatformParts = PlatformStub & { readonly db: LiteDb };
+
+const CONFLICT = new ApiError('conflict', 'This email or this address is taken.', { reason: 'email_taken' });
+/** Keys that throw when read: the three refuse steps fail before they sign anything, and a read would be a defect. */
+const NO_KEYS = new Proxy({}, { get: () => { throw new Error('The platform object holds no signing key.'); } }) as unknown as SigningKeys;
+/** The enterprise id that the refuse steps pass as ent. A refusal never reaches a token, so it is never signed. */
+const REFUSE_ENT: EnterpriseId = 'ent_000';
+
+function entOf(value: unknown): EnterpriseId {
+  if (!isEnterpriseId(value)) throw new ApiError('invalid_input', 'This is not an enterprise id.');
+  return value;
+}
+
+const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0);
+
+export function platformParts(o: PlatformPartsInput): PlatformParts {
+  const db = liteDb(o.host);
+  const clock = o.clock ?? { now: () => new Date() };
+  const log = o.log ?? consoleLogger();
+  // The config of a Worker (the mail address, the MCP address): the refuse steps read it as the object does.
+  const config = serverEnvFrom(o.read, { database: { writeUrl: '', readUrl: '' } }).config;
+  const depsForRefuse = { db, clock, log, config } as unknown as Deps;
+
+  return {
+    db,
+
+    async resolveEmail({ email }) {
+      const [row] = await db.statement<{ ent: string }>('read', 'select ent from emails where email = ?1', [email]);
+      return row ? { ent: row.ent } : null;
+    },
+
+    async resolveAddress({ address }) {
+      const [row] = await db.statement<{ id: string }>('read', "select id from enterprises where address = ?1 and state in ('active', 'paused')", [address]);
+      return row ? { ent: row.id } : null;
+    },
+
+    async listed() {
+      const rows = await db.statement<{ id: string }>('read', "select id from enterprises where state in ('active', 'paused') order by id");
+      return rows.map((row) => row.id);
+    },
+
+    async reserveEmail({ ent, email }) {
+      entOf(ent);
+      const key = normalizeEmail(email);
+      return db.tx('write', async (q) => {
+        const [found] = await q<{ ent: string }>('select ent from emails where email = ?1', [key]);
+        if (found) return found.ent === ent ? 'ok' : 'taken';
+        await q('insert into emails (email, ent) values (?1, ?2)', [key, ent]);
+        return 'ok';
+      });
+    },
+
+    async releaseEmail({ ent, email }) {
+      await db.statement('write', 'delete from emails where email = ?1 and ent = ?2', [normalizeEmail(email), ent]);
+    },
+
+    async isOwner({ ent, userId }) {
+      const [row] = await db.statement('read', 'select 1 as n from owners where ent = ?1 and user_id = ?2', [ent, userId]);
+      return row !== undefined;
+    },
+
+    async setOwners({ owners }) {
+      for (const one of owners) entOf(one.ent);
+      await db.tx('write', async (q) => {
+        await q('delete from owners');
+        for (const one of owners) await q('insert into owners (ent, user_id) values (?1, ?2) on conflict (ent, user_id) do nothing', [one.ent, one.userId]);
+      });
+    },
+
+    async report(input: EnterpriseStatus) {
+      entOf(input.ent);
+      await db.tx('write', async (q) => {
+        await q('insert into status (ent, doc, at) values (?1, ?2, ?3) on conflict (ent) do update set doc = excluded.doc, at = excluded.at',
+          [input.ent, JSON.stringify(input), clock.now().toISOString()]);
+        // The platform keeps a copy of the names for its list. An empty name keeps the old one.
+        if (input.name !== '') await q('update enterprises set name = ?2 where id = ?1', [input.ent, input.name]);
+        if (input.nameAr !== '') await q('update enterprises set name_ar = ?2 where id = ?1', [input.ent, input.nameAr]);
+      });
+    },
+
+    async meter({ ent, day, counts }: { ent: EnterpriseId; day: string; counts: DayCounts }): Promise<CapAnswer> {
+      entOf(ent);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new ApiError('invalid_input', 'The day is YYYY-MM-DD.');
+      await db.statement('write',
+        'insert into account_day (day, ent, requests, rows_read, rows_written, mails) values (?1, ?2, ?3, ?4, ?5, ?6) '
+        + 'on conflict (day, ent) do update set requests = excluded.requests, rows_read = excluded.rows_read, rows_written = excluded.rows_written, mails = excluded.mails',
+        [day, ent, count(counts.requests), count(counts.rowsRead), count(counts.rowsWritten), count(counts.mails)]);
+      // Plan C adds the day cap rule here.
+      return { allowed: true };
+    },
+
+    async mailReserve() {
+      // Plan D replaces this with the account mail pool.
+      return 'ok';
+    },
+
+    async register({ row, emails }: { row: EnterpriseRow; emails: string[] }) {
+      entOf(row.id);
+      const keys = [...new Set(emails.map(normalizeEmail))];
+      await db.tx('write', async (q) => {
+        // Check every email first: a conflict leaves no row behind.
+        for (const key of keys) {
+          const [found] = await q<{ ent: string }>('select ent from emails where email = ?1', [key]);
+          if (found && found.ent !== row.id) throw CONFLICT;
+        }
+        const [other] = await q<{ id: string }>('select id from enterprises where address = ?1 and id <> ?2', [row.address, row.id]);
+        if (other) throw new ApiError('conflict', 'This address name is taken.', { reason: 'address_taken' });
+        await q(
+          'insert into enterprises (id, address, state, name, name_ar, limits, created_at, first_admin) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) '
+          + 'on conflict (id) do update set address = excluded.address, state = excluded.state, name = excluded.name, name_ar = excluded.name_ar, '
+          + 'limits = excluded.limits, first_admin = excluded.first_admin',
+          [row.id, row.address, row.state, row.name, row.nameAr, JSON.stringify(row.limits), row.createdAt, JSON.stringify(row.firstAdmin)]);
+        for (const key of keys) await q('insert into emails (email, ent) values (?1, ?2) on conflict (email) do nothing', [key, row.id]);
+      });
+    },
+
+    async refuseSignin({ signin, input }): Promise<OpResult<unknown>> {
+      return runSigninOp({ db, clock, log, config, keys: NO_KEYS, ent: REFUSE_ENT }, signin as SigninOpName, input as OpInput<SigninOpName>);
+    },
+
+    async refuseMail(input: Omit<OfficeMailInput, 'ent'>): Promise<OfficeMailAnswer> {
+      // The limits count here as in the object. The value of the mail work is dropped: the platform sends no mail.
+      const { status, body } = await runMailRoute(depsForRefuse, input);
+      return { status, body };
+    },
+
+    async sweep({ at }) {
+      const before = new Date(Date.parse(at) - RATE_LIMIT_KEEP_MS).toISOString();
+      await db.tx('write', (q) => q(RATE_LIMITS_CLEANUP_LITE, [before]));
+    },
+
+    async health() {
+      return { schema: PLATFORM_SCHEMA_VERSION };
+    },
+  };
+}
+
