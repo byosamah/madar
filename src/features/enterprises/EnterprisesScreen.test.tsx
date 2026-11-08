@@ -199,6 +199,17 @@ describe('how the list and the sheets look (ent-ui)', () => {
     expect(list).not.toHaveClass('divide-line');
   });
 
+  it('shows the whole name of a row on its own line, and the state and the count on a line under it (no cut at 390 px)', async () => {
+    const long = row({ id: 'ent_006', address: 'globex', name: 'Globex Test Company of Eastern Province', nameAr: 'شركة جلوبكس للاختبار في المنطقة الشرقية' });
+    await open(fake({ rows: [row(), long] }));
+    const name = await screen.findByText('Globex Test Company of Eastern Province');
+    expect(name.closest('.truncate')).toBeNull();
+    const meta = within((await screen.findByRole('button', { name: /Globex Test Company/ }))).getByText('Active');
+    // The state sits in its own line under the name: the name line does not hold it.
+    expect(name.parentElement!.contains(meta)).toBe(false);
+    expect(name.parentElement!.parentElement!.contains(meta)).toBe(true);
+  });
+
   it('says "Not counted yet" for a row that sent no status, and the count for a row that did', async () => {
     const fresh = row({ id: 'ent_004', address: 'fresh', name: 'Fresh Co', nameAr: 'فريش', people: 0, invited: 0, storageBytes: 0, lastWriteAt: null });
     const invitedOnly = row({ id: 'ent_005', address: 'new-one', name: 'New One', nameAr: 'الجديدة', people: 0, invited: 1, storageBytes: 0, lastWriteAt: null });

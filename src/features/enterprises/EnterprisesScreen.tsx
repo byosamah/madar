@@ -52,11 +52,16 @@ function OwnerPage() {
           <ul className="surface flex flex-col divide-y divide-hairline rounded-card">
             {list.data.map((row) => (
               <li key={row.id}>
-                <button type="button" onClick={() => setOpenId(row.id)} className="pressable flex min-h-14 w-full flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-start">
+                <button type="button" onClick={() => setOpenId(row.id)} className="pressable flex min-h-14 w-full items-center gap-x-3 px-5 py-3 text-start">
                   <EnterpriseLogo logo={row.logo} name={nameOf(row, lang)} size={36} />
-                  <span className="min-w-0 flex-1 truncate text-body font-medium text-ink"><bdi>{nameOf(row, lang)}</bdi></span>
-                  <span className="text-footnote font-medium text-ink-2">{t(`enterprises.state.${row.state}`)}</span>
-                  <span className="text-footnote text-ink-2">{hasStatus(row) ? t('enterprises.peopleCount', { count: row.people, n: row.people }) : t('enterprises.notCounted')}</span>
+                  {/* The whole name on its own line (it may wrap), and the state and the count under it, so a phone never cuts the name. */}
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-body font-medium text-ink [overflow-wrap:anywhere]"><bdi>{nameOf(row, lang)}</bdi></span>
+                    <span className="flex flex-wrap gap-x-3 text-footnote text-ink-2">
+                      <span className="font-medium">{t(`enterprises.state.${row.state}`)}</span>
+                      <span>{hasStatus(row) ? t('enterprises.peopleCount', { count: row.people, n: row.people }) : t('enterprises.notCounted')}</span>
+                    </span>
+                  </span>
                 </button>
               </li>
             ))}
