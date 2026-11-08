@@ -248,14 +248,14 @@ describe('the office backup (exit wave 4)', () => {
     const exportStep = step(text, 'Export, count and encrypt');
     expect(exportStep).toContain('OFFICE_EXPORT_SECRET: ${{ secrets.OFFICE_EXPORT_SECRET }}');
     expect(exportStep).toContain('BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}');
-    expect(exportStep).toContain('npx tsx scripts/backup/officeExport.ts --url "$URL" --copy "$COPY" --out "$RUNNER_TEMP/backup"');
+    expect(exportStep).toContain('npx tsx scripts/backup/officeExport.ts --url "$URL" --copy "$COPY" --enterprise "$ENT" --out "$RUNNER_TEMP/backup"');
     expect(exportStep).toContain('sleep 120');
     expect(existsSync(new URL('scripts/backup/officeExport.ts', root))).toBe(true);
   });
 
   it('uploads the file as a release of madar-backups', () => {
     expect(text).toContain('BACKUP_REPO: byosamah/madar-backups');
-    expect(step(text, 'Upload to madar-backups')).toMatch(/gh release create "\$NAME" "\$FILE" --repo "\$BACKUP_REPO"/);
+    expect(step(text, 'Upload to madar-backups')).toMatch(/gh release create "\$name" "\$file" --repo "\$BACKUP_REPO"/);
   });
 
   it('removes only office releases of its own copy that are older than 30 days, and only after a good upload', () => {
@@ -266,9 +266,59 @@ describe('the office backup (exit wave 4)', () => {
     expect(text.indexOf('- name: Remove office backups')).toBeGreaterThan(text.indexOf('- name: Upload to madar-backups'));
   });
 
+  // Madar enterprises, design 5.15: one backup for each enterprise.
+  it('lists the enterprises before the export, with the export secret in the step env only', () => {
+    const list = step(text, 'List the enterprises');
+    expect(list).toContain('npx tsx scripts/backup/officeEnterprises.ts --url "$URL"');
+    expect(list).toContain('OFFICE_EXPORT_SECRET: ${{ secrets.OFFICE_EXPORT_SECRET }}');
+    expect(text.indexOf('- name: List the enterprises')).toBeLessThan(text.indexOf('- name: Age of the newest office backup'));
+    expect(text.indexOf('- name: List the enterprises')).toBeLessThan(text.indexOf('- name: Export, count and encrypt'));
+    expect(existsSync(new URL('scripts/backup/officeEnterprises.ts', root))).toBe(true);
+  });
+
+  it('checks the age of each enterprise with its own release prefix, and reads the old names for VADOs Companies only', () => {
+    const age = step(text, 'Age of the newest office backup');
+    expect(age).toContain('for ENT in $IDS; do');
+    expect(age).toContain('startswith(\\"madar-office-$COPY-$ENT-\\")');
+    expect(age).toContain('\\"$ENT\\" == \\"$VADO_ENT\\"');
+    expect(text).toContain('VADO_ENT: ent_001');
+    // gh lists the releases once, not once for each enterprise.
+    expect(age.match(/gh release list/g)).toHaveLength(1);
+    expect(age).toContain('echo "hours=$worst" >> "$GITHUB_OUTPUT"');
+  });
+
+  it('exports each enterprise in a loop that goes on after one failure, and fails at the end', () => {
+    const exportStep = step(text, 'Export, count and encrypt');
+    expect(exportStep).toContain('for ENT in $IDS; do');
+    expect(exportStep).toContain('continue');
+    expect(exportStep).toContain('failed="$failed $ENT"');
+    expect(exportStep).toContain('echo "failed=${failed# }" >> "$GITHUB_OUTPUT"');
+    // The step itself ends with success, so the upload of the others still runs; a last step with always() fails the run.
+    expect(exportStep).not.toMatch(/^\s+exit 1$/m);
+    const last = step(text, 'Fail when an enterprise has no backup tonight');
+    expect(last).toContain("if: steps.on.outputs.on == 'true' && always() && (steps.dump.outputs.failed != '' || steps.upload.outputs.failed != '')");
+    expect(last).toContain('exit 1');
+    expect(text.indexOf('- name: Fail when an enterprise has no backup tonight')).toBeGreaterThan(text.indexOf('- name: Remove office backups'));
+  });
+
+  it('uploads each file as its own release, and goes on to the next one when an upload fails', () => {
+    const upload = step(text, 'Upload to madar-backups');
+    expect(upload).toContain('while IFS=');
+    expect(upload).toContain('results.tsv');
+    expect(upload).toContain('failed="$failed $ENT"');
+    expect(upload).not.toMatch(/^\s+exit 1$/m);
+  });
+
+  it('still never reads createdAt, and the remove step still matches only the copy prefix', () => {
+    expect(text).not.toContain('createdAt');
+    const remove = step(text, 'Remove office backups older than 30 days');
+    expect(remove).toContain('startswith(\\"madar-office-${copy}-\\")');
+    expect(remove).not.toContain('$ENT');
+  });
+
   it('fails when the newest office backup of its copy before this run was older than 26 hours, and reads no other release', () => {
     expect(text).toContain("STALE_HOURS: '26'");
-    expect(step(text, 'Age of the newest office backup')).toContain('startswith(\\"madar-office-$COPY-\\")');
+    expect(step(text, 'Age of the newest office backup')).toContain('startswith(\\"madar-office-$COPY-$ENT-\\")');
     const stale = step(text, 'Fail when the office backup before this one was older than 26 hours');
     expect(stale).toContain("if: steps.on.outputs.on == 'true' && fromJSON(steps.fresh.outputs.hours || '0') > fromJSON(env.STALE_HOURS)");
     expect(stale).toContain('exit 1');

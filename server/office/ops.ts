@@ -106,7 +106,8 @@ export const EXPORT_PAGE_ROWS = 1_000;
 export const EXPORT_PAGE_CHARS = 4_000_000;
 
 export type ExportStep = { step: 'begin' } | { step: 'page'; id: string; table: string; after: number } | { step: 'end'; id: string };
-export type ExportBegin = { id: string; schema: number; version: number; officeSeq: number; tables: string[]; until: string };
+/** ent: the id in the identity row of the object (Madar enterprises). It is left out for an object with no row (the old name office). The enterprise table is not exported, so the backup keeps the id in its manifest. */
+export type ExportBegin = { id: string; schema: number; version: number; officeSeq: number; tables: string[]; until: string; ent?: string };
 export type ExportPage = { rows: Record<string, SqlValue>[]; next: number | null };
 export type ExportEnd = { version: number; officeSeq: number };
 

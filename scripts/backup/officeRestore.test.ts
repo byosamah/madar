@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LITE_SCHEMA_VERSION } from '../../server/data/lite/schema';
 import { nodeOffice } from '../../server/office/test/nodeOffice';
+import { nodeWorld } from '../../server/office/test/nodeWorld';
 import { partsOps } from '../office/ops';
 import { checkFileCopy } from '../restore-check';
 import { exportOffice, makeOfficeBackup } from './officeExport';
-import { officeArchiveProblems, officeRestoreCheck, restoreOffice } from './officeRestore';
+import { entOfBackupFile, officeArchiveProblems, officeRestoreCheck, restoreOffice } from './officeRestore';
 
 const folderOf = (prefix: string) => mkdtempSync(join(tmpdir(), prefix));
 
@@ -114,6 +115,48 @@ describe('the restore check of an office backup file (scripts/backup/officeResto
     ]);
     expect(report.ok).toBe(true);
     expect(report.steps.find((s) => s.step === 'files')?.detail).toBe('Skipped on purpose (--skip-files).');
+  });
+
+  it('restores one enterprise alone from its file, with the enterprise step', async () => {
+    const world = await nodeWorld({ ents: ['ent_002'] });
+    const parts = world.ents.get('ent_002')!.parts;
+    const out = folderOf('madar-office-check-test-');
+    const age = fakeAge(out);
+    const backup = await makeOfficeBackup({ ops: partsOps(parts), copy: 'production', ent: 'ent_002', recipient: `age1${'q'.repeat(58)}`, outDir: out, age, now: new Date('2026-11-08T23:07:00Z') });
+    expect(entOfBackupFile(backup.file)).toBe('ent_002');
+    const report = await officeRestoreCheck({ file: backup.file, key: join(out, 'no-key'), filesRemote: null, image: '', age });
+    expect(report.steps.map((s) => [s.step, s.ok])).toEqual([
+      ['decrypt', true], ['archive', true], ['counts', true], ['enterprise', true], ['events guard', true], ['dashboard.get', true], ['files', true],
+    ]);
+    expect(report.ok).toBe(true);
+  });
+
+  it('fails the enterprise step when the file name says ent_001 and the backup is of ent_002, and the other steps still run', async () => {
+    const world = await nodeWorld({ ents: ['ent_002'] });
+    const parts = world.ents.get('ent_002')!.parts;
+    const out = folderOf('madar-office-check-test-');
+    const age = fakeAge(out);
+    const backup = await makeOfficeBackup({ ops: partsOps(parts), copy: 'production', ent: 'ent_002', recipient: `age1${'q'.repeat(58)}`, outDir: out, age, now: new Date('2026-11-08T23:07:00Z') });
+    // The file is renamed (the folder inside keeps the name of ent_002, as a file that someone mixed up would).
+    const renamed = join(out, 'madar-office-production-ent_001-20261108-230700Z.tar.gz.age');
+    writeFileSync(renamed, readFileSync(backup.file));
+    const report = await officeRestoreCheck({ file: renamed, key: join(out, 'no-key'), filesRemote: null, image: '', age });
+    const step = report.steps.find((s) => s.step === 'enterprise')!;
+    expect(step.ok).toBe(false);
+    expect(step.detail).toContain('Do not restore this file');
+    expect(report.ok).toBe(false);
+    expect(report.steps.map((s) => s.step)).toContain('dashboard.get');
+  });
+
+  it('an old name without an enterprise still restores, and has no enterprise step', () => {
+    expect(entOfBackupFile('/tmp/madar-office-production-20261108-023000Z.tar.gz.age')).toBeNull();
+    expect(entOfBackupFile('madar-office-production-ent_012-20261108-023000Z.tar.gz.age')).toBe('ent_012');
+    expect(entOfBackupFile('madar-office-production-ENT_012-20261108-023000Z.tar.gz.age')).toBeNull();
+  });
+
+  it('accepts the archive entries of a backup named for an enterprise', () => {
+    const name = 'madar-office-production-ent_002-20261108-230700Z';
+    expect(officeArchiveProblems([`${name}/`, `${name}/manifest.json`, `${name}/tables/`, `${name}/tables/events.ndjson`])).toEqual([]);
   });
 
   it('stops at the archive step when the file holds another archive', async () => {

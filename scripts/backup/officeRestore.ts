@@ -1,5 +1,5 @@
 // The restore check of an office backup (Supabase exit, wave 4; spec section 2, "Backups" (3)). scripts/restore-check.ts calls it
-// for a file named madar-office-<copy>-<stamp>.tar.gz.age. It runs on the owner's Mac (only the Mac has the offline key) and needs
+// for a file named madar-office-<copy>-<stamp>.tar.gz.age, or madar-office-<copy>-<ent>-<stamp>.tar.gz.age for one enterprise. It runs on the owner's Mac (only the Mac has the offline key) and needs
 // no Docker: decrypt, check the archive, restore every table into node:sqlite with the schema of this build, compare the rows and
 // the sha256 of each table with the manifest, check that the History only grows, run dashboard.get as an active Admin through
 // runCall on SQLite, and look up 5 file keys in the file copy. The plain folder lives in a private temporary folder, which it removes.
@@ -7,7 +7,7 @@
 import { randomInt } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { createRunCall } from '../../server/core/runCall';
@@ -21,11 +21,11 @@ import { checkFileCopy, readOnlyDeps, type CheckOptions, type CheckReport, type 
 import type { ExportManifest } from './officeExport';
 import { run } from './run';
 
-const ENTRY = /^(madar-office-(?:test|production|local)-[0-9]{8}-[0-9]{6}Z)\/(manifest\.json|tables\/|tables\/[a-z_]+\.ndjson)?$/;
+const ENTRY = /^(madar-office-(?:test|production|local)(?:-ent_[0-9]{3,})?-[0-9]{8}-[0-9]{6}Z)\/(manifest\.json|tables\/|tables\/[a-z_]+\.ndjson)?$/;
 
 const Manifest = z.object({
   format: z.literal(2), kind: z.literal('office'), copy: z.enum(['test', 'production', 'local']), madeAt: z.string(), schema: z.number().int(),
-  version: z.number().int(), officeSeq: z.number().int(), drift: z.array(z.string()),
+  version: z.number().int(), officeSeq: z.number().int(), drift: z.array(z.string()), ent: z.string().regex(/^ent_[0-9]{3,}$/).optional(),
   tables: z.record(z.string().regex(/^[a-z_]+$/), z.object({ rows: z.number().int().min(0), sha256: z.string().regex(/^[0-9a-f]{64}$/) })),
 });
 
@@ -110,6 +110,11 @@ export async function restoreOffice(folder: string): Promise<{ raw: DatabaseSync
   return { raw, db, manifest, problems: [...new Set(problems)] };
 }
 
+/** The enterprise id in the name of a backup file (madar-office-<copy>-<ent>-<stamp>.tar.gz.age), or null for the old form. */
+export function entOfBackupFile(file: string): string | null {
+  return /^madar-office-(?:test|production|local)-(ent_[0-9]{3,})-[0-9]{8}-[0-9]{6}Z\./.exec(basename(file))?.[1] ?? null;
+}
+
 type FileVersion = { blobKey?: unknown; size?: unknown; uploadedAt?: unknown };
 
 /** The office restore check: the steps of scripts/restore-check.ts, on node:sqlite. */
@@ -154,6 +159,15 @@ export async function officeRestoreCheck(o: CheckOptions): Promise<CheckReport> 
     });
     if (!restored) return { ok: false, steps };
     const office: Awaited<ReturnType<typeof restoreOffice>> = restored;
+    // The identity table is not exported, so the manifest holds the id that the object named. The file name and the manifest must agree.
+    // An old name (no enterprise) skips this step.
+    const named = entOfBackupFile(o.file);
+    if (named !== null) {
+      await attempt('enterprise', async () => {
+        if (office.manifest.ent !== named) throw new Error('The enterprise in the manifest is not the enterprise in the file name. Do not restore this file.');
+        return `The manifest names ${named}, as the file name does.`;
+      });
+    }
     await attempt('events guard', async () => {
       const events = Number((office.raw.prepare('select count(*) as n from events').get() as { n: number }).n);
       if (events === 0) return 'The office has no event, so the guard had no row to refuse.';
@@ -173,7 +187,7 @@ export async function officeRestoreCheck(o: CheckOptions): Promise<CheckReport> 
         return doc.active === true && doc.kind === 'human' && doc.systemRole === 'admin';
       });
       if (!admin) throw new Error('The restored office has people but no active Admin.');
-      const result = await createRunCall({ data: liteData })(readOnlyDeps(office.db), {
+      const result = await createRunCall({ data: liteData })(readOnlyDeps(office.db, office.manifest.ent ? { ent: office.manifest.ent } : {}), {
         principal: { userId: admin.id }, name: 'dashboard.get', input: {}, batch: { storyRefs: new Map(), overviewCalls: 0 },
       });
       if (!result.ok) throw new Error(`dashboard.get failed: ${result.error.code}.`);

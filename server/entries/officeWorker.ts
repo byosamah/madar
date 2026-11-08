@@ -61,6 +61,8 @@ const OPS: Readonly<Record<string, OpRule>> = {
   import: { secret: 'ops', names: 'any' },
   peek: { secret: 'ops', names: 'office' },
   drop: { secret: 'ops', names: 'rehearsal' },
+  // The ids of the enterprises that the nightly backup must export (Madar enterprises). The export secret opens it, as it opens export.
+  enterprises: { secret: 'export', names: 'none' },
   'platform-register': { secret: 'ops', names: 'none' },
   'platform-owners': { secret: 'ops', names: 'none' },
 };
@@ -275,6 +277,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     if (!secret || given === null || !(await sameSecret(given, secret))) {
       return errorResponse({ code: 'unauthenticated', message: 'The secret of this address is not right.' });
     }
+    if (op === 'enterprises') return enterpriseList(env);
     if (rule.names === 'none') return platformOp(request, env, op);
     // Without ?office= the op is for ENT_VADO. An enterprise id works only when the platform object lists it, so an op never makes an object.
     const name = new URL(request.url).searchParams.get('office') ?? ENT_VADO;
@@ -285,6 +288,19 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       return await stub.fetch(new Request(`https://office.internal/office/${op}`, {
         method: 'POST', headers: { 'content-type': 'application/json', [OFFICE_NAME_HEADER]: name }, body: request.body, duplex: 'half',
       } as RequestInit));
+    } catch (error) {
+      return errorResponse(officeErrorOf(error, log));
+    }
+  }
+
+  /**
+   * The op enterprises (Madar enterprises, design 5.15): the ids of the enterprises that the platform object lists (active and paused), so the
+   * nightly backup exports each one. The answer holds ids only, no name and no address. It makes no office object.
+   */
+  async function enterpriseList(env: Env): Promise<Response> {
+    try {
+      const ids = (await o.platform(env).listed()).filter((id) => isEnterpriseId(id));
+      return Response.json({ enterprises: [...new Set(ids)].sort() });
     } catch (error) {
       return errorResponse(officeErrorOf(error, log));
     }

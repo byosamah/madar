@@ -245,7 +245,8 @@ export function officeParts(o: PartsInput): OfficeParts {
     };
     if (step.step === 'begin') {
       const id = hold.begin('export', now);
-      return { id, schema: LITE_SCHEMA_VERSION, ...(await meta()), tables: [...EXPORT_TABLES], until: new Date(hold.active(now)!.until).toISOString() };
+      const row = await gate.load();
+      return { id, schema: LITE_SCHEMA_VERSION, ...(await meta()), tables: [...EXPORT_TABLES], until: new Date(hold.active(now)!.until).toISOString(), ...(row ? { ent: row.id } : {}) };
     }
     hold.check(step.id, now);
     if (step.step === 'page') return exportPage(db, step.table, step.after);

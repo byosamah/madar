@@ -3225,3 +3225,41 @@ Then set the default of `MADAR_CRON_TRANSPORT` (Task 14).
   next to `oauth`; after `platform-register` the Worker drops its listed cache, else an import that follows the register would wait 5 s; an unknown
   MCP address answers with the words of the MCP app for a missing or unreadable token, so a listed and an unlisted address cannot be told apart.
 - Open for the lead: spike S1 (section "S1: Cron fan-out" above), the by-hand check of the local stack, and the gates that the track did not run.
+
+## Madar enterprises: backups (2026-11-08)
+What changed: the nightly office backup (`.github/workflows/office-backup.yml`) makes one encrypted file for each enterprise. Plan D, task 7.
+Code: the Worker op `enterprises` (the ids of `platform.listed()`, the export secret), `scripts/backup/officeEnterprises.ts` (prints the ids),
+`scripts/backup/officeExport.ts --enterprise ent_NNN` (the file `madar-office-<copy>-<ent>-<stamp>`), and the check of the file in
+`scripts/backup/officeRestore.ts`.
+
+The file name is `madar-office-<copy>-<ent>-<stamp>.tar.gz.age`, for example `madar-office-production-ent_001-20261108-023000Z`. The old name
+without an enterprise stays valid, for the restore check and for the age check of `ent_001`.
+
+The identity table `enterprise` is not in the export (`EXPORT_SKIP`). So the object says its own id in the `begin` step of the export, and the
+id goes into `manifest.json` (`ent`). The export stops when the object names another id than the one asked for. The restore check fails the
+step `enterprise` when the id in the file name is not the id in the manifest. A file with the old name has no such step.
+
+### Releases
+- Each night adds `N + 1` releases to `madar-backups`: one for each of the `N` enterprises, and one database backup (`db-backup.yml`).
+- Both workflows keep 30 days and read the list with `gh release list --limit 1000`, so the list must hold all releases of 30 days:
+  `30 * (N + 1) <= 1000`, which gives `N <= 32`.
+- At 32 enterprises the nightly run needs a change before it grows: read the list in pages, or keep the backups of each enterprise in a
+  tag by enterprise.
+
+### GitHub minutes
+- The limit is 2,000 minutes a month for the private repository (`.github/CLAUDE.md`). GitHub rounds a job up to a whole minute. The backup is one job.
+- Formula: `minutes a night = ceil(setup + N * export)`, and `minutes a month = 30 * minutes a night`. Setup is the checkout, Node, `npm ci` and
+  `apt-get install age`. Export is the time of one enterprise: the begin, the pages, the tar, `age` and the upload.
+- The job stops at 30 minutes (`timeout-minutes`). A failed enterprise adds 2 minutes of waiting and one more try. So `setup + N * export + 2 * failed`
+  stays under 30. Raise `timeout-minutes` before `N` grows past that.
+- The largest `N` for a budget `B` minutes a month for the backup: `floor((B / 30 - setup) / export)`.
+
+| enterprises | setup minutes | export minutes | total a night | total a month |
+| --- | --- | --- | --- | --- |
+| 1 | measured by the lead | measured by the lead | measured by the lead | measured by the lead |
+| 2 | measured by the lead | measured by the lead | measured by the lead | measured by the lead |
+| 5 | measured by the lead | measured by the lead | measured by the lead | measured by the lead |
+| 10 | measured by the lead | measured by the lead | measured by the lead | measured by the lead |
+
+Lead step 2 fills the table: run `office-backup.yml` by hand with two enterprises, read the minutes of the run and the release count. This is a
+GitHub write and needs the owner's OK.

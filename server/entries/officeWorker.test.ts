@@ -537,6 +537,21 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
     expect(created).toEqual(['ent_002']);
   });
 
+  it('the enterprises op needs the export secret, answers the listed ids and makes no object', async () => {
+    const { routes, created, seen } = opsRoutes();
+    const tries: Record<string, string>[] = [{}, { 'x-madar-export-secret': 'no' }, { 'x-madar-ops-secret': 'ops-secret-of-the-test' }];
+    for (const headers of tries) {
+      expect((await routes.fetch(post('/api/office/enterprises', headers), {})).status).toBe(401);
+    }
+    const answer = await routes.fetch(post('/api/office/enterprises', { 'x-madar-export-secret': 'export-secret-of-the-test' }), {});
+    expect([answer.status, await answer.json()]).toEqual([200, { enterprises: ['ent_001', 'ent_002'] }]);
+    // The list holds ids only, and no object was asked for.
+    expect(created).toEqual([]);
+    expect(seen).toEqual([]);
+    // A GET gets the same answer as an address that does not exist.
+    expect((await routes.fetch(new Request('https://w.test/api/office/enterprises', { method: 'GET', headers: { 'x-madar-export-secret': 'export-secret-of-the-test' } }), {})).status).toBe(404);
+  });
+
   it('import takes the old name office, a rehearsal name and a listed id, and nothing else', async () => {
     const { routes, created } = opsRoutes();
     const ops = { 'x-madar-ops-secret': 'ops-secret-of-the-test' };

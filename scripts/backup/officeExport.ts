@@ -1,7 +1,11 @@
 // The nightly backup of an office object (Supabase exit, wave 4; spec section 2, "Backups" (2)). .github/workflows/office-backup.yml
 // runs it; scripts/backup/officeRestore.ts checks its file.
 //
-//   OFFICE_EXPORT_SECRET=<value> BACKUP_AGE_RECIPIENT=<age1...> npx tsx scripts/backup/officeExport.ts --url <page address> --copy <test|production> --out <dir>
+//   OFFICE_EXPORT_SECRET=<value> BACKUP_AGE_RECIPIENT=<age1...> npx tsx scripts/backup/officeExport.ts --url <page address> --copy <test|production> --out <dir> [--enterprise ent_NNN]
+//
+// Madar enterprises: each enterprise has its own office object and its own backup. --enterprise names the object (sent as ?office=<ent>) and
+// puts the id in the file name: madar-office-<copy>-<ent>-<stamp>. The object says its own id in the begin step, and the id goes into the
+// manifest, because the identity table is not exported. The export stops when the object names another id than the one asked for.
 //
 // It asks the export route of the copy for a begin (the office object then holds writes for at most 5 minutes), every page of
 // every table, and the end. It writes madar-office-<copy>-<stamp>/tables/<table>.ndjson (one row for each line, in rowid order)
@@ -13,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EXPORT_SECRET_HEADER } from '../../server/entries/officeWorker';
+import { ENTERPRISE_ID, type EnterpriseId } from '../../server/enterprise/ids';
 import { DRIFT_TABLES, type ExportBegin, type ExportEnd, type ExportPage } from '../../server/office/ops';
 import { rowDigester, type TableDigest } from '../office/digest';
 import { opsOf, type OfficeOps } from '../office/ops';
@@ -23,15 +28,20 @@ export type OfficeCopy = 'test' | 'production' | 'local';
 export type ExportManifest = {
   format: 2; kind: 'office'; copy: OfficeCopy; madeAt: string; schema: number; version: number; officeSeq: number; drift: string[];
   tables: Record<string, TableDigest>;
+  /** The id in the identity row of the object. Left out by a backup of an object with no row, and by backups made before enterprises. */
+  ent?: EnterpriseId;
 };
-export const OFFICE_BACKUP_NAME = /^madar-office-(test|production|local)-[0-9]{8}-[0-9]{6}Z$/;
+/** The old form (no enterprise) stays valid. */
+export const OFFICE_BACKUP_NAME = /^madar-office-(test|production|local)(-ent_[0-9]{3,})?-[0-9]{8}-[0-9]{6}Z$/;
 const AGE_RECIPIENT = /^age1[02-9ac-hj-np-z]{58}$/;
 
 /** Every row of every table of the office into folder, in one hold of the office. A write between the begin and the end fails it. */
-export async function exportOffice(ops: OfficeOps, o: { copy: OfficeCopy; folder: string; now?: Date }): Promise<ExportManifest> {
+export async function exportOffice(ops: OfficeOps, o: { copy: OfficeCopy; folder: string; now?: Date; ent?: EnterpriseId }): Promise<ExportManifest> {
   const begin = await ops.post<ExportBegin>('export', { step: 'begin' });
   let ended = false;
   try {
+    // The object says which enterprise it is. A backup that is named for one enterprise must hold exactly that enterprise.
+    if (o.ent !== undefined && begin.ent !== o.ent) throw new Error('The object answered for another enterprise than the one asked for. The export stops.');
     mkdirSync(join(o.folder, 'tables'), { recursive: true, mode: 0o700 });
     const tables: Record<string, TableDigest> = {};
     for (const table of begin.tables) {
@@ -54,7 +64,7 @@ export async function exportOffice(ops: OfficeOps, o: { copy: OfficeCopy; folder
     }
     const manifest: ExportManifest = {
       format: 2, kind: 'office', copy: o.copy, madeAt: (o.now ?? new Date()).toISOString(), schema: begin.schema, version: begin.version,
-      officeSeq: begin.officeSeq, drift: [...DRIFT_TABLES], tables,
+      officeSeq: begin.officeSeq, drift: [...DRIFT_TABLES], tables, ...(begin.ent !== undefined ? { ent: begin.ent } : {}),
     };
     writeFileSync(join(o.folder, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
     return manifest;
@@ -65,13 +75,14 @@ export async function exportOffice(ops: OfficeOps, o: { copy: OfficeCopy; folder
 }
 
 /** The export, tar and age: one file madar-office-<copy>-<stamp>.tar.gz.age in outDir, and no plain file left behind. */
-export async function makeOfficeBackup(o: { ops: OfficeOps; copy: OfficeCopy; recipient: string; outDir: string; age?: string; now?: Date }) {
+export async function makeOfficeBackup(o: { ops: OfficeOps; copy: OfficeCopy; ent?: EnterpriseId; recipient: string; outDir: string; age?: string; now?: Date }) {
   if (!AGE_RECIPIENT.test(o.recipient)) throw new Error('The age recipient must be a public key that starts with age1.');
+  if (o.ent !== undefined && !ENTERPRISE_ID.test(o.ent)) throw new Error('The enterprise must be an id such as ent_001.');
   const now = o.now ?? new Date();
-  const name = `madar-office-${o.copy}-${stampOf(now)}`;
+  const name = `madar-office-${o.copy}${o.ent ? `-${o.ent}` : ''}-${stampOf(now)}`;
   const work = mkdtempSync(join(tmpdir(), `madar-office-work-${process.pid}-`));
   try {
-    const manifest = await exportOffice(o.ops, { copy: o.copy, folder: join(work, name), now });
+    const manifest = await exportOffice(o.ops, { copy: o.copy, folder: join(work, name), now, ...(o.ent ? { ent: o.ent } : {}) });
     const archive = join(work, `${name}.tar.gz`);
     // COPYFILE_DISABLE: the tar of macOS adds no ._ entry for the extended attributes, which the archive check refuses.
     await run('tar', 'tar', ['-C', work, '-czf', archive, name], { env: { ...process.env, COPYFILE_DISABLE: '1' } });
@@ -97,6 +108,7 @@ export function exportArgProblems(argv: readonly string[], env: Readonly<Record<
     ...(value('--out') === '' ? ['--out <folder> is missing.'] : []),
     ...(!env.OFFICE_EXPORT_SECRET ? ['OFFICE_EXPORT_SECRET is missing.'] : []),
     ...(!env.BACKUP_AGE_RECIPIENT ? ['BACKUP_AGE_RECIPIENT is missing.'] : []),
+    ...(argv.includes('--enterprise') && !ENTERPRISE_ID.test(value('--enterprise')) ? ['--enterprise must be an id such as ent_001.'] : []),
   ];
 }
 
@@ -104,8 +116,9 @@ async function main(argv: string[]): Promise<void> {
   const problems = exportArgProblems(argv, process.env);
   if (problems.length > 0) throw new Error(problems.join('\n'));
   const value = (flag: string) => argv[argv.indexOf(flag) + 1];
-  const ops = opsOf({ base: value('--url'), secret: process.env.OFFICE_EXPORT_SECRET!, header: EXPORT_SECRET_HEADER });
-  const result = await makeOfficeBackup({ ops, copy: value('--copy') as OfficeCopy, recipient: process.env.BACKUP_AGE_RECIPIENT!.trim(), outDir: value('--out') });
+  const ent = argv.includes('--enterprise') ? value('--enterprise') : undefined;
+  const ops = opsOf({ base: value('--url'), secret: process.env.OFFICE_EXPORT_SECRET!, header: EXPORT_SECRET_HEADER, ...(ent ? { office: ent } : {}) });
+  const result = await makeOfficeBackup({ ops, copy: value('--copy') as OfficeCopy, ...(ent ? { ent } : {}), recipient: process.env.BACKUP_AGE_RECIPIENT!.trim(), outDir: value('--out') });
   console.log(JSON.stringify(result));
 }
 
