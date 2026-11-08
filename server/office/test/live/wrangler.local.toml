@@ -19,6 +19,8 @@ SUPABASE_URL = "http://127.0.0.1:54321"
 MADAR_FILE_STORE = "r2"
 R2_BUCKET = "madar-files-test"
 WORKER_REGION = "workers-local"
+# Madar enterprises: the Cron sends each leg to the public API address of this Worker (there is no binding SELF in a local run).
+MADAR_CRON_TRANSPORT = "api"
 MADAR_TEST_TOOLS = "on"
 
 [[durable_objects.bindings]]

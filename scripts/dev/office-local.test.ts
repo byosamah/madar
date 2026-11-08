@@ -20,7 +20,7 @@ describe('the local office stack (scripts/dev/office-local.ts)', () => {
 
   it('writes the run lines of the helper: the screens, the office, the agents flag and the 4 local passwords', () => {
     const lines = playwrightLines({ opsSecret: 'local-ops' });
-    for (const line of [`MADAR_DEPLOY_URL=${LOCAL_SCREENS}`, `MADAR_E2E_APP_URL=${LOCAL_SCREENS}`, `MADAR_E2E_OFFICE_URL=${LOCAL_OFFICE}`, `MADAR_E2E_MCP_URL=${LOCAL_OFFICE}/mcp`, 'MADAR_E2E_OPS_SECRET=local-ops', 'MADAR_E2E_AFTER_G=1']) {
+    for (const line of ['MADAR_E2E_SECOND_ENTERPRISE=ent_002', `MADAR_DEPLOY_URL=${LOCAL_SCREENS}`, `MADAR_E2E_APP_URL=${LOCAL_SCREENS}`, `MADAR_E2E_OFFICE_URL=${LOCAL_OFFICE}`, `MADAR_E2E_MCP_URL=${LOCAL_OFFICE}/mcp`, 'MADAR_E2E_OPS_SECRET=local-ops', 'MADAR_E2E_AFTER_G=1']) {
       expect(lines).toContain(line);
     }
     for (const [name, value] of Object.entries(localPasswords())) expect(lines).toContain(`${name}=${value}`);

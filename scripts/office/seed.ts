@@ -24,6 +24,8 @@ import { localPasswords } from '../../tests/e2e-deploy/local';
 import { r2Values } from '../deploy/secrets';
 import { PNG_PICTURES } from '../seed-pictures';
 import { seedAccounts, seedR2Port, testOffice, withObjectKeys } from '../seed-test-office';
+import { ENT_VADO } from '../../server/enterprise/ids';
+import { registerEnterprise, SAMPLE_ENTERPRISE } from './enterprise';
 import { copyValuesOf, flagOf, importOffice, targetOf } from './import';
 import { opsOf } from './ops';
 import { stateSource, type OfficeSource } from './source';
@@ -105,8 +107,10 @@ async function main(argv: string[]): Promise<void> {
     for (const upload of uploads) await store.put(upload.key, upload.blob);
     console.log(`Uploaded ${uploads.length} sample files to ${store.where}.`);
   }
-  const report = await importOffice(opsOf({ base: target.base, secret, header: OPS_SECRET_HEADER }), source, { mode: 'replace', log: (line) => console.log(line) });
-  console.log(`Seeded the office object of ${target.copy}: ${report.records} records in ${report.parts} parts, the 4 accounts of tests/e2e-deploy/accounts.ts.`);
+  // The office object of ent_001 (VADOs' Companies): the platform lists it with its sign-in emails first, then the import names it.
+  await registerEnterprise(target.base, secret, { row: SAMPLE_ENTERPRISE, emails: source.signin.map((one) => one.email) });
+  const report = await importOffice(opsOf({ base: target.base, secret, header: OPS_SECRET_HEADER, office: ENT_VADO }), source, { mode: 'replace', log: (line) => console.log(line) });
+  console.log(`Seeded the office object ${ENT_VADO} of ${target.copy}: ${report.records} records in ${report.parts} parts, the 4 accounts of tests/e2e-deploy/accounts.ts.`);
 }
 
 const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
