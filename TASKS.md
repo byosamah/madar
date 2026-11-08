@@ -118,7 +118,7 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 - [x] Security fix 7, wave 5 track H, tests first (background security review of 5034416, 2026-10-04, "weakened-auth-token-lifetime"): `otp_expiry = 86400` makes every Auth email link live 24 hours, also a password-reset link, because Auth has one setting for all email links. Set `otp_expiry` back to 3600 in `supabase/config.toml`. An invitation link that is out of date opens a screen with one main button, "Send me a new link", which sends a fresh invitation to the SAME invited address only: never to a typed address, only for a person who is still invited (not accepted, not removed), with a limit for each invitation and for each network address (cf-connecting-ip), and the same answer in every case. The Admin does nothing. Words in English and Arabic; screenshots EN/AR, light/dark, 390 px. Update the comments of `server/auth/forgot.ts` that name 86400 (the reset window stays 1 hour, which a test compares with otp_expiry), and change the Z0b item: the hosted projects keep the Auth default of 3600 s. The owner may still choose 24-hour links with no button; then keep 86400 and record the accepted risk in proof.md. Done by H, merged 2026-10-04 (b0a244b): otp_expiry = 3600 (865a68e), the renew key and `POST /api/auth/renew-invite`, the Welcome screen "Send me a new link", the invite mail words (4422a26), proof.md section H.
 - [x] Security fix 8, on main after the wave 5 merge, tests first (background security review of rb/H, 2026-10-04, "weak-secret-derivation"): the renew key came from the invite id and the token hash (`renewKeyOf`), and the token hash is the sha224 of the email and a 6-digit Auth code, so a reader of the outbox could rebuild a live token hash from 1 million guesses. Done: the key is random (`newRenewKey`, 260 bits), the payload keeps it next to the token hash until the send, `SENT_SQL` drops both, and proof.md records it.
 - [x] Walk spec (wave 5 track Y): the whole-product walk of wave 4 uploaded a damaged PNG (its header says 64 x 64, its data stream is broken), so its picture preview check proved nothing; the preview showed a blank panel. Commit the walk as tests/e2e-deploy/walk.spec.ts with a real picture made at run time, check that the preview shows the picture (its pixels, not only naturalWidth), and run it once on the local stack. Done by Y, merged 2026-10-04 (27631ef): 36 of 36 steps in all four variants; after the Y repair, en-390 and ar-390 again.
-- [x] Logo (owner's choice "3 · Turning doors", 2026-10-04; canvas https://claude.ai/artifact/PPsLwvwBp6uDueSWDM31qz): the "door" form of the project pictures in its four turns, as a pinwheel, in a glow tile. Done: the tab icon in `index.html` (the form alone in ink, light and dark). After the wave 4 merge: (1) one `MadarMark` component: the glow tile (30% corners, the three lights of Next for you, the ink/10 ring, the form at 45% size in ink at 0.86) with the paths `M8 0H0A8 8 0 0 0 8 8Z M18 8V0A8 8 0 0 0 10 8Z M10 18H18A8 8 0 0 0 10 10Z M0 10V18A8 8 0 0 0 8 10Z` (viewBox 0 0 18 18); (2) the mark with the name above the title of the sign-in, forgot and consent screens (`AuthPage`); (3) app icons: apple-touch-icon 180 px and 192/512 px PNGs of the glow tile, with a web manifest; (4) the mark in the header of the N2 mail templates; (5) never inside a project list, so nobody reads it as a project. Screenshots EN/AR, light/dark, 390 px. Done by K, merged 2026-10-04 (266b16e): (1) `src/components/MadarMark.tsx`; (2) the mark and the name in the top row of `AuthPage` (sign-in, forgot, reset, welcome, consent); (3) `public/icons` and `public/manifest.webmanifest` from `scripts/icons/make-icons.tsx`; (4) the 192 px PNG in the N2 mail header, empty alt; (5) a test. What K left is in Wave 5 follow-ups.
+- [x] Logo (owner's choice "3 Â· Turning doors", 2026-10-04; canvas https://claude.ai/artifact/PPsLwvwBp6uDueSWDM31qz): the "door" form of the project pictures in its four turns, as a pinwheel, in a glow tile. Done: the tab icon in `index.html` (the form alone in ink, light and dark). After the wave 4 merge: (1) one `MadarMark` component: the glow tile (30% corners, the three lights of Next for you, the ink/10 ring, the form at 45% size in ink at 0.86) with the paths `M8 0H0A8 8 0 0 0 8 8Z M18 8V0A8 8 0 0 0 10 8Z M10 18H18A8 8 0 0 0 10 10Z M0 10V18A8 8 0 0 0 8 10Z` (viewBox 0 0 18 18); (2) the mark with the name above the title of the sign-in, forgot and consent screens (`AuthPage`); (3) app icons: apple-touch-icon 180 px and 192/512 px PNGs of the glow tile, with a web manifest; (4) the mark in the header of the N2 mail templates; (5) never inside a project list, so nobody reads it as a project. Screenshots EN/AR, light/dark, 390 px. Done by K, merged 2026-10-04 (266b16e): (1) `src/components/MadarMark.tsx`; (2) the mark and the name in the top row of `AuthPage` (sign-in, forgot, reset, welcome, consent); (3) `public/icons` and `public/manifest.webmanifest` from `scripts/icons/make-icons.tsx`; (4) the 192 px PNG in the N2 mail header, empty alt; (5) a test. What K left is in Wave 5 follow-ups.
 - [x] Fonts (owner, 2026-10-05): Thmanyah Sans for English and Arabic. Done: the OTF files
   (400, 500, 700) in `src/design/fonts/`, unchanged, `tokens.css` loads them, the number spots take the digits from
   Inter (Thmanyah Sans has no tabular figures), tests check the stacks and the file hashes. The weight ladder: Bold for
@@ -127,12 +127,12 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
   `tokens.css` (`dir="auto"`, `dir="ltr"` and `<bdi>` take the side of the page), the Schedule stage cell and the Inbox
   preview row give the direction only to the text, the sender name and its colon are one `<bdi>`, and
   `scripts/check-rtl.ts` now fails on `dir` on a flex or grid box. Deployed 2026-10-05 (1b0180a).
-- [x] Arabic middle dot (found 2026-10-05 with Thmanyah Sans): the wide, round "·" read like an Arabic zero in
-  "5 أكتوبر · مراجعة". Done: every stack takes only U+00B7 from Inter ("Madar Dot"), as the Arabic screens did before.
+- [x] Arabic middle dot (found 2026-10-05 with Thmanyah Sans): the wide, round "Â·" read like an Arabic zero in
+  "5 Ø£ÙØªÙØ¨Ø± Â· ÙØ±Ø§Ø¬Ø¹Ø©". Done: every stack takes only U+00B7 from Inter ("Madar Dot"), as the Arabic screens did before.
 - [x] Older layout issues at 390 px (found 2026-10-05; the old font showed them too). Done: the phone tabs share one
-  height and start at the top, so the two-line "لوحة المعلومات" no longer lifts its icon; the avatar stack overlaps by
+  height and start at the top, so the two-line "ÙÙØ­Ø© Ø§ÙÙØ¹ÙÙÙØ§Øª" no longer lifts its icon; the avatar stack overlaps by
   4 px, so no initials hide, and "+1" keeps its order in Arabic; the Health tiles start at the top, so the three numbers
-  sit on one line when "معرّض للتأخر" wraps; the weekly chart writes no "0" on its axis, so the first week label stands
+  sit on one line when "ÙØ¹Ø±ÙØ¶ ÙÙØªØ£Ø®Ø±" wraps; the weekly chart writes no "0" on its axis, so the first week label stands
   clear.
 - [x] D: remove the upload stand-ins of `server/test/uploads.ts` now that F is merged; only the in-memory unit tests of `server/test/dbApi.test.ts` still use them (F merge fix). Done by L1, merged 2026-10-04.
 - [x] P (optional): `server/core/memoryData.ts` answers `USER_EMAIL_CHANGED_SQL`, so the in-memory producer of `users.update` writes no row for a name change (P2 repair; not needed by the tests). Also drop the "not in AuthAdminPort yet" sentence in `server/auth/admin.ts`, now that the port has the methods. Done by L1, merged 2026-10-04.
@@ -164,7 +164,7 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
   - 41a9c18: after a mention pick, letters typed before the next frame came out of order ("@Faisal Al-Harbi ease check. pl", 7 of 10 updates). The pick moves the caret only when nothing was typed since.
   - 4c7a98a: the search test "opens the preview of a file it found" waits 10 s (it failed twice under the full suite at 4.7 s).
 - [x] Whole-product check follow-ups (all done by Y, wave 5):
-  - X: in a spec, click a "…" menu only after the scroll to its button settles. The menu closes when the page scrolls, and Playwright's click scrolls first, so at 390 px a menu low in a long list (Admin, People) opens and closes at once. Steps: 390 px, Admin, about 20 people, click "Actions for <last person>": aria-expanded stays false. A person is not affected. Done: `openMenu` in tests/e2e-deploy/steps.ts.
+  - X: in a spec, click a "â¦" menu only after the scroll to its button settles. The menu closes when the page scrolls, and Playwright's click scrolls first, so at 390 px a menu low in a long list (Admin, People) opens and closes at once. Steps: 390 px, Admin, about 20 people, click "Actions for <last person>": aria-expanded stays false. A person is not affected. Done: `openMenu` in tests/e2e-deploy/steps.ts.
   - X1 seed: the prototype agent "Madar Assistant" (owned by the Admin) has no `agent_links` row, so the Admin's Settings, Agents shows it as "Not used yet" with a Remove that revokes no grant. Decide whether the test office keeps it. Done: the seed leaves out the sample agent and its 36 weekly summaries, and empties `agent_approvals`.
   - X (proposal): keep the walk of this check as a spec (tests/e2e-deploy/walk.spec.ts, `MADAR_E2E_WALK=1`), so the next check between waves starts from it. Its source is in the session scratchpad, wave4-shots/e2e-walk/ (cleared after about 3 idle days). Done: tests/e2e-deploy/walk.spec.ts.
 - [x] Wave 5 merged into main (2026-10-04), in the order H (b0a244b), K (266b16e), Y (27631ef), with every merge lead patch: H's mail words for an out-of-date link (4422a26, the invite snapshot updated) and otp_expiry = 3600 (865a68e, the local stack stopped and started); K's plan line on `public/` (3fb8a93). Y's rebase kept both sides in `server/mail/notices.ts` (Y's Admin check and K's app address) and both new proof.md sections. Each gate passed: typecheck, `npm test` (3,328 passed, 6 skipped at the end), both builds, `build:remote -- test`, `test:db` (826 passed, 24 skipped), `test:it` (233 passed, with MADAR_AGE set), and the prototype smoke at H and K (87 of 87 each).
@@ -185,7 +185,7 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
   - V: a renewal row with its own reserved place that gives way to a later invitation row loses that place for its day (at most 1 place, rare). Done after wave 6: `release` in `server/mail/quota.ts` gives back the place of a row that never made a link and sends nothing (it gave way, or the person was turned off). A row with a stored link keeps its place, because an earlier attempt may have sent its mail. Unit tests in `invite.test.ts`, and a database test as madar_server in `email.it.test.ts`.
   - V: the key `people.sent` in `src/i18n/real/people.en.json` and `people.ar.json` (U) is no longer used (the resend toast uses `people.onItsWay`); remove it. Done after wave 6.
   - Whole-product check after wave 6 (H and W): a person who opened the invitation link but set no password counts as active in `users.invites` (Auth confirmed the email), so Admin, People shows no "Invited" label and its menu has no "Send the invitation again". So the reset-link invitation that W's Welcome fix handles comes only from a `users.resendInvite` call (an agent or the API), not from the screen. Nothing is broken: the person can still use Forgot. Steps: Admin adds a person; the person opens the Welcome link, presses the button and closes the page before a password; reload Admin, People and open the menu of that person. Decide whether the screen shows "Invited" and Resend until the first password, or whether Forgot is the one way. Done (owner chose "Invited" until the first password, 2026-10-04): Auth gives no sign of a password (it stores a password value as soon as the link opens, probe on the local stack), so the screens set the Auth user_metadata mark `madar_password_set` with each password save and after a sign-in with a password; users.invites says active only with a confirmed email and the mark. The seed and the first Admin set the mark. A person can set the mark on their own account only, and it changes only their own label. Review follow-ups (2026-10-04): the renew route and the auth.email effect now use the same rule (accepted = confirmed email and the mark), so a person who opened the link and left gets a working recovery link from "Send me a new link" and from an email change. An account that saved a password before this change has no mark until its next password sign-in: production starts empty and the seed sets the mark, so before any real use there is nothing to backfill; on madar-test, run the seed again.
-- [x] Logo in the app (owner, 2026-10-04: "Top-left, every screen"): the Madar mark at the top start of every signed-in screen (desktop: across from the picture; phone: the start of the top row, which a project page gives to its back link). A press opens Home. Name "Madar, Home" / "مدار، الرئيسية". Screenshots: desktop dark (Chrome), phone EN/AR light/dark and a project page (Playwright).
+- [x] Logo in the app (owner, 2026-10-04: "Top-left, every screen"): the Madar mark at the top start of every signed-in screen (desktop: across from the picture; phone: the start of the top row, which a project page gives to its back link). A press opens Home. Name "Madar, Home" / "ÙØ¯Ø§Ø±Ø Ø§ÙØ±Ø¦ÙØ³ÙØ©". Screenshots: desktop dark (Chrome), phone EN/AR light/dark and a project page (Playwright).
 
 ## 2026-10-05: staging
 
@@ -280,7 +280,7 @@ the leader, and the review stays with the leader; Home shows the next 3 tasks wi
 
 ## Fixed: Arabic stage name was cut (found 2026-10-07, fixed 2026-10-08)
 
-- [x] The task panel showed «ınstruction Documents» in Arabic: the stage field sat in a narrow column and cut the first letters. The stage field now takes a full row from 640 px up (`TaskSheet.tsx`, test `TaskStageRow.test.tsx`). Checked in Arabic and English, light and dark, at 390 px, and in Arabic at 1280 px.
+- [x] The task panel showed Â«Ä±nstruction DocumentsÂ» in Arabic: the stage field sat in a narrow column and cut the first letters. The stage field now takes a full row from 640 px up (`TaskSheet.tsx`, test `TaskStageRow.test.tsx`). Checked in Arabic and English, light and dark, at 390 px, and in Arabic at 1280 px.
 
 ## Release of the security fix F1 (owner, 2026-10-07)
 
@@ -379,7 +379,7 @@ no grips, because its tasks fall on different days.
 ## Browser push notifications (owner, 2026-10-08)
 
 Owner choices: free Web Push (no email, WhatsApp, SMS or vendor account). One fixed line with no data: "You have something new in Madar."
-(Arabic: "لديك جديد في مدار."), title Madar / مدار. It goes for every new bell notice (all triggers) and every new chat message, to the
+(Arabic: "ÙØ¯ÙÙ Ø¬Ø¯ÙØ¯ ÙÙ ÙØ¯Ø§Ø±."), title Madar / ÙØ¯Ø§Ø±. It goes for every new bell notice (all triggers) and every new chat message, to the
 people who read them, never to the sender, only to active people. One switch for each device in Settings. This replaces "No phone push"
 of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main; on the test copy and on production at bf3fa9f (2026-10-08).
 
@@ -430,7 +430,7 @@ Faisal Al Howshani sent the three reports on 2026-10-11. The owner asked for all
 ## 2026-10-12: agent names and Remove for a turned-off person (branch `rb/agent-names`, worktree `~/dev/madar-rb/agent-names`)
 The owner asked on 2026-10-12. Decisions: the name format "Osama Claude Agent"; "delete" means remove from every list and keep the history; a separate release after the ready one (`cb0f7b9`). Not merged into main, so the ready release is not disturbed.
 
-- [x] Every agent read "Claude" (the name of its AI app). A new agent user is named "<first name> <app> Agent" (`agentNamesOf`, `src/lib/agentName.ts`, used by `ensureAgentUser`), and in Arabic "وكيل <first name> <app>" when the person has an Arabic name. `agent_links.client_name` keeps the plain app name for the match of a reconnect
+- [x] Every agent read "Claude" (the name of its AI app). A new agent user is named "<first name> <app> Agent" (`agentNamesOf`, `src/lib/agentName.ts`, used by `ensureAgentUser`), and in Arabic "ÙÙÙÙ <first name> <app>" when the person has an Arabic name. `agent_links.client_name` keeps the plain app name for the match of a reconnect
 - [x] The agents that exist: migration `20261012000100_agent_names.sql` renames them with the same rule (only an agent that still has its app name, and the Arabic name only when it has none), raises `office_meta.version` and sets `chg`. Proved on an in-memory Postgres (pglite, outside the repo): 8 cases and a second run that changes nothing. Production has 3 agents (Osama, Faisal, Tarek): they become "Osama Claude Agent", "Faisal Claude Agent" and "Tarek Claude Agent" when their link app name is "Claude"
 - [x] `users.remove` (new call, 117 calls): a turned-off person or agent leaves every list for good (`User.removed`). The record stays for the History. The agents of a person go with them. People screen: "Remove from the list" with a sheet that asks first, no Undo. MCP: deny list. Counts raised: `calls.test.ts`, `serverCallMap.test.ts`, `health.test.ts`, `worker.it.test.ts`
 - [x] Tests first for each part. Gates: typecheck; `npm test` 4,626 passed and 6 skipped (455 files); the RTL check; `npm run build` and `build:server` with their bundle checks. Screens: the People menu and the sheet in English dark at desktop width, and at 390 px with real touch emulation in English and Arabic, light and dark: no horizontal scroll, both sheet buttons inside the screen. After a removal the old tasks still show the name
@@ -451,7 +451,7 @@ Faisal (fbk_003): "allow a user to override project code verifying after a warni
 
 - [x] A code typed by hand (the new-project form, the Admin's correction) that does not match the office pattern, or that has the month and series of another contract, shows a warning and the tick "Use this code anyway". The tick lets the code go; a change of the code clears it. Server: reasons `code_format` and `code_taken` unless `codeAnyway: true` (`projects.create`, `projects.update`). A new or changed code is visible text of 1 to 60 characters (no hidden direction marks, other spaces or invisible characters, after two background security notes); the record also keeps every code of the office pattern saved before
 - [x] MCP: `codeAnyway` in the `projects.update` schema, `TOOL_DOCS` and the "Project codes" line of `INSTRUCTIONS` (only the person decides to keep a code)
-- [x] The Tracker type `balady` shows as Government ("جهة حكومية"), also in the move-back tick. The stored value stays `balady`. `TOOL_DOCS` of `tracker.log` and `tracker.list` say what it means
+- [x] The Tracker type `balady` shows as Government ("Ø¬ÙØ© Ø­ÙÙÙÙØ©"), also in the move-back tick. The stored value stays `balady`. `TOOL_DOCS` of `tracker.log` and `tracker.list` say what it means
 - [x] The quick-log type tiles keep at least the width of their word, so "Government" stays in its tile at 390 px (found by the phone screenshots)
 - [x] Gates: typecheck; `npm test` 4,650 passed and 6 skipped (457 files; one record test pinned the old rule and moved to the new one); `npm run build`, `build:server`, `build:remote -- test`; `test:mcp` 147 passed. Not run: `test:db`, `test:it` and the MCP conformance runner (Docker off), the prototype smoke. Screenshots: 390 px in EN and AR, light and dark (new project, Edit project, Tracker)
 - [x] Test copy and production at 23342eb (2026-10-12). The Pages step of production failed twice at Cloudflare ("Unknown internal error") and went through on a third run of `pages.sh production`. fbk_003 is done, so Faisal got the done notice. Record: proof.md
@@ -735,16 +735,16 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] Main and the test copy (`all.sh test`, 924eb2c), then the deploy suite on the test copy (2026-10-20): 161 passed, 0 failed, 3 skipped by design, the walk in 4 variants. Record: proof.md, "Chat batch: the test copy and the deploy suite"
 - [x] fbk_028 part 2 follows the owner decision of 2026-10-20 (the line is gone from the screens; Mark as unread): it wins over item 22 at the join with `rb/meetings-join`, and the waits rule of item 22 stays in the API for `chats.waiting` and the agents
 - [x] Release: production at 5350647 (2026-10-20, the owner ran it; the second run went through after a 500 of the Supabase settings step). fbk_030 and fbk_032 done; fbk_028 waits for the meetings join (part 2, Mark as unread, owner 2026-10-20). Record: proof.md
-- [x] Phone fixes (owner, 2026-10-20: "fix them"): a task thread title takes up to two lines under 640 px, and the task picture shows only from 640 px; the phone box hint is short and keeps the @ tip ("Use @ to mention." / «اكتب @ لذكر أحد.»), one line at 360 px and 390 px, because a project chat pushes only the people that a message names. What's new: one line on the task title (item 24), and "To reach a person, type @ and pick the name." (item 50). Record: proof.md, "Chat batch: the phone fixes"
+- [x] Phone fixes (owner, 2026-10-20: "fix them"): a task thread title takes up to two lines under 640 px, and the task picture shows only from 640 px; the phone box hint is short and keeps the @ tip ("Use @ to mention." / Â«Ø§ÙØªØ¨ @ ÙØ°ÙØ± Ø£Ø­Ø¯.Â»), one line at 360 px and 390 px, because a project chat pushes only the people that a message names. What's new: one line on the task title (item 24), and "To reach a person, type @ and pick the name." (item 50). Record: proof.md, "Chat batch: the phone fixes"
 - [x] The reaction pills on a phone (owner, 2026-10-20: "fix it"): no change was necessary. A pill is 28 px high, and its press area is 44 x 44 px. Record: proof.md, "Chat batch: the phone fixes"
 - [x] The phone tab bar (owner, 2026-10-20: "fix it", icons only, the floating pill chosen): each 24 px icon in the centre of a 48 px tab, the open tab a round pill, the bar 16 px from the sides and the bottom, the Inbox count on its icon. What's new 2026-10-23-31. Gates: npm test (16 files timed out under load 137 and passed alone), prototype smoke 87 of 87, shots EN/AR, light/dark, 390 px. Production at 5a98255
 - [x] Cleanup (owner, 2026-10-20: "do only 6"): the raw direction marks in `GroupSheets.tsx` and `ReasonLine.tsx` are escapes now, and `check-rtl.ts` stops the build on a raw mark in `src`. People see no change, so What's new has no line for it
 - [ ] Proposed for later (not approved): the other items of "Not in this batch" in the design
 
 ## 2026-10-20: the Arabic audit in Thmanyah style (branch `rb/arabic`, owner request)
-- [x] Audit with a lint of the Thmanyah rules over all 2,729 Arabic strings (28 word files). Before: 105 strings with «تم» or «يتم», 241 labels that use a noun where a verb fits, 34 stiff phrases, 11 sentences over 14 words. After: 0, 28 (names of things and past-tense verbs, all fine), 0, 0
-- [x] Rewrite: 571 strings changed in the word files only (keys unchanged). Buttons are imperative verbs, confirmations are short passive verbs, switches start with «عندما». One word for one thing: «مدير النظام», «لوحة المعلومات», «عبء العمل», «خيارات», «باسم». Rules are in `src/i18n/CLAUDE.md`
-- [x] Real mistakes found and fixed: «لوحة المتابعة» and «ضغط العمل» in What's new (the screens say «لوحة المعلومات» and «عبء العمل»), the picture formats missing from a photo error, an Eastern digit in the screenshot hint, five wrong tanween marks, «إجراء» for a meeting task, «أحدث» for "later"
+- [x] Audit with a lint of the Thmanyah rules over all 2,729 Arabic strings (28 word files). Before: 105 strings with Â«ØªÙÂ» or Â«ÙØªÙÂ», 241 labels that use a noun where a verb fits, 34 stiff phrases, 11 sentences over 14 words. After: 0, 28 (names of things and past-tense verbs, all fine), 0, 0
+- [x] Rewrite: 571 strings changed in the word files only (keys unchanged). Buttons are imperative verbs, confirmations are short passive verbs, switches start with Â«Ø¹ÙØ¯ÙØ§Â». One word for one thing: Â«ÙØ¯ÙØ± Ø§ÙÙØ¸Ø§ÙÂ», Â«ÙÙØ­Ø© Ø§ÙÙØ¹ÙÙÙØ§ØªÂ», Â«Ø¹Ø¨Ø¡ Ø§ÙØ¹ÙÙÂ», Â«Ø®ÙØ§Ø±Ø§ØªÂ», Â«Ø¨Ø§Ø³ÙÂ». Rules are in `src/i18n/CLAUDE.md`
+- [x] Real mistakes found and fixed: Â«ÙÙØ­Ø© Ø§ÙÙØªØ§Ø¨Ø¹Ø©Â» and Â«Ø¶ØºØ· Ø§ÙØ¹ÙÙÂ» in What's new (the screens say Â«ÙÙØ­Ø© Ø§ÙÙØ¹ÙÙÙØ§ØªÂ» and Â«Ø¹Ø¨Ø¡ Ø§ÙØ¹ÙÙÂ»), the picture formats missing from a photo error, an Eastern digit in the screenshot hint, five wrong tanween marks, Â«Ø¥Ø¬Ø±Ø§Ø¡Â» for a meeting task, Â«Ø£Ø­Ø¯Ø«Â» for "later"
 - [x] Merged into main and released: production at 15a9815 (2026-10-20, the owner ran it). Record: proof.md. The owner may still read the before/after page and name any string to revert
 - [x] What's new line 2026-10-23-32 for the new Arabic wording
 
@@ -770,7 +770,7 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
   the Pages secret `ESRI_KEY` on both copies, set 2026-10-20; the key ends 2027-10-19; the referrer lock did not save at Esri)
 - [x] The sub-company badge sits in a gap cut out of the project tile: no ring, no pill
 - [x] The chat list filter beside the search: All, Projects, To-dos, People (direct chats and groups)
-- [x] "Tasks" holds To-dos and Meetings: 209 English texts say to-do; the switch and the project tab say «قائمة المهام»; MCP INSTRUCTIONS line
+- [x] "Tasks" holds To-dos and Meetings: 209 English texts say to-do; the switch and the project tab say Â«ÙØ§Ø¦ÙØ© Ø§ÙÙÙØ§ÙÂ»; MCP INSTRUCTIONS line
 - [x] Gates: typecheck, npm test (7,943 passed; one deploy test timed out under load and passes alone), build, build:server
 - [ ] Not run (owner chose speed): test:db, test:it, the deploy suite, the screenshots (the Chrome extension was off)
 - [x] Test copy and production at 3cb6e144 (2026-10-20, the owner's "go production now"). Record: proof.md
@@ -852,9 +852,9 @@ the cover from the small picture that Madar keeps (up to 960 px), as data when i
 ## Times in AM and PM (owner, 2026-10-21: "make the time in AM PM style not 24")
 
 - [x] One clock formatter (`clockFormat`, `src/lib/dates.ts`): English on the 12-hour clock with AM and PM ("5:15 PM", the US form);
-  Arabic was already 12-hour («5:15 م») and stays. The meeting view summary used its own "HH:MM": it uses the formatter now
-- [x] The fixed times in words, both languages: the summary mail footer and the mail pause line (7:30 AM, 3:00 AM; «صباحًا»), the
-  summary hint of Settings, the meeting start hint (10:00 AM; «ص»). Wider time columns: Home meetings card and the meeting summary
+  Arabic was already 12-hour (Â«5:15 ÙÂ») and stays. The meeting view summary used its own "HH:MM": it uses the formatter now
+- [x] The fixed times in words, both languages: the summary mail footer and the mail pause line (7:30 AM, 3:00 AM; Â«ØµØ¨Ø§Ø­ÙØ§Â»), the
+  summary hint of Settings, the meeting start hint (10:00 AM; Â«ØµÂ»). Wider time columns: Home meetings card and the meeting summary
   (80 px); the chat side time does not wrap. No MCP change: the tools give stamps, never a clock text
 - [x] Gates: typecheck, `npm test` 8,216 passed (733 files), `npm run build`, `build:server`. Shots at 390 px (EN/AR, light/dark):
   the Meetings list and the meeting sheet
@@ -920,7 +920,7 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
 `docs/superpowers/specs/2026-10-21-madar-chat-presence-design.md`, mockup next to it (owner: "go ahead", dot look A).
 
 - [x] Owner answers: status automatic plus an Away switch; "Seen" and "Seen by N"; the full emoji list with search; reactions keep
-  👍 ✅ 👀 and get a + for any emoji
+  ð â ð and get a + for any emoji
 - [x] Mockup, then the design
 - [ ] Builder check of the design, then the plan (Opus, `superpowers:writing-plans`)
 - [x] Proof task on madar-test (P1): every policy fact holds; a dead socket shows Offline after 49 to 66 s; the new parts were
@@ -1060,7 +1060,7 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
 - [x] fbk_050 (Anas Emam, "Download all attachments"): a quiet "Download all (N)" under every message, to-do comment and post comment with
   2 or more files, and on the Files tab one for each stage group and "Download all files (N)" for the project (hidden when one group holds
   every file). One ZIP made in the browser (`src/lib/zip.ts`: store method, CRC-32, UTF-8 names, no new package; the R2 CORS GET was there).
-  "Preparing n of N..." while it runs. What's new 97. Built by a Sonnet builder; the Arabic "preparing" word moved from «نجهّز» to «يجهّز مدار».
+  "Preparing n of N..." while it runs. What's new 97. Built by a Sonnet builder; the Arabic "preparing" word moved from Â«ÙØ¬ÙÙØ²Â» to Â«ÙØ¬ÙÙØ² ÙØ¯Ø§Ø±Â».
 - [x] fbk_051 (Faisal): the two times of "When Madar notifies you" read in the order of the quiet line: "Quiet from" (end of work), then
   "Until" (start). Same saved data; the Admin block keeps its order. What's new 98.
 - [x] Gates on main d2476c8a plus both: typecheck; npm test 10,385 passed, 0 failed; both builds (first load 950,885 B, 285,936 B gzip);
@@ -1121,7 +1121,7 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md
 - [x] Screenshots: the Inbox line (EN/AR, light/dark, 390 px and desk), the role sheet switch
 - [x] Test copy (`all.sh test`), then production at 10c7191b (2026-10-25 12:43), release record
 - [x] Mark fbk_056 and fbk_057 done in Madar (2026-10-25 12:45, story sty_b5w6qh34op2hvthd2tz4jw)
-- [x] Found 2026-10-25: on a 390 px phone in Arabic, the four Inbox kind chips did not fit one row, and «الأشخاص» dropped to a second row. Done 2026-10-28 (tsk_448, 7aa65289): the owner chose the one word «المهام»; `tests/e2e/inboxPhone.spec.ts` measures one row. What's new 135. Production at fb63559f.
+- [x] Found 2026-10-25: on a 390 px phone in Arabic, the four Inbox kind chips did not fit one row, and Â«Ø§ÙØ£Ø´Ø®Ø§ØµÂ» dropped to a second row. Done 2026-10-28 (tsk_448, 7aa65289): the owner chose the one word Â«Ø§ÙÙÙØ§ÙÂ»; `tests/e2e/inboxPhone.spec.ts` measures one row. What's new 135. Production at fb63559f.
 
 ## fbk_052, fbk_055, fbk_058, fbk_059 (owner, 2026-10-25: "go ahead"; production waits for the owner)
 
@@ -1233,7 +1233,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 ## MCP final join (`rb/mcp-join`, 2026-10-26: security review fix 6, `rb/fbk-069`, `rb/fbk-067`, Arabic words, one INSTRUCTIONS text)
 - [x] The code mail lists EVERY right that a role act adds or removes, risky ones first (people, payment, admin and every-record rights: `isRiskyRight` in `server/mcp/guard.ts`); one id is still cut at 40 characters, the count never
 - [x] Merged `rb/fbk-069` (Continuous project; What's new 118) and `rb/fbk-067` (request statuses; What's new 119); What's new 113 to 119 once each
-- [x] Arabic words: the continuous hint «لا موعد لانتهاء المشروع. العمل فيه مستمر.»; the statuses «نراجعه» and «نعمل عليه»
+- [x] Arabic words: the continuous hint Â«ÙØ§ ÙÙØ¹Ø¯ ÙØ§ÙØªÙØ§Ø¡ Ø§ÙÙØ´Ø±ÙØ¹. Ø§ÙØ¹ÙÙ ÙÙÙ ÙØ³ØªÙØ±.Â»; the statuses Â«ÙØ±Ø§Ø¬Ø¹ÙÂ» and Â«ÙØ¹ÙÙ Ø¹ÙÙÙÂ»
 - [x] INSTRUCTIONS read once from top to bottom: no sentence says an agent cannot do what the branch opened (a picture, a logo, a chat file); the chat file rule and the project delete rule stand once
 - [x] `toolSize.test.ts` still has its limits (110,000 and 2,048): the join shortened 19 tool texts (see the final join report)
 - [x] Merge lead: `npm run test:it` for `server/it/confirms.it.test.ts`, `npm run test:db`, `npm run test:mcp`, the full `npm test` (done 2026-10-26: production at 605084ab)
@@ -1423,11 +1423,11 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
   Both shipped in production at 7a288c80 (below).
 
 ## Team report fbk_078 (owner answers of 2026-11-05)
-- [x] fbk_078 (Faisal): Resources, a page for the files of the whole office (building codes, policies), inside Projects. Shipped in production at 7a288c80 (Arabic name «المراجع»). Every person reads; the new switch "Manage office resources" (off for every role but the Admin) changes; a locked folder reuses "Locked folders". What's new 152. The first-load limit rose from 970,000 to 972,000 B (the merge lead, 2026-11-05; the feature adds 1,195 B). The agent uses the existing file and folder tools, so the tool list cap stays 110 KB.
+- [x] fbk_078 (Faisal): Resources, a page for the files of the whole office (building codes, policies), inside Projects. Shipped in production at 7a288c80 (Arabic name Â«Ø§ÙÙØ±Ø§Ø¬Ø¹Â»). Every person reads; the new switch "Manage office resources" (off for every role but the Admin) changes; a locked folder reuses "Locked folders". What's new 152. The first-load limit rose from 970,000 to 972,000 B (the merge lead, 2026-11-05; the feature adds 1,195 B). The agent uses the existing file and folder tools, so the tool list cap stays 110 KB.
 
 ## Release: Resources and the big file preview (owner: "finish them all then production", "ship all together", 2026-11-05; `rb/release-1105`)
 - [x] fbk_079 (tsk_634): on a desk, PDF, pictures, Word and Excel open in one big center window (`Sheet` mode `center`). The phone keeps its way.
-- [x] fbk_078 (tsk_635): Resources («المراجع»), inside Projects; on a phone the To-dos View toggle sits in the title row, so the 4-part
+- [x] fbk_078 (tsk_635): Resources (Â«Ø§ÙÙØ±Ø§Ø¬Ø¹Â»), inside Projects; on a phone the To-dos View toggle sits in the title row, so the 4-part
   Work switch has the whole row (every label fits at 360 and 390 px, Chromium and WebKit).
 - [x] Release: test copy, then production by Claude. Done 2026-11-05: production at 7a288c80. Record: proof.md.
 - [ ] The first load holds 970,494 B of the 972,000 B limit (1,506 B left): the next change that adds first-load code must look at it.
@@ -1533,5 +1533,7 @@ order; builders run on Sonnet 5.5. Each track merges into `rb/enterprises`; the 
 - [x] Wave 2: plan D tasks 1, 3, 4, 5, 7 (track `ent-d`), merged (6e58cdc8). Wave 3: plan D tasks 2, 6, 8 to 11, 13 (task 12 dropped: C writes What's new) (mail pool, file prefix, logs and PostHog, backups, prototype, What's new, MCP words, sweep, guides)
 - [ ] At the merge to main: renumber the What's new ids of track ent-c (it took 157 and 158; madar-b0 holds 157 to 160 for rb/quick-1108, rb/stages, rb/weekly and rb/chat-1108): take 161 or higher, and check main again at the merge. Renumber the SQLite steps 14 and 15 to 15 and 16: rb/weekly takes step 14 on main (madar-b0, 2026-11-08). Update LITE_SCHEMA_VERSION, LITE_STEPS, PINNED_SHA256 and the contract line "Schema steps".
 - [ ] Security fix on `rb/ent-d2` before its merge (review of 2026-11-08, MEDIUM, server/enterprise/platform/mailPool.ts): the pool looks up a ref by day and ref only, with no enterprise, and trusts the `<ent>:` prefix. Fix test first: the Worker port gives the pool the enterprise of the request; the pool refuses a ref that does not start with `<ent>:` and compares ent in the lookup (or ent in the key). Test: an object of ent_002 that sends the ref of ent_001 gets a refusal and takes no place.
+- [x] Screenshots of the plan C screens (78 shots, local stack, scratchpad shots-enterprises/)
+- [ ] Screen fixes on `rb/ent-ui` (from the shots): the phone line to Madar enterprises in the Me tab, a soft divider, "Not counted yet" before the first status, the first letter in an empty logo, 44 px, dir=ltr for the address name, the app name in one piece on the consent title, another icon, the Arabic paused sentence and «شركة» for a person of a company; new shots after
 - [ ] The full merge gate on `rb/enterprises`, screenshots, then main
 - [ ] Plan E: the move of VADOs' Companies (owner OK at each production step)
