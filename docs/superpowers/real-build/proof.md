@@ -3163,3 +3163,23 @@ Lead step: deploy the test Worker, run the probe for `--kind self` and `--kind a
 read one real Cron run in `wrangler tail`, and write the numbers here. Rule: choose `self` when every leg stays ok at 15 legs with 40
 outside calls each. Else choose `api`. If neither works, stop and ask the owner: the Cron then runs one enterprise in each 15-minute run.
 Then set the default of `MADAR_CRON_TRANSPORT` (Task 14).
+
+## Madar enterprises, plan B: the enterprise core (branch `rb/ent-b`, 2026-11-08)
+- What it holds: the ids and tags, the claim `ent` in the own tokens, the table `enterprise` (schema version 14) and the gate in every object
+  method, the platform object, the router and the listed cache, sign-in by email, tagged links, keys, refresh tokens and socket tickets, the MCP
+  address `/mcp/<address>`, the ops by enterprise id and the two platform ops, the Cron fan-out, two enterprises on the local stack, and the leak
+  tests of two enterprises. Guides: `server/enterprise/CLAUDE.md` and the guide of each part.
+- Tests of the track, each run once at the end of the track (sandbox off for workerd and wrangler): `npm run typecheck` clean; the node tests of
+  `server`, `scripts`, `tests` and `src/api/contract` (the `wd` files left out): 325 files, 3,980 passed, 6 skipped; `npm run test:lite`: 192 files,
+  3,526 passed, 54 skipped; `npm run test:office`: 12 files, 55 passed; `npm run build:server` ok (no `cloudflare:workers` in the Supabase
+  bundles); `npm run smoke:office`: 12 of 12 checks, the Cron run through the `api` transport included. Not run in the track: `npm test`,
+  `test:db`, `test:it`, `test:mcp`, the prototype smoke (the lead runs the full gate once).
+- Rows of `status()` on the sample office on workerd: 3 rows read (the office lists come from memory; the count of invited people, the last write and
+  the mails of the day are three statements). A Cron run adds one `status()` read at its end. A directory read of the platform object: 1 row for a hit,
+  0 for a miss, 0 written.
+- Cold wake: the rows pins (`CRON_PINS`, `COLD_EXTRA_ROWS`, `server/office/test/pins.ts`) did not change and still pass. The test object of the pins
+  (`PinOffice`) has no gate. The real object reads its identity row once on its first call: 1 row more on a cold wake, which the pin does not count.
+- Finds while building (the plan did not say them): the path `/mcp/oauth-protected-resource` is a path word of the VADO address, so it is reserved
+  next to `oauth`; after `platform-register` the Worker drops its listed cache, else an import that follows the register would wait 5 s; an unknown
+  MCP address answers with the words of the MCP app for a missing or unreadable token, so a listed and an unlisted address cannot be told apart.
+- Open for the lead: spike S1 (section "S1: Cron fan-out" above), the by-hand check of the local stack, and the gates that the track did not run.

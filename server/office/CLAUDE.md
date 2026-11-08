@@ -3,6 +3,19 @@
 The office object runs the Madar office on SQLite in a Cloudflare Durable Object (the Supabase exit). Code: `server/office/`,
 `entries/office*.ts`. Read this guide before you change either. The Postgres path of the server is in `server/CLAUDE.md`.
 
+## Madar enterprises
+- Each enterprise has its own office object, named with its id (`ent_001` is VADOs' Companies). The class stays `Office`, binding `OFFICE`. The
+  Worker finds the object through the router (`server/enterprise/CLAUDE.md`). The table `enterprise` (schema version 14) holds the identity
+  row; the gate (`parts.gate`) checks `ent` first in every method: `batch`, `runEffects`, `cron`, `signin`, `mailRoute`, `mailWork`, `mcp`
+  and `status` (`health` and `ops` skip it). A wrong `ent` gives `unauthenticated` with the text of a bad token, an object with no row gives
+  `not_found`, and a paused object refuses all but `signin`, `mailRoute`, `mailWork`, `status` and `health`.
+- Every input of an object call carries `ent`. `OfficeMcpInput` also carries `mcpUrl`, the address of the request, built by the Worker from its
+  own `MCP_URL` (the object refuses one that is not under its own). `depsFor` sets `config.ent` from the gate. The export leaves out the
+  table `enterprise` (`EXPORT_SKIP`): the platform object holds the master copy of state and limits.
+- `status()` gives the status row (`EnterpriseStatus`); the Cron report holds it too (`OfficeCronReport.status`).
+- The socket ticket is `<ent>.<64 hex>` (`LiveTickets(ent)`; the map keeps the bare secret). `acceptLive` compares the tag before it takes the
+  ticket. The Worker pads every refusal to `TICKET_REFUSE_MIN_MS`.
+
 ## When it runs
 - It is off on every deployed Worker. The office path runs only with the binding `OFFICE` and the var `MADAR_DATA = "office"`
   (`entries/officeEntry.ts`, `onOffice`). The bundle entry is `entries/workerMain.ts`. `entries/worker.ts` stays the Postgres path.
@@ -31,8 +44,8 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
   `changed` events, because the snapshot comes first.
 
 ## Cron and the meter
-- The Cron Trigger (`[triggers]` in `wrangler.server.toml`, every 15 minutes, UTC) gives the job steps to the object in one call
-  (`jobs.ts`). The first run after 00:00 UTC also runs `signin` (`SIGNIN_STEP`, `cleanupSignin`). A Worker without `MADAR_DATA` returns at
+- The Cron Trigger (`[triggers]` in `wrangler.server.toml`, every 15 minutes, UTC) lists the enterprises and sends one leg for each
+  (`server/enterprise/CLAUDE.md`, "The Cron fan-out"); a leg gives the job steps to its object in one call (`jobs.ts`). The first run after 00:00 UTC also runs `signin` (`SIGNIN_STEP`, `cleanupSignin`). A Worker without `MADAR_DATA` returns at
   once. After the steps, the same call adds the meter counts, sweeps the sockets and gives back the day row.
 - `meter.ts` keeps the day counts in memory and adds them in the next write (`usage_day`). The day cap reads them (`capDay`, `parts.ts`).
   It sends no warning mail and writes no month row. The rows that one Cron run reads are pinned by `CRON_PINS` (`test/pins.ts`).
@@ -59,8 +72,9 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
   no held office list looks current. Then every socket closes. A replace also deletes the snapshot and raises the version.
 - The ops routes of the Worker (`POST /api/office/export|import|peek|drop?office=<name>`) sit before CORS and Hono. Each one checks its secret
   header with `sameSecret` first: `x-madar-export-secret` (`MADAR_EXPORT_SECRET`, the nightly GitHub export) for `export`,
-  `x-madar-ops-secret` (`MADAR_OPS_SECRET`, the Mac) for the others. A copy with no secret answers 401. Then the name: `export` and `import`
-  take `office` or a rehearsal name, `peek` only `office`, `drop` only a rehearsal name (403 else). The body goes on to the object as a
+  `x-madar-ops-secret` (`MADAR_OPS_SECRET`, the Mac) for the others. A copy with no secret answers 401. Then the name (no `?office=` means
+  `ent_001`): `export` and `import` take `office`, a rehearsal name or a listed enterprise id, `peek` `office` or a listed id, `drop` only a rehearsal
+  name (403 else). `platform-register` and `platform-owners` write the platform object (`server/enterprise/CLAUDE.md`). The body goes on to the object as a
   stream, with the name in `x-madar-office-name`.
 - The test tools (`replace`, `peek`) need `MADAR_TEST_TOOLS = "on"` and refuse a production copy (`testToolsOn`). Only `[env.test.vars]` of
   `wrangler.server.toml` sets it. The test seed (`scripts/office/seed.ts`) replaces the office through them.

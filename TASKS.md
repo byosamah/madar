@@ -1445,3 +1445,23 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
   Done 2026-11-08: production at 09162e8a. Record: proof.md.
 - [ ] Proposed (owner to decide): PostHog's free managed proxy on a subdomain of vado.sa, so ad blockers stop no PostHog data. It uses a DNS
   record and no Cloudflare request quota (the reason the insight design refused a Pages Functions proxy).
+
+## Madar enterprises, plan B: the enterprise core (branch `rb/ent-b`; owner: "let opus 5.5 approve the plan", 2026-11-08)
+- [x] The ids and tags, the claim `ent` in the own tokens, the table `enterprise` (schema version 14) and the gate in every object method,
+  the platform object (directory, owners, meters), the router and the listed cache, sign-in by email, tagged links, keys, refresh tokens
+  and socket tickets, the MCP address `/mcp/<address>`, the ops by enterprise id, the Cron fan-out, two enterprises on the local stack,
+  and the leak tests of two enterprises. The guides: `server/enterprise/CLAUDE.md` and the guides of each part.
+- [ ] Lead step, spike S1: deploy the test Worker (it has the service binding `SELF` and `MADAR_CRON_TRANSPORT = "self"`), run
+  `npx tsx scripts/proof/cron-fanout/probe.ts --to <page address> --kind self|api --count 3|5|15 --outside 0|20|40`, read one real Cron run in
+  `wrangler tail`, write the numbers in proof.md ("S1: Cron fan-out"), and set `MADAR_CRON_TRANSPORT` from the rule there. If neither
+  transport works, ask the owner: the Cron then runs one enterprise in each 15-minute run.
+- [ ] Lead step: start `npm run dev:office` once and check by hand that `admin@madar.test` (ent_001) and `admin@globex.test` (ent_002) both sign
+  in and see their own projects. Plan B changes no screen, so it has no screenshots.
+- [ ] Plan C owns `storageBytes` of the status row (plan B sends 0), the platform calls and page, create, pause and resume, the limits, the
+  names and the logo, the day cap rule of `platform.meter` (plan B always allows), and the paused rule of each sign-in step.
+- [ ] Plan D owns the mail pool (`platform.mailReserve` answers `ok` until then), the file prefix, logs and PostHog, the backups for each
+  enterprise, the prototype, What's new and the sweep of VADO-only text. Plan B adds no visible word and no What's new line.
+- [ ] The Google callback and the Daftra step on the office path stay with plan A. Plan B did not touch them.
+- [ ] The test copy keeps the old object named `office` until it is seeded into `ent_001` (`npx tsx scripts/office/seed.ts`
+  with `--to` the test copy): the Worker now names its objects with the enterprise id, and an object named `office` has no identity row.
+- [ ] `npm run test:mcp` (with the conformance run) and `npm run test:it` did not run in the track: the lead runs them once, with the full gate.

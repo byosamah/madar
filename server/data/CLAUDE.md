@@ -181,6 +181,9 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   `LITE_SCHEMA_VERSION` and `PINNED_SHA256` (`lite/schema.test.ts`), and makes the same objects as a new office
   (`schema.test.ts` checks it). A migration with a SQLite twin adds its step in the same commit. A step that a released office
   already ran never changes in place.
+- Schema version 14 (Madar enterprises) adds the table `enterprise` (the identity row of the object: id, state, limits, created_at). It has no
+  Postgres twin, and `EXPORT_SKIP` (`server/office/ops.ts`) leaves it out of an export, so a backup of one enterprise never writes its identity into
+  another object. `serverTableSql(names)` gives the create statements of named server tables (the platform object copies four of them, empty).
 - The sign-in tables (`auth_users`, `auth_links`, `auth_sessions`, `oauth_clients`, `oauth_requests`) have no step, because no
   office object below version 3 exists outside the tests. An invitation text must repeat its exact term
   `kind in ('auth.invite', 'auth.email')`: `kind = 'auth.invite'` alone scans the outbox (the partial index `outbox_signin`).

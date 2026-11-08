@@ -67,10 +67,18 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   `clientAddress` (`forgot.ts`).
 - `liteAuthAdmin` is the Auth admin port over these rows, so `invite.ts`, `effects.ts`, `forgot.ts`, `renew.ts` and
   `users.invites` keep their logic; each text of theirs has a `_LITE` twin (`server/data/CLAUDE.md`, "The SQLite path").
-- Steps run through `SigninOffice` (`own/office.ts`). On the office path, `objectSigninOffice` (`server/entries/officeSignin.ts`)
-  sends each step to `Office.signin`. The forgot and renew routes need the database, so they run in the object in two calls:
+- Steps run through `SigninOffice` (`own/office.ts`). On the office path, `enterpriseSigninOffice` (`server/entries/officeSignin.ts`)
+  sends each step to `Office.signin` of the right enterprise (below). The forgot and renew routes need the database, so they run in the object in two calls:
   `Office.mailRoute` (the shape check and the limits) and, after the answer, `Office.mailWork` (the `work` option of
   `createForgotRoute` and `createRenewRoute`).
+- Madar enterprises: every own token (browser and agent) carries the claim `ent`; on the own key a token with no valid `ent` is refused as a bad
+  token (`requireEnt`), on the Supabase key there is none. `SigninDeps.ent` names the enterprise of the object. The Worker finds the enterprise
+  of a step: `auth.password` by the normalized email through the directory of the platform object; `auth.refresh` and `auth.verify` by the tag of
+  the refresh token or the link token (`<ent>.<secret>`; the object gets the bare secret); every other step by the claim of the token. An
+  unknown email, an untagged text, a malformed tag and an unlisted id go to `platform.refuseSignin`, which runs the real step on empty tables.
+  Links and renew keys of an office object are tagged (`signinLink(..., ent)`); the browser refresh token is tagged in the answer
+  (`browserAnswer`) and the table keeps the sha256 of the bare secret. The forgot and renew routes read the body once: forgot by the email,
+  renew by the tag of the key; any other case runs `platform.refuseMail`. An untagged item has no fallback.
 - `own/cleanup.ts` (`cleanupSignin`) deletes the links, OAuth requests and sessions that ended more than a day ago; the Cron of
   the office object runs it in its first run after 00:00 UTC (`server/office/jobs.ts`).
 - The sign-in key of an office copy is the Worker secret `MADAR_AUTH_PRIVATE_JWK`, made by `npx tsx scripts/office/auth-key.ts

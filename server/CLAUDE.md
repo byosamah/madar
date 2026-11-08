@@ -4,7 +4,7 @@ One Hono app in TypeScript. The same source runs on Supabase Edge Functions (Den
 Cloudflare Worker for each copy (`wrangler.server.toml`, placed in aws:eu-central-1). `config/server-host.json` says which host
 serves each copy (`core/serverHost.ts`): `supabase`, `workers`, or `office` (the office object, `OFFICE_COPIES_OPEN`).
 The other host stays deployed as the way back. Each area has its own guide: `mcp/`, `auth/`, `data/`, `mail/`, `files/`, `push/`,
-`daftra/`, `google/`, `office/`, `jobs/`, `signal/`.
+`daftra/`, `google/`, `office/`, `enterprise/`, `jobs/`, `signal/`.
 
 ## Folders
 - `http/`: the batch route, CORS, the batch limits, the extra routes, health, the Pages forwarders.
@@ -12,7 +12,7 @@ The other host stays deployed as the way back. Each area has its own guide: `mcp
 - `calls/`: the server-only calls and the server hooks of shared calls.
 - `entries/`: one mount for each function (`api`, `mcp`, `jobs`), the shared host builder `apps.ts`, the Deno wrappers `deno-*.ts`, Workers
   `worker.ts` (the Postgres path) and `workerMain.ts` (the bundle entry, which also has the office path).
-- `office/` (the office object), `jobs/` (the 15-minute job), `signal/` (change signals), `push/` (browser push), `google/` (calendar sync).
+- `enterprise/` (Madar enterprises: ids, the gate, the router, the platform object, the Cron fan-out), `office/` (the office object), `jobs/` (the 15-minute job), `signal/` (change signals), `push/` (browser push), `google/` (calendar sync).
 - `test/`: the fakes of the ports, the db-mode harness, the shadow run. `it/`: helpers of the integration suites.
 
 ## Request path
