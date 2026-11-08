@@ -38,7 +38,9 @@ cand as (select k.id from tasks k
       or (json_type(k.doc, '$.helperIds') = 'array' and exists (select 1 from json_each(k.doc, '$.helperIds') h where h.value = ?1))
       or json_extract(k.doc, '$.createdBy') in (select value from json_each(?3)))))),
 threads as (
-  select c.target_id as id, max(c.created_at) as last,
+  select c.target_id as id,
+         coalesce(max(case when (json_type(c.doc, '$.dates') is null or json_type(c.doc, '$.dates') = 'null')
+                         and (json_type(c.doc, '$.kind') is null or json_type(c.doc, '$.kind') = 'null') then c.created_at end), max(c.created_at)) as last,
          max(case when json_extract(c.doc, '$.authorId') in (select value from json_each(?3)) then c.created_at end) as mine
   from comments c where c.target_type = 'task' and c.target_id in (select id from cand)
   group by c.target_id)

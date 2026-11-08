@@ -181,7 +181,11 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   project feed leave `task.arranged` out.
 - **Quiet lines of a task thread** (`lineKindOf`, `lib/commentLine.ts`). A comment is a message or a quiet line (`due_date`,
   `start_date`, `shifted`, `reopened`). A line is never unread and never waits for a reply: `taskUnread` and `waitingThread`
-  read the messages only, and the loader does the same (`MESSAGES_ONLY`, `server/data/loaders/chat.ts`). `tasks.newVersion`
+  read the messages only, and the loader does the same (`MESSAGES_ONLY`, `server/data/loaders/chat.ts`). A line never sets the time or the
+  preview of the thread row either (`threadLast`, `chats.ts`; owner, 2026-11-08: "only real messages lift it"): the newest MESSAGE does, as
+  the quiet log lines of a group never change its `lastAt`. A thread of lines only keeps its newest line, so it still sorts, and the archive
+  test (`isArchived`) reads the same time. The SQL twins (`threadsSql`, `THREADS_LITE`, `memorySource.threads`) take `last` from the newest
+  message with the newest line as the fallback, and the loader reads the newest message of each thread (`threadsMiddle`). `tasks.newVersion`
   writes the `reopened` line, so `comments` is in its `WRITE_KINDS` line.
 - **Unread number on a to-do row** (`TaskRow.unreadCount`, fbk_071, owner 2026-10-27). The chat icon of a row shows a number only for
   the comments that the person has not read, and none when all are read. Only `tasks.list` gives it (`tasks.get` leaves it out: the

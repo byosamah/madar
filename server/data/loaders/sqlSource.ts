@@ -249,7 +249,8 @@ function rowsOf(s: Select, rows: readonly { ord: string | number; doc: unknown }
 
 /**
  * A comment that is a message, not a quiet line (MESSAGES_ONLY in chat.ts, lineKindOf in src/lib/commentLine.ts): it has no dates move
- * and no reopening kind. The alias of the comments table is "comments" or none, so the text names the doc column only.
+ * and no reopening kind. The alias of the comments table is "comments" or none, so the text names the doc column only. The time of a
+ * thread is the time of its newest message, and the time of its newest line only when it has no message (chat, 2026-11-08).
  */
 const MESSAGE_SQL = `(doc->'dates' is null or doc->'dates' = 'null'::jsonb) and (doc->'kind' is null or doc->'kind' = 'null'::jsonb)`;
 
@@ -267,7 +268,7 @@ export function threadsSql(o: ThreadsArgs): { text: string; values: unknown[] } 
                or k.doc->>'createdBy' = any($3::text[]))))
          ),
          threads as (
-           select c.target_id as id, max(c.created_at ${C}) as last,
+           select c.target_id as id, coalesce(max(c.created_at ${C}) filter (where ${MESSAGE_SQL}), max(c.created_at ${C})) as last,
                   max(c.created_at ${C}) filter (where c.doc->>'authorId' = any($3::text[])) as mine
            from comments c where c.target_type = 'task' and c.target_id in (select id from cand)
            group by c.target_id

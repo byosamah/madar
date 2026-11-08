@@ -203,7 +203,9 @@ export function memorySource(state: State): Source {
           if (!state.projects[task.projectId] || !o.seen.includes(task.projectId)) continue;
           if (task.ownerId !== o.owner && !o.led.includes(task.projectId) && !part) continue;
         }
-        const last = comments.map((comment) => String(comment.createdAt)).reduce((a, b) => (b > a ? b : a));
+        // The time of a thread is the time of its newest message; a thread of quiet lines only keeps its newest line (chat, 2026-11-08).
+        const messages = comments.filter((comment) => !isLine(comment as CommentKindFields));
+        const last = (messages.length > 0 ? messages : comments).map((comment) => String(comment.createdAt)).reduce((a, b) => (b > a ? b : a));
         found.push({ id, last, mine: mine.length > 0 ? mine.reduce((a, b) => (b > a ? b : a)) : null });
       }
       found.sort((a, b) => before(b.last, a.last) || before(b.id, a.id));

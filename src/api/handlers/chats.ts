@@ -130,8 +130,13 @@ function taskUnread(state: State, taskId: string, comments: Comment[], viewerId:
 /** project is null for an office task. */
 type TaskThread = { task: Task; project: Project | null; comments: Comment[] };
 
-/** The time of a thread: the time of its newest comment. */
-const threadLastAt = (thread: TaskThread): string => thread.comments[thread.comments.length - 1].createdAt;
+/**
+ * The item that sets the time and the preview of a thread: its newest MESSAGE (owner, 2026-11-08: "only real messages lift it"). A quiet
+ * line of a reason (a due date move, a start date move, a shift of Madar, a reopening) never lifts a thread, the same as the quiet log
+ * lines of a group. A thread that holds only quiet lines keeps its newest line, so it still sorts. "comments" are in time order.
+ */
+const threadLast = (thread: TaskThread): Comment => thread.comments.findLast((c) => !isLine(c)) ?? thread.comments[thread.comments.length - 1];
+const threadLastAt = (thread: TaskThread): string => threadLast(thread).createdAt;
 
 /**
  * Tasks I own, lead, help on, am named in with @, or commented on, that have at least one comment, with their comments in time order.
@@ -168,9 +173,10 @@ function taskThreads(state: State, viewer: User): TaskThread[] {
 }
 
 function taskRows(state: State, viewer: User): ChatRow[] {
-  return taskThreads(state, viewer).map(({ task, project, comments }) => {
-    const last = comments[comments.length - 1];
-    // The newest item may be a quiet line of a reason: the row then shows its short line, from the kind and the reason (fbk_027).
+  return taskThreads(state, viewer).map((thread) => {
+    const { task, project, comments } = thread;
+    const last = threadLast(thread);
+    // The item is a quiet line of a reason only when the thread holds nothing else: the row then shows its short line, from the kind and the reason (fbk_027).
     const kind = lineKindOf(last);
     return {
       kind: 'task', id: task.id, title: task.title, project: project ? projectRef(project) : null, person: null,

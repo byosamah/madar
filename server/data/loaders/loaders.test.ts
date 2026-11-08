@@ -410,8 +410,9 @@ describe('the 18 places of AM 6', () => {
       await same(state, 'chats.markRead', { conversationId: task.id }, actor);
       if (actor === 'usr_006') {
         // The only message after the mark is cmt_903. The lines before and after it count for nothing, also the line that the person wrote.
-        const row = (list.outcome.output as { id: string; unread: number; previewKind: string | null }[]).find((item) => item.id === task.id);
-        expect(row).toMatchObject({ unread: 1, previewKind: 'shifted' });
+        // The newest message (cmt_903) is also the preview of the row: a line never sets it (chat, 2026-11-08).
+        const row = (list.outcome.output as { id: string; unread: number; previewKind: string | null; preview: string }[]).find((item) => item.id === task.id);
+        expect(row).toMatchObject({ unread: 1, previewKind: null, preview: 'Note cmt_903' });
       }
     }
   });

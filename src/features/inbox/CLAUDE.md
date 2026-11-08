@@ -31,7 +31,8 @@ in a chat: `src/features/files/CLAUDE.md`. The chat inside Focus mode: `src/feat
   `EditingContext`) and a post comment with `CommentItem.tsx`. A reason line stays a `CommentItem` line. The comments stay in the scroll of
   the panel: no Newest button, no "New" line.
 - The bell says "X replied to you" for a mention notice with `reply: true` (`NotificationsScreen.tsx`, keys `notices.replied*`).
-- A reason of a date move, a reopening or a Madar shift is a quiet line, never a bubble (`features/comments/ReasonLine.tsx`). The sentence
+- A reason of a date move, a reopening or a Madar shift is a quiet line, never a bubble (`features/comments/ReasonLine.tsx`). It never lifts a
+  to-do thread in the list and never replaces its preview: only a message does (owner, 2026-11-08). The sentence
   keeps the name and the reason between FSI and PDI. The quiet lines of a group (`Conversation.log`, `ChatThread.lines`) are no messages:
   never unread, no push.
 - `MentionField` opens above the Inbox box (`placement="above"`) and ranks names that start with the typed letters first (`rankedMatches`,

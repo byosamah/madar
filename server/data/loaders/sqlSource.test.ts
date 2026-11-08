@@ -292,6 +292,17 @@ describe('the unread counts and the task threads of the badge (DB-6)', () => {
     expect(text).toContain("or k.doc->'helperIds' ? $1::text or k.id in (select target_id from named)");
   });
 
+  it('takes the time of a thread from its newest message, and from its newest line only when it has no message (chat, 2026-11-08)', async () => {
+    const sent: string[] = [];
+    const q: Query = async <R,>(text: string) => {
+      sent.push(text);
+      return [] as R[];
+    };
+    await sqlSource(q).threads({ owner: 'usr_005', led: [], me: ['usr_005'], limit: 100, admin: false, seen: ['prj_005'] });
+    const text = sent[0].replace(/\s+/g, ' ');
+    expect(text).toContain(`coalesce(max(c.created_at collate "C") filter (where (doc->'dates' is null or doc->'dates' = 'null'::jsonb) and (doc->'kind' is null or doc->'kind' = 'null'::jsonb)), max(c.created_at collate "C")) as last`);
+  });
+
   it('writes the regular expression of a name as the text of MENTION, with the id escaped', () => {
     expect(mentionPattern('usr_010')).toBe('@\\[[^]]{1,80}\\]\\(usr_010\\)');
     expect(mentionPattern('a.b')).toBe('@\\[[^]]{1,80}\\]\\(a\\.b\\)');

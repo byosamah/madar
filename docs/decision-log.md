@@ -31,6 +31,9 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
     chat read and no longer reads its mention notices, so an unread chat keeps its number in the archived list, and Undo brings it back with the
     number. The lead's rule for the rest: an archived chat does not count in the Inbox badge, the "Archived (n)" row shows how many archived
     chats have unread messages, and a new message brings an archived chat back with its whole unread number.
+  - Date lines: "only real messages lift it". A quiet line of a to-do thread (due date, start date, shift, reopening) no longer sets the time or the
+    preview of the thread row; only a message does, as the quiet log lines of a group. The lead's rule: a thread with only quiet lines keeps its
+    newest line as its time, so it still sorts. The archive test follows the same time.
 - Who reviews a to-do (fbk_087, owner, from the report of Faisal about tsk_624): the person who does the work never approves it. Faisal
   made an office to-do, did the work, named Moataz as lead and sent it to review; Madar named the maker (Faisal) as reviewer, so Faisal saw
   "Your review" and Moataz got no notice. The owner's words: "the maker not means he's the leader or the reviewer, the leader or the

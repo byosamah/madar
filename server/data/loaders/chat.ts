@@ -31,8 +31,8 @@ type Input = Record<string, unknown>;
  * id, the project, the lead and the maker, and the view rule of an office task (mayViewTask, taskResource) reads the helpers too.
  */
 export const THREAD_TASK_FIELDS = ['id', 'projectId', 'ownerId', 'helperIds', 'createdBy'] as const;
-/** The comment fields of a thread that the badge reads: taskThreads groups, sorts and finds the own comments with these. */
-export const THREAD_COMMENT_FIELDS = ['id', 'targetType', 'targetId', 'createdAt', 'authorId'] as const;
+/** The comment fields of a thread that the badge reads: taskThreads groups, sorts and finds the own comments with these. The kind and the dates tell a message from a quiet line (isLine), which never sets the time of a thread. */
+export const THREAD_COMMENT_FIELDS = ['id', 'targetType', 'targetId', 'createdAt', 'authorId', 'kind', 'dates'] as const;
 
 /**
  * The conditions that keep the quiet lines of reasons out of a read of comments (fbk_027, owner 2026-10-19): a line has `dates` (a date
@@ -128,10 +128,10 @@ function threadsAsk(L: Load, userId: string): ThreadsArgs | undefined {
 /**
  * Round 2 of the task threads, from the thread list of round 1: each thread's task, its read mark, its newest comment, U's newest
  * comment of any kind (a person who only wrote a line of a reason is part of the thread), U's newest message, which gives the
- * bound of the unread count in round 3, and the newest message that names U with @. Nothing for an empty list.
+ * bound of the unread count in round 3, the newest message that names U with @, and the newest message of the thread. Nothing for an empty list.
  */
 function threadsMiddle(userId: string, me: readonly string[], threads: readonly ThreadRow[], mode: Mode) {
-  if (threads.length === 0) return [undefined, undefined, undefined, undefined, undefined, undefined] as const;
+  if (threads.length === 0) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined] as const;
   const ids = threads.map((thread) => thread.id);
   const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1, ...(mode.badge ? { pick: THREAD_COMMENT_FIELDS } : {}) };
   const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
@@ -147,6 +147,9 @@ function threadsMiddle(userId: string, me: readonly string[], threads: readonly 
     // The newest message that names U: it is why U is part of a thread that U has no comment in (inTaskThread, chat 2026-11-08). The
     // rule reads its body, so the badge picks the body too.
     { select: { c: 'comments', where: [...onThreads, { field: 'body', names: userId }, ...MESSAGES_ONLY], ...newest, ...(mode.badge ? { pick: [...THREAD_COMMENT_FIELDS, 'body'] } : {}) } },
+    // The newest MESSAGE sets the time and the preview of a thread; a quiet line never does (chat, 2026-11-08). The newest comment above is
+    // the fallback for a thread that holds only quiet lines.
+    { select: { c: 'comments', where: [...onThreads, ...MESSAGES_ONLY], ...newest } },
   ] as const;
 }
 
@@ -197,7 +200,7 @@ export async function taskRowsUnread(L: Load, tasks: readonly Task[]): Promise<v
   // (fbk_027). A scan of a long thread that U never wrote in is the dear part, so it runs once, never once for "commented" and once for the bound.
   const answers = await L.batch([
     { byKey: { c: 'chatReads', keys: ids.map((id) => chatReadKey(id, userId)) } },
-    { select: { c: 'comments', where: [...onTasks(ids), { field: 'authorId', in: me }], ...newest, pick: [...THREAD_COMMENT_FIELDS, 'kind', 'dates'] } },
+    { select: { c: 'comments', where: [...onTasks(ids), { field: 'authorId', in: me }], ...newest, pick: [...THREAD_COMMENT_FIELDS] } },
     // A message that names U with @ makes the thread U's too (chat, 2026-11-08): one read, the newest such message of each to-do.
     { select: { c: 'comments', where: [...onTasks(ids), { field: 'body', names: userId }, ...MESSAGES_ONLY], ...newest, pick: THREAD_COMMENT_FIELDS } },
   ] as const);
@@ -244,8 +247,8 @@ async function everyChat(L: Load, mode: Mode): Promise<void> {
   const [, , found] = await L.batch([reads, newest, ask ? { threads: ask } : undefined] as const);
   const threads = found ?? [];
   const [plain, named] = chatsCounts(L, userId, conversations, mode);
-  const [tasks, marks, latest, mine, ownRead, namedRead] = threadsMiddle(userId, ask?.me ?? [], threads, mode);
-  const answers = await L.batch([plain, named, tasks, marks, latest, mine, ownRead, namedRead, archivedNewest(L, userId, conversations, mode)] as const);
+  const [tasks, marks, latest, mine, ownRead, namedRead, lastMessage] = threadsMiddle(userId, ask?.me ?? [], threads, mode);
+  const answers = await L.batch([plain, named, tasks, marks, latest, mine, ownRead, namedRead, lastMessage, archivedNewest(L, userId, conversations, mode)] as const);
   const count = threadsCount(L, userId, ask?.me ?? [], threads, (answers[6] ?? []) as Comment[], mode);
   await L.batch([count] as const);
 }

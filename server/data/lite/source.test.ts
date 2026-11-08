@@ -165,6 +165,25 @@ describe('the Source on SQLite (server/data/lite/source.ts)', () => {
     }
   });
 
+  it('sets the time of a thread by its newest message, and by its newest line only when it has no message (chat, 2026-11-08)', async () => {
+    const { read, memory } = await both((state) => {
+      const note = (id: string, taskId: string, minute: number, extra: Record<string, unknown> = {}) => {
+        state.comments[id] = { id, targetType: 'task', targetId: taskId, authorId: 'usr_001', body: id, createdAt: at(minute), reactions: {}, ...extra } as never;
+      };
+      note('cmt_051', 'tsk_005', 20);
+      note('cmt_052', 'tsk_005', 40, { dates: { from: { startDate: null, dueDate: '2026-10-10' }, to: { startDate: null, dueDate: '2026-10-12' } } });
+      note('cmt_053', 'tsk_006', 25, { kind: 'reopened' });
+      note('cmt_054', 'tsk_006', 35, { kind: 'reopened' });
+      note('cmt_055', 'tsk_007', 30);
+    });
+    const o = { owner: 'usr_001', led: [] as string[], me: ['usr_001'], limit: 100, admin: false, seen: ['prj_001', 'prj_002', 'prj_003'] };
+    const found = await read((src) => src.threads(o));
+    expect(found.find((thread) => thread.id === 'tsk_005')?.last).toBe(at(20));
+    expect(found.find((thread) => thread.id === 'tsk_006')?.last).toBe(at(35));
+    expect(found.find((thread) => thread.id === 'tsk_007')?.last).toBe(at(30));
+    expect(found).toEqual(await memory.threads(o));
+  });
+
   it('reads the names of a body with the same rule as the memory source (field names)', async () => {
     const { read, memory } = await both((state) => {
       state.comments.cmt_041 = { id: 'cmt_041', targetType: 'task', targetId: 'tsk_002', authorId: 'usr_001', body: 'Hello @[Omar Other](usr_004) and @[Sara](usr_003).', createdAt: at(21), reactions: {} } as never;
