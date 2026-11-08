@@ -107,6 +107,8 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
   const timeoutMs = o.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const wait = o.wait ?? ((ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); }));
   const batchUrl = regionUrl(`${o.url.replace(/\/+$/, '')}/batch`);
+  // The path of the call, for the usage record of a failed call: the own /api of the page, or the address of the function (chat, 2026-11-08).
+  const via = batchUrl.startsWith('/') ? 'page' : 'direct';
   const doFetch = o.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init));
   const stories = new StoryMap({ now });
   // The follow step (FET-3): the writes that write() puts on the wire, then the write that the reads of reads() follow.
@@ -240,13 +242,13 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
           delete item.after;
           batcher.add(item);
         } else {
-          item.reject(noAnswer(reply.cause));
+          item.reject(noAnswer(reply.cause, via));
         }
       }
       return;
     }
     if (reply.kind === 'status') {
-      const error = fromStatus(reply.status, reply.body, reply.retryAfter, now());
+      const error = fromStatus(reply.status, reply.body, reply.retryAfter, now(), via);
       // Answer the calls first, then tell the session listener, so its error cannot leave a call waiting.
       for (const item of items) {
         settleStory(item, undefined);

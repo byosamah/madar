@@ -12,25 +12,31 @@ export function fromEntry(error: RunError): ApiError {
   return new ApiError(code, error.message || 'The call failed. Try again.', isRecord(error.details) ? error.details : {});
 }
 
+/** The path of a request: the own /api of the page (a WebKit browser) or the address of the function. The diagnostic event reads it (chat, 2026-11-08). */
+export type Via = 'page' | 'direct';
+
 /**
  * The error of a whole request that the server refused with an HTTP status. 401 comes here only after one token refresh and
  * one resend. The body may carry { error: { details: { reason } } }; the status decides the code.
+ * A failed call carries the status and the path in its details (chat, 2026-11-08), so the usage record can tell a 502 of the page
+ * forwarder from a limit. No text of a message goes there.
  */
-export function fromStatus(status: number, body: unknown, retryAfter: string | null, now = Date.now()): ApiError {
+export function fromStatus(status: number, body: unknown, retryAfter: string | null, now = Date.now(), via?: Via): ApiError {
   const reason = reasonOf(body);
+  const where = via ? { status, via } : { status };
   if (status === 401) return new ApiError('unauthenticated', 'Sign in to continue.', reason ? { reason } : {});
   if (status === 403) return new ApiError('unauthenticated', 'Your account is turned off.', { reason: 'account_off' });
-  if (status === 409) return new ApiError('failed', 'Madar has a new version. Reload the page.', { reason: 'client_outdated' });
+  if (status === 409) return new ApiError('failed', 'Madar has a new version. Reload the page.', { reason: 'client_outdated', ...where });
   if (status === 429) {
     const wait = retryAfterMs(retryAfter, now);
-    return new ApiError('failed', 'Too many requests. Try again.', wait === undefined ? {} : { retryAfterMs: wait });
+    return new ApiError('failed', 'Too many requests. Try again.', wait === undefined ? where : { retryAfterMs: wait, ...where });
   }
-  return new ApiError('failed', 'The call failed. Try again.', reason ? { reason, status } : { status });
+  return new ApiError('failed', 'The call failed. Try again.', reason ? { reason, ...where } : where);
 }
 
 /** No answer came back: the network failed, or the time limit ended. */
-export function noAnswer(cause: 'timeout' | 'network'): ApiError {
-  return new ApiError('failed', 'The call failed. Try again.', { cause });
+export function noAnswer(cause: 'timeout' | 'network', via?: Via): ApiError {
+  return new ApiError('failed', 'The call failed. Try again.', via ? { cause, via } : { cause });
 }
 
 /** Retry-After in milliseconds: a number of seconds, or an HTTP date. */

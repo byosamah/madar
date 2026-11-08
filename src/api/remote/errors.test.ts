@@ -45,6 +45,17 @@ describe('errors from the server (client map 2.3)', () => {
     expect(fromStatus(418, null, null)).toMatchObject({ code: 'failed' });
   });
 
+  it('names the path of the call in the details of a failure: the page forwarder or the direct address (chat, 2026-11-08)', () => {
+    expect(fromStatus(502, null, null, 0, 'page').details).toEqual({ status: 502, via: 'page' });
+    expect(fromStatus(500, { error: { details: { reason: 'oops' } } }, null, 0, 'direct').details).toEqual({ reason: 'oops', status: 500, via: 'direct' });
+    expect(fromStatus(429, null, '3', 0, 'page').details).toEqual({ retryAfterMs: 3000, status: 429, via: 'page' });
+    expect(fromStatus(409, null, null, 0, 'direct').details).toEqual({ reason: 'client_outdated', status: 409, via: 'direct' });
+    expect(noAnswer('network', 'page').details).toEqual({ cause: 'network', via: 'page' });
+    // Without a path the details stay as they were.
+    expect(fromStatus(502, null, null).details).toEqual({ status: 502 });
+    expect(noAnswer('timeout').details).toEqual({ cause: 'timeout' });
+  });
+
   it('turns no answer into failed with the cause', () => {
     expect(noAnswer('timeout')).toMatchObject({ code: 'failed', details: { cause: 'timeout' } });
     expect(noAnswer('network')).toMatchObject({ code: 'failed', details: { cause: 'network' } });

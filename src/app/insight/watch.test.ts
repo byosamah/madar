@@ -91,17 +91,59 @@ describe('watchCalls', () => {
     expect(client.track).not.toHaveBeenCalled();
   });
 
-  it('a failed call gives madar_call_failed with the call name only, and no person (owner, 2026-10-28, tsk_489)', async () => {
+  it('a failed call gives madar_call_failed with the call name and the cause, and no person (owner, 2026-10-28, tsk_489; chat 2026-11-08)', async () => {
     const { queryClient, client } = setup();
     await failMutation(queryClient, ['api', 'chats.send'], new ApiError('failed', 'The call failed. Try again.'));
-    expect(client.track).toHaveBeenCalledWith('madar_call_failed', { call: 'chats.send' });
+    // An entry that failed with no status and no cause is a server fault.
+    expect(client.track).toHaveBeenCalledWith('madar_call_failed', { call: 'chats.send', kind: 'server', offline: false });
     expect(JSON.stringify(client.track.mock.calls)).not.toMatch(/usr_1|Alice|person/);
   });
 
-  it('a failed query gives the same record: the call name only', async () => {
+  it('a failed query gives the same record', async () => {
     const { queryClient, client } = setup();
     await failQuery(queryClient, ['api', 'tasks.list', {}], new ApiError('failed', 'x'));
-    expect(client.track).toHaveBeenCalledWith('madar_call_failed', { call: 'tasks.list' });
+    expect(client.track).toHaveBeenCalledWith('madar_call_failed', { call: 'tasks.list', kind: 'server', offline: false });
+  });
+
+  describe('the cause of a failed call (chat, 2026-11-08: failed calls happen only on iPhone, and the data could not say why)', () => {
+    const sentFor = async (error: ApiError) => {
+      const { queryClient, client } = setup();
+      await failQuery(queryClient, ['api', 'tasks.list', {}], error);
+      return client.track.mock.calls.find(([event]) => event === 'madar_call_failed')?.[1] as Record<string, unknown>;
+    };
+
+    it('records the status and the kind "server" for a 5xx answer, with the path of the page forwarder', async () => {
+      expect(await sentFor(new ApiError('failed', 'x', { status: 502, via: 'page' }))).toEqual({ call: 'tasks.list', status: 502, kind: 'server', offline: false, via: 'page' });
+    });
+
+    it('records the kind "refused" for a 4xx answer (a refusal, a limit, an old build)', async () => {
+      expect(await sentFor(new ApiError('failed', 'x', { status: 429, retryAfterMs: 3000, via: 'direct' }))).toEqual({ call: 'tasks.list', status: 429, kind: 'refused', offline: false, via: 'direct' });
+      expect(await sentFor(new ApiError('failed', 'x', { status: 409, reason: 'client_outdated' }))).toMatchObject({ status: 409, kind: 'refused' });
+    });
+
+    it('records the kind "network" and the kind "timeout" with no status', async () => {
+      expect(await sentFor(new ApiError('failed', 'x', { cause: 'network', via: 'page' }))).toEqual({ call: 'tasks.list', kind: 'network', offline: false, via: 'page' });
+      expect(await sentFor(new ApiError('failed', 'x', { cause: 'timeout', via: 'direct' }))).toEqual({ call: 'tasks.list', kind: 'timeout', offline: false, via: 'direct' });
+    });
+
+    it('records whether the browser said it was offline', async () => {
+      const online = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+      try {
+        expect(await sentFor(new ApiError('failed', 'x', { cause: 'network' }))).toEqual({ call: 'tasks.list', kind: 'network', offline: true });
+      } finally {
+        online.mockRestore();
+      }
+    });
+
+    it('never records a message, a reason text, a name or a file: only the five fields', async () => {
+      const props = await sentFor(new ApiError('failed', 'Sara Team wrote "secret.pdf"', { status: 500, reason: 'Sara Team', names: ['Sara Team'], fields: { body: 'secret' }, via: 'page', cause: 'x' }));
+      expect(Object.keys(props).sort()).toEqual(['call', 'kind', 'offline', 'status', 'via']);
+      expect(JSON.stringify(props)).not.toMatch(/Sara|secret/);
+    });
+
+    it('ignores a via or a status of the wrong type', async () => {
+      expect(await sentFor(new ApiError('failed', 'x', { status: '503', via: 'elsewhere' }))).toEqual({ call: 'tasks.list', kind: 'server', offline: false });
+    });
   });
 
   it('the same failed call is counted once in 5 seconds, so a lost network is not a flood', async () => {

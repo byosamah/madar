@@ -242,6 +242,17 @@ describe('no answer', () => {
     expect(sent).toHaveLength(1);
   });
 
+  it('names the path of a failed call: "page" for the own /api of the page, "direct" for the address of the function (chat, 2026-11-08)', async () => {
+    const lost = stubFetch(() => 'network');
+    await expect(remote(lost.fetch, { url: '/api' }).call('tasks.complete', { id: 'tsk_013' })).rejects.toMatchObject({ details: { cause: 'network', via: 'page' } });
+    const direct = stubFetch(() => 'network');
+    await expect(remote(direct.fetch).call('tasks.complete', { id: 'tsk_013' })).rejects.toMatchObject({ details: { cause: 'network', via: 'direct' } });
+    const bad = stubFetch(() => ({ status: 502, body: 'Bad gateway' }));
+    await expect(remote(bad.fetch, { url: '/api' }).call('tasks.complete', { id: 'tsk_013' })).rejects.toMatchObject({ details: { status: 502, via: 'page' } });
+    const refused = stubFetch(() => ({ status: 429, body: null, headers: { 'Retry-After': '2' } }));
+    await expect(remote(refused.fetch).call('tasks.complete', { id: 'tsk_013' })).rejects.toMatchObject({ details: { status: 429, via: 'direct', retryAfterMs: 2000 } });
+  });
+
   it('sends a read again once when no answer came back', async () => {
     const { sent, fetch } = stubFetch((body, n) => (n === 0 ? 'network' : { body: okAll(body) }));
     expect(await remote(fetch).call('projects.get', PROJECT)).toEqual({ name: 'projects.get' });
