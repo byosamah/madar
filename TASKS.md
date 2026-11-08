@@ -1471,6 +1471,8 @@ Study: 4 read-only Sonnet agents (cause, what exists, options). Branch `rb/revie
 - [x] Gates: typecheck; npm test 12,975 passed (`deploy.test.ts` timed out under load, 53 of 53 alone); the three builds; test:it 368;
   test:mcp (conformance 5 of 32, 27 expected); test:office 40. test:db and test:lite found the Dashboard loader without `reviewSentBy`
   (fixed: `DASHBOARD_TASK_FIELDS`; then 104 and 76 rule tests passed). The smoke found the old toast words in two browser tests (fixed).
+- [x] Release: test copy, then production by Claude after the owner picked "Gates, test copy, then to production". Done 2026-11-08:
+  production at ea14943a. Record: proof.md.
 - [ ] tsk_624 itself keeps the old rule until it is sent again (no stored sender). Moataz can approve it now.
 - [ ] A hand move to In review by a person who needs no review (for example the project leader who leads the to-do) still waits with no
   named reviewer; only a backup can approve it. Decide: refuse the move, or keep it.
