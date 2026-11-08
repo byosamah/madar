@@ -26,6 +26,12 @@ describe('the tables of an export (server/office/ops.ts)', () => {
     for (const table of DRIFT_TABLES) expect(EXPORT_TABLES).toContain(table);
   });
 
+  it('lists the Google and Daftra server tables as drift tables, because the effects of the hold write them, and not google_calendars', () => {
+    for (const table of ['google_connections', 'google_events', 'daftra_clients', 'daftra_invoices']) expect(DRIFT_TABLES).toContain(table);
+    // The calendar id of a person changes only under the office lock (both writers hold it), so a held export reads a stable table.
+    expect(DRIFT_TABLES).not.toContain('google_calendars');
+  });
+
   it('reads one page with the primary key order of the table, so SQLite needs no sort step', () => {
     const raw = new DatabaseSync(':memory:');
     for (const text of liteSchemaSql()) raw.exec(text);
