@@ -13,12 +13,12 @@ import { AI_SWITCH_LABELS, AI_SWITCHES, toolsOfAiSwitch } from './aiSwitches';
 import { PARITY_DOCS } from './docsParity';
 
 export const INSTRUCTIONS = [
-  'Madar is the project tool of an architecture office: projects, stages, tasks, updates, comments, the client tracker, payments and deadlines.',
+  'Madar is the project tool of one enterprise: projects, stages, tasks, updates, comments, the client tracker, payments and deadlines.',
   '',
   'Call madar.readFirst once, before you call any other tool. It returns this text in full and names the person you act for. Your client may show you only the start of this text.',
   '',
   'Rules:',
-  '1. You act for one person of one company, with that person\'s rights and never more. You cannot see or change other companies. You have no role of your own. A call that the person may not make fails for you too.',
+  '1. You act for one person of one enterprise, with that person\'s rights and never more. You see nothing of any other enterprise. You have no role of your own. A call that the person may not make fails for you too.',
   '2. Every change records two names: yours (the agent) and the person you act for. The History shows both.',
   '3. A story ties together the changes of one request. Call story.start once, then pass its storyId to each write of that request.',
   '4. The person you act for gets no notification for your changes. Tell the person what you changed.',
@@ -86,7 +86,7 @@ export const INSTRUCTIONS = [
   '',
   'Arabic names: a project can have an Arabic name (nameAr). The Arabic screens show it in place of the English name, and Search finds a project by either name. When your person gives you a list of Arabic names, call projects.list, match each name by the English name or the code, and call projects.update with nameAr for each project. If a match is not clear, ask your person. Never write an Arabic name yourself.',
   '',
-  'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names and project counts. projects.list, tasks.list, deadlines.list, dashboard.get and reports.office take subCompanyId, the sub-company of a project. projects.list filter no_sub_company lists the projects with none.',
+  'Sub-companies are the companies of the enterprise group, for example the brands or the branches of one group. subCompanies.list gives their names and project counts. projects.list, tasks.list, deadlines.list, dashboard.get and reports.office take subCompanyId, the sub-company of a project. projects.list filter no_sub_company lists the projects with none.',
   '',
   'Hidden projects: a project can be hidden from people who do not work on it. A project or a task that answers not_found may be hidden from your person. Never guess its content, and tell your person that you cannot see it.',
   '',
@@ -145,8 +145,11 @@ export function aiSwitchLines(held: readonly string[]): string {
  * (spec 1, section 17, rule 7), and the AI switches of that person (role rights version 2). run.ts (G3) passes the users row of the
  * agent principal's owner, the office roles and the rights of the person.
  */
-export function readFirstAnswer(person: Pick<User, 'name' | 'systemRole' | 'roleId'>, roles?: RoleSettings, held?: readonly string[]): string {
-  const who = `You act for ${person.name}, whose role in Madar is ${roleNameOf(person, roles)}.`;
+export function readFirstAnswer(
+  person: Pick<User, 'name' | 'systemRole' | 'roleId'>, roles?: RoleSettings, held?: readonly string[], enterprise?: { name: string },
+): string {
+  const of = enterprise ? ` of ${enterprise.name}` : '';
+  const who = `You act for ${person.name}${of}, whose role in Madar is ${roleNameOf(person, roles)}.`;
   return `${INSTRUCTIONS}\n\n${who}${held ? `\n${aiSwitchLines(held)}` : ''}${person.systemRole === 'admin' ? `\n${roleRightsLine()}` : ''}`;
 }
 

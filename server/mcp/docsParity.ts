@@ -355,11 +355,11 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'settings.get': {
     title: 'Read the office settings',
-    description: 'Reads the settings of the office: defaultStages, codePrefix, workloadLimit, staleAfterDays and the office work hours (days, from, to, and the lock that keeps notifications on). Reading changes nothing.',
+    description: 'Reads the settings of the office: defaultStages, codePrefix, workloadLimit, staleAfterDays, the office work hours (days, from, to, and the lock that keeps notifications on), and the name of the enterprise (enterpriseName, enterpriseNameAr) and its logo (enterpriseLogo). The limits of people and storage are not settings: an agent cannot change them. Reading changes nothing.',
   },
   'settings.update': {
     title: 'Change the office settings',
-    description: 'Changes the settings of the office: any of defaultStages, codePrefix (INT is taken), workloadLimit, staleAfterDays, workHours (the default hours must hold the lock), and the name of the company (enterpriseName, enterpriseNameAr) and its logo (enterpriseLogo: picture data, null takes it off). It changes what every person sees. Needs office.settings (by default the Admin). Ask your person first, and say the old and the new value.',
+    description: 'Changes the settings of the office: any of defaultStages, codePrefix (INT is taken), workloadLimit, staleAfterDays, workHours (the default hours must hold the lock), and the name of the company (enterpriseName, enterpriseNameAr) and its logo (enterpriseLogo: picture data, null takes it off). It changes what every person sees. The limits of people and storage are not settings: an agent cannot change them. Needs office.settings (by default the Admin). Ask your person first, and say the old and the new value.',
   },
   'roles.create': {
     title: 'Make a role',
