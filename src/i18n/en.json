@@ -766,7 +766,7 @@
     "people": "People",
     "files": "Files",
     "empty": "No results for “{{text}}”.",
-    "emptyHint": "Try a project name, a code such as KH-26-001, a to-do, a person or a file name.",
+    "emptyHint": "Try a project name, a project code such as 260902AZT, a to-do, a person or a file name.",
     "command": {
       "newTask": "New to-do",
       "newProject": "New project",
@@ -1066,7 +1066,7 @@
     "save": "Save",
     "office": "Office settings",
     "prefix": "Project code prefix",
-    "prefixHint": "One to four capital letters, for example KH.",
+    "prefixHint": "One to four capital letters, for example AB.",
     "limit": "Workload limit",
     "limitHint": "Open to-dos per person in one week before the cell turns red.",
     "saveOffice": "Save office settings",
