@@ -6,6 +6,7 @@ import { PROTOTYPE, REMOTE } from '../../app/mode';
 import { useCall } from '../../app/runtime';
 import { useRight } from '../../app/useRight';
 import { Button } from '../../components/Button';
+import { BuildingIcon } from '../../components/icons/animated/building';
 import { LayoutGridIcon } from '../../components/icons/animated/layout-grid';
 import { MessageSquarePlusIcon } from '../../components/icons/animated/message-square-plus';
 import { ShieldCheckIcon } from '../../components/icons/animated/shield-check';
@@ -18,7 +19,7 @@ import { PrototypeTools } from '../settings/PrototypeTools';
 import { MeGroup, MePanel, MeRow } from './MeRow';
 
 /**
- * The group "Office" of the hub: the Dashboard, the Admin page (or "Office" for another role), What's new and the feedback sheet. Each
+ * The group "Office" of the hub: the Dashboard, the Admin page (or "Office" for another role), Madar enterprises (a platform owner only), What's new and the feedback sheet. Each
  * row shows only for a person who may use it. What's new shows the word New, in ink, until the person opens the page.
  */
 export function OfficeGroup() {
@@ -42,6 +43,8 @@ export function OfficeGroup() {
             to="/admin"
           />
         )}
+        {/* The platform page: only a platform owner sees the line (session.platformOwner), the same words and route as the person menu. */}
+        {session.platformOwner === true && <MeRow icon={BuildingIcon} title={t('enterprises.title')} to="/enterprises" />}
         <MeRow
           icon={SparklesIcon}
           title={t('whatsNew.menu')}
