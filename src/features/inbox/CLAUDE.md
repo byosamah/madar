@@ -15,6 +15,9 @@ in a chat: `src/features/files/CLAUDE.md`. The chat inside Focus mode: `src/feat
 - Reply puts `ComposerReplyStrip` above the field. The next send passes `replyToId` (`chats.send` or `comments.create`). A closed chat has no
   Reply (`canReply`). A press on the quote (`BubbleReplyQuote`) frames the old message when it is live (`BubbleActions.focusMessage`,
   `FRAME_MS`). The strip of a deleted message stays plain text.
+- The bubble is two parts (fbk_081): the face row (`data-part="face-row"`: face, name and bubble, side spot, `items-end`) and the rows under it
+  (`ReactionPills`, the "Not sent" row). The rows under it sit outside the face row, so a reaction never moves the face or the side spot. For
+  another person they have `ps-9` (the face 28 px and its gap 8 px), so they line up with the bubble.
 - Edit and delete work on own messages only (`Bubble.canEdit`). Delete asks nothing: `useDeleteMessage` shows a toast with Undo (the same
   call with `deleted: false`). A task comment keeps `comments.update` and `useUndoable('comments.delete')`. `useEarlierMessages` keeps a
   message that left the newest page only when it is older than the oldest message of the new page.

@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // Two small fixes (owner reports fbk_081, fbk_082): a reaction no longer moves the profile picture of the sender down in a chat, and the project view toggle on a desk Home is smaller and quieter. The lead sets the real release day before the test deploy.
+  { id: '2026-11-08-155', day: '2026-11-08' },
   // Error and usage records go through the free managed proxy of PostHog on an own address, so an ad blocker does not stop them; what Madar records is the same (owner: "do the posthog proxy too", 2026-11-08). The lead sets the real release day before the test deploy.
   { id: '2026-11-08-154', day: '2026-11-08', to: '/settings' },
   // A read goes again by itself after a short server fault, so a bad Supabase worker shows a slow load and not "The data did not load" (owner: "fix it", 2026-11-08). The lead sets the real release day before the test deploy.

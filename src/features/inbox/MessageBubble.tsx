@@ -150,49 +150,54 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
         initial={fresh && !bubble.fromOutbox ? { opacity: 0, y: 12 } : false}
         animate={{ opacity: 1, y: 0 }}
         transition={spring.standard}
-        className={`group flex max-w-[88%] items-end gap-2 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] sm:max-w-[75%] ${mine ? 'self-end' : 'self-start'} ${runStart ? 'mt-1.5' : ''} ${framed ? FRAME_CLASS : ''}`}
+        className={`group flex max-w-[88%] flex-col gap-0.5 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] sm:max-w-[75%] ${mine ? 'self-end' : 'self-start'} ${runStart ? 'mt-1.5' : ''} ${framed ? FRAME_CLASS : ''}`}
       >
-        {mine && side}
-        {!mine && (runStart ? <PersonFace user={author} size={28} /> : <span aria-hidden className="w-7 shrink-0" />)}
-        <div className="flex min-w-0 flex-col gap-0.5">
-          {runStart && (!mine || author.kind === 'agent') && (
-            <p className="flex flex-wrap items-center gap-x-2 px-1 text-footnote text-ink-2">
-              {!mine && <bdi className="font-semibold text-ink">{nameOf(author)}</bdi>}
-              {author.kind === 'agent' && <AgentLabel />}
-              {bubble.actingFor && <span>{t('chat.actingFor', { name: nameOf(bubble.actingFor) })}</span>}
-            </p>
-          )}
-          <div
-            style={mine ? { background: 'var(--p-blue-bg)' } : undefined}
-            className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : `rounded-es-md ${marked ? 'relative ps-4 bg-mention-bg' : 'bg-fill'}`} ${runStart ? '' : mine ? 'rounded-se-md' : 'rounded-ss-md'} ${saved ? '' : 'opacity-60'}`}
-          >
-            {marked && <span aria-hidden className="absolute inset-y-2 start-1.5 w-[3px] rounded-full bg-mention-bar" />}
-            {marked && <span className="sr-only">{t('chat.namesYou')}</span>}
-            {bubble.replyTo && <BubbleReplyQuote replyTo={bubble.replyTo} />}
-            {editing ? <MessageEditForm bubble={bubble} /> : !fileNamesOnly && <RichText body={bubble.body} everyone={bubble.everyone === true} className="natural-side text-subheadline" />}
-            <AttachmentList files={bubble.files} />
-            {(runStart || bubble.edited) && (
-              <p className="tabular pt-0.5 text-end text-caption text-ink-2">
-                {runStart && <time dateTime={bubble.createdAt}>{clockTime(bubble.createdAt, lang)}</time>}
-                {bubble.edited && `${runStart ? ' · ' : ''}${t('comments.edited')}`}
+        {/* The face row: face, bubble and side spot, bottom-aligned. The rows under it (reactions, "Not sent") stay outside it, so they
+            never move the face or the side spot (fbk_081). */}
+        <div data-part="face-row" className="flex items-end gap-2">
+          {mine && side}
+          {!mine && (runStart ? <PersonFace user={author} size={28} /> : <span aria-hidden className="w-7 shrink-0" />)}
+          <div className="flex min-w-0 flex-col gap-0.5">
+            {runStart && (!mine || author.kind === 'agent') && (
+              <p className="flex flex-wrap items-center gap-x-2 px-1 text-footnote text-ink-2">
+                {!mine && <bdi className="font-semibold text-ink">{nameOf(author)}</bdi>}
+                {author.kind === 'agent' && <AgentLabel />}
+                {bubble.actingFor && <span>{t('chat.actingFor', { name: nameOf(bubble.actingFor) })}</span>}
               </p>
             )}
-          </div>
-          {saved && <ReactionPills bubble={bubble} />}
-          {bubble.status === 'failed' && (
-            <div className="flex items-center justify-end gap-1 px-1 text-footnote">
-              <span className="inline-flex items-center gap-1 font-medium text-late">
-                <AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />
-                <span>{t('chat.notSent')}</span>
-              </span>
-              <span aria-hidden className="text-ink-2">·</span>
-              <button type="button" onClick={() => actions?.retry(bubble)} className="pressable min-h-11 rounded-full px-2 font-medium text-link hover:bg-fill">
-                {t('chat.sendAgain')}
-              </button>
+            <div
+              style={mine ? { background: 'var(--p-blue-bg)' } : undefined}
+              className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : `rounded-es-md ${marked ? 'relative ps-4 bg-mention-bg' : 'bg-fill'}`} ${runStart ? '' : mine ? 'rounded-se-md' : 'rounded-ss-md'} ${saved ? '' : 'opacity-60'}`}
+            >
+              {marked && <span aria-hidden className="absolute inset-y-2 start-1.5 w-[3px] rounded-full bg-mention-bar" />}
+              {marked && <span className="sr-only">{t('chat.namesYou')}</span>}
+              {bubble.replyTo && <BubbleReplyQuote replyTo={bubble.replyTo} />}
+              {editing ? <MessageEditForm bubble={bubble} /> : !fileNamesOnly && <RichText body={bubble.body} everyone={bubble.everyone === true} className="natural-side text-subheadline" />}
+              <AttachmentList files={bubble.files} />
+              {(runStart || bubble.edited) && (
+                <p className="tabular pt-0.5 text-end text-caption text-ink-2">
+                  {runStart && <time dateTime={bubble.createdAt}>{clockTime(bubble.createdAt, lang)}</time>}
+                  {bubble.edited && `${runStart ? ' · ' : ''}${t('comments.edited')}`}
+                </p>
+              )}
             </div>
-          )}
+          </div>
+          {!mine && side}
         </div>
-        {!mine && side}
+        {saved && <ReactionPills bubble={bubble} />}
+        {bubble.status === 'failed' && (
+          // The indent of the face (28 px) and its gap (8 px) for another person's message, so the row lines up with the bubble.
+          <div className={`flex items-center justify-end gap-1 text-footnote ${mine ? 'px-1' : 'ps-10 pe-1'}`}>
+            <span className="inline-flex items-center gap-1 font-medium text-late">
+              <AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />
+              <span>{t('chat.notSent')}</span>
+            </span>
+            <span aria-hidden className="text-ink-2">·</span>
+            <button type="button" onClick={() => actions?.retry(bubble)} className="pressable min-h-11 rounded-full px-2 font-medium text-link hover:bg-fill">
+              {t('chat.sendAgain')}
+            </button>
+          </div>
+        )}
       </motion.li>
       {sheet && actions && <MessageSheet bubble={bubble} open onOpenChange={setSheet} />}
     </>
