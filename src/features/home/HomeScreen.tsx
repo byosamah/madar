@@ -13,7 +13,7 @@ import { useCall } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { formatDay, todayISO } from '../../lib/dates';
+import { formatDay, todayISO, weekStartOf } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { comingUp, dayRing, dueByToday, greetingKey, nextForYou, officeHour } from '../../lib/home';
 import { useFocusLink } from '../focus/focusLink';
@@ -31,7 +31,6 @@ import { TodayPanel } from './TodayPanel';
 import { isLive } from '../../lib/overview';
 import { homeProjectsInput } from '../../lib/projectReach';
 import { useRoleHint } from './useRoleHint';
-import { weekMineInput } from '../week/readInputs';
 import { WeekCardSlot, warmWeekCard } from '../week/weekCardLazy';
 import { WHATS_NEW } from '../../whatsNew/entries';
 import { hasNew, readSeen } from '../../whatsNew/seen';
@@ -134,8 +133,8 @@ export function HomeScreen() {
   const prefetch = usePrefetchCall();
   useEffect(() => {
     prefetch('meetings.list', todayMeetingsInput(today));
-    // The own weekly answers go in the first request too, and the card chunk loads beside it (fbk_088).
-    prefetch('checkins.mine', weekMineInput(today));
+    // The own weekly answers go in the first request too, under the key of the card (WeekCard.tsx), and its chunk loads beside it (fbk_088).
+    prefetch('checkins.mine', { week: weekStartOf(today) });
     warmWeekCard();
   }, [prefetch, today]);
   // The Admin sees every active project; anyone else sees the projects they lead or work on, the paused ones too:

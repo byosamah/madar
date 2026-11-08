@@ -60,7 +60,7 @@ export const PHONE_NAV: { tab: PhoneTab; to: string; key: string; animated: Anim
 ];
 
 const PHONE_EXACT: Record<string, PhoneTab> = {
-  '/': 'today',
+  '/': 'today', '/week': 'today',
   '/inbox': 'inbox', '/notifications': 'inbox',
   '/work': 'work', '/meetings': 'work', '/projects': 'work', '/resources': 'work',
   '/me': 'me', '/settings': 'me', '/whats-new': 'me', '/dashboard': 'me', '/tasks': 'me', '/admin': 'me',

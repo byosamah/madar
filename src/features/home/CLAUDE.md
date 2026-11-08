@@ -24,7 +24,7 @@ Home (`HomeScreen.tsx`). The first request of Home, the stored answers and the r
   the person from the Home list `mine` (`weekLines`, `lib/week.ts`; Sunday: open, due this week; Thursday: done since Sunday; a to-do with no project is left
   out), each kept until the person clears it, plus one box "Anything else". Save is the secondary button (Home keeps one navy button). After Save the card is
   one quiet line ("Plan sent.", Edit, "See the team's week" for a holder of `checkin.read`); Undo of the toast takes the answer back. The card lives in its
-  own chunk (`weekCardLazy.ts`, `lazyOverlay`); Home only starts the import and the read `checkins.mine` in its first request (`weekMineInput`), so the card
+  own chunk (`weekCardLazy.ts`, `lazyOverlay`); Home only starts the import and the read `checkins.mine` in its first request, so the card
   adds no request. It draws nothing for a person without `checkin.answer`. The page `/week` (`WeekScreen.tsx`, route right `checkin.read`) shows one row for
   each person who answered, the plan and the done list side by side, who has not answered, and links to the week before and after (`?week=<Sunday>`).
 

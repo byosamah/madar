@@ -9,8 +9,8 @@ import { useRight } from '../../app/useRight';
 import { Button } from '../../components/Button';
 import { TextArea } from '../../components/Fields';
 import { CHECKIN_LIMITS } from '../../api/contract/limits';
+import { weekStartOf } from '../../lib/dates';
 import { weekKindOf, weekLines } from '../../lib/week';
-import { weekMineInput } from './readInputs';
 
 /**
  * The weekly question on Home (fbk_088, owner 2026-11-08). Sunday to Wednesday it asks "What do you plan this week?", Thursday to Saturday
@@ -23,7 +23,7 @@ import { weekMineInput } from './readInputs';
  */
 export function WeekCard({ today, mine }: { today: string; mine: TaskRow[] }) {
   const canAnswer = useRight('checkin.answer');
-  const answers = useCall('checkins.mine', weekMineInput(today));
+  const answers = useCall('checkins.mine', { week: weekStartOf(today) });
   if (!canAnswer || !answers.data) return null;
   const kind = weekKindOf(today);
   const answer = answers.data[kind];
@@ -38,8 +38,8 @@ function Question({ kind, today, mine, answer }: { kind: 'plan' | 'review'; toda
   const [editing, setEditing] = useState(false);
   if (answer && !editing) {
     return (
-      <section aria-label={t(`week.${kind}.title`)} className="panel flex flex-wrap items-center gap-x-1 gap-y-0 px-5 py-1">
-        <p className="min-w-0 pe-2 text-subheadline text-ink-2">{t(`week.${kind}.sent`)}</p>
+      <section aria-label={t(`week.${kind}.title`)} className="panel flex flex-wrap items-center px-2 py-1">
+        <p className="min-w-0 px-3 text-subheadline text-ink-2">{t(`week.${kind}.sent`)}</p>
         <Button variant="plain" className="px-3" onClick={() => setEditing(true)}>{t('common.edit')}</Button>
         {canRead && <Link to="/week" className="flex min-h-11 items-center px-3 text-subheadline font-semibold text-link">{t('week.teamLink')}</Link>}
       </section>
@@ -72,7 +72,7 @@ function Form({ kind, today, mine, answer, onClose }: { kind: 'plan' | 'review';
       {lines.length > 0 && (
         <fieldset className="flex flex-col gap-1">
           <legend className="pb-1 text-caption font-semibold uppercase tracking-[0.06em] text-ink-2">{t(`week.${kind}.lines`)}</legend>
-          <ul className="flex max-h-56 flex-col overflow-y-auto">
+          <ul className="flex max-h-36 flex-col overflow-y-auto">
             {lines.map((line) => (
               <li key={line.taskId}>
                 <label className="flex min-h-11 items-center gap-3 py-1 text-subheadline text-ink">

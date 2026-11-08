@@ -42,7 +42,7 @@ pure handlers, an additive contract, a table for a new collection, a test count 
   author, organizer) and needs its switch. `project.code` passes only where `project.details` passes.
 - **Add a switch:**
   1. Add it to the catalog JSON and to `rightsCatalog.ts` (id, scope, `basic`, `needs`, the defaults of each built-in role,
-     `mcpTools` of an AI switch). Update the counts in `rightsCatalog.test.ts`.
+     `mcpTools` of an AI switch). Update the counts in `rightsCatalog.test.ts`. A power with one switch, no scope and no AI tools uses the short form `one(id, basic, needs?)`: the first load of the real build holds this file.
   2. Keep `MAX_OFF_RIGHTS` at or above the number of basic switches, and `MAX_STORED_RIGHTS` above the switches that a role
      can hold (`contract/entities.ts`). No test pins the two caps. A role save over a cap fails in zod.
   3. Add the label and the hint to `roleRights.powers.<power>` in `src/i18n/real/rr2sheet.*.json`. The English texts and
