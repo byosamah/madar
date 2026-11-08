@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-11-08-153": {
+        "title": "Your lists load after a short server fault",
+        "body": "When a Madar server fails for a few seconds, the page now tries again by itself. Before, you saw \"The data did not load.\" and had to press Retry."
+      }
+    }
+  }
+}

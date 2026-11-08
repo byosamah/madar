@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // A read goes again by itself after a short server fault, so a bad Supabase worker shows a slow load and not "The data did not load" (owner: "fix it", 2026-11-08). The lead sets the real release day before the test deploy.
+  { id: '2026-11-08-153', day: '2026-11-08' },
   // Resources: the files of the whole office (building codes, policies), opened from the Projects page (fbk_078, owner 2026-11-05). The lead sets the real release day before the test deploy.
   { id: '2026-11-05-152', day: '2026-11-05', to: '/resources' },
   // On a computer, every file preview (PDF, picture, Word, Excel) opens in one big window in the middle of the screen (fbk_079, owner 2026-11-05). The lead sets the real release day before the test deploy.

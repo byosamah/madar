@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Calls } from '../calls';
 import { ApiError } from '../errors';
-import { REQUEST_TIMEOUT_MS, SLOW_REQUEST_MS, canFollow, createRemoteApi, regionUrl, type FollowApi, type RemoteApiOptions } from './remoteApi';
+import { REQUEST_TIMEOUT_MS, SERVER_RETRY_WAITS_MS, SLOW_REQUEST_MS, canFollow, createRemoteApi, regionUrl, type FollowApi, type RemoteApiOptions } from './remoteApi';
 import { isRead } from './keys';
 import type { Adapter, ChangeSignal, WireCall, WireEntry, WireRequest } from './wire';
 
@@ -263,10 +263,12 @@ describe('no answer', () => {
     expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['tasks.complete', 'projects.get'], ['projects.get']]);
   });
 
-  it('does not send a read again after an answer with an error status', async () => {
-    const { sent, fetch } = stubFetch(() => ({ status: 502 }));
-    await expect(remote(fetch).call('projects.get', PROJECT)).rejects.toMatchObject({ code: 'failed' });
+  it.each([409, 413, 429])('does not send a read again after the refusal status %i', async (status) => {
+    const waits: number[] = [];
+    const { sent, fetch } = stubFetch(() => ({ status }));
+    await expect(remote(fetch, { wait: async (ms) => void waits.push(ms) }).call('projects.get', PROJECT)).rejects.toMatchObject({ code: 'failed' });
     expect(sent).toHaveLength(1);
+    expect(waits).toEqual([]);
   });
 
   it('lets the next call with a placeholder claim it again after a write lost its answer', async () => {
@@ -275,6 +277,73 @@ describe('no answer', () => {
     await api.call('tasks.complete', { id: 'tsk_001' }, { correlationId: 'cor_ui_x' }).catch(() => undefined);
     await api.call('tasks.complete', { id: 'tsk_002' }, { correlationId: 'cor_ui_x' });
     expect(sent[1].body.calls[0].story).toEqual({ ref: 'cor_ui_x' });
+  });
+});
+
+// On 2026-11-08 a new Supabase worker could not reach Auth (ERR_JWKS_TIMEOUT) or the pooler for about 15 s. Its 500 answers showed
+// "The data did not load" on Notifications, and the next worker answered at once. A read changes nothing, so it goes again.
+describe('a server error of the whole request (2026-11-08)', () => {
+  function recorded() {
+    const waits: number[] = [];
+    return { waits, wait: async (ms: number) => void waits.push(ms) };
+  }
+
+  it('waits 2 s, then 6 s, before the two new tries of a read', () => {
+    expect(SERVER_RETRY_WAITS_MS).toEqual([2000, 6000]);
+  });
+
+  it('sends a read again after a 500, after the first wait, and answers it', async () => {
+    const { waits, wait } = recorded();
+    const { sent, fetch } = stubFetch((body, n) => (n === 0 ? { status: 500 } : { body: okAll(body) }));
+    expect(await remote(fetch, { wait }).call('projects.get', PROJECT)).toEqual({ name: 'projects.get' });
+    expect(sent).toHaveLength(2);
+    expect(waits).toEqual([2000]);
+  });
+
+  it('gives up on a read after three 5xx answers in a row, and fails it as before', async () => {
+    const { waits, wait } = recorded();
+    const statuses = [500, 503, 546, 200];
+    const { sent, fetch } = stubFetch((body, n) => (statuses[n] === 200 ? { body: okAll(body) } : { status: statuses[n] }));
+    await expect(remote(fetch, { wait }).call('notifications.list', {})).rejects.toMatchObject({ code: 'failed', details: { status: 546 } });
+    expect(sent).toHaveLength(3);
+    expect(waits).toEqual([2000, 6000]);
+  });
+
+  it('never sends a write again after a 500: only the read of the same request goes again', async () => {
+    const { waits, wait } = recorded();
+    const { sent, fetch } = stubFetch((body, n) => (n === 0 ? { status: 500 } : { body: okAll(body) }));
+    const api = remote(fetch, { wait });
+    const [write, read] = await Promise.allSettled([api.call('tasks.complete', { id: 'tsk_013' }), api.call('projects.get', PROJECT)]);
+    expect(write).toMatchObject({ status: 'rejected', reason: { code: 'failed' } });
+    expect(read).toEqual({ status: 'fulfilled', value: { name: 'projects.get' } });
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['tasks.complete', 'projects.get'], ['projects.get']]);
+    expect(waits).toEqual([2000]);
+  });
+
+  it('sends the reads that failed together again together, in one request', async () => {
+    const { wait } = recorded();
+    const { sent, fetch } = stubFetch((body, n) => (n === 0 ? { status: 500 } : { body: okAll(body) }));
+    const api = remote(fetch, { wait });
+    await Promise.all([api.call('notifications.list', {}), api.call('notifications.count', {})]);
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([
+      ['notifications.list', 'notifications.count'],
+      ['notifications.list', 'notifications.count'],
+    ]);
+  });
+
+  it('waits on a real timer when the screens pass no wait', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sent, fetch } = stubFetch((body, n) => (n === 0 ? { status: 500 } : { body: okAll(body) }));
+      const answer = remote(fetch).call('projects.get', PROJECT);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sent).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(sent).toHaveLength(2);
+      expect(await answer).toEqual({ name: 'projects.get' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

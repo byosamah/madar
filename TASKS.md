@@ -1432,3 +1432,15 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
 - [x] Release: test copy, then production by Claude. Done 2026-11-05: production at 7a288c80. Record: proof.md.
 - [ ] The first load holds 970,494 B of the 972,000 B limit (1,506 B left): the next change that adds first-load code must look at it.
 - [ ] An empty Resources folder shows in no MCP list, so an agent cannot find it to rename, lock or delete it (INSTRUCTIONS says so).
+
+## Fixed: "The data did not load" on Notifications (owner: "why? fix it", 2026-11-08; branch `rb/read-retry`)
+- [x] Cause, from the Supabase logs of production: at 08:49 and 10:23 (Riyadh) a new worker of the api function could not open an outbound
+  connection for about 15 s. At 08:49 the pooler connect timed out ("timeout exceeded when trying to connect"); at 10:23 the key download of
+  Auth timed out (`ERR_JWKS_TIMEOUT`; the gateway log shows no key request from that worker). 4 requests answered 500, 0 in 1 to 7 November.
+  The next worker answered. PostHog missed the two of 10:23 (its send from the same worker failed too).
+- [x] Fix in the screens: a read goes again after a 5xx answer of the whole request, after 2 s and 6 s (`SERVER_RETRY_WAITS_MS`,
+  `src/api/remote/remoteApi.ts`). A write never goes again by itself. No server or MCP change: agents do not use the browser client.
+  What's new 153.
+- [ ] Release: test copy, then production.
+- [ ] Proposed (owner to decide): PostHog's free managed proxy on a subdomain of vado.sa, so ad blockers stop no PostHog data. It uses a DNS
+  record and no Cloudflare request quota (the reason the insight design refused a Pages Functions proxy).

@@ -20,6 +20,13 @@ export const REQUEST_TIMEOUT_MS = 20_000;
 /** A request that answers after this time or later is a slow step (insight design, section 4). */
 export const SLOW_REQUEST_MS = 2000;
 
+/**
+ * The waits before a read goes again after a 5xx answer of the whole request: two new tries, then the error. On 2026-11-08 a new
+ * Supabase worker could not reach Auth or the pooler for about 15 s, and the next worker answered. A read changes nothing, so it
+ * is safe to send again. A write never goes again by itself: only Retry sends it, with the same key.
+ */
+export const SERVER_RETRY_WAITS_MS: readonly number[] = [2000, 6000];
+
 export type RemoteApiOptions<M extends CallMap> = {
   /** The api of the copy (VITE_API_URL): https://<ref>.supabase.co/functions/v1/api, or the page's own /api on the Worker host. */
   url: string;
@@ -48,6 +55,8 @@ export type RemoteApiOptions<M extends CallMap> = {
   /** Extra headers on each request. */
   headers?: Record<string, string>;
   now?: () => number;
+  /** The wait before a read goes again after a server error (SERVER_RETRY_WAITS_MS). Tests pass their own; the default is a timer. */
+  wait?: (ms: number) => Promise<void>;
 };
 
 type Answer = { output: unknown; storyId?: string; changed: boolean };
@@ -64,6 +73,8 @@ type Pending = {
   key?: string;
   story?: StoryRef;
   retried: boolean;
+  /** The 5xx answers that this read got so far. It goes again while this is below the length of SERVER_RETRY_WAITS_MS. */
+  serverErrors: number;
   /** True once the story claim of the item has ended, so a second settle never ends a later claim. */
   storySettled?: boolean;
   /** A read of a follow step: the write that it must run after, in the same request (FET-3). */
@@ -94,6 +105,7 @@ function placeholder(): string {
 export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<M> {
   const now = o.now ?? Date.now;
   const timeoutMs = o.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const wait = o.wait ?? ((ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); }));
   const batchUrl = regionUrl(`${o.url.replace(/\/+$/, '')}/batch`);
   const doFetch = o.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init));
   const stories = new StoryMap({ now });
@@ -238,7 +250,18 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
       // Answer the calls first, then tell the session listener, so its error cannot leave a call waiting.
       for (const item of items) {
         settleStory(item, undefined);
-        item.reject(error);
+        // A 5xx answer of the whole request: a read goes again after a wait, so a bad server worker gives a slow load and not an
+        // error (2026-11-08). The reads of one request wait the same time and go again together. A refusal status stays an error.
+        if (reply.status >= 500 && item.read && item.serverErrors < SERVER_RETRY_WAITS_MS.length) {
+          const ms = SERVER_RETRY_WAITS_MS[item.serverErrors];
+          item.serverErrors += 1;
+          // It goes alone now, so it no longer counts as a read after its write.
+          delete item.after;
+          const again = () => batcher.add(item);
+          Promise.resolve().then(() => wait(ms)).then(again, again);
+        } else {
+          item.reject(error);
+        }
       }
       if (error.code === 'unauthenticated') tell(o.onAuthError, error);
       return;
@@ -293,6 +316,7 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
         correlationId: read ? undefined : meta.correlationId,
         key: read ? undefined : (meta.key ?? newKey()),
         retried: false,
+        serverErrors: 0,
         resolve,
         reject,
       };

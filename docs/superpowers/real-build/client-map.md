@@ -20,7 +20,7 @@ The prototype reloads every list after every change and once a minute. The real 
 | File:line | What it does today | What changes |
 |---|---|---|
 | `src/app/runtime.tsx:9` | `Runtime = { store, api }` | `Runtime = { api, changes, auth, mode, store? }`. Keep `store` optional so the 1,640 tests still pass `{ store, api }`. |
-| `src/app/runtime.tsx:13-17` | Query defaults: `staleTime: 0`, no retry | Remote mode: `staleTime: Infinity` for `['api']` reads (data changes only on a signal), one retry for a read that got no answer. |
+| `src/app/runtime.tsx:13-17` | Query defaults: `staleTime: 0`, no retry | Remote mode: `staleTime: Infinity` for `['api']` reads (data changes only on a signal), one retry for a read that got no answer, two after a 5xx answer (2026-11-08). |
 | `src/app/runtime.tsx:20-26` | `store.subscribe` invalidates every `['api']` query after any change | Subscribes to `runtime.changes` and runs the targeted rule of section 3. The fake runtime turns each store change into a "match all" signal, so the prototype and the tests behave as today. |
 | `src/app/runtime.tsx:44-46` | `useCall` key `['api', name, input]`, `queryFn: api.call(name, input)` | No change. The key shape must stay: `TaskSheet.tsx:296` and `ProjectScreen.tsx:46` read the cache by this key. |
 | `src/app/runtime.tsx:80-81` | `useAction` key `['api', name]` | No change. `HomeScreen.tsx:49-52` reads `mutationKey[1]`. |
@@ -187,7 +187,8 @@ This costs no extra request. The other choice is an async `newStoryId()` that ca
 - The fake API waits 120 ms (`client.ts:36`). `RemoteApi` adds no wait.
 - Expect 150 to 400 ms for one batch from Khobar to Frankfurt (spec 18 says about 0.1 s of network), plus a cold start of the function now and then.
 - Timeout: 20 s for each batch. After that, every entry fails with `failed`.
-- Reads: one automatic retry, only when no answer came back.
+- Reads: one automatic retry when no answer came back. Since 2026-11-08 also two retries after a 5xx answer of the whole request, after
+  2 s and 6 s (`SERVER_RETRY_WAITS_MS`; the reason is in `src/api/remote/CLAUDE.md`).
 - Writes: no automatic retry. The person presses Retry (`canRetry`).
 
 ### 2.6 Idempotency
