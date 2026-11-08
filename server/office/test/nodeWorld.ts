@@ -176,6 +176,8 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
     platform: () => platform,
     net: () => net,
     jobsSecret: () => read('MADAR_JOBS_SECRET'),
+    exportSecret: () => read('MADAR_EXPORT_SECRET'),
+    opsSecret: () => read('MADAR_OPS_SECRET'),
     ...(o.sleep ? { sleep: o.sleep } : {}),
     ...(own ? { routes: own } : {}),
   });
@@ -184,7 +186,8 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
   async function route(input: OfficeHttpRequest): Promise<OfficeHttpAnswer> {
     const bodyless = input.method === 'GET' || input.method === 'HEAD';
     const request = new Request(input.url, { method: input.method, headers: input.headers, ...(bodyless ? {} : { body: input.body }) });
-    const response = await routes.fetch(request, {});
+    // The Worker bindings: the vars of this world (a route reads MADAR_ENTERPRISE_CREATE and the test tools from them).
+    const response = await routes.fetch(request, { ...env });
     // A socket upgrade answer (status 101) carries the client socket and no body.
     if (response.status === 101) return { status: 101, headers: [], body: '' };
     return { status: response.status, headers: [...response.headers], body: await response.text() };

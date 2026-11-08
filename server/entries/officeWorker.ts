@@ -16,6 +16,8 @@ import { firstRunOfDay } from '../office/jobs';
 import { ENT_VADO, isEnterpriseId, untag, type EnterpriseId } from '../enterprise/ids';
 import { OwnersBodyShape, RegisterBodyShape } from '../enterprise/shapes';
 import { padTo } from '../enterprise/pad';
+import { platformRoute } from '../enterprise/platform/route';
+import { writeOwners } from '../enterprise/platform/owners';
 import type { PlatformStub } from '../enterprise/platform/stub';
 import { entRouter, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
 import { challengeOf } from '../mcp/metadata';
@@ -361,7 +363,9 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       } else {
         const parsed = OwnersBodyShape.safeParse(value);
         if (!parsed.success) return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body is { owners: [{ ent, userId }] }.')));
-        await platform.setOwners(parsed.data);
+        // The master list in the platform object, and the copy in each enterprise object (plan C): session.get shows platformOwner from the copy.
+        const router = routerOf(env);
+        await writeOwners({ platform, office: (ent) => router.stub(ent), log }, parsed.data.owners);
       }
       return Response.json({ ok: true });
     } catch (error) {
@@ -462,6 +466,9 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   app.all('/api/internal/probe/fanout', (c) => probe(c.req.raw, c.env, 'fanout'));
   app.all('/api/internal/probe/leg', (c) => probe(c.req.raw, c.env, 'leg'));
   app.post('/api/batch', (c) => batch(c.req.raw, c.env, afterOf(c)));
+  // The platform calls (plan C): the office path only. The route checks the token and the owner before it reads anything else.
+  const platformCall = platformRoute({ deps: o.deps, verifyToken: o.verifyToken, stubFor: o.stubFor, platform: o.platform, net: o.net });
+  app.post('/api/platform', (c) => platformCall(c.req.raw, c.env, afterOf(c)));
   for (const route of o.routes ?? []) {
     app.on(route.method, `/api${route.path}`, (c) => {
       const after = afterOf(c);
