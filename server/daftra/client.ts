@@ -1,5 +1,7 @@
 import type { Deps } from '../core/ports';
 import { retryAtOf } from '../core/retryAt';
+import { ENT_VADO } from '../enterprise/ids';
+import { entOfConfig } from '../enterprise/scope';
 import { readOnlyFetch } from './readOnly';
 import { BadAnswer, clientAnswerOf, clientsAnswerOf, invoiceAnswerOf, invoicesAnswerOf, type DaftraClientRow, type DaftraInvoice } from './parse';
 
@@ -144,6 +146,9 @@ export function daftraClientOf(settings: DaftraSettings): DaftraClient {
  * `deps.daftraFetch` is the fetch of a test. A client never reads another account than the one it was made for.
  */
 export function daftraOf(deps: Pick<Deps, 'config' | 'daftraFetch'>, account: string): DaftraClient | undefined {
+  // Madar enterprises (design D6): the Daftra accounts belong to VADOs' Companies. Every other enterprise has none, and no call, no job step
+  // and no sheet can reach one. Every read of config.daftra goes through this function and daftraAccountsOf.
+  if (entOfConfig(deps.config) !== ENT_VADO) return undefined;
   const daftra = deps.config.daftra?.[account];
   if (!daftra) return undefined;
   return daftraClientOf({ site: daftra.site, apiKey: daftra.key, ...(deps.daftraFetch ? { fetch: deps.daftraFetch } : {}) });
@@ -151,5 +156,6 @@ export function daftraOf(deps: Pick<Deps, 'config' | 'daftraFetch'>, account: st
 
 /** The account names that the copy holds keys for. The names are not secret. */
 export function daftraAccountsOf(deps: Pick<Deps, 'config'>): string[] {
+  if (entOfConfig(deps.config) !== ENT_VADO) return [];
   return Object.keys(deps.config.daftra ?? {}).sort();
 }

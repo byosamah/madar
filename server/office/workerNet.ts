@@ -28,7 +28,8 @@ export class WorkerNet extends RpcTarget implements NetApi {
     const run = o.fetch ?? ((input, init) => fetch(input, init));
     this.#post = postPush(run);
     this.#google = googleRequest(run);
-    this.#daftra = o.daftra ? daftraRequest(o.daftra, run) : null;
+    // The Daftra accounts belong to VADOs' Companies (design D6): the Worker sends no Daftra request for any other enterprise.
+    this.#daftra = o.daftra && (o.ent ?? ENT_VADO) === ENT_VADO ? daftraRequest(o.daftra, run) : null;
   }
 
   presignPut(key: string, o: { mimeType: string; size?: number }): Promise<NetAnswer<PresignedPut>> {
