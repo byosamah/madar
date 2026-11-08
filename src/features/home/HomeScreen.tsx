@@ -31,6 +31,8 @@ import { TodayPanel } from './TodayPanel';
 import { isLive } from '../../lib/overview';
 import { homeProjectsInput } from '../../lib/projectReach';
 import { useRoleHint } from './useRoleHint';
+import { weekMineInput } from '../week/readInputs';
+import { WeekCardSlot, warmWeekCard } from '../week/weekCardLazy';
 import { WHATS_NEW } from '../../whatsNew/entries';
 import { hasNew, readSeen } from '../../whatsNew/seen';
 
@@ -74,6 +76,8 @@ const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedE
           <DayRing done={ring.done} total={ring.total} />
         </span>
       </ScreenTitle>
+      {/* The weekly question (fbk_088): a card in its own chunk, Sunday to Wednesday for the plan and Thursday to Saturday for what was done. */}
+      <WeekCardSlot today={today} mine={mine} />
       <NextCard item={next} onOpen={onOpen} onFocus={onFocus} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
       <TodayPanel rows={todayRows} later={laterRows} me={session.authority} onOpen={(row, thread) => onOpen(row.project?.id ?? null, row.task.id, thread)} />
       {/* The meetings of today, only when there is one (fbk_022). It reads its own list. */}
@@ -128,7 +132,12 @@ export function HomeScreen() {
   const review = useCall('tasks.list', { filter: 'review_for_me' });
   // The Meetings card mounts only after three answers. Its read starts now, under its key, so it goes in the first request (DF-6).
   const prefetch = usePrefetchCall();
-  useEffect(() => prefetch('meetings.list', todayMeetingsInput(today)), [prefetch, today]);
+  useEffect(() => {
+    prefetch('meetings.list', todayMeetingsInput(today));
+    // The own weekly answers go in the first request too, and the card chunk loads beside it (fbk_088).
+    prefetch('checkins.mine', weekMineInput(today));
+    warmWeekCard();
+  }, [prefetch, today]);
   // The Admin sees every active project; anyone else sees the projects they lead or work on, the paused ones too:
   // a paused or stale project still needs its people, and its row says Paused or Stale (audit PER-13).
   // Before session.get answers, the real build takes the role and the reach that this device saw last for this auth user, so the list

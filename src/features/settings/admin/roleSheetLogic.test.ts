@@ -16,7 +16,7 @@ describe('the sections of the role sheet', () => {
   it('give each power a word key that no other power has', () => {
     const keys = SHEET_SECTIONS.flatMap((section) => section.powers.map((power) => power.key));
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toHaveLength(94);
+    expect(keys).toHaveLength(96);
     expect(powerKey('project.create')).toBe('projectCreate');
     expect(powerKey('templates.taskSave')).toBe('templatesTaskSave');
     expect(powerKey('subCompanies.manage')).toBe('subCompaniesManage');
@@ -75,10 +75,10 @@ describe('the All switch of a section', () => {
 });
 
 describe('the standard list and the save shape', () => {
-  it('gives the Member list 68 switches and the default extras to the other roles', () => {
-    expect(standardListOf('member')).toHaveLength(68);
+  it('gives the Member list 70 switches and the default extras to the other roles', () => {
+    expect(standardListOf('member')).toHaveLength(70);
     expect(standardListOf('management')).toEqual(withNeeds([...BASIC_ON, ...DEFAULT_EXTRA.management]));
-    expect(standardListOf('accounting')).toHaveLength(68 + 5);
+    expect(standardListOf('accounting')).toHaveLength(70 + 5);
   });
 
   it('saves the switches that are not basic as rights, and the basic switches that are off as off', () => {

@@ -5,6 +5,16 @@ keep each decision that still sets a rule, as a rule. This file is the record of
 Sections follow the guide that held the text. Line numbers and counts in this file are from that day and can be old.
 
 ## 2026-11-08
+- The weekly question (fbk_088, report of Faisal on 2026-11-05: "replace osama's 2 meetings per week idea. a pop-up question that appears on sunday
+  (what are you planning to do this week) and on thursday (what did you do this week) for everyone, so moataz can get a report"). Moataz Al Mulla is the
+  General Manager. The owner decided: both questions, with the words "What do you plan this week?" (Sunday) and "What did you do this week?"
+  (Thursday); a card at the top of Home and not a pop-up (the owner picked the card, so no sheet opens by itself); everyone may read every answer (the
+  owner picked "Everyone"), and the author alone writes the own answer. The lead of the build set the defaults: every active person answers (an Admin
+  too, never an agent); one push at 08:00 on Sunday and one at 14:00 on Thursday (Riyadh time, inside the lock hours of the office) to a person who has not
+  answered; no email. The card starts with the to-dos of the person (Sunday: open, due this week; Thursday: done since Sunday), each one kept until the person
+  clears it, and one box "Anything else". The build adds two basic switches ("Answer the weekly question", "Read the weekly answers"), a page `/week` with
+  the plan and the done list of each person side by side and the people who have not answered, and two MCP tools for the weekly report of Moataz. The
+  build also keeps the title of a to-do with no project and of a to-do of a hidden project out of an answer, because everyone reads the answers.
 - Who reviews a to-do (fbk_087, owner, from the report of Faisal about tsk_624): the person who does the work never approves it. Faisal
   made an office to-do, did the work, named Moataz as lead and sent it to review; Madar named the maker (Faisal) as reviewer, so Faisal saw
   "Your review" and Moataz got no notice. The owner's words: "the maker not means he's the leader or the reviewer, the leader or the

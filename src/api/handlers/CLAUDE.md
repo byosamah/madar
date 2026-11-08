@@ -324,6 +324,31 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
 - The Daftra link: `server/daftra/CLAUDE.md`. `markReceived` and `update` keep their rules for a linked payment; the screens hide
   the button. `payment.received_daftra` has no Undo (`daftra_final`).
 
+## Weekly question (fbk_088)
+- Owner decision 2026-11-08. Sunday: "What do you plan this week?" (the plan). Thursday: "What did you do this week?" (the review). Every active
+  person answers, an Admin too, never an agent. The answer is a `Checkin` (`chk_`): `userId`, `week` (the Sunday that starts the week, office
+  time), `kind` (`plan` or `review`), `items` (the kept to-dos, each `{ taskId, title }`), `text`, two stamps. At most one answer for each
+  person, week and kind (the unique index `checkins_one`).
+- Three calls (`handlers/checkins.ts`). `checkins.mine { week? }` gives the own plan and review of a week (null for a missing one), with no
+  switch. `checkins.save { kind, items: TaskId[], text }` writes the own answer of the CURRENT week and needs `checkin.answer`; a second save
+  changes the same answer; the same lines and text write no event. `checkins.week { week? }` gives every answer of a week, one row for each person
+  who answered, and the people who have not (`missing.plan`; `missing.review` stays empty until the Thursday of that week), and needs
+  `checkin.read`. Both switches are basic (on for every role). A week that has not begun is refused (`week_future`).
+- Everyone who holds `checkin.read` reads every answer (owner: "Everyone"). So the leak rule is about the lines, not the readers. The server
+  takes the title of each kept to-do from the to-do itself (never from the caller), refuses a to-do that is not the own to-do of the person
+  (`not_your_task`), and leaves out the to-do that has no project (private to its people) and the to-do of a hidden project (`mayShareTitle`),
+  so such a title is in no answer, no event and no History row. The card also leaves out the to-do with no project. An answer with no line
+  and no text is refused (`empty_answer`).
+- A save writes the events `checkin.created` and `checkin.updated` (project null). The Undo belongs to the author alone, the person or the agent
+  of the person, and needs `checkin.answer`; the Admin cannot undo the answer of another person (`assertMayUndo`, `history.ts`).
+- The reminder is the trigger `week_question` (in the app and in push, never in email, no copy for an Admin, no bell badge). `runScheduledTriggers`
+  sends it from 08:00 on Sunday (plan) and from 14:00 on Thursday (review) until 17:00 (`weekSlotAt`, `lib/week.ts`), to each active person who holds
+  `checkin.answer` and has no answer of that kind for the week. The target is `week` with the id `plan:<Sunday>` or `review:<Sunday>`, the dedupe key
+  holds the same, and the notice opens Home. `loadJobs` reads the answers of the week only inside the window.
+- MCP: `checkins.week` (right `checkin.read`, AI switch `ai.readWork`) is the read for the weekly report of the General Manager, and `checkins.save`
+  (right `checkin.answer`, AI switch `ai.myState`) saves the own answer only when the person asks. `checkins.mine` stays on the deny list.
+- Screens: the card on Home and the page `/week`, see `src/features/home/CLAUDE.md`.
+
 ## Push devices
 - `push.register`, `push.remove` and `push.mine` are for a person, for the person: an agent gets `forbidden`, and all three stay
   on the MCP deny list. They write no event and no History row, and the save sends no change signal. `WRITE_KINDS` is `[]` for

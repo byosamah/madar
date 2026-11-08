@@ -95,7 +95,7 @@ describe('the Notifications section in the remote build (plan 5.4; task N2.2)', 
     // The Admin: 17 in-app switches, 10 email switches (the notices of requests and bugs, of a new group, of a meeting, of a new helper and of a
     // deleted task stay in the app) and the Morning summary.
     expect(within(section).getAllByRole('switch')).toHaveLength(SHOWN.length + EMAIL_TRIGGERS.length + 1);
-    expect(within(section).getAllByRole('switch')).toHaveLength(28);
+    expect(within(section).getAllByRole('switch')).toHaveLength(29);
     for (const trigger of EMAIL_TRIGGERS) {
       const row = within(section).getByTestId(`notice-row-${trigger}`);
       expect(within(row).getAllByRole('switch')).toHaveLength(2);
@@ -189,25 +189,25 @@ describe('the switches of requests and bugs', () => {
     state.session.currentUserId = 'usr_003';
   };
 
-  it('shows 17 switches to an Admin and 16 to a member, with no new-report switch for the member, in the prototype build', async () => {
+  it('shows 18 switches to an Admin and 17 to a member, with no new-report switch for the member, in the prototype build', async () => {
     await renderWithRuntime(<NotificationsSection />);
     const admin = await sectionOf(en);
-    expect(within(admin).getAllByRole('switch')).toHaveLength(17);
+    expect(within(admin).getAllByRole('switch')).toHaveLength(18);
     expect(within(admin).getByRole('switch', { name: triggerWords(en).feedback_sent })).toBeInTheDocument();
     cleanup();
     await renderWithRuntime(<NotificationsSection />, asMember);
     const member = await sectionOf(en);
-    expect(within(member).getAllByRole('switch')).toHaveLength(16);
+    expect(within(member).getAllByRole('switch')).toHaveLength(17);
     expect(within(member).queryByRole('switch', { name: triggerWords(en).feedback_sent })).toBeNull();
     expect(within(member).queryByText(triggerWords(en).feedback_sent)).toBeNull();
     expect(within(member).getByRole('switch', { name: triggerWords(en).feedback_done })).toBeInTheDocument();
   });
 
-  it('shows 27 switches to a member in the remote build, with one switch in the row of a done report', async () => {
+  it('shows 28 switches to a member in the remote build, with one switch in the row of a done report', async () => {
     remote(true);
     await renderWithRuntime(<NotificationsSection />, asMember);
     const section = await sectionOf(en);
-    expect(within(section).getAllByRole('switch')).toHaveLength(27);
+    expect(within(section).getAllByRole('switch')).toHaveLength(28);
     expect(within(section).queryByTestId('notice-row-feedback_sent')).toBeNull();
     const row = within(section).getByTestId('notice-row-feedback_done');
     expect(within(row).getAllByRole('switch')).toHaveLength(1);
@@ -222,9 +222,9 @@ describe('the switches of requests and bugs', () => {
     });
     const section = await sectionOf(en);
     const rows = within(section).getAllByTestId(/^notice-row-/).map((row) => row.dataset.testid);
-    expect(rows.slice(-7)).toEqual([
+    expect(rows.slice(-8)).toEqual([
       'notice-row-feedback_sent', 'notice-row-feedback_done', 'notice-row-added_to_group', 'notice-row-meeting_invited', 'notice-row-meeting_soon',
-      'notice-row-helper_joined', 'notice-row-task_deleted',
+      'notice-row-helper_joined', 'notice-row-task_deleted', 'notice-row-week_question',
     ]);
     const row = within(section).getByTestId('notice-row-feedback_done');
     expect(within(row).getByRole('switch', { name: appName(en, 'feedback_done') })).toHaveAttribute('aria-checked', 'false');
@@ -273,7 +273,7 @@ describe('the switch of a payment due day', () => {
     await renderWithRuntime(<NotificationsSection />, asAccounting);
     const accounting = await sectionOf(en);
     expect(within(accounting).getByRole('switch', { name: triggerWords(en).payment_due })).toHaveAttribute('aria-checked', 'true');
-    expect(within(accounting).getAllByRole('switch')).toHaveLength(17);
+    expect(within(accounting).getAllByRole('switch')).toHaveLength(18);
     cleanup();
     for (const prepare of [undefined, asManagement, asMember]) {
       await renderWithRuntime(<NotificationsSection />, prepare);
@@ -288,7 +288,8 @@ describe('the switch of a payment due day', () => {
     await renderWithRuntime(<NotificationsSection />, asAccounting);
     const section = await sectionOf(en);
     const rows = within(section).getAllByTestId(/^notice-row-/).map((row) => row.dataset.testid);
-    expect(rows.at(-1)).toBe('notice-row-payment_due');
+    // The weekly question (fbk_088) comes after it, the last row of every person.
+    expect(rows.at(-2)).toBe('notice-row-payment_due');
     const row = within(section).getByTestId('notice-row-payment_due');
     expect(within(row).getAllByRole('switch')).toHaveLength(1);
     expect(within(row).getByRole('switch', { name: appName(en, 'payment_due') })).toHaveAttribute('aria-checked', 'true');

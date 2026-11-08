@@ -24,6 +24,7 @@ export const LOADERS = {
   me: () => import('../features/me/MeScreen').then((m) => m.MeScreen),
   meSection: () => import('../features/me/MeSectionScreen').then((m) => m.MeSectionScreen),
   whatsNew: () => import('../features/whatsNew/WhatsNewScreen').then((m) => m.WhatsNewScreen),
+  week: () => import('../features/week/WeekScreen').then((m) => m.WeekScreen),
   admin: () => import('../features/settings/admin/AdminScreen').then((m) => m.AdminScreen),
   projectByCode: () => import('../features/project/ProjectByCode').then((m) => m.ProjectByCode),
   signIn: () => import('../features/auth/SignInScreen').then((m) => m.SignInScreen),

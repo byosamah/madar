@@ -178,6 +178,9 @@ pure handlers, an additive contract, a table for a new collection, a test count 
   `inbox.trigger.<t>` (with `_female` in Arabic), the pins in `entities.test.ts`, `notify.test.ts` and
   `NotificationsSection.test.tsx`, a line in `server/push/words.ts` for a new `inbox.*` sentence, and the list in
   `server/mail/CLAUDE.md`. No migration: the column is text.
+- The weekly question (fbk_088) is the in-app trigger `week_question` with the notice target `week` (id `plan:<Sunday>` or `review:<Sunday>`): its words are
+  `inbox.trigger.week_question` (plan) and `inbox.trigger.week_question_review` in `real/weekly.*.json`, and the bell link is Home. It is not an
+  `ACTION_TRIGGERS` notice and makes no Admin copy.
 - `IN_APP_ONLY_TRIGGERS` send no email: `emailOn` is false, `notifications.updateSettings` refuses their email switch with
   reason `in_app_only`, and Settings shows none. `ADMIN_ONLY_TRIGGERS`: `visibleTriggers` shows the switch only with the right.
   `ACTION_TRIGGERS` count on the bell.

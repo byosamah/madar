@@ -46,6 +46,10 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   the act, so it rolls back with it. The job deletes rows older than one day.
 - `INTERNAL_LOADER_OF` (`loaders/index.ts`) holds the loader of `payments.daftraPaid`, the one call that only the job runs;
   `loadFor` reads it after `LOADER_OF`. The Daftra tables: `server/daftra/CLAUDE.md`.
+- `checkins` (the weekly answers, fbk_088, `20261108000100_checkins.sql`) is no office list: about 30 rows a week, so the whole-office read of each request does
+  not grow. Key columns `user_id`, `week`, `kind` and the unique index `checkins_one (week, user_id, kind)`; SQLite step 14. A loader reads the rows of one
+  week (`checkins.week`) or of one person in one week (`checkins.mine`, `checkins.save`, which also reads the kept to-dos by key); `loadJobs` reads the
+  answers of one kind only inside the window of the reminder. A save is an office signal with the kind `checkins`.
 - `meetings` is no office list. A handler that checks a right on a row the caller may not see (`meetings.extend`: the true last
   meeting of a series) needs a loader without `meetingConds`; with it, the shadow run finds `forbidden` on the scoped load and
   `not_found` on the whole office. `events.list` adds the test "no `officeMeetingId`, or one of the private meetings of the
