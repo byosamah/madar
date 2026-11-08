@@ -416,3 +416,33 @@ The owner gave the approval to the Opus lead (2026-11-08). So the lead settled e
 
 The builder decides: how uploads check the storage limit, the Cron self-call and its fallback, the order of the directory
 reserve and its undo, and the forms of the MCP discovery paths.
+
+## 12. Change of 2026-11-08 (owner): Madar enterprises is a separate platform
+
+The owner, after the first build: "Madar enterprises is a separate platform, and VADO, the current one, is one of the enterprises."
+The first build put the platform page inside the app of the companies (a line in VADO's person menu and Me tab), and made the
+platform owner a person of VADOs' Companies (call 3 of section 10). That was wrong. This section replaces 5.6, call 3, D4, and the
+platform parts of 5.19. The rest of the design stays: each company keeps its own office object, and VADO is the company `ent_001`.
+
+Owner answers (AskUserQuestion, 2026-11-08):
+- **D7. Its own address.** Madar enterprises is a separate site: its own Cloudflare Pages project `madar-platform`, its own small
+  build, its own sign-in page and its own screens. Test: `preview.madar-platform.pages.dev`. Production: `madar-platform.pages.dev`,
+  then `platform.madar.vado.sa` (a DNS record that the owner adds), and later an address on the product domain madar.sa.
+- **D8. Its own accounts.** Platform accounts belong to no company. They live in the platform object (email, name, password hash,
+  state, sessions). The owner gets one with its own email and password; more platform people can come later. His VADO account
+  stays a normal VADO account.
+
+Rules that follow (the lead):
+- **D9.** The app of the companies (madar.vado.sa, and every later company address) holds no door to the platform and no platform
+  code: no menu line, no Me tab line, no `/enterprises` route, no platform client, no `platformOwner` value in `session.get` (the field
+  stays optional in the contract and is never set). A bundle check refuses platform code in the companies' bundles.
+- **D10.** A platform token works only on the platform routes, and a company token never works there: the platform token has the
+  audience `madar-platform` and no `ent` claim; the company routes need the audience `authenticated` and an `ent` claim.
+- **D11.** VADO is a normal company on the platform: the platform can pause it like any other (the "type the name" step stays). The
+  owner list (`isOwner`, `setOwners`, the mirror in each company object, the `owner_enterprise` refusal) goes away.
+- **D12.** The prototype of the companies holds no platform part (no "Platform owner" in Preview as, no platform fakes). The
+  platform site is built only for the real copies.
+- **D13.** A platform account is made, gets a new password, or is turned off only from the Mac, with a script and the ops secret
+  (`scripts/office/platform-account.ts`); the script reads the password from a hidden prompt. No forgot or invite mail in this version.
+- **Owner steps** (outside the repo, each with the owner's OK): make the Pages project `madar-platform` with the service binding of
+  each copy (`MADAR_SERVER_TEST` on preview, `MADAR_SERVER_PRODUCTION` on production); later the DNS record of `platform.madar.vado.sa`.
