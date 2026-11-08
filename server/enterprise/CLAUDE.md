@@ -81,7 +81,7 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
   copies of `rate_limits`, `auth_users`, `auth_links`, `auth_sessions` (`serverTableSql`).
 - `listed()` and `resolveAddress` leave out an enterprise in state `creating`. `hitAddress` holds the counters of the address (`rate_limits` of the platform object, swept by `sweep`). `reserveEmail` answers `taken` for another enterprise.
   `register` (ops secret only) upserts a row in any state and reserves its emails; a conflict leaves nothing behind.
-- `PLATFORM_SCHEMA_VERSION` 1, `PLATFORM_STEPS` for later versions. A directory read costs 1 row for a hit and 0 for a miss (proof.md,
+- `PLATFORM_SCHEMA_VERSION` 3 (`mail_pool` came in step 3), `PLATFORM_STEPS` for the later versions. A directory read costs 1 row for a hit and 0 for a miss (proof.md,
   "Madar enterprises: core spikes S2 and S3").
 
 ## The Cron fan-out
@@ -176,3 +176,6 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
 - The export names the id of the object in the manifest (`ent`). `officeRestoreCheck` fails the step `enterprise` when the name and the manifest differ.
 - Limits and minutes: `docs/superpowers/real-build/proof.md`, "Madar enterprises: backups".
 - Tests: `scripts/backup/*.test.ts`, `server/entries/officeWorker.test.ts`.
+
+## Review fixes (plan D, after the review)
+- `mailReserve` refuses a ref that does not start with `<ent>:` of the call (`invalid_input`, no place, no enterprise named in the text). It looks a ref up with the `ent` too, and the insert has no `on conflict`, so a row of another enterprise under the same ref makes the call fail and the mail stops.

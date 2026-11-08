@@ -40,7 +40,7 @@ Commands: `npx vitest run server/mail` runs the unit tests. The snapshot tests a
 - Madar enterprises: a key and a `mail_log` ref start with the enterprise id (`ent_001:notice-ntf_001`, `scopedRef`, `server/enterprise/scope.ts`). A caller passes
   the plain key, and `sendCounted`, `reservePlace` and `poolPlace` add the prefix. One pool counts the mails of the whole account in the platform object
   (`server/enterprise/CLAUDE.md`, "Mail"). `poolPlace` asks it before the local transaction. A full pool is a full day for the caller. A pool that
-  throws stops the mail. With no `Deps.mailPool` (the Postgres path, the outbox driver) it answers ok.
+  throws stops the mail. The pool refuses a ref that does not start with `<ent>:` of the call (an error, no place), and it looks a ref up with the enterprise too. With no `Deps.mailPool` (the Postgres path, the outbox driver) it answers ok.
 - A place in the pool that a mail never used stays until the next UTC midnight: a skipped invitation keeps its place, and so does a renewal that a person limit refuses.
 - On SQLite (the office object) the quota has no mail lock, because the object runs one request at a time: one count and one
   insert in the caller's transaction, with the UTC day from the caller's clock (the `_LITE` constants in `quota.ts`). A mail of

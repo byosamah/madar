@@ -27,7 +27,8 @@ export function noticeShareOf(limit: number, share: number): number {
 }
 
 /**
- * A place for one mail, in the transaction of the caller. A ref that holds a place today answers ok and adds nothing. A sign-in place
+ * A place for one mail, in the transaction of the caller. A ref must start with `<ent>:` (else invalid_input, no place). A ref that
+ * holds a place of this enterprise today answers ok and adds nothing. A sign-in place
  * is full at limit minus 2. A notice place is full at 90 percent of the limit, and for an enterprise except ENT_VADO also when the
  * enterprise holds its share of the notice places (design 5.14). The call writes only when it adds a place.
  */
@@ -37,7 +38,9 @@ export async function mailReserve(q: Query, input: MailPoolInput, o: { limit: nu
   if (kind !== 'signin' && kind !== 'notice') throw new ApiError('invalid_input', 'The kind of a mail place is signin or notice.');
   if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day))) throw new ApiError('invalid_input', 'The day is YYYY-MM-DD.');
   if (typeof ref !== 'string' || ref === '' || ref.length > REF_MAX_CHARS) throw new ApiError('invalid_input', 'The ref of a mail place is a short text.');
-  const [held] = await q<{ n: number }>('select count(*) as n from mail_pool where day = ?1 and ref = ?2', [day, ref]);
+  // The ref of a mail starts with the enterprise of the call (scopedRef). The text names no enterprise.
+  if (!ref.startsWith(`${ent}:`) || ref.length === ent.length + 1) throw new ApiError('invalid_input', 'The ref of a mail place is not valid.');
+  const [held] = await q<{ n: number }>('select count(*) as n from mail_pool where day = ?1 and ref = ?2 and ent = ?3', [day, ref, ent]);
   if (Number(held?.n ?? 0) > 0) return 'ok';
   const [total] = await q<{ n: number; mine: number }>(
     "select count(*) as n, coalesce(sum(case when ent = ?2 and kind = 'notice' then 1 else 0 end), 0) as mine from mail_pool where day = ?1", [day, ent]);
@@ -50,6 +53,7 @@ export async function mailReserve(q: Query, input: MailPoolInput, o: { limit: nu
   }
   const cutoff = new Date(Date.parse(day) - KEEP_DAYS * DAY_MS).toISOString().slice(0, 10);
   await q('delete from mail_pool where day < ?1', [cutoff]);
-  await q('insert into mail_pool (day, ref, kind, ent) values (?1, ?2, ?3, ?4) on conflict (day, ref) do nothing', [day, ref, kind, ent]);
+  // No "on conflict": the lookup found no row of this enterprise, so a conflict is a row of another enterprise. The call fails.
+  await q('insert into mail_pool (day, ref, kind, ent) values (?1, ?2, ?3, ?4)', [day, ref, kind, ent]);
   return 'ok';
 }
