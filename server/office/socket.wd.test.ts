@@ -43,6 +43,20 @@ describe('the live sockets of the office object on local workerd', () => {
     socket.ws.close();
   });
 
+  it('opens with the tagged ticket of its own enterprise, and refuses the same ticket with another tag (Madar enterprises)', async () => {
+    await live.fresh(await seedOf());
+    const ticket = await ticketOf('usr_002');
+    expect(ticket).toMatch(/^ent_001\.[0-9a-f]{64}$/);
+    // The platform does not list ent_002 here, so the Worker refuses the tag before any object is made.
+    await expect(live.open(ticket.replace('ent_001.', 'ent_002.')).opened).rejects.toThrow();
+    // The bare secret has no tag: no fallback.
+    await expect(live.open(ticket.split('.')[1]).opened).rejects.toThrow();
+    // The ticket itself was not used by the refusals above.
+    const socket = live.open(ticket);
+    await socket.opened;
+    socket.ws.close();
+  });
+
   it('never sends an office task change to an outsider socket', async () => {
     await live.fresh(await seedOf());
     const [maker, lead, admin, outsider] = await Promise.all(['usr_002', 'usr_003', 'usr_001', 'usr_008'].map((id) => socketOf(id)));

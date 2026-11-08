@@ -127,7 +127,8 @@ const agentsRemove = {
  */
 const liveTicket = {
   input: Empty,
-  output: z.object({ ticket: z.string().regex(/^[0-9a-f]{64}$/), expiresAt: z.string().min(1) }),
+  // Madar enterprises: the ticket of an office object is tagged <ent>.<64 hex>. The bare form stays for the older Worker and the prototype.
+  output: z.object({ ticket: z.string().regex(/^(ent_\d{3,}\.)?[0-9a-f]{64}$/), expiresAt: z.string().min(1) }),
   readOnly: true,
 };
 

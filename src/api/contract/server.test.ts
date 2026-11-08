@@ -25,3 +25,15 @@ describe('the file types of the upload calls', () => {
     }
   });
 });
+
+describe('the output of live.ticket (Madar enterprises)', () => {
+  const parse = (ticket: string) => serverContracts['live.ticket'].output.safeParse({ ticket, expiresAt: '2026-11-08T08:00:00.000Z' }).success;
+
+  it('accepts the tagged and the bare form of a ticket, and nothing else', () => {
+    const hex = 'a'.repeat(64);
+    expect(parse(`ent_001.${hex}`)).toBe(true);
+    expect(parse(`ent_1234.${hex}`)).toBe(true);
+    expect(parse(hex)).toBe(true);
+    for (const bad of [`ent_01.${hex}`, `ENT_001.${hex}`, `ent_001.${'a'.repeat(63)}`, `ent_001.${hex}.x`, '']) expect(parse(bad), bad).toBe(false);
+  });
+});

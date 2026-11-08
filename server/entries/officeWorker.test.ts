@@ -6,6 +6,7 @@ import type { OfficeMcpInput } from '../office/parts';
 import { recordingNet } from '../office/test/fakes';
 import { fakeDeps, testConfig } from '../test/fakes/deps';
 import { clientAddress } from '../auth/forgot';
+import { TICKET_REFUSE_MIN_MS, TICKET_REFUSED } from '../office/live';
 import { hasOfficeBinding, LIVE_PATH, OFFICE_NAME, OFFICE_OPS_PREFIX, officeRoutes, servesOffice, type OfficeCall, type OfficeRoute, type OfficeStub } from './officeWorker';
 
 const STATUS = { ent: 'ent_001', people: 0, invited: 0, storageBytes: 0, lastWriteAt: null, day: { requests: 0, rowsRead: 0, rowsWritten: 0, mails: 0 }, name: '', nameAr: '' };
@@ -17,7 +18,7 @@ const ANSWER = '{"v":1,"serverTime":"2026-10-04T09:00:00.000+03:00","results":[]
 
 function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: OfficeStub['mcp'] } = {}) {
   const deps = fakeDeps();
-  const seen = { batch: [] as { input: OfficeBatchInput; net: NetApi }[], effects: [] as { ids: string[]; worker: number; net: NetApi }[], fetches: [] as Request[], health: 0, cron: [] as unknown[], signins: [] as { signin: string; input: unknown }[], mcps: [] as { input: OfficeMcpInput; net: NetApi }[] };
+  const seen = { batch: [] as { input: OfficeBatchInput; net: NetApi }[], effects: [] as { ids: string[]; worker: number; net: NetApi }[], fetches: [] as Request[], health: 0, cron: [] as unknown[], signins: [] as { signin: string; input: unknown }[], mcps: [] as { input: OfficeMcpInput; net: NetApi }[], created: [] as string[], sleeps: [] as number[] };
   const stub: OfficeStub = {
     batch: o.batch ?? (async (input, net) => (seen.batch.push({ input, net }), { ok: true, body: ANSWER, later: [] })),
     runEffects: async (input, net) => (seen.effects.push({ ...input, net }), { done: input.ids.length, failed: 0 }),
@@ -37,10 +38,11 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: O
       if (header !== 'Bearer good') throw new ApiError('unauthenticated', 'Sign in again.');
       return { authUserId: 'auth-1' };
     },
-    stubFor: () => stub,
+    stubFor: (_env, ent) => (seen.created.push(ent), stub),
     platform: () => PLATFORM as never,
     net: () => net,
     jobsSecret: () => 'jobs-secret',
+    sleep: async (ms) => void seen.sleeps.push(ms),
     ...(o.routes ? { routes: o.routes } : {}),
   });
   const post = (headers: Record<string, string>, body = BODY, ctx?: { waitUntil(work: Promise<unknown>): void }) =>
@@ -184,9 +186,41 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
 
   it('hands a socket upgrade with a ticket of the right shape to the office object, and gives its answer back as it is', async () => {
     const { seen, get } = setup();
-    const answer = await get(`${LIVE_PATH}?ticket=${TICKET}`, { upgrade: 'websocket' });
+    const answer = await get(`${LIVE_PATH}?ticket=ent_001.${TICKET}`, { upgrade: 'websocket' });
     expect(answer.status).toBe(101);
     expect(seen.fetches).toHaveLength(1);
+  });
+
+  it('a ticket with a bad shape or an unlisted tag gets TICKET_REFUSED, waits the minimum time and makes no stub', async () => {
+    const { seen, get } = setup();
+    const bad = [`${TICKET}`, `ent_009.${TICKET}`, `ENT_001.${TICKET}`, `ent_001.${'a'.repeat(63)}`, `ent_001.${TICKET}.x`, `ent_001.${'a'.repeat(5000)}`, 'abc', ''];
+    const answers: string[] = [];
+    for (const ticket of bad) {
+      const answer = await get(`${LIVE_PATH}?ticket=${ticket}`, { upgrade: 'websocket' });
+      expect(answer.status, ticket.slice(0, 20)).toBe(401);
+      answers.push(await answer.text());
+    }
+    expect(new Set(answers).size).toBe(1);
+    expect(answers[0]).toContain(TICKET_REFUSED.message);
+    expect(seen.sleeps).toHaveLength(bad.length);
+    for (const wait of seen.sleeps) expect(wait).toBeGreaterThan(TICKET_REFUSE_MIN_MS - 20);
+    expect(seen.created).toEqual([]);
+    expect(seen.fetches).toEqual([]);
+  });
+
+  it('a listed tag reaches that object', async () => {
+    const { seen, get } = setup();
+    expect((await get(`${LIVE_PATH}?ticket=ent_002.${TICKET}`, { upgrade: 'websocket' })).status).toBe(101);
+    expect(seen.created).toEqual(['ent_002']);
+  });
+
+  it('a refusal of the object waits the minimum time too', async () => {
+    const { seen, get, stub } = setup();
+    stub.fetch = async () => new Response('{"v":1,"error":{"code":"unauthenticated","message":"x"}}', { status: 401 });
+    const answer = await get(`${LIVE_PATH}?ticket=ent_001.${TICKET}`, { upgrade: 'websocket' });
+    expect(answer.status).toBe(401);
+    expect(await answer.text()).toContain(TICKET_REFUSED.message);
+    expect(seen.sleeps).toHaveLength(1);
   });
 
   it('counts every request it saw in the next office object call', async () => {

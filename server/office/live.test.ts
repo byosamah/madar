@@ -5,6 +5,7 @@ import { readLiteOffice } from '../data/lite/office';
 import { liteSave } from '../data/lite/save';
 import { freshLite } from '../data/lite/testDb';
 import { liteWriteState } from '../data/lite/whole';
+import { ENT_VADO, tagged } from '../enterprise/ids';
 import { CLOSE_OFF, CLOSE_STALE, LIVE_STALE_MS, LiveTickets, TICKET_CAP, TICKET_MS, acceptLive, closeOff, liveSignals, sweep } from './live';
 import { PRESENCE_EVENT, officeStates, officeTyping, socketClosed, stateMessage } from './presence';
 import { fakeSockets, openFor, type FakeSocket } from './test/fakes';
@@ -22,8 +23,8 @@ async function liveOffice() {
   await lite.db.tx('write', (q) => liteWriteState(q, seed));
   const sockets = fakeSockets();
   const port = liveSignals({ sockets, log: silent, now: () => NOW, staleMs: LIVE_STALE_MS });
-  const tickets = new LiveTickets();
-  const accept = (request: Request, at = NOW) => acceptLive({ sockets, tickets, office: () => lite.db.tx('read', (q) => readLiteOffice(lite.db, q)), now: () => at }, request);
+  const tickets = new LiveTickets(() => ENT_VADO);
+  const accept = (request: Request, at = NOW) => acceptLive({ sockets, tickets, office: () => lite.db.tx('read', (q) => readLiteOffice(lite.db, q)), now: () => at, ent: () => ENT_VADO }, request);
   return { ...lite, seed, sockets, port, tickets, accept };
 }
 
@@ -101,6 +102,37 @@ describe('the live tickets', () => {
     expect((await accept(upgrade(ticket))).status).toBe(401);
     const old = tickets.mint('usr_005', NOW).ticket;
     expect((await accept(upgrade(old), later(TICKET_MS + 1))).status).toBe(401);
+  });
+
+  it('mint gives ent_001.<64 hex>, and take of the bare secret works once', async () => {
+    const { tickets } = await liveOffice();
+    const { ticket } = tickets.mint('usr_005', NOW);
+    expect(ticket).toMatch(/^ent_001\.[0-9a-f]{64}$/);
+    const secret = ticket.split('.')[1];
+    expect(tickets.take(secret, NOW)).toEqual({ userId: 'usr_005' });
+    expect(tickets.take(secret, NOW)).toBeUndefined();
+    // The map keeps the bare secret: the tagged text opens nothing at this level.
+    const second = tickets.mint('usr_005', NOW).ticket;
+    expect(tickets.take(second, NOW)).toBeUndefined();
+  });
+
+  it('a ticket with the tag of another enterprise is refused, and the ticket still works for its own enterprise', async () => {
+    const { tickets, accept } = await liveOffice();
+    const { ticket } = tickets.mint('usr_005', NOW);
+    const other = tagged('ent_002', ticket.split('.')[1]);
+    expect((await accept(upgrade(other))).status).toBe(401);
+    expect((await accept(upgrade(ticket))).status).toBe(101);
+  });
+
+  it('an untagged 64-hex ticket is refused with the answer of a random ticket, and its ticket still opens when tagged', async () => {
+    const { tickets, accept } = await liveOffice();
+    const { ticket } = tickets.mint('usr_005', NOW);
+    const bare = ticket.split('.')[1];
+    const untagged = await accept(upgrade(bare));
+    const random = await accept(upgrade(tagged('ent_001', 'f'.repeat(64))));
+    expect([untagged.status, await untagged.text()]).toEqual([random.status, await random.text()]);
+    expect(untagged.status).toBe(401);
+    expect((await accept(upgrade(ticket))).status).toBe(101);
   });
 
   it('refuses a forged, a used and an old ticket with the same answer, which names no person', async () => {

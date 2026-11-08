@@ -8,10 +8,11 @@ import { errorResponse, runErrorOf } from '../http/errors';
 import { checkBuild, parseBatch, readBody } from '../http/limits';
 import { JOBS_SECRET_HEADER, sameSecret } from '../jobs/app';
 import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
-import { TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
+import { TICKET_REFUSE_MIN_MS, TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
 import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn } from '../office/ops';
 import { runFanout, selfTransport } from '../enterprise/fanout';
-import { ENT_VADO, type EnterpriseId } from '../enterprise/ids';
+import { ENT_VADO, untag, type EnterpriseId } from '../enterprise/ids';
+import { padTo } from '../enterprise/pad';
 import type { PlatformStub } from '../enterprise/platform/stub';
 import { entRouter, newListedCache, type EntRouter } from '../enterprise/router';
 import type { EnterpriseStatus } from '../enterprise/types';
@@ -114,6 +115,8 @@ export type OfficeRoutesOptions = {
   routes?: OfficeRoute[];
   /** The object of an op by its name (the office of the copy, or a spare object of the rehearsal). Default: the object of ENT_VADO. */
   stubOf?: (env: Env, name: string) => Pick<OfficeStub, 'fetch'>;
+  /** The timer of the minimum answer time of a refused ticket. Default: setTimeout. A test records the waits here. */
+  sleep?: (ms: number) => Promise<void>;
   /** MADAR_EXPORT_SECRET: the nightly export of GitHub. */
   exportSecret?: () => string | undefined;
   /** MADAR_OPS_SECRET: the import, the peek and the drop from the Mac. */
@@ -142,6 +145,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   const { log } = o.deps;
   // The list of enterprises and the resolved addresses live as long as the isolate, so most requests read no platform object.
   const listedCache = newListedCache();
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const routerOf = (env: Env): EntRouter => entRouter({ stubFor: (ent) => o.stubFor(env, ent), platform: o.platform(env), cache: listedCache });
   let seen = 0;
   const reported = (): number => {
@@ -246,12 +250,24 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     }
   }
 
+  /**
+   * The socket (Madar enterprises): the ticket is <ent>.<secret>. The shape and the listed tag come first; a ticket that fails here, or in
+   * the object, gets the one refusal after the same minimum time, and a failure here makes no object.
+   */
   async function live(request: Request, env: Env): Promise<Response> {
     if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response('This address needs a WebSocket.', { status: 426 });
-    if (!TICKET_SHAPE.test(new URL(request.url).searchParams.get('ticket') ?? '')) return errorResponse(TICKET_REFUSED);
+    const started = performance.now();
+    const refused = async (): Promise<Response> => {
+      await padTo(started, TICKET_REFUSE_MIN_MS, sleep);
+      return errorResponse(TICKET_REFUSED);
+    };
+    const ticket = new URL(request.url).searchParams.get('ticket') ?? '';
+    if (!TICKET_SHAPE.test(ticket)) return refused();
+    const target = await routerOf(env).listedStub(untag(ticket)?.ent);
+    if (!target) return refused();
     try {
-      // Task 11 reads the enterprise from the tag of the ticket; until then a socket serves ENT_VADO.
-      return await routerOf(env).stub(ENT_VADO).fetch(request);
+      const response = await target.stub.fetch(request);
+      return response.status === 401 ? await refused() : response;
     } catch (error) {
       return errorResponse(officeErrorOf(error, log));
     }

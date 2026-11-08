@@ -2,7 +2,7 @@ import { ApiError } from '../../../../src/api/errors';
 import { emptyState } from '../../../../src/api/store';
 import { consoleLogger } from '../../../core/deps';
 import { officeRoutes, type OfficeStub } from '../../../entries/officeWorker';
-import { ENT_VADO, PLATFORM_OBJECT } from '../../../enterprise/ids';
+import { ENT_VADO, PLATFORM_OBJECT, VADO_ADDRESS } from '../../../enterprise/ids';
 import type { PlatformStub } from '../../../enterprise/platform/stub';
 import { setEnvSource } from '../../../env';
 import { testConfig } from '../../../test/fakes/deps';
@@ -57,7 +57,18 @@ export default {
     const { pathname } = new URL(request.url);
     if (pathname === '/test/net') return Response.json({ files: files.calls, mails: mail.sent, pushes });
     if (pathname === '/test/seed') {
-      await stubOf(env, new URL(request.url).searchParams.get('ent') ?? ENT_VADO).seed(await request.json());
+      const ent = new URL(request.url).searchParams.get('ent') ?? ENT_VADO;
+      await stubOf(env, ent).seed(await request.json());
+      // VADOs' Companies is listed by the platform, as in production: the Worker finds a socket ticket and an MCP address through the list.
+      if (ent === ENT_VADO) {
+        await platformOf(env).register({
+          row: {
+            id: ENT_VADO, address: VADO_ADDRESS, name: "VADOs' Companies", nameAr: 'شركات فادو', state: 'active', limits: { people: null, storageBytes: null },
+            createdAt: '2026-11-08T08:00:00.000Z', firstAdmin: { name: 'First Admin', email: 'first-admin@vado.test' },
+          },
+          emails: [],
+        });
+      }
       return Response.json({ ok: true });
     }
     if (pathname === '/test/platform') {

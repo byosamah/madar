@@ -30,7 +30,7 @@ import { JOBS_LAST_RUN_SQL } from '../jobs/steps/heartbeat';
 import { capRefusal, DAY_CAP_TTL_MS, dayCapOf } from './cap';
 import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type OfficeBatchInput, type OfficeBatchOutput } from './batch';
 import { runOfficeJobs } from './jobs';
-import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
+import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, TICKET_REFUSED, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
 import { EnterpriseGate } from '../enterprise/gate';
 import { runMailRoute } from '../enterprise/mailRoute';
@@ -159,7 +159,7 @@ export function officeParts(o: PartsInput): OfficeParts {
   const clock = o.clock ?? { now: () => new Date() };
   const log = o.log ?? consoleLogger();
   const meter = new OfficeMeter(o.host);
-  const tickets = new LiveTickets();
+  const tickets = new LiveTickets(() => gate.id());
   const hold = new OfficeHold();
   const gate = new EnterpriseGate(db, o.name ? { name: o.name } : {});
   // The test tools (the peek route; the replace mode of the import, Task 10): MADAR_TEST_TOOLS = "on", never on production.
@@ -461,8 +461,11 @@ export function officeParts(o: PartsInput): OfficeParts {
       return { status: response.status, headers: [...response.headers], body: await response.text(), later };
     },
     async socket(request) {
+      // An object that was never made, and a paused object, take no socket: the same refusal as a ticket that does not open.
+      const row = await gate.load();
+      if (!row || row.state === 'paused') return errorResponse(TICKET_REFUSED);
       meter.request();
-      return acceptLive({ sockets: o.sockets, tickets, office, now: () => clock.now() }, request);
+      return acceptLive({ sockets: o.sockets, tickets, office, now: () => clock.now(), ent: () => gate.id() }, request);
     },
     message(socket, message) {
       // The runtime answers "ping" itself (setWebSocketAutoResponse). This covers a ping that reaches the object while it is awake.
