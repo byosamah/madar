@@ -185,15 +185,24 @@ export type Deps = {
    */
   pushFetch?: typeof globalThis.fetch;
   /**
-   * The fetch of a Google call (server/google/api.ts). Tests pass a stub, so no test reaches Google. Left out on every host: the
-   * calls then use the global fetch. The office path has no Google yet (docs/superpowers/real-build/exit-handoff.md).
+   * The fetch of a Google call (server/google/api.ts). Tests pass a stub, so no test reaches Google. Left out on the Postgres hosts: the
+   * calls then use the global fetch. The office object sets it from its network port (`NetApi.googleFetch`, server/office/net.ts), so
+   * the request leaves from the Worker.
    */
   googleFetch?: typeof globalThis.fetch;
   /**
-   * The fetch of a Daftra call (server/daftra/client.ts). Tests pass a stub, so no test reaches Daftra. Left out on every host: the
-   * client then uses the global fetch. The office path has no Daftra yet (server/daftra/CLAUDE.md).
+   * The fetch of a Daftra call (server/daftra/client.ts). Tests pass a stub, so no test reaches Daftra. Left out on the Postgres hosts:
+   * the client then uses the global fetch. The office object sets it from its network port (`NetApi.daftraGet`): it sends the address
+   * only, and the Worker adds the key.
    */
   daftraFetch?: typeof globalThis.fetch;
+  /**
+   * The office object only: effect rows that a server call wrote with writeOutbox. They run after the answer, as the rows of a shared
+   * call (server/calls/google.ts). Left out on the other hosts: the server call then runs its rows with `processOutbox` itself.
+   */
+  later?: (ids: string[], kinds: string[]) => void;
+  /** The office object only: the run of the internal call payments.daftraPaid (server/daftra/paidCall.ts) on the SQLite data. */
+  daftraRun?: RunCall;
   /** The typing signals. Left out where the host has no sender (the office object gets its own): chats.typing then tells nobody. */
   typing?: TypingPort;
   /** The live socket tickets. Only the office object has them; live.ticket answers not_found without them. */
