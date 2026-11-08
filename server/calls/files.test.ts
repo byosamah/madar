@@ -107,7 +107,7 @@ describe('files.uploadStart', () => {
     deps.files.objects.set(`up/${part}/thumb`, { size: 300, mimeType: 'image/jpeg' });
     const upload = { projectId: 'prj_001', uploadId: output.uploadId, name: 'IMG_0412.jpg', stageId: null, taskId: null, asCover: false, receivedFromClient: false };
     expect(await filesUploadHooks.preflight!(upload, { actorId: 'usr_002', now: NOW, deps })).toEqual({
-      blobKey: `prj-001/${part}/file`, size: 1200, mimeType: 'image/jpeg', thumbKey: `prj-001/${part}/thumb`,
+      blobKey: `prj-001/${part}/file`, size: 1200, mimeType: 'image/jpeg', thumbKey: `prj-001/${part}/thumb`, thumbSize: 300,
     });
   });
 
@@ -233,7 +233,7 @@ describe('the server hooks of files.upload', () => {
     const { deps } = await withIntent({ thumbKey: 'prj-001/upl-a/thumb' });
     deps.files.objects.set('up/upl-a/file', { size: 12, mimeType: 'application/pdf' });
     deps.files.objects.set('up/upl-a/thumb', { size: 300, mimeType: 'image/webp' });
-    expect(await filesUploadHooks.preflight!(UPLOAD, hookCtx(deps))).toEqual({ blobKey: 'prj-001/upl-a/file', size: 12, mimeType: 'application/pdf', thumbKey: 'prj-001/upl-a/thumb' });
+    expect(await filesUploadHooks.preflight!(UPLOAD, hookCtx(deps))).toEqual({ blobKey: 'prj-001/upl-a/file', size: 12, mimeType: 'application/pdf', thumbKey: 'prj-001/upl-a/thumb', thumbSize: 300 });
     expect([...deps.files.objects.keys()].sort()).toEqual(['prj-001/upl-a/file', 'prj-001/upl-a/thumb']);
   });
 

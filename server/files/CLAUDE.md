@@ -33,6 +33,8 @@ needs MinIO (`server/it/minio.ts`; CI starts it in `ci-stack.yml`).
 
 ## Upload flow
 1. `files.uploadStart` (or `feedback.uploadStart`) writes one upload intent and gives a signed upload link (`intents.ts`).
+   On an office object with a storage limit, `files.uploadStart` counts the open intents too, and the `prepare` of `files.upload` checks the room again inside the lock
+   (`server/enterprise/storage.ts`). `confirmThumb` gives the stored size of the small picture, or null.
 2. The browser uploads to a staging key (`up/<intent>/file`, `up/<intent>/thumb`). Storage upload links never upsert. On R2
    a second PUT to a staging key replaces the staged object: the head of the final key after the copy is the guard on both
    stores (`confirm.ts`). It sends the PUT of the small picture together with the PUT of the file, and `files.upload` goes

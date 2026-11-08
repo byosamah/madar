@@ -136,12 +136,12 @@ describe('confirmThumb', () => {
   it('takes an inline-safe picture of 10 MB or less', async () => {
     const files = fakeFiles();
     files.objects.set(THUMB_STAGING, { size: 300, mimeType: 'image/webp' });
-    expect(await thumb(files)).toBe(true);
+    expect(await thumb(files)).toBe(300);
     expect([...files.objects.keys()]).toEqual([THUMB_FINAL]);
   });
 
   it('gives no thumb when none arrived', async () => {
-    expect(await thumb(fakeFiles())).toBe(false);
+    expect(await thumb(fakeFiles())).toBeNull();
   });
 
   it('refuses a thumb that is not an inline-safe picture, or too big, and removes it', async () => {

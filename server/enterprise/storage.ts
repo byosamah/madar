@@ -32,17 +32,35 @@ export async function storageUsed(db: Pick<Db, 'statement'>): Promise<number> {
   return Number(row?.storage_bytes ?? 0);
 }
 
+/** The bytes of the open uploads of files: not used, not ended. The screenshots of reports (keys under feedback/) are not counted, as the running total does not count them. */
+const OPEN_INTENTS_LITE = "select coalesce(sum(size), 0) as n from upload_intents where used_at is null and expires_at > ?1 and key not like 'feedback/%'";
+
 /**
- * Refuses a file that goes above the limit: a size equal to the room passes, one byte more fails. null, and an object with no facts (the
- * Postgres path), never refuse.
+ * Refuses a file that goes above the limit: a size equal to the room passes, one byte more fails. size is the file and its small picture.
+ * With now, the bytes of the open uploads count too (the start of an upload), so many starts one after the other cannot hold more room than
+ * exists. null, and an object with no facts (the Postgres path), never refuse.
  */
-export async function assertStorageRoom(deps: Pick<Deps, 'db' | 'enterprise'>, size: number): Promise<void> {
+export async function assertStorageRoom(deps: Pick<Deps, 'db' | 'enterprise'>, size: number, o: { now?: Date } = {}): Promise<void> {
   const limit = deps.enterprise?.limits().storageBytes ?? null;
   if (limit === null) return;
-  if ((await storageUsed(deps.db)) + size > limit) {
-    throw new ApiError('conflict', 'Your company has no more room for files. Ask the Madar team to raise the limit.', { reason: 'storage_limit', limit });
+  let open = 0;
+  if (o.now) {
+    const [row] = await deps.db.statement<{ n: number }>('read', OPEN_INTENTS_LITE, [o.now.toISOString()]);
+    open = Number(row?.n ?? 0);
   }
+  if ((await storageUsed(deps.db)) + open + size > limit) throw storageLimitError(limit);
 }
+
+/** The same refusal inside the write lock, for the save of a file (files.upload): the running total plus the new bytes. */
+export async function assertStorageRoomInLock(q: Query, enterprise: Deps['enterprise'], size: number): Promise<void> {
+  const limit = enterprise?.limits().storageBytes ?? null;
+  if (limit === null) return;
+  const [row] = await q<{ storage_bytes: number }>('select storage_bytes from enterprise_use where id = 1');
+  if (Number(row?.storage_bytes ?? 0) + size > limit) throw storageLimitError(limit);
+}
+
+const storageLimitError = (limit: number) =>
+  new ApiError('conflict', 'Your company has no more room for files. Ask the Madar team to raise the limit.', { reason: 'storage_limit', limit });
 
 /** settings.get for the Admin: the numbers behind the read-only lines of the Office settings (src/api/handlers/people.ts, settingsGet). */
 export const settingsGetHooks: ServerHooks<unknown, unknown, Deps> = {

@@ -58,8 +58,11 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
   `users.create` and `users.reactivate` (`server/calls/peopleHooks.ts`) gives the early, calm refusal. The real check is in the write step of
   `runCall` (`assertPeopleWithinLimit`, `server/core/peopleLimit.ts`): after the save and inside the lock, for every write call, it refuses with
   `people_limit` when the call turned more people on than off and the count is above the limit, so an Undo or an Undo story of a turn-off or of a
-  remove cannot go above the limit. A call that adds nobody never fails there. No facts (the Postgres path) means no check. The storage limit is `assertStorageRoom` in `files.uploadStart`, with a running
-  total in `enterprise_use` (`storage.ts`). The email directory is the preflight and settle of the people hooks (`server/calls/peopleHooks.ts`,
+  remove cannot go above the limit. A call that adds nobody never fails there. No facts (the Postgres path) means no check. The storage limit has two steps. `assertStorageRoom` in `files.uploadStart` counts the running total in `enterprise_use`, the bytes of
+  the open, unused, unexpired file uploads (`upload_intents`, not the screenshots of reports) and this file with its small picture. The real check is
+  `assertStorageRoomInLock` in the `prepare` of `files.upload` (`server/calls/files.ts`): inside the lock it counts the running total plus this file and
+  its small picture (`thumbSize`, from the preflight), because many starts at once each pass the first check. The running total (`storage.ts`) counts
+  version sizes only, never the small pictures. The email directory is the preflight and settle of the people hooks (`server/calls/peopleHooks.ts`,
   `directory.ts`, `NetApi.directoryReserve`). The settle step makes the directory equal to the rows: after the commit it re-reads the rows, and
   the row of the target counts as a holder. It frees the reserved email when no row holds it, and the old email after a first answer only
   (`outcome.replayed` is true for a stored answer of an idempotency key). `users.remove` frees the email only when the row is removed now.

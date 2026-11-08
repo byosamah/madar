@@ -6,7 +6,7 @@ import { can, taskResource } from '../../src/api/permissions';
 import type { ServerHooks } from '../../src/api/registry';
 import type { State } from '../../src/api/store';
 import type { Deps } from '../core/ports';
-import { assertStorageRoom } from '../enterprise/storage';
+import { assertStorageRoom, assertStorageRoomInLock } from '../enterprise/storage';
 import type { BatchScope, Principal, ServerCall } from '../core/types';
 import { confirmThumb, confirmUpload, fileTooLarge } from '../files/confirm';
 import { projectBlobKeys, removeNowOrLater, stashProjectKeys } from '../files/effects';
@@ -76,7 +76,8 @@ export const filesUploadStart: ServerCall<'files.uploadStart'> = async (input, c
   const limit = fileLimit(deps, input);
   if (input.size > limit) throw fileTooLarge('size', limit);
   // The storage limit of the enterprise (plan C): a size equal to the room passes, one byte more fails.
-  await assertStorageRoom(deps, input.size);
+  // The file, its small picture and the open uploads of other starts count against the room.
+  await assertStorageRoom(deps, input.size + (input.thumb?.size ?? 0), { now });
   if (input.thumb && !isPictureType(input.thumb.mimeType)) throw invalid('thumb', 'The small picture must be a PNG, JPEG, GIF, WebP or AVIF picture.');
 
   const id = newUploadId();
@@ -175,7 +176,7 @@ type UploadInput = { projectId?: string; uploadId: string; taskId?: string | nul
  * gives run() the final key, the size, the declared type and the small picture.
  */
 export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
-  async preflight(input, { actorId, now, deps }): Promise<UploadPrepared> {
+  async preflight(input, { actorId, now, deps }): Promise<UploadPrepared & { thumbSize?: number }> {
     const { projectId, uploadId, taskId, conversationId, meetingId, resources } = input as UploadInput;
     // No project: the intent must be one of the meeting the call names (wave 2), of the chat it names (owner, 2026-10-19), or of the office task it names (owner, 2026-10-06).
     const place = resources === true ? { projectId: null, resources: true }
@@ -188,12 +189,16 @@ export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
     if (intent.usedAt !== null) return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(intent.thumbKey ? { thumbKey: intent.thumbKey } : {}) };
     const remove = (keys: string[]) => removeNowOrLater(deps, keys);
     await confirmUpload(deps.files, { staging: intent.stagingKey, final: intent.key, field: 'uploadId', want: intent, maxBytes: fileLimit(deps, { projectId, conversationId, meetingId, resources }), remove });
-    const thumb = intent.thumbKey !== null && (await confirmThumb(deps.files, { staging: stagingThumbKey(intent.id), final: intent.thumbKey, field: 'uploadId', remove }));
-    return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(thumb && intent.thumbKey ? { thumbKey: intent.thumbKey } : {}) };
+    const thumbSize = intent.thumbKey !== null ? await confirmThumb(deps.files, { staging: stagingThumbKey(intent.id), final: intent.thumbKey, field: 'uploadId', remove }) : null;
+    return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(thumbSize !== null && intent.thumbKey ? { thumbKey: intent.thumbKey, thumbSize } : {}) };
   },
-  async prepare(input, { actorId, now, q }, preflight): Promise<UploadPrepared> {
+  async prepare(input, { actorId, now, deps, q }, preflight): Promise<UploadPrepared> {
     await useIntents(q, [(input as UploadInput).uploadId], actorId, now);
-    return preflight as UploadPrepared;
+    // The storage limit again, inside the lock: many starts at once each passed the first check. The running total plus this file and its
+    // small picture must fit. An ended or refused save rolls back with the intent still open.
+    const prepared = preflight as UploadPrepared & { thumbSize?: number };
+    await assertStorageRoomInLock(q, deps.enterprise, prepared.size + (prepared.thumbSize ?? 0));
+    return prepared;
   },
 };
 
