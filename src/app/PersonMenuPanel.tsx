@@ -127,6 +127,13 @@ export function PersonMenuPanel({ id, anchor, onClose, onLeave, onFeedback }: Pe
               {session?.authority.systemRole === 'admin' ? t('nav.admin') : t('adminPage.officeTitle')}
             </Link>
           )}
+          {/* The platform page of Madar enterprises: only a platform owner sees the line (session.platformOwner). It sits under the Admin line. */}
+          {session?.platformOwner === true && (
+            <Link to="/enterprises" onClick={onClose} className={row}>
+              <AnimatedIcon icon={ShieldCheckIcon} size={18} className="text-ink-2" aria-hidden />
+              {t('enterprises.title')}
+            </Link>
+          )}
           <Link to="/settings" onClick={onClose} className={row}>
             <AnimatedIcon icon={SettingsIcon} size={18} className="text-ink-2" aria-hidden />
             {t('nav.settings')}
