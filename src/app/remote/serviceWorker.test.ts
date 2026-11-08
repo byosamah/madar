@@ -13,7 +13,9 @@ const source = readFileSync('public/sw.js', 'utf8');
 type Listener = (event: Record<string, unknown>) => void;
 type Client = { url: string; focus: ReturnType<typeof vi.fn>; visibilityState?: string; focused?: boolean };
 
-function load(o: { language?: string; clients?: Client[]; userAgent?: string; matchAll?: () => Promise<Client[]> } = {}) {
+type CacheLike = { open: (name: string) => Promise<{ match: (key: string) => Promise<{ json: () => Promise<unknown> } | undefined> }> };
+
+function load(o: { language?: string; clients?: Client[]; userAgent?: string; matchAll?: () => Promise<Client[]>; caches?: CacheLike; setTimeout?: typeof setTimeout } = {}) {
   const listeners = new Map<string, Listener>();
   const shown: { title: string; options: Record<string, unknown> }[] = [];
   const opened: string[] = [];
@@ -27,8 +29,9 @@ function load(o: { language?: string; clients?: Client[]; userAgent?: string; ma
       claim: vi.fn(async () => undefined),
     },
     skipWaiting: vi.fn(async () => undefined),
+    ...(o.caches ? { caches: o.caches } : {}),
   };
-  const context = vm.createContext({ self, Promise, String });
+  const context = vm.createContext({ self, Promise, String, setTimeout: o.setTimeout ?? setTimeout });
   vm.runInContext(source, context);
   const fire = async (type: string, event: Record<string, unknown> = {}) => {
     const waits: Promise<unknown>[] = [];
@@ -267,3 +270,64 @@ describe('public/sw.js: no notice for a person who looks at Madar', () => {
     expect(worker.self.clients.matchAll).toHaveBeenCalledWith({ type: 'window', includeUncontrolled: true });
   });
 });
+
+describe('public/sw.js: the name of the enterprise in the fixed line (Madar enterprises, plan C)', () => {
+  const cacheWith = (value: unknown): CacheLike => ({
+    open: async () => ({ match: async () => (value === undefined ? undefined : { json: async () => value }) }),
+  });
+
+  it('shows the name in the English and in the Arabic fixed line, and keeps the title Madar', async () => {
+    const en = load({ language: 'en-US', caches: cacheWith({ name: 'Acme', nameAr: 'أكمي' }) });
+    await en.fire('push');
+    expect(en.shown).toEqual([{ title: 'Madar', options: expect.objectContaining({ body: 'You have something new in Acme.' }) }]);
+    const ar = load({ language: 'ar-SA', caches: cacheWith({ name: 'Acme', nameAr: 'أكمي' }) });
+    await ar.fire('push');
+    expect(ar.shown).toEqual([{ title: 'مدار', options: expect.objectContaining({ body: 'لديك جديد في أكمي.' }) }]);
+  });
+
+  it('shows the old line with no cache, a cache with no brand, a wrong shape, a throwing cache', async () => {
+    const wrong = [undefined, {}, { name: 5 }, { name: '' }, { name: 'x'.repeat(81) }, null];
+    for (const value of wrong) {
+      const worker = load({ caches: cacheWith(value) });
+      await worker.fire('push');
+      expect(worker.shown[0].options.body, JSON.stringify(value)).toBe('You have something new in Madar.');
+    }
+    const none = load();
+    await none.fire('push');
+    expect(none.shown[0].options.body).toBe('You have something new in Madar.');
+    const throwing = load({ caches: { open: async () => { throw new Error('No cache.'); } } });
+    await throwing.fire('push');
+    expect(throwing.shown[0].options.body).toBe('You have something new in Madar.');
+  });
+
+  it('shows the old line when the cache never answers (300 ms)', async () => {
+    vi.useFakeTimers();
+    try {
+      const worker = load({ caches: { open: () => new Promise(() => undefined) }, setTimeout: globalThis.setTimeout });
+      const done = worker.fire('push');
+      await vi.advanceTimersByTimeAsync(300);
+      await done;
+      expect(worker.shown[0].options.body).toBe('You have something new in Madar.');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not change the line of a push that has keys, and shows the line on WebKit even when the cache is slow', async () => {
+    const line = { title: 'Site team', body: 'Hala: please check.', url: '/inbox/cnv_013', tag: 'madar-chat-cnv_013', lang: 'en' };
+    const worker = load({ caches: cacheWith({ name: 'Acme', nameAr: 'أكمي' }) });
+    await worker.fire('push', { data: { json: () => line } });
+    expect(worker.shown[0]).toMatchObject({ title: 'Site team', options: { body: 'Hala: please check.' } });
+    vi.useFakeTimers();
+    try {
+      const webkit = load({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1', caches: { open: () => new Promise(() => undefined) }, setTimeout: globalThis.setTimeout });
+      const done = webkit.fire('push');
+      await vi.advanceTimersByTimeAsync(300);
+      await done;
+      expect(webkit.shown).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
