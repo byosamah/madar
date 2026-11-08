@@ -1449,5 +1449,8 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
   (`proxy-create`). The page and the CSP name only this host; the server keeps `eu.i.posthog.com`. It uses no Cloudflare request quota.
   What's new 154.
 - [x] Owner step: the CNAME `relay.madar` in the vado.sa DNS (Vercel) to `52398457ceaf413c2690.cf-prod-eu-proxy.europehog.com` (added 2026-11-08).
-- [ ] Release of the proxy: production waits until `proxy-get` says the proxy works, or the page sends to an address with no certificate
-  and PostHog gets nothing.
+- [x] The certificate stayed at "issuing": vado.sa allowed only letsencrypt.org, pki.goog and sectigo.com, and the provider of PostHog
+  picked SSL.com. The owner added the CAA record `0 issue "ssl.com"` on vado.sa (PostHog docs, "Common issues"); the certificate (SSL.com,
+  "Cloudflare TLS Issuing ECC CA 4") came minutes later. `proxy-get` still says "issuing" (PostHog issue 48399): trust a live HTTPS check.
+- [x] Release of the proxy: test copy, then production by Claude (the owner's choice "proxy to production after"). Done 2026-11-08:
+  production at 80b8968e. Record: proof.md.
