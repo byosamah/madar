@@ -9,7 +9,8 @@ import { checkBuild, parseBatch, readBody } from '../http/limits';
 import { JOBS_SECRET_HEADER, sameSecret } from '../jobs/app';
 import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
-import { OFFICE_NAME_HEADER, REHEARSAL_NAME } from '../office/ops';
+import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn } from '../office/ops';
+import { runFanout, selfTransport } from '../enterprise/fanout';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
 import { runInHost } from '../core/after';
@@ -247,6 +248,40 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     }
   }
 
+  /**
+   * The probe routes of spike S1 (Madar enterprises): only with the test tools on and the jobs secret. The fan-out route sends
+   * count legs through the transport; each leg makes plain outside calls to the public health route and says how many worked.
+   */
+  async function probe(request: Request, env: Env, kind: 'fanout' | 'leg'): Promise<Response> {
+    const read = (name: string): string | undefined => (typeof env[name] === 'string' ? (env[name] as string) : undefined);
+    if (request.method !== 'POST' || !testToolsOn(read)) return errorResponse({ code: 'not_found', message: 'This address does not exist.' });
+    const secret = o.jobsSecret();
+    const given = request.headers.get(JOBS_SECRET_HEADER);
+    if (!secret || given === null || !(await sameSecret(given, secret))) {
+      return errorResponse({ code: 'unauthenticated', message: 'The job secret is not right.' });
+    }
+    const body = (await request.json().catch(() => ({}))) as { kind?: unknown; count?: unknown; outside?: unknown };
+    const outside = Math.max(0, Math.min(45, Number(body.outside) || 0));
+    if (kind === 'leg') {
+      let worked = 0;
+      for (let i = 0; i < outside; i += 1) {
+        try {
+          if ((await fetch('https://madar.vado.sa/api/health')).ok) worked += 1;
+        } catch {
+          // A failed outside call counts as not worked.
+        }
+      }
+      return Response.json({ outside, worked });
+    }
+    const count = Math.max(1, Math.min(30, Number(body.count) || 1));
+    const ids = Array.from({ length: count }, (_, i) => `ent_9${String(i).padStart(2, '0')}`);
+    const transport = selfTransport(env, {
+      kind: body.kind === 'api' ? 'api' : 'self', secret, apiUrl: `${o.deps.config.appUrl.replace(/\/$/, '')}/api`,
+      path: '/api/internal/probe/leg', extra: { outside },
+    });
+    return Response.json(await runFanout({ ids, at: o.deps.clock.now(), transport, log }));
+  }
+
   const afterOf = (c: Context): After | undefined => {
     try {
       const ctx = c.executionCtx;
@@ -262,6 +297,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   app.all('/mcp', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.all('/mcp/*', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.get('/api/health', (c) => health(c.req.raw, c.env));
+  app.all('/api/internal/probe/fanout', (c) => probe(c.req.raw, c.env, 'fanout'));
+  app.all('/api/internal/probe/leg', (c) => probe(c.req.raw, c.env, 'leg'));
   app.post('/api/batch', (c) => batch(c.req.raw, c.env, afterOf(c)));
   for (const route of o.routes ?? []) {
     app.on(route.method, `/api${route.path}`, (c) => {

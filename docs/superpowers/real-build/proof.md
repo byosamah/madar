@@ -3154,3 +3154,12 @@ Probe: `scripts/proof/ent-core/` (`node scripts/proof/ent-core/run.mjs`, local w
   workerd showed a median of 27.7 and 24.9, a p95 of 84.8 and 79.6, because of the start of the object. Take the warm run.) The refusal
   path runs one PBKDF2 like the real step, so both answer in about the same time.
 - Rows of the first `put` into the directory: 1 read, 5 written (the table, its index and the row).
+
+## S1: Cron fan-out (Madar enterprises)
+Open. The code is ready: `server/enterprise/fanout.ts` and the probe routes `POST /api/internal/probe/fanout` and `/leg` (test tools and the
+jobs secret). The probe is `npx tsx scripts/proof/cron-fanout/probe.ts --to <page address> --kind self|api --count 15 --outside 40`. The test Worker
+has the service binding `SELF` (`[[env.test.services]]`).
+Lead step: deploy the test Worker, run the probe for `--kind self` and `--kind api` with `--count` 3, 5 and 15 and `--outside` 0, 20 and 40,
+read one real Cron run in `wrangler tail`, and write the numbers here. Rule: choose `self` when every leg stays ok at 15 legs with 40
+outside calls each. Else choose `api`. If neither works, stop and ask the owner: the Cron then runs one enterprise in each 15-minute run.
+Then set the default of `MADAR_CRON_TRANSPORT` (Task 14).

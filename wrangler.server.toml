@@ -62,6 +62,12 @@ id = "1c4fc4b830234fad8956b6e80c52f4fc"
 name = "OFFICE"
 class_name = "Office"
 
+# The Cron fan-out of Madar enterprises (spike S1, server/enterprise/fanout.ts): this Worker calls itself once for each enterprise, so
+# each job has its own budget of outside calls. The binding names the Worker of this env.
+[[env.test.services]]
+binding = "SELF"
+service = "madar-server-test"
+
 # Public values. WORKER_REGION is the region label (server/core/deps.ts): no AWS region name, so no MCP region hop starts.
 [env.test.vars]
 SUPABASE_URL = "https://qdgwpnesxppnqsaabqzd.supabase.co"

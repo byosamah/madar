@@ -1,4 +1,5 @@
-import { DurableObject } from 'cloudflare:workers';
+/// <reference path="../../../server/office/workers.d.ts" />
+import { DurableObject, type DurableObjectState } from 'cloudflare:workers';
 import { runSigninOp } from '../../../server/auth/own/office';
 import { liteDb } from '../../../server/data/lite/db';
 import { applyLiteSchema } from '../../../server/data/lite/schema';

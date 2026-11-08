@@ -17,7 +17,13 @@ declare module 'cloudflare:workers' {
     /** Removes every row and every key of the object (the drop of a spare object, exit wave 4). */
     deleteAll(): Promise<void>;
   }
+  /** The id of an object. name is set when the object was made with idFromName, and not when it was made with newUniqueId (spike S3). */
+  export interface DurableObjectId {
+    readonly name?: string;
+    toString(): string;
+  }
   export interface DurableObjectState {
+    readonly id: DurableObjectId;
     readonly storage: DurableObjectStorage;
     blockConcurrencyWhile<T>(callback: () => Promise<T>): Promise<T>;
     acceptWebSocket(socket: WebSocket, tags?: string[]): void;

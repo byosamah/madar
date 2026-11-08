@@ -44,6 +44,24 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: O
   return { deps, seen, routes, post, get, net, stub };
 }
 
+describe('the probe routes of spike S1', () => {
+  const TOOLS = { MADAR_TEST_TOOLS: 'on', APP_URL: 'http://127.0.0.1:5173', SUPABASE_URL: 'http://127.0.0.1:54321' };
+  const send = (env: Record<string, unknown>, path: string, headers: Record<string, string> = {}) =>
+    setup().routes.fetch(new Request(`https://madar-server.internal${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: '{"count":2,"outside":0}' }), env);
+
+  it('answers 404 with no test tools and 401 with a wrong secret', async () => {
+    expect((await send({}, '/api/internal/probe/fanout', { 'x-madar-jobs-secret': 'jobs-secret' })).status).toBe(404);
+    expect((await send({}, '/api/internal/probe/leg')).status).toBe(404);
+    expect((await send(TOOLS, '/api/internal/probe/fanout', { 'x-madar-jobs-secret': 'wrong' })).status).toBe(401);
+    expect((await send(TOOLS, '/api/internal/probe/leg')).status).toBe(401);
+  });
+
+  it('runs a leg with the right secret and no outside calls', async () => {
+    const answer = await send(TOOLS, '/api/internal/probe/leg', { 'x-madar-jobs-secret': 'jobs-secret' });
+    expect([answer.status, await answer.json()]).toEqual([200, { outside: 0, worked: 0 }]);
+  });
+});
+
 describe('the Worker routes of the office path (server/entries/officeWorker.ts)', () => {
   it('refuses an old build, a body that is no batch and a bad token, before any office object call', async () => {
     const { deps, seen, post } = setup();
