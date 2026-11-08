@@ -190,3 +190,81 @@ describe('the page Madar enterprises', () => {
     expect(await screen.findByRole('button', { name: 'منشأة جديدة' })).toBeInTheDocument();
   });
 });
+
+describe('how the list and the sheets look (ent-ui)', () => {
+  it('draws the rows of the list with the soft divider of the other cards, never the hard line token', async () => {
+    await open();
+    const list = (await screen.findByRole('button', { name: /VADOs' Companies/ })).closest('ul')!;
+    expect(list).toHaveClass('divide-y', 'divide-hairline');
+    expect(list).not.toHaveClass('divide-line');
+  });
+
+  it('says "Not counted yet" for a row that sent no status, and the count for a row that did', async () => {
+    const fresh = row({ id: 'ent_004', address: 'fresh', name: 'Fresh Co', nameAr: 'فريش', people: 0, invited: 0, storageBytes: 0, lastWriteAt: null });
+    const invitedOnly = row({ id: 'ent_005', address: 'new-one', name: 'New One', nameAr: 'الجديدة', people: 0, invited: 1, storageBytes: 0, lastWriteAt: null });
+    await open(fake({ rows: [row(), fresh, invitedOnly] }));
+    const item = (name: RegExp) => screen.findByRole('button', { name });
+    expect(within(await item(/Fresh Co/)).getByText('Not counted yet')).toBeInTheDocument();
+    expect(within(await item(/Fresh Co/)).queryByText('0 people')).toBeNull();
+    expect(within(await item(/VADOs' Companies/)).getByText('15 people')).toBeInTheDocument();
+    // A status that holds an invited person is a real status: the count is 0 and it shows.
+    expect(within(await item(/New One/)).getByText('0 people')).toBeInTheDocument();
+  });
+
+  it('says it in Arabic too', async () => {
+    await open(fake({ rows: [row({ people: 0, invited: 0, storageBytes: 0, lastWriteAt: null })] }));
+    await act(async () => { await i18n.changeLanguage('ar'); });
+    const item = await screen.findByRole('button', { name: /شركات فادو/ });
+    expect(within(item).getByText('لم نعدّهم بعد')).toBeInTheDocument();
+    expect(within(item).queryByText('لا أحد')).toBeNull();
+  });
+
+  it('says "Not counted yet" in the sheet for the people and the storage of a row with no status', async () => {
+    await open(fake({ rows: [row({ people: 0, invited: 0, storageBytes: 0, lastWriteAt: null })] }));
+    await userEvent.click(await screen.findByRole('button', { name: /VADOs' Companies/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Not counted yet')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/0 active/)).toBeNull();
+  });
+
+  it('shows the first letter of the name in the circle of a row with no logo, in the language of the screen', async () => {
+    const logo = 'data:image/png;base64,iVBORw0KGgo=';
+    await open(fake({ rows: [row(), row({ id: 'ent_002', address: 'acme-co', name: 'Acme Co', nameAr: 'أكمي', logo })] }));
+    const plain = await screen.findByRole('button', { name: /VADOs' Companies/ });
+    expect(within(plain).getByText('V')).toHaveClass('bg-fill', 'rounded-full');
+    expect(within(plain).queryByRole('img')).toBeNull();
+    const withLogo = screen.getByRole('button', { name: /Acme Co/ });
+    expect(withLogo.querySelector('img')).not.toBeNull();
+    expect(within(withLogo).queryByText('A')).toBeNull();
+    await act(async () => { await i18n.changeLanguage('ar'); });
+    expect(within(await screen.findByRole('button', { name: /شركات فادو/ })).getByText('ش')).toBeInTheDocument();
+  });
+
+  it('gives every control of the page and of both sheets the standard touch size of 44 px', async () => {
+    await open();
+    expect(await screen.findByRole('button', { name: 'New enterprise' })).toHaveClass('min-h-11');
+    for (const item of await screen.findAllByRole('button', { name: /VADOs' Companies|Acme Co/ })) expect(item).toHaveClass('min-h-14');
+    await userEvent.click(screen.getByRole('button', { name: 'New enterprise' }));
+    const sheet = await screen.findByRole('dialog');
+    for (const button of within(sheet).getAllByRole('button')) {
+      // The close control of the sheet has its own 44 px size (Sheet.tsx); every other control is a Button.
+      if (button.getAttribute('aria-label') === 'Close') continue;
+      expect(button, button.textContent ?? '').toHaveClass('min-h-11');
+    }
+    for (const field of within(sheet).getAllByRole('textbox')) expect(field, field.id).toHaveClass('min-h-11');
+    expect(within(sheet).getByRole('combobox')).toHaveClass('min-h-11');
+  });
+
+  it('writes the address name left to right in the new sheet and in the row sheet, so a Latin name never runs backwards in Arabic', async () => {
+    await open();
+    await act(async () => { await i18n.changeLanguage('ar'); });
+    expect(byId('ent-edit-address')).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: /أكمي/ }));
+    expect(byId('ent-edit-address')).toHaveAttribute('dir', 'ltr');
+    expect(byId('ent-edit-address')).toHaveValue('acme-co');
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'إلغاء' }));
+    await userEvent.click(screen.getByRole('button', { name: 'منشأة جديدة' }));
+    expect(byId('ent-address')).toHaveAttribute('dir', 'ltr');
+  });
+});
+

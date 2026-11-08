@@ -8,8 +8,9 @@ import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { LOGO_PLATE } from '../../components/SubCompanyLogo';
+import { EnterpriseLogo } from './EnterpriseLogo';
 import { EnterpriseSheet, nameOf } from './EnterpriseSheet';
+import { hasStatus } from './limits';
 import { MeterStrip } from './MeterStrip';
 import { NewEnterpriseSheet } from './NewEnterpriseSheet';
 import { usePlatform } from './usePlatform';
@@ -48,16 +49,14 @@ function OwnerPage() {
         <MeterStrip />
         <LoadFailed query={list} />
         {list.data && (
-          <ul className="surface flex flex-col divide-y divide-line rounded-card">
+          <ul className="surface flex flex-col divide-y divide-hairline rounded-card">
             {list.data.map((row) => (
               <li key={row.id}>
                 <button type="button" onClick={() => setOpenId(row.id)} className="pressable flex min-h-14 w-full flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-start">
-                  <span style={{ background: row.logo ? LOGO_PLATE : undefined }} className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-fill">
-                    {row.logo && <img src={row.logo} alt="" className="size-full object-contain" />}
-                  </span>
+                  <EnterpriseLogo logo={row.logo} name={nameOf(row, lang)} size={36} />
                   <span className="min-w-0 flex-1 truncate text-body font-medium text-ink"><bdi>{nameOf(row, lang)}</bdi></span>
                   <span className="text-footnote font-medium text-ink-2">{t(`enterprises.state.${row.state}`)}</span>
-                  <span className="text-footnote text-ink-2">{t('enterprises.peopleCount', { count: row.people, n: row.people })}</span>
+                  <span className="text-footnote text-ink-2">{hasStatus(row) ? t('enterprises.peopleCount', { count: row.people, n: row.people }) : t('enterprises.notCounted')}</span>
                 </button>
               </li>
             ))}

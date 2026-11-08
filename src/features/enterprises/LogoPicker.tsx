@@ -1,16 +1,16 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
-import { LOGO_PLATE } from '../../components/SubCompanyLogo';
 import { PictureError, pictureOf } from '../../lib/picture';
 import { FormError } from '../auth/AuthPage';
+import { EnterpriseLogo } from './EnterpriseLogo';
 
 /**
  * The logo of an enterprise: one picture that fits inside a round plate, as the logo of a sub-company does (pictureOf with fit contain).
  * The picture becomes a small data address in the page, so no file store holds it. One button, one hint, and a calm line for a picture that
- * is too big or unreadable.
+ * is too big or unreadable. With no picture, the circle shows the first letter of `name`.
  */
-export function LogoPicker({ id, value, onChange, label }: { id: string; value: string | null; onChange: (logo: string | null) => void; label: string }) {
+export function LogoPicker({ id, value, onChange, label, name = '' }: { id: string; value: string | null; onChange: (logo: string | null) => void; label: string; name?: string }) {
   const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -30,9 +30,7 @@ export function LogoPicker({ id, value, onChange, label }: { id: string; value: 
   };
   return (
     <div className="flex items-center gap-4">
-      <span style={{ background: value ? LOGO_PLATE : undefined }} className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-fill">
-        {value && <img src={value} alt="" className="size-full object-contain" />}
-      </span>
+      <EnterpriseLogo logo={value} name={name} size={56} />
       <div className="flex min-w-0 flex-col items-start gap-2">
         <input
           ref={fileRef}
