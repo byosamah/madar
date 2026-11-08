@@ -1,4 +1,5 @@
 import type { Deps } from '../core/ports';
+import { retryAtOf } from '../core/retryAt';
 import { readOnlyFetch } from './readOnly';
 import { BadAnswer, clientAnswerOf, clientsAnswerOf, invoiceAnswerOf, invoicesAnswerOf, type DaftraClientRow, type DaftraInvoice } from './parse';
 
@@ -99,6 +100,8 @@ export function daftraClientOf(settings: DaftraSettings): DaftraClient {
       return await Promise.race([work, limit]);
     } catch (error) {
       if (error instanceof DaftraError) throw error;
+      // A spent network budget of the office object is no Daftra problem: it waits (server/core/retryAt.ts).
+      if (retryAtOf(error) !== null) throw error;
       throw new DaftraError('unreachable');
     } finally {
       clearTimeout(timer);

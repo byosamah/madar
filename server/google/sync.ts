@@ -270,7 +270,8 @@ export async function revokeOne(deps: Deps, connectionId: string, o: { replaced?
       try {
         await revokeToken(ready.client, token);
       } catch (error) {
-        if (error instanceof GoogleError && error.retry) throw error;
+        // A GoogleError that may work later, or an error that is no GoogleError (a spent network budget), keeps the row.
+        if (!(error instanceof GoogleError) || error.retry) throw error;
         // Any other answer is final: a later try gives the same one.
       }
     }

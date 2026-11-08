@@ -4,6 +4,7 @@ import { cleanup, GOOGLE_REVOKING_KEEP_MS } from '../jobs/steps/cleanup';
 import { openToken } from './keys';
 import { googleKeysOf } from './keys';
 import { GoogleError } from './api';
+import { NetBudgetSpent } from '../office/net';
 import { eventBodyOf, eventIdOf, MADAR_EVENT_PREFIX, resetAccessCache, revokeOne, syncOne, tidyOne } from './sync';
 import { GOOGLE_KEY, googleOffice, outboxRows, planMeeting, type GoogleOffice } from './testOffice';
 
@@ -619,5 +620,33 @@ describe('gcal.tidy', () => {
     expect(await tidyOne(t.deps as never, 'usr_003')).toBe(1);
     expect(statusOf(t, reem, eventIdOf('mtg_900'))).toBe('cancelled');
     expect(statusOf(t, omar, eventIdOf('mtg_900'))).toBe('confirmed');
+  });
+});
+
+describe('a spent network budget of the office object', () => {
+  const budgetOf = (t: GoogleOffice, when: (request: { path: string }) => boolean) =>
+    t.google.on(when as never, () => { throw new NetBudgetSpent(t.deps.clock.now()); }, Number.POSITIVE_INFINITY);
+
+  it('leaves the connection ok, rejects with the budget error, and keeps the outbox row with its attempts and the wait time', async () => {
+    const t = await connectedWith('usr_003');
+    budgetOf(t, () => true);
+    const id = await planMeeting(t, 'usr_003', { startsAt: START });
+    const error = await syncOne(t.deps as never, 'usr_003', id).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NetBudgetSpent);
+    expect(await state(t, 'usr_003')).toMatchObject({ state: 'ok', last_error: null });
+    const [row] = await rowsOf(t, "select attempts, claimed_until, done_at from outbox where kind = 'gcal.sync'");
+    expect(row).toMatchObject({ attempts: 0, done_at: null });
+    expect(row.claimed_until).toBe(new Date(t.deps.clock.now().getTime() + 60_000).toISOString());
+    expect(await rowsOf(t, 'select * from google_events')).toEqual([]);
+  });
+
+  it('keeps the connection row when the revoke meets the budget', async () => {
+    const t = await connectedWith('usr_003');
+    budgetOf(t, (request) => request.path === '/revoke');
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    const [row] = await rowsOf(t, 'select id from google_connections');
+    const error = await revokeOne(t.deps as never, String(row.id)).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NetBudgetSpent);
+    expect(await rowsOf(t, 'select state from google_connections')).toEqual([{ state: 'revoking' }]);
   });
 });
