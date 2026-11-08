@@ -1542,5 +1542,6 @@ order; builders run on Sonnet 5.5. Each track merges into `rb/enterprises`; the 
 - [x] The full merge gate on `rb/enterprises`, screenshots, then main (owner: "Onto main now", 2026-11-08)
 - [ ] Plan E: the move of VADOs' Companies (owner OK at each production step). Owner, 2026-11-08: the test week starts soon after the main merge.
 - [x] Plan E step L1 (2026-11-08): the test copy runs on its office objects (73e7e7b4, 297d2476), ent_001 seeded, the owner is the only tester (proof.md "Madar enterprises: the test copy on its office objects")
+- [ ] Plan F (owner, 2026-11-08: "Madar enterprises is a separate platform"): its own site and its own platform accounts; tracks ent-f1 (server) and ent-f2 (site). Plan: docs/superpowers/plans/2026-11-08-madar-enterprises-f-platform-site.md
 - [ ] Proposed: scripts/proof/server-time.ts signs in with the own sign-in on an office copy (its page member leg gets 401 today)
 - [ ] Owner OK needed: remove the worktrees ~/dev/madar-rb/enterprises, ent-a, ent-b, ent-c, ent-d, ent-d2, ent-d3, ent-ui, ent-fix and their branches (all merged)
