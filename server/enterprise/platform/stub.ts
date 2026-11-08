@@ -1,7 +1,7 @@
 import type { OpResult } from '../../auth/own/office';
 import type { OfficeMailAnswer, OfficeMailInput } from '../../office/parts';
 import type { EnterpriseId } from '../ids';
-import type { PlatformAccountsInput, PlatformAccountView, PlatformTokenAnswer } from './accounts';
+import type { PlatformAccountsInput, PlatformAccountView, PlatformOutcome, PlatformTokenAnswer } from './accounts';
 import type { DayCounts, EnterpriseLimits, EnterpriseRow, EnterpriseStatus } from '../types';
 
 /** The answer of the day cap (design 5.14). Plan C fills the rule; plan B always allows. */
@@ -68,12 +68,13 @@ export type PlatformStub = {
   activeIds(): Promise<EnterpriseId[]>;
   /**
    * The accounts of the platform (plan F, design D8). They belong to no company. A wrong password and an unknown email give one answer.
-   * The tokens have the audience madar-platform and no ent.
+   * The tokens have the audience madar-platform and no ent. A method that can refuse returns the refusal as data (PlatformOutcome): a thrown
+   * ApiError loses its class on the way over the RPC hop of a Durable Object.
    */
-  platformSignIn(input: { email: string; password: string; address: string }): Promise<PlatformTokenAnswer>;
-  platformRefresh(input: { refreshToken: string }): Promise<PlatformTokenAnswer>;
+  platformSignIn(input: { email: string; password: string; address: string }): Promise<PlatformOutcome<PlatformTokenAnswer>>;
+  platformRefresh(input: { refreshToken: string }): Promise<PlatformOutcome<PlatformTokenAnswer>>;
   platformSignOut(input: { sessionId: string }): Promise<void>;
   platformAccount(input: { accountId: string }): Promise<PlatformAccountView | null>;
   /** Ops secret only (design D13): create, set a new password, turn off or on. */
-  platformAccounts(input: PlatformAccountsInput): Promise<PlatformAccountView>;
+  platformAccounts(input: PlatformAccountsInput): Promise<PlatformOutcome<PlatformAccountView>>;
 };

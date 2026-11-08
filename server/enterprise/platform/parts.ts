@@ -21,7 +21,7 @@ import { PLATFORM_SCHEMA_VERSION } from './schema';
 import { accountStop, capVerdict, planFrom, type Plan } from '../plan';
 import { activateEnterprise, activeEnterpriseIds, createEnterprise, getEnterprise, listEnterprises, setEnterpriseState, updateEnterprise } from './enterprises';
 import type { AddressAnswer, AddressStep, CapAnswer, PlatformStub } from './stub';
-import { platformAccount, platformAccounts, platformRefresh, platformSignIn, platformSignOut, type AccountDeps } from './accounts';
+import { outcomeOf, platformAccount, platformAccounts, platformRefresh, platformSignIn, platformSignOut, type AccountDeps } from './accounts';
 
 /**
  * The work of the platform object (Madar enterprises, plan B Task 7), apart from workerd: object.ts gives it the host of ctx.storage, and
@@ -209,11 +209,11 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
       return { schema: PLATFORM_SCHEMA_VERSION };
     },
 
-    platformSignIn: (input) => platformSignIn(accountDeps, input),
-    platformRefresh: (input) => platformRefresh(accountDeps, input),
+    platformSignIn: (input) => outcomeOf(() => platformSignIn(accountDeps, input)),
+    platformRefresh: (input) => outcomeOf(() => platformRefresh(accountDeps, input)),
     platformSignOut: (input) => platformSignOut(accountDeps, input),
     platformAccount: (input) => platformAccount(accountDeps, input),
-    platformAccounts: (input) => platformAccounts(accountDeps, input),
+    platformAccounts: (input) => outcomeOf(() => platformAccounts(accountDeps, input)),
 
     list: () => listEnterprises(db),
     getEnterprise: async ({ ent }) => getEnterprise(db, entOf(ent)),

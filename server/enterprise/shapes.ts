@@ -20,4 +20,15 @@ export const EnterpriseRowShape: z.ZodType<EnterpriseRow> = z.object({
   firstAdmin: z.object({ name: z.string().trim().max(120), email: z.string().trim().max(254) }),
 });
 
+/**
+ * The body of the ops route platform-accounts (design D13): create an account, set a new password, turn it off or on. The password is the only
+ * secret in it; the route never logs a body and never answers a hash.
+ */
+export const PlatformAccountsBodyShape = z.object({
+  action: z.enum(['create', 'password', 'off', 'on']),
+  email: z.string().trim().min(3).max(254),
+  name: z.string().trim().min(1).max(120).optional(),
+  password: z.string().min(1).max(200).optional(),
+}).strict();
+
 export const RegisterBodyShape = z.object({ row: EnterpriseRowShape, emails: z.array(z.string().trim().min(3).max(254)).max(500) });

@@ -6,12 +6,23 @@ import { nodeHost } from '../../data/lite/host';
 import { NODE_OFFICE_ENV } from '../../office/test/nodeOffice';
 import { fixedClock } from '../../test/fakes/clock';
 import { isPlatformAccountId } from '../ids';
-import { platformParts } from './parts';
+import { valueOfOutcome } from './accounts';
+import { platformParts, type PlatformParts } from './parts';
 import { applyPlatformSchema } from './schema';
 
 const NOW = '2026-11-08T08:00:00.000Z';
 const ADDRESS = '203.0.113.7';
 const PASSWORD = 'a good long password';
+
+/** The three methods that can refuse return data (PlatformOutcome). The tests below read a refusal as a throw, so they unwrap it here. */
+function unwrapped(parts: PlatformParts) {
+  return {
+    ...parts,
+    platformSignIn: async (input: Parameters<PlatformParts['platformSignIn']>[0]) => valueOfOutcome(await parts.platformSignIn(input)),
+    platformRefresh: async (input: Parameters<PlatformParts['platformRefresh']>[0]) => valueOfOutcome(await parts.platformRefresh(input)),
+    platformAccounts: async (input: Parameters<PlatformParts['platformAccounts']>[0]) => valueOfOutcome(await parts.platformAccounts(input)),
+  };
+}
 
 async function platform() {
   const raw = new DatabaseSync(':memory:');
@@ -19,8 +30,8 @@ async function platform() {
   await applyPlatformSchema(host);
   const jwk = await testPrivateJwk();
   const clock = fixedClock(NOW);
-  const parts = platformParts({ host, read: (name) => (name === 'MADAR_AUTH_PRIVATE_JWK' ? jwk : NODE_OFFICE_ENV[name]), clock });
-  return { raw, parts, clock };
+  const real = platformParts({ host, read: (name) => (name === 'MADAR_AUTH_PRIVATE_JWK' ? jwk : NODE_OFFICE_ENV[name]), clock });
+  return { raw, real, parts: unwrapped(real), clock };
 }
 
 async function withAccount() {
@@ -193,5 +204,22 @@ describe('platform accounts hold no company data', () => {
     await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
     for (const table of ['auth_users', 'auth_sessions', 'auth_links']) expect(raw.prepare(`select count(*) as n from ${table}`).get()).toEqual({ n: 0 });
     expect(raw.prepare('select count(*) as n from emails').get()).toEqual({ n: 0 });
+  });
+});
+
+describe('the refusals come back as data', () => {
+  it('the platform object returns a refusal as { ok: false, error }, not as a throw', async () => {
+    const { real } = await withAccount();
+    expect(await real.platformSignIn({ email: 'ghost@madar.test', password: 'a wrong long password', address: ADDRESS })).toEqual({
+      ok: false, error: { code: 'unauthenticated', message: 'The email or the password is not right.', details: { reason: 'invalid_credentials' } },
+    });
+    expect(await real.platformRefresh({ refreshToken: 'nothing' })).toMatchObject({ ok: false, error: { details: { reason: 'session_ended' } } });
+    expect(await real.platformAccounts({ action: 'create', email: 'owner@madar.test', name: 'Again', password: PASSWORD })).toMatchObject({ ok: false, error: { code: 'conflict' } });
+    expect(await real.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS })).toMatchObject({ ok: true, value: { expires_in: 900 } });
+  });
+
+  it('a defect that is no ApiError stays a throw', async () => {
+    const { real } = await withAccount();
+    await expect(real.platformAccounts(null as never)).rejects.toThrow();
   });
 });

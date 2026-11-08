@@ -49,15 +49,26 @@ describe('the platform object on local workerd', () => {
   });
 
   it('platform accounts: create, sign in with real PBKDF2, rotate a refresh token after an evict, and sign out', async () => {
-    const made = await live.platform<{ id: string }>('platformAccounts', { action: 'create', email: 'owner@madar.test', name: 'The Owner', password: 'a good long password' });
-    expect(made.id).toMatch(/^pla_\d{3,}$/);
-    const signed = await live.platform<{ access_token: string; refresh_token: string; expires_in: number }>('platformSignIn', { email: 'owner@madar.test', password: 'a good long password', address: '203.0.113.50' });
-    expect(signed.expires_in).toBe(900);
+    type Out<T> = { ok: true; value: T } | { ok: false; error: { code: string; details?: { reason?: string } } };
+    const made = await live.platform<Out<{ id: string }>>('platformAccounts', { action: 'create', email: 'owner@madar.test', name: 'The Owner', password: 'a good long password' });
+    if (!made.ok) throw new Error('The account was not made.');
+    expect(made.value.id).toMatch(/^pla_\d{3,}$/);
+    const signed = await live.platform<Out<{ access_token: string; refresh_token: string; expires_in: number }>>('platformSignIn', { email: 'owner@madar.test', password: 'a good long password', address: '203.0.113.50' });
+    if (!signed.ok) throw new Error('The sign-in failed.');
+    expect(signed.value.expires_in).toBe(900);
     await live.evictPlatform();
-    const again = await live.platform<{ access_token: string; refresh_token: string }>('platformRefresh', { refreshToken: signed.refresh_token });
-    expect(again.refresh_token).not.toBe(signed.refresh_token);
-    const sid = JSON.parse(atob(again.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sid as string;
+    const again = await live.platform<Out<{ access_token: string; refresh_token: string }>>('platformRefresh', { refreshToken: signed.value.refresh_token });
+    if (!again.ok) throw new Error('The refresh failed.');
+    expect(again.value.refresh_token).not.toBe(signed.value.refresh_token);
+    const sid = JSON.parse(atob(again.value.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sid as string;
     await live.platform('platformSignOut', { sessionId: sid });
-    expect(await live.platform('platformAccount', { accountId: made.id })).toMatchObject({ state: 'active', email: 'owner@madar.test' });
+    expect(await live.platform('platformAccount', { accountId: made.value.id })).toMatchObject({ state: 'active', email: 'owner@madar.test' });
+  });
+
+  it('platform accounts: a refusal comes back as data, with its code and reason, across the RPC hop', async () => {
+    const wrong = await live.platform('platformSignIn', { email: 'ghost@madar.test', password: 'a wrong long password', address: '203.0.113.51' });
+    expect(wrong).toEqual({ ok: false, error: { code: 'unauthenticated', message: 'The email or the password is not right.', details: { reason: 'invalid_credentials' } } });
+    const taken = await live.platform('platformAccounts', { action: 'create', email: 'owner@madar.test', name: 'Again', password: 'a good long password' });
+    expect(taken).toMatchObject({ ok: false, error: { code: 'conflict', details: { reason: 'email_taken' } } });
   });
 });

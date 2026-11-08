@@ -34,7 +34,7 @@ async function world() {
   const row = (id: string, email: string, userId: string) => ({ id, email, password_hash: hash, email_confirmed: true, banned: false, password_set: true, user_id: userId });
   await t.signins([row(AUTH.owner, 'owner@one.test', 'usr_001'), row(AUTH.member, 'member@one.test', 'usr_002')], 'ent_001');
   await t.signins([row(AUTH.admin, 'admin@two.test', 'usr_001')], 'ent_002');
-  await t.platform.platformAccounts({ action: 'create', email: 'boss@platform.test', name: 'The Boss', password: PLATFORM_PASSWORD });
+  await t.accounts({ action: 'create', email: 'boss@platform.test', name: 'The Boss', password: PLATFORM_PASSWORD });
   return t;
 }
 type World = Awaited<ReturnType<typeof world>>;
@@ -76,7 +76,7 @@ describe('who may call the platform', () => {
   it('answers 401 account_off at once to a platform account that was turned off, for each of the 8 calls', async () => {
     const t = await world();
     const token = await platformTokenOf(t);
-    await t.platform.platformAccounts({ action: 'off', email: 'boss@platform.test' });
+    await t.accounts({ action: 'off', email: 'boss@platform.test' });
     for (const name of PLATFORM_CALL_NAMES) {
       const answer = await post(t, token, name);
       expect({ name, status: answer.status }).toEqual({ name, status: 401 });

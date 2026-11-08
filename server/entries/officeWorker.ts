@@ -14,7 +14,8 @@ import { CRON_PATH, runFanout, selfTransport, type FanoutLeg, type FanoutTranspo
 import { utcDay } from '../mail/quota';
 import { firstRunOfDay } from '../office/jobs';
 import { ENT_VADO, isEnterpriseId, untag, type EnterpriseId } from '../enterprise/ids';
-import { RegisterBodyShape } from '../enterprise/shapes';
+import { PlatformAccountsBodyShape, RegisterBodyShape } from '../enterprise/shapes';
+import { valueOfOutcome } from '../enterprise/platform/accounts';
 import { accountGate } from '../enterprise/accountGate';
 import { logoResponse } from '../enterprise/logoRoute';
 import { padTo } from '../enterprise/pad';
@@ -70,6 +71,8 @@ const OPS: Readonly<Record<string, OpRule>> = {
   // The ids of the enterprises that the nightly backup must export (Madar enterprises). The export secret opens it, as it opens export.
   enterprises: { secret: 'export', names: 'none' },
   'platform-register': { secret: 'ops', names: 'none' },
+  // The accounts of the platform (design D13): create, new password, off, on. From the Mac script with the ops secret only.
+  'platform-accounts': { secret: 'ops', names: 'none' },
 };
 
 /** The names that an op takes without the list of the platform. An enterprise id needs the list (listed). */
@@ -387,7 +390,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
 
   /**
    * The ops of the platform object (Madar enterprises, with the ops secret): platform-register writes one enterprise row and its emails (an
-   * upsert, any state). The body is checked with zod first.
+   * upsert, any state), and platform-accounts makes, changes or turns off a platform account (plan F, design D13). The body is checked with zod
+   * first. Neither op logs its body: the second one carries a password.
    */
   async function platformOp(request: Request, env: Env, op: string): Promise<Response> {
     let value: unknown;
@@ -407,6 +411,12 @@ export function officeRoutes(o: OfficeRoutesOptions) {
         delete listedCache.list;
         listedCache.addresses.clear();
         return Response.json({ ok: true });
+      }
+      if (op === 'platform-accounts') {
+        const parsed = PlatformAccountsBodyShape.safeParse(value);
+        if (!parsed.success) return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body is { action, email, name?, password? }.')));
+        const account = valueOfOutcome(await platform.platformAccounts(parsed.data));
+        return Response.json({ ok: true, account });
       }
       return errorResponse({ code: 'not_found', message: 'This address does not exist.' });
     } catch (error) {

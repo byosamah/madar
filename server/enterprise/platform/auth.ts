@@ -4,6 +4,7 @@ import type { PlatformTokenChecker } from '../../auth/verify';
 import type { Deps } from '../../core/ports';
 import { runErrorOf } from '../../http/errors';
 import { readBody } from '../../http/limits';
+import { valueOfOutcome } from './accounts';
 import { NO_STORE, platformErrorResponse } from './answer';
 import type { PlatformStub } from './stub';
 
@@ -50,10 +51,11 @@ export function platformAuth(o: PlatformAuthOptions) {
         const body = await jsonOf(request);
         const platform = o.platform(env);
         if (body.grant_type === 'password') {
-          return Response.json(await platform.platformSignIn({ email: text(body.email), password: text(body.password), address: clientAddress(request) }), { headers: NO_STORE });
+          const out = await platform.platformSignIn({ email: text(body.email), password: text(body.password), address: clientAddress(request) });
+          return Response.json(valueOfOutcome(out), { headers: NO_STORE });
         }
         if (body.grant_type === 'refresh_token') {
-          return Response.json(await platform.platformRefresh({ refreshToken: text(body.refresh_token) }), { headers: NO_STORE });
+          return Response.json(valueOfOutcome(await platform.platformRefresh({ refreshToken: text(body.refresh_token) })), { headers: NO_STORE });
         }
         throw invalid('grant_type', 'Send grant_type password or refresh_token.');
       } catch (error) {

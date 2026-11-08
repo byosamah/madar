@@ -11,6 +11,7 @@ import { nodeHost } from '../../data/lite/host';
 import { applyLiteSchema } from '../../data/lite/schema';
 import { liteWriteState } from '../../data/lite/whole';
 import { ENT_VADO, normalizeEmail, type EnterpriseId } from '../../enterprise/ids';
+import { valueOfOutcome } from '../../enterprise/platform/accounts';
 import { platformParts, type PlatformParts } from '../../enterprise/platform/parts';
 import { applyPlatformSchema } from '../../enterprise/platform/schema';
 import type { EnterpriseRow } from '../../enterprise/types';
@@ -217,7 +218,10 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
     for (const row of rows) await platform.reserveEmail({ ent, email: normalizeEmail(row.email) });
   }
 
-  return { ents, platform, platformRaw, created, clock, env, jwk, net, netFor, route, signins, lines: log.lines, stubFor: (ent: EnterpriseId) => stubFor(undefined, ent), make };
+  /** A platform account for a test (Madar enterprises, plan F): the value of platformAccounts, or its refusal thrown. */
+  const accounts = async (input: Parameters<PlatformParts['platformAccounts']>[0]) => valueOfOutcome(await platform.platformAccounts(input));
+
+  return { ents, platform, accounts, platformRaw, created, clock, env, jwk, net, netFor, route, signins, lines: log.lines, stubFor: (ent: EnterpriseId) => stubFor(undefined, ent), make };
 }
 
 /** One request to the routes of the office path, as a browser or an agent sends it through the Pages Function. */

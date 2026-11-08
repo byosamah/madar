@@ -20,7 +20,7 @@ async function world(env: Record<string, string> = { MADAR_ENTERPRISE_CREATE: 'o
   await t.signins([row(AUTH.owner, 'owner@one.test', 'usr_001'), row(AUTH.member, 'member@one.test', 'usr_002')], 'ent_001');
   await t.signins([row(AUTH.admin, 'admin@two.test', 'usr_001')], 'ent_002');
   // A platform account: it belongs to no company.
-  await t.platform.platformAccounts({ action: 'create', email: 'boss@platform.test', name: 'The Boss', password: PLATFORM_PASSWORD });
+  await t.accounts({ action: 'create', email: 'boss@platform.test', name: 'The Boss', password: PLATFORM_PASSWORD });
   return t;
 }
 type World = Awaited<ReturnType<typeof world>>;
@@ -97,7 +97,7 @@ describe('POST /api/platform/auth/token', () => {
   it('an account that is off gets 401 account_off at sign-in and at refresh', async () => {
     const t = await world();
     const first = parse((await platformSignIn(t)).body);
-    await t.platform.platformAccounts({ action: 'off', email: 'boss@platform.test' });
+    await t.accounts({ action: 'off', email: 'boss@platform.test' });
     const signin = await platformSignIn(t);
     expect(signin.status).toBe(401);
     expect(parse(signin.body).error.details).toMatchObject({ reason: 'account_off' });
@@ -169,11 +169,11 @@ describe('POST /api/platform', () => {
     const t = await world();
     const token = await platformToken(t);
     expect((await post(t, token, call('platform.me'))).status).toBe(200);
-    await t.platform.platformAccounts({ action: 'off', email: 'boss@platform.test' });
+    await t.accounts({ action: 'off', email: 'boss@platform.test' });
     const refused = await post(t, token, call('platform.me'));
     expect(refused.status).toBe(401);
     expect(parse(refused.body).error.details).toMatchObject({ reason: 'account_off' });
-    await t.platform.platformAccounts({ action: 'on', email: 'boss@platform.test' });
+    await t.accounts({ action: 'on', email: 'boss@platform.test' });
     expect((await post(t, token, call('platform.me'))).status).toBe(200);
   });
 

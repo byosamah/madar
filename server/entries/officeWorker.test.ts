@@ -552,7 +552,16 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
       deps: { config: testConfig(), clock: { now: () => new Date() }, log: quiet },
       verifyToken: async () => ({ authUserId: 'x' }),
       stubFor: (_env, name) => stubFor(name) as never,
-      platform: () => ({ ...PLATFORM, register: async (input: unknown) => void platformCalls.push({ method: 'register', input }) }) as never,
+      platform: () => ({
+        ...PLATFORM,
+        register: async (input: unknown) => void platformCalls.push({ method: 'register', input }),
+        platformAccounts: async (input: { email: string; action: string }) => {
+          platformCalls.push({ method: 'platformAccounts', input });
+          return input.email === 'taken@x.test'
+            ? { ok: false, error: { code: 'conflict', message: 'This email is taken.', details: { reason: 'email_taken' } } }
+            : { ok: true, value: { id: 'pla_001', name: 'The Boss', email: input.email, state: 'active' } };
+        },
+      }) as never,
       net: () => ({}) as never,
       jobsSecret: () => 'jobs',
       exportSecret: () => 'export-secret-of-the-test',
@@ -643,6 +652,28 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
       const ok = await send(routes, 'platform-register', { row, emails: ['hana@globex.test'] });
       expect([ok.status, await ok.json()]).toEqual([200, { ok: true }]);
       expect(platformCalls).toEqual([{ method: 'register', input: { row, emails: ['hana@globex.test'] } }]);
+      // The op takes no ?office= and makes no object.
+      expect(created).toEqual([]);
+    });
+
+    it('platform-accounts needs the ops secret, refuses a bad body, answers the account with no password and no hash, and passes a refusal on', async () => {
+      const { routes, platformCalls, created } = opsRoutes();
+      const body = { action: 'create', email: 'boss@x.test', name: 'The Boss', password: 'a long platform password' };
+      expect((await send(routes, 'platform-accounts', body, {})).status).toBe(401);
+      expect((await send(routes, 'platform-accounts', body, { 'x-madar-export-secret': 'export-secret-of-the-test' })).status).toBe(401);
+      for (const bad of [{ ...body, action: 'delete' }, { ...body, extra: 1 }, { action: 'create' }, { ...body, email: '' }, { ...body, password: 'x'.repeat(201) }, 'text']) {
+        expect((await send(routes, 'platform-accounts', bad)).status, JSON.stringify(bad).slice(0, 40)).toBe(400);
+      }
+      expect(platformCalls).toEqual([]);
+      const ok = await send(routes, 'platform-accounts', body);
+      const text = await ok.text();
+      expect(ok.status).toBe(200);
+      expect(JSON.parse(text)).toEqual({ ok: true, account: { id: 'pla_001', name: 'The Boss', email: 'boss@x.test', state: 'active' } });
+      expect(text).not.toContain('platform password');
+      expect(platformCalls).toEqual([{ method: 'platformAccounts', input: body }]);
+      const taken = await send(routes, 'platform-accounts', { ...body, email: 'taken@x.test' });
+      expect(taken.status).toBe(409);
+      expect(await taken.json()).toMatchObject({ error: { code: 'conflict', details: { reason: 'email_taken' } } });
       // The op takes no ?office= and makes no object.
       expect(created).toEqual([]);
     });

@@ -9,6 +9,8 @@ import { countLimits, DAY_MS, REFRESH_REUSE_MS, SESSION_DAYS, sessionEnded } fro
 import { ACCESS_TTL_S } from '../../auth/ownKeys';
 import { hashedKey } from '../../auth/rateLimit';
 import type { Clock } from '../../core/ports';
+import type { RunError } from '../../core/types';
+import { runErrorOf } from '../../http/errors';
 import type { LiteDb } from '../../data/lite/db';
 import { isPlatformAccountId, normalizeEmail } from '../ids';
 
@@ -190,4 +192,26 @@ export async function platformAccounts(d: AccountDeps, input: PlatformAccountsIn
     await q('update platform_accounts set state = ?2 where id = ?1', [row.id, state]);
     return viewOf({ ...row, state });
   });
+}
+
+/**
+ * The answer of an object method that can refuse. A thrown ApiError crosses the RPC hop of a Durable Object as a plain error whose class is
+ * lost, so the platform object returns the refusal as data (as runSigninOp does for the sign-in steps) and the Worker throws it again.
+ */
+export type PlatformOutcome<T> = { ok: true; value: T } | { ok: false; error: RunError };
+
+export async function outcomeOf<T>(work: () => Promise<T>): Promise<PlatformOutcome<T>> {
+  try {
+    return { ok: true, value: await work() };
+  } catch (error) {
+    // Only a Madar refusal becomes data. Any other error is a defect: it stays an error, and the Worker logs it.
+    if (error instanceof ApiError) return { ok: false, error: runErrorOf(error) };
+    throw error;
+  }
+}
+
+/** The value of an outcome, or the refusal thrown as an ApiError (on the Worker side of the hop). */
+export function valueOfOutcome<T>(out: PlatformOutcome<T>): T {
+  if (out.ok) return out.value;
+  throw new ApiError(out.error.code as ApiError['code'], out.error.message, out.error.details ?? {});
 }
