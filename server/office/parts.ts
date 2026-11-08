@@ -38,6 +38,7 @@ import { brandOfSettings } from '../enterprise/brand';
 import { EnterpriseFacts } from '../enterprise/facts';
 import { EnterpriseGate } from '../enterprise/gate';
 import { planFrom, shareCapOf } from '../enterprise/plan';
+import { isMcpToolPath } from '../enterprise/router';
 import { initEnterprise, reinviteAdmin, writeIdentity, writeLimits, writePlatformOwners, writeState } from '../enterprise/lifecycle';
 import { runMailRoute } from '../enterprise/mailRoute';
 import { ENT_VADO, isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
@@ -485,7 +486,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       meter.request({ calls: toolCallsIn(input.body), worker: input.worker });
       // An export lets the OAuth routes under /mcp run (their rows are drift tables); a request of /mcp itself may write, so it waits.
       const path = new URL(input.url).pathname;
-      const writes = path === '/mcp' || path === '/mcp/';
+      const writes = isMcpToolPath(path);
       // Only a tool call of MCP (the path /mcp) carries work and counts against the share; the OAuth routes under /mcp do not.
       const held = hold.refusal({ now: clock.now(), writes }) ?? await capped(writes, writes);
       if (held) return mcpRefusal(503, held.message, 'busy');

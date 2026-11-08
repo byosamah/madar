@@ -21,7 +21,7 @@ import { padTo } from '../enterprise/pad';
 import { platformRoute } from '../enterprise/platform/route';
 import { writeOwners } from '../enterprise/platform/owners';
 import type { PlatformStub } from '../enterprise/platform/stub';
-import { entRouter, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
+import { entRouter, isMcpToolPath, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
 import { challengeOf } from '../mcp/metadata';
 import type { EnterpriseInit, EnterpriseLimits, EnterpriseState, EnterpriseStatus } from '../enterprise/types';
 import type { NetApi } from '../office/net';
@@ -262,7 +262,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     forward.pathname = parsed.rest;
     const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
     // A tool call of MCP (the path /mcp) carries work; the OAuth routes under it do not (design 5.14).
-    const stopped = await accountCap(env, target.ent, parsed.rest === '/mcp');
+    const stopped = await accountCap(env, target.ent, isMcpToolPath(parsed.rest));
     if (stopped) return mcpError(503, stopped.message, 'busy');
     const net = o.net(env, target.ent);
     let out: OfficeMcpAnswer;

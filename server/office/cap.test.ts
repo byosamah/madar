@@ -75,6 +75,17 @@ describe('the day cap of the test Worker (server/office/cap.ts)', () => {
     expect(forgotCapped.body).toContain('busy');
   });
 
+  it('stops a tool call to /mcp/ at the write stop like /mcp, and lets the OAuth routes under it through', async () => {
+    const t = await nodeOffice({ env: { MADAR_DAY_CAP: 'rows_written=10,rows_read=1000000' } });
+    t.raw.exec(`insert into usage_day (day, rows_written) values ('2026-10-04', 10)`);
+    for (const path of ['/mcp', '/mcp/']) {
+      const stopped = await t.route(httpOf('POST', path, { jsonrpc: '2.0', id: 1, method: 'tools/call' }));
+      expect([path, stopped.status, stopped.body.includes('busy')]).toEqual([path, 503, true]);
+    }
+    const oauth = await t.route(httpOf('GET', '/mcp/.well-known/oauth-authorization-server'));
+    expect(oauth.body).not.toContain('busy');
+  });
+
   it('reads the day counts again after one minute, so a new day row takes effect', async () => {
     const t = await nodeOffice({ env: { MADAR_DAY_CAP: 'rows_written=10' } });
     const first = await t.parts.batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId: 'x' }, calls: [update], overviewCalls: 0, worker: 0 }, t.net);

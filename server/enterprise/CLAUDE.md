@@ -16,7 +16,8 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
 - `status.ts`: `enterpriseStatusOf`, the status row of one enterprise (people, invited, last write, the day counts, the names).
 - `router.ts`: `entRouter`, the one place that turns an untrusted id (a tag, an email result, an address) into an object stub. It keeps the
   list of the platform object for 60 s (`LISTED_TTL_MS`) and reads it again for a miss when it is 5 s old (`LISTED_MISS_MS`). The cache
-  lives as long as the isolate (`ListedCache`). `mcpAddressOf` reads `/mcp/<address>/...`.
+  lives as long as the isolate (`ListedCache`). `mcpAddressOf` reads `/mcp/<address>/...` and gives a path with no last slash for the tool path (`/mcp/<address>/` gives `/mcp`). `isMcpToolPath` is the one
+  test of a tool call path (`/mcp` or `/mcp/`): the Worker (account write stop) and the office object (hold and day cap) both use it.
 - `pad.ts`: `padTo`, the minimum answer time of a branch. `mailRoute.ts`: `runMailRoute`, the limits of forgot and renew, shared by the
   office object and the platform object.
 - `fanout.ts`: the Cron fan-out (`runFanout`, `selfTransport`, `CRON_PATH`).

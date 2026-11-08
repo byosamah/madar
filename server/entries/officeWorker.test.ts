@@ -426,6 +426,29 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
       expect(seen.effects.map((e) => [e.ids, e.net])).toEqual([[['9'], net], [['9'], net]]);
     });
 
+    it('the write stop of the account answers busy for a tool call to every form of the path, and lets the OAuth routes through', async () => {
+      const seen: string[] = [];
+      const stub = {
+        mcp: async (input: OfficeMcpInput) => (seen.push(new URL(input.url).pathname), { status: 200, headers: [] as [string, string][], body: '{}', later: [] as string[] }),
+      } as unknown as OfficeStub;
+      const routes = officeRoutes({
+        deps: fakeDeps(),
+        verifyToken: async () => ({ authUserId: 'auth-1' }),
+        stubFor: () => stub,
+        platform: () => ({ ...PLATFORM, capState: async () => ({ stop: false, writesStop: true }) }) as never,
+        net: () => recordingNet(),
+        jobsSecret: () => 'jobs-secret',
+      });
+      for (const path of ['/mcp/globex', '/mcp/globex/']) {
+        const answer = await mcpPost(routes as never, path, '{"jsonrpc":"2.0","id":1,"method":"tools/call"}');
+        expect([path, answer.status, await answer.text()].join(' ')).toContain('503');
+      }
+      expect(seen).toEqual([]);
+      const oauth = await mcpPost(routes as never, '/mcp/globex/oauth/register', '{}');
+      expect(oauth.status).toBe(200);
+      expect(seen).toEqual(['/mcp/oauth/register']);
+    });
+
     it('an unknown address gets the 401 of a missing token with the challenge of that address, and makes no stub', async () => {
       const { seen, routes } = setup();
       for (const path of ['/mcp/nope', '/mcp/Globex', '/mcp/a', '/mcp/g%6Cobex', '/mcp/mcp']) {
