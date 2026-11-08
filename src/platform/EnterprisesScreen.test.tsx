@@ -7,9 +7,9 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { PLATFORM_CALL_NAMES, type PlatformApi } from '../api/contract/platform';
 import { ApiError } from '../api/errors';
 import { ToastProvider } from '../app/toasts';
-import { createQueryClient } from '../app/runtime';
 import { initI18n } from '../i18n';
 import { EnterprisesScreen } from './EnterprisesScreen';
+import { createSiteQueryClient } from './queryClient';
 import { PlatformProvider } from './usePlatform';
 
 const byId = (id: string) => document.getElementById(id) as HTMLInputElement;
@@ -45,7 +45,7 @@ function fake(o: { rows?: ReturnType<typeof row>[]; createOpen?: boolean; meter?
 
 async function open(f = fake()) {
   const view = render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={createSiteQueryClient()}>
       <ToastProvider><PlatformProvider api={f.api}><EnterprisesScreen /></PlatformProvider></ToastProvider>
     </QueryClientProvider>,
   );

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CHART_MARKER, PLATFORM_MARKERS, POSTHOG_MARKERS, checkBundles, FIRST_LOAD_MAX_BYTES, FIRST_LOAD_MAX_FILES, FIRST_LOAD_MAX_GZIP, LAZY_MARKERS, originsOf, SEED_MARKERS, staticImports, tagsOf, WORD_MARKERS, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
+import { CHART_MARKER, COMPANY_MARKERS, PLATFORM_FIRST_LOAD_MAX_BYTES, PLATFORM_FIRST_LOAD_MAX_FILES, PLATFORM_FIRST_LOAD_MAX_GZIP, PLATFORM_MARKERS, POSTHOG_MARKERS, checkBundles, FIRST_LOAD_MAX_BYTES, FIRST_LOAD_MAX_FILES, FIRST_LOAD_MAX_GZIP, LAZY_MARKERS, originsOf, SEED_MARKERS, staticImports, tagsOf, WORD_MARKERS, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
 
 const dirs: string[] = [];
 
@@ -486,5 +486,71 @@ describe('the drag code (performance audit 2026-10-21, FL-2): the sortable lists
   it('passes a remote first load with dnd-kit in a lazy chunk of its own', () => {
     const result = checkRemote((files) => { files['assets/DragLayer-abc.js'] = 'export default "DndDescribedBy";'; });
     expect(result.ok).toBe(true);
+  });
+});
+
+describe('checkBundles platform (the site Madar enterprises, design 12, D7)', () => {
+  const index = '<html><head><script type="module" crossorigin src="/assets/index-abc.js"></script><link rel="modulepreload" href="/assets/vendor-def.js"></head></html>';
+  const csp = "/*\n  Content-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'\n";
+  const clean = {
+    'index.html': index,
+    '_headers': csp,
+    'assets/index-abc.js': `import "./vendor-def.js";call("${PLATFORM_MARKERS[0]}");key("${PLATFORM_MARKERS[1]}")`,
+    'assets/vendor-def.js': 'export const v = 1;',
+  };
+  const lines = (r: { lines: string[] }) => r.lines.join('\n');
+
+  it('passes a clean platform build and prints what it searched', () => {
+    const result = checkBundles('platform', dist(clean));
+    expect(result.ok, lines(result)).toBe(true);
+    expect(lines(result)).toContain('zod schemas');
+    expect(lines(result)).toContain('the screens of the companies');
+    expect(lines(result)).toContain('the first-load scripts');
+  });
+
+  it('fails a build that has no platform code at all (a wrong entry)', () => {
+    const result = checkBundles('platform', dist({ ...clean, 'assets/index-abc.js': 'console.log(1)' }));
+    expect(result.ok).toBe(false);
+    expect(lines(result)).toContain('platform code');
+  });
+
+  it('fails a build that holds Supabase, zod, the sample office, a company call name, PostHog or a service worker', () => {
+    const bad: Record<string, string> = {
+      supabase: 'createClient("https://abc.supabase.co")',
+      zod: 'class $ZodObject {}',
+      seed: 'const a = "Hala Nasser"',
+      posthog: 'x.$snapshot_data = 1',
+      worker: 'navigator.serviceWorker.register("/sw.js")',
+      chart: 'recharts-wrapper',
+    };
+    for (const marker of COMPANY_MARKERS) bad[marker] = `call("${marker}")`;
+    for (const [name, text] of Object.entries(bad)) {
+      const result = checkBundles('platform', dist({ ...clean, 'assets/page-9.js': text }));
+      expect(result.ok, name).toBe(false);
+      expect(lines(result), name).toContain('assets/page-9.js');
+    }
+  });
+
+  it('fails a build with no headers file, or headers that allow another host', () => {
+    const { _headers: _drop, ...noHeaders } = clean;
+    expect(checkBundles('platform', dist(noHeaders)).ok).toBe(false);
+    const other = checkBundles('platform', dist({ ...clean, _headers: csp.replace("connect-src 'self'", "connect-src 'self' https://x.supabase.co") }));
+    expect(other.ok).toBe(false);
+    expect(lines(other)).toContain('headers');
+    expect(checkBundles('platform', dist({ ...clean, _headers: '/*\n  X-Frame-Options: DENY\n' })).ok).toBe(false);
+  });
+
+  it('fails a relative ./assets/ path and a missing entry script', () => {
+    expect(checkBundles('platform', dist({ ...clean, 'index.html': index.replace('"/assets/', '"./assets/') })).ok).toBe(false);
+    const { 'assets/index-abc.js': _gone, ...noEntry } = clean;
+    expect(checkBundles('platform', dist(noEntry)).ok).toBe(false);
+  });
+
+  it('fails a first load that grows over the bounds of its own', () => {
+    const big = checkBundles('platform', dist({ ...clean, 'assets/vendor-def.js': `export const v = "${randomBytes(PLATFORM_FIRST_LOAD_MAX_BYTES).toString('hex')}";` }));
+    expect(big.ok).toBe(false);
+    expect(lines(big)).toContain(`${PLATFORM_FIRST_LOAD_MAX_BYTES} B or less`);
+    expect(PLATFORM_FIRST_LOAD_MAX_GZIP).toBeLessThan(PLATFORM_FIRST_LOAD_MAX_BYTES);
+    expect(PLATFORM_FIRST_LOAD_MAX_FILES).toBeGreaterThan(0);
   });
 });
