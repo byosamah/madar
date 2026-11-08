@@ -8,6 +8,8 @@ export type Ctx = {
   state: State; actor: User; authority: User; correlationId: string; stamp: string; today: string; now: Date; persistent: boolean;
   /** The real build: the limits of the active file store (plan 2b, point 1). The prototype has none. */
   limits?: { maxFileBytes: number };
+  /** The real build (Madar enterprises): the id of the enterprise, and whether the authority is a platform owner. The prototype has none. */
+  enterprise?: { id: string; platformOwner: boolean };
 };
 export type PrepareCtx = {
   state: State; persister: Persister; actor: User; now: Date;

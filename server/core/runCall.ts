@@ -165,7 +165,12 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
   }
 
   function baseOf(deps: Deps, actorId: string, authorityId: string, correlationId: string, now: Date) {
-    return { actorId, authorityId, correlationId, now, persistent: true, wireOutput: true, limits: { maxFileBytes: deps.config.limits.maxFileBytes } };
+    // The enterprise of the object (Madar enterprises): only when its id is known. The Postgres path has no facts.
+    const id = deps.enterprise?.id();
+    return {
+      actorId, authorityId, correlationId, now, persistent: true, wireOutput: true, limits: { maxFileBytes: deps.config.limits.maxFileBytes },
+      ...(id !== undefined ? { enterprise: { id, platformOwner: deps.enterprise!.owners().has(authorityId) } } : {}),
+    };
   }
 
   async function runRead(deps: Deps, req: RunRequest, entry: SharedEntry, parsed: unknown, data: CallData): Promise<RunResult> {

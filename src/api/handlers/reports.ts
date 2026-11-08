@@ -38,7 +38,7 @@ import { assertCan } from './shared';
  * - The reviews of a person come from the review events of the period in the State (REPORT_REVIEW_VERBS). The loader reads them once.
  */
 
-/** The office name of the report. The office has no name field yet, so the product name stands in. */
+/** The office name of the report when the enterprise has set no name: the product name stands in. */
 const OFFICE_NAME = 'Madar';
 
 /** The most project rows of one report (the schema). The totals still count every project. */
@@ -156,7 +156,9 @@ function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guid
       reviewsDone: reviewsOf(user.id),
     }));
 
-  const officeName = input.subCompanyId ? subCompanies[input.subCompanyId]?.name ?? OFFICE_NAME : OFFICE_NAME;
+  // A sub-company name wins. Else the name of the enterprise (Madar enterprises), else the product name.
+  const enterpriseName = state.settings.enterpriseName ?? OFFICE_NAME;
+  const officeName = input.subCompanyId ? subCompanies[input.subCompanyId]?.name ?? enterpriseName : enterpriseName;
   const money = can(actor, 'payment.view') ? moneyOf(payments, range, dueEnd) : null;
   const gaps = can(actor, 'gaps.view') ? gapsOf(state, tasks, projects) : null;
 
