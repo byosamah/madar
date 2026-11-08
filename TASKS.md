@@ -1498,6 +1498,7 @@ order; builders run on Sonnet 5.5. Each track merges into `rb/enterprises`; the 
 - [x] Merge main, A, then B into `rb/enterprises` (3d504ecf); typecheck, the touched server folders (1,755), test:office (58) and test:lite (3,577) green
 - [ ] Wave 2: plan C, all 23 tasks, with the two What's new entries (track `ent-c`: platform calls and page, create, pause, limits, name and logo, meter and day cap)
 - [ ] Wave 2: plan D tasks 1, 3, 4, 5, 7 (track `ent-d`). Wave 3: plan D tasks 2, 6, 8 to 11, 13 (task 12 dropped: C writes What's new) (mail pool, file prefix, logs and PostHog, backups, prototype, What's new, MCP words, sweep, guides)
+- [ ] At the merge to main: renumber the What's new ids of track ent-c (it took 157 and 158; madar-b0 holds 157 to 159 for rb/quick-1108, rb/stages and rb/weekly): take 160 or higher. Renumber the SQLite steps 14 and 15 if rb/weekly takes a step on main first (PINNED_SHA256 too).
 - [ ] The full merge gate on `rb/enterprises`, screenshots, then main
 - [ ] Plan E: the move of VADOs' Companies (owner OK at each production step)
 ||||||| f99b353f
