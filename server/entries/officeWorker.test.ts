@@ -9,6 +9,8 @@ import { clientAddress } from '../auth/forgot';
 import { hasOfficeBinding, LIVE_PATH, OFFICE_NAME, OFFICE_OPS_PREFIX, officeRoutes, servesOffice, type OfficeCall, type OfficeRoute, type OfficeStub } from './officeWorker';
 
 const STATUS = { ent: 'ent_001', people: 0, invited: 0, storageBytes: 0, lastWriteAt: null, day: { requests: 0, rowsRead: 0, rowsWritten: 0, mails: 0 }, name: '', nameAr: '' };
+/** A platform object that lists ENT_VADO and one more enterprise, and counts its reads. */
+const PLATFORM = { listed: async () => ['ent_001', 'ent_002'], resolveAddress: async () => null };
 const TICKET = 'a'.repeat(64);
 const BODY = JSON.stringify({ v: 1, calls: [{ i: 0, name: 'session.get', input: {} }] });
 const ANSWER = '{"v":1,"serverTime":"2026-10-04T09:00:00.000+03:00","results":[]}';
@@ -35,7 +37,8 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: O
       if (header !== 'Bearer good') throw new ApiError('unauthenticated', 'Sign in again.');
       return { authUserId: 'auth-1' };
     },
-    stub: () => stub,
+    stubFor: () => stub,
+    platform: () => PLATFORM as never,
     net: () => net,
     jobsSecret: () => 'jobs-secret',
     ...(o.routes ? { routes: o.routes } : {}),
@@ -45,6 +48,67 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: O
   const get = (path: string, headers: Record<string, string> = {}) => routes.fetch(new Request(`https://madar-server.internal${path}`, { headers }), {});
   return { deps, seen, routes, post, get, net, stub };
 }
+
+describe('the enterprise of a request (Madar enterprises)', () => {
+  /** A Worker whose token check gives the ent that the test names, and whose object stubs record the ent they got. */
+  function world(token: { authUserId: string; ent?: string }) {
+    const got: { name: string; ent: unknown }[] = [];
+    const objectOf = (name: string) => ({
+      batch: async (input: OfficeBatchInput) => (got.push({ name, ent: input.ent }), { ok: true as const, body: ANSWER, later: [] }),
+      health: async () => ({ schema: 14, lastJob: null }),
+    });
+    const asked: string[] = [];
+    const routes = officeRoutes({
+      deps: fakeDeps(),
+      verifyToken: async () => token,
+      stubFor: (_env, ent) => (asked.push(ent), objectOf(ent) as unknown as OfficeStub),
+      platform: () => PLATFORM as never,
+      net: () => recordingNet(),
+      jobsSecret: () => 'jobs-secret',
+    });
+    return { got, asked, routes };
+  }
+  const send = (routes: ReturnType<typeof world>['routes'], path: string, init: RequestInit = {}) =>
+    routes.fetch(new Request(`https://madar-server.internal${path}`, { method: 'POST', body: BODY, ...init, headers: { 'content-type': 'application/json', authorization: 'Bearer x', ...(init.headers as Record<string, string> | undefined) } }), {});
+
+  it('a batch goes to the stub of the ent in the token, and a token with no ent goes to ENT_VADO', async () => {
+    const two = world({ authUserId: 'auth-2', ent: 'ent_002' });
+    expect((await send(two.routes, '/api/batch')).status).toBe(200);
+    expect(two.got).toEqual([{ name: 'ent_002', ent: 'ent_002' }]);
+    const old = world({ authUserId: 'auth-1' });
+    await send(old.routes, '/api/batch');
+    expect(old.got).toEqual([{ name: 'ent_001', ent: 'ent_001' }]);
+  });
+
+  it('a header x-madar-ent, a query ent and a body ent change nothing', async () => {
+    const t = world({ authUserId: 'auth-2', ent: 'ent_002' });
+    const body = JSON.stringify({ v: 1, ent: 'ent_001', calls: [{ i: 0, name: 'session.get', input: { ent: 'ent_001' } }] });
+    await send(t.routes, '/api/batch?ent=ent_001&enterprise=ent_001', { body, headers: { 'x-madar-ent': 'ent_001', 'x-madar-enterprise': 'ent_001', 'x-madar-office-name': 'ent_001' } });
+    expect(t.got).toEqual([{ name: 'ent_002', ent: 'ent_002' }]);
+    expect(t.asked).toEqual(['ent_002']);
+  });
+
+  it('health names no enterprise and, with the secret, shows only ENT_VADO', async () => {
+    const t = world({ authUserId: 'a', ent: 'ent_002' });
+    const open = await t.routes.fetch(new Request('https://madar-server.internal/api/health'), {});
+    const base = (await open.json()) as Record<string, unknown>;
+    expect(Object.keys(base).sort()).toEqual(['calls', 'host', 'ok', 'region']);
+    const secret = await t.routes.fetch(new Request('https://madar-server.internal/api/health', { headers: { 'x-madar-jobs-secret': 'jobs-secret' } }), {});
+    expect(await secret.json()).toEqual({ ...base, office: { schema: 14, lastJob: null } });
+    expect(t.asked).toEqual(['ent_001']);
+  });
+
+  it('health leaves out the office when the platform does not list ENT_VADO', async () => {
+    const asked: string[] = [];
+    const routes = officeRoutes({
+      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'a' }), stubFor: (_env, ent) => (asked.push(ent), {} as OfficeStub),
+      platform: () => ({ listed: async () => [], resolveAddress: async () => null }) as never, net: () => recordingNet(), jobsSecret: () => 'jobs-secret',
+    });
+    const answer = await routes.fetch(new Request('https://madar-server.internal/api/health', { headers: { 'x-madar-jobs-secret': 'jobs-secret' } }), {});
+    expect(Object.keys((await answer.json()) as object).sort()).toEqual(['calls', 'host', 'ok', 'region']);
+    expect(asked).toEqual([]);
+  });
+});
 
 describe('the probe routes of spike S1', () => {
   const TOOLS = { MADAR_TEST_TOOLS: 'on', APP_URL: 'http://127.0.0.1:5173', SUPABASE_URL: 'http://127.0.0.1:54321' };
@@ -161,7 +225,7 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     const answer = await routes.fetch(new Request('https://madar-server.internal/api/auth/jwks', { headers: { 'x-madar-client-address': '203.0.113.7' } }), {}, { waitUntil: () => undefined });
     expect(answer.status).toBe(200);
     expect(got).toHaveLength(1);
-    expect([got[0].call.stub, got[0].call.net(), typeof got[0].call.after, got[0].address]).toEqual([stub, net, 'function', '203.0.113.7']);
+    expect([got[0].call.router.stub('ent_001'), got[0].call.net(), typeof got[0].call.after, got[0].address]).toEqual([stub, net, 'function', '203.0.113.7']);
     expect((await get('/auth/jwks')).status).toBe(404);
   });
 
@@ -233,7 +297,8 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
     const routes = officeRoutes({
       deps: { config: testConfig(), clock: { now: () => new Date() }, log: quiet },
       verifyToken: async () => ({ authUserId: 'x' }),
-      stub: () => stubFor('office') as never,
+      stubFor: () => stubFor('office') as never,
+      platform: () => PLATFORM as never,
       stubOf: (_env, name) => stubFor(name) as never,
       net: () => ({}) as never,
       jobsSecret: () => 'jobs',
@@ -284,7 +349,7 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
   it('answers 401 when the copy has no secret for the op at all', async () => {
     const routes = officeRoutes({
       deps: { config: testConfig(), clock: { now: () => new Date() }, log: quiet },
-      verifyToken: async () => ({ authUserId: 'x' }), stub: () => ({}) as never, net: () => ({}) as never, jobsSecret: () => undefined,
+      verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => PLATFORM as never, net: () => ({}) as never, jobsSecret: () => undefined,
       exportSecret: () => undefined, opsSecret: () => undefined,
     });
     expect((await routes.fetch(post('/api/office/export', { 'x-madar-export-secret': '' }), {})).status).toBe(401);

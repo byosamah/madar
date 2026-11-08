@@ -61,12 +61,12 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
       const net = call.net();
       let answer: OfficeMailAnswer;
       try {
-        answer = await call.stub.mailRoute({ ent: ENT_VADO, route, body, address }, net);
+        answer = await call.router.stub(ENT_VADO).mailRoute({ ent: ENT_VADO, route, body, address }, net);
       } catch (error) {
         return errorResponse(officeErrorOf(error, o.deps.log));
       }
       if (answer.work !== undefined) {
-        const work = call.stub.mailWork({ ent: ENT_VADO, route, value: answer.work }, net).catch((error: unknown) => {
+        const work = call.router.stub(ENT_VADO).mailWork({ ent: ENT_VADO, route, value: answer.work }, net).catch((error: unknown) => {
           o.deps.log.warn(route === 'forgot' ? 'A reset mail did not go out.' : 'A renewed invitation did not go out.', { error: error instanceof Error ? error.message : String(error) });
         });
         if (call.after) call.after(work);
@@ -94,6 +94,6 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
     if (route.method === 'POST' && route.path === FORGOT_PATH) return mailRoute('forgot', route.path, o.minMs?.forgot ?? FORGOT_MIN_MS);
     if (route.method === 'POST' && route.path === RENEW_PATH) return mailRoute('renew', route.path, o.minMs?.renew ?? RENEW_MIN_MS);
     // The routes of the own steps read no deps: each one sends its step to the office object of the request.
-    return { method: route.method, path: route.path, handler: (request, call) => routesOf(call.stub).find(same(route))!.handler(request, o.deps) };
+    return { method: route.method, path: route.path, handler: (request, call) => routesOf(call.router.stub(ENT_VADO)).find(same(route))!.handler(request, o.deps) };
   });
 }

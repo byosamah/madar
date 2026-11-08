@@ -63,6 +63,14 @@ export async function startLive() {
       ({ url } = await server.listen());
       await read(await post('/test/seed', state));
     },
+    /** A second object (an enterprise other than ENT_VADO): its own state, its identity row, and its row in the platform list. */
+    seedEnterprise: async (ent: string, state: State, address: string) => {
+      await read(await post(`/test/seed?ent=${ent}`, state));
+      await read(await post('/test/platform', { method: 'register', args: [{
+        row: { id: ent, address, name: `Test ${ent}`, nameAr: `اختبار ${ent}`, state: 'active', limits: { people: null, storageBytes: null }, createdAt: '2026-11-08T08:00:00.000Z', firstAdmin: { name: 'First', email: `first@${address}.test` } },
+        emails: [],
+      }] }));
+    },
     rows: async <R,>(text: string, values: unknown[] = []) => read<R[]>(await post('/test/rows', { text, values })),
     exec: async (text: string, values: unknown[] = []) => read<{ ok: true }>(await post('/test/exec', { text, values })),
     /** One method of the platform object (TestPlatform), through the test Worker: the Worker holds the stub, not Node. */
@@ -72,8 +80,8 @@ export async function startLive() {
     named: async (name: string) => read<{ ok: boolean; code?: string | null; message?: string }>(await post('/test/named', { name })),
     readBack: async () => read<State>(await worker().fetch('/test/readBack')),
     net: async () => read<NetSeen>(await worker().fetch('/test/net')),
-    batch: async (userId: string, calls: BatchCall[]) => {
-      const response = await post('/api/batch', { v: 1, calls: calls.map((c, i) => ({ i, ...c })) }, { authorization: `Bearer ${userId}` });
+    batch: async (userId: string, calls: BatchCall[], o: { ent?: string } = {}) => {
+      const response = await post('/api/batch', { v: 1, calls: calls.map((c, i) => ({ i, ...c })) }, { authorization: `Bearer ${o.ent ? `${o.ent}:` : ''}${userId}` });
       return { status: response.status, body: (await response.json()) as WireResponse & { error?: RunError } };
     },
     agent: async (ownerId: string) => read<{ authId: string; clientId: string; sessionId: string }>(await post('/test/agent', { ownerId })),

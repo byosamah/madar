@@ -21,7 +21,8 @@ function setup(o: { mail?: OfficeMailAnswer } = {}) {
   const routes = officeRoutes({
     deps,
     verifyToken: async () => ({ authUserId: 'auth-1' }),
-    stub: () => stub,
+    stubFor: () => stub,
+    platform: () => ({}) as never,
     net: () => net,
     jobsSecret: () => undefined,
     routes: officeSigninRoutes({ jwks: JWKS, deps, minMs: { forgot: 1500, renew: 1500 }, sleep: async (ms) => void seen.sleeps.push(ms) }),

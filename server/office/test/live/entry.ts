@@ -3,6 +3,7 @@ import { emptyState } from '../../../../src/api/store';
 import { consoleLogger } from '../../../core/deps';
 import { officeRoutes, type OfficeStub } from '../../../entries/officeWorker';
 import { ENT_VADO, PLATFORM_OBJECT } from '../../../enterprise/ids';
+import type { PlatformStub } from '../../../enterprise/platform/stub';
 import { setEnvSource } from '../../../env';
 import { testConfig } from '../../../test/fakes/deps';
 import { fakeFiles } from '../../../test/fakes/files';
@@ -28,16 +29,20 @@ const pushFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof fetch;
 
 // The object of the test Worker is named with the enterprise id, as the real Worker names it (the gate compares the name with its row).
-const stubOf = (env: Env) => env.OFFICE.get(env.OFFICE.idFromName(ENT_VADO)) as Test;
+const stubOf = (env: Env, ent: string = ENT_VADO) => env.OFFICE.get(env.OFFICE.idFromName(ent)) as Test;
+const platformOf = (env: Env) => env.PLATFORM.get(env.PLATFORM.idFromName(PLATFORM_OBJECT)) as unknown as PlatformStub;
 const routes = officeRoutes({
   deps: { config: testConfig({ fileStore: 'r2' }), clock: { now: () => new Date() }, log: consoleLogger() },
-  // No sign-in here: the token is the Madar user id (TestOffice.principal checks that the person acts now).
+  // No sign-in here: the token is the Madar user id (TestOffice.principal checks that the person acts now), or "<ent>:<user id>" for an
+  // enterprise other than ENT_VADO (the claim ent of a real token).
   verifyToken: async (header) => {
     const token = (header ?? '').replace(/^Bearer /, '');
-    if (!/^usr_\d{3}$/.test(token)) throw new ApiError('unauthenticated', 'Sign in to Madar again.');
-    return { authUserId: token };
+    const match = /^(?:(ent_\d{3,}):)?(usr_\d{3})$/.exec(token);
+    if (!match) throw new ApiError('unauthenticated', 'Sign in to Madar again.');
+    return { authUserId: match[2], ...(match[1] ? { ent: match[1] } : {}) };
   },
-  stub: (env) => stubOf(env as Env),
+  stubFor: (env, ent) => stubOf(env as Env, ent),
+  platform: (env) => platformOf(env as Env),
   // The office ops of exit wave 4: an object by its name, and the two secrets of this test Worker (harness.ts sends them).
   stubOf: (env, name) => (env as Env).OFFICE.get((env as Env).OFFICE.idFromName(name === 'office' ? ENT_VADO : name)) as Test,
   net: () => new WorkerNet({ files, mail, fetch: pushFetch }),
@@ -52,13 +57,13 @@ export default {
     const { pathname } = new URL(request.url);
     if (pathname === '/test/net') return Response.json({ files: files.calls, mails: mail.sent, pushes });
     if (pathname === '/test/seed') {
-      await stubOf(env).seed(await request.json());
+      await stubOf(env, new URL(request.url).searchParams.get('ent') ?? ENT_VADO).seed(await request.json());
       return Response.json({ ok: true });
     }
     if (pathname === '/test/platform') {
       // One method of the platform object by name, or resolveRows (the rows of a directory read).
       const { method, args } = (await request.json()) as { method: string; args: unknown[] };
-      const platform = env.PLATFORM.get(env.PLATFORM.idFromName(PLATFORM_OBJECT)) as unknown as Record<string, (...values: unknown[]) => Promise<unknown>>;
+      const platform = platformOf(env) as unknown as Record<string, (...values: unknown[]) => Promise<unknown>>;
       return Response.json({ value: (await platform[method](...args)) ?? null });
     }
     if (pathname === '/test/statusRows') return Response.json(await stubOf(env).statusRows());

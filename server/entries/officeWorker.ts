@@ -12,6 +12,8 @@ import { TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
 import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn } from '../office/ops';
 import { runFanout, selfTransport } from '../enterprise/fanout';
 import { ENT_VADO, type EnterpriseId } from '../enterprise/ids';
+import type { PlatformStub } from '../enterprise/platform/stub';
+import { entRouter, newListedCache, type EntRouter } from '../enterprise/router';
 import type { EnterpriseStatus } from '../enterprise/types';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
@@ -91,19 +93,26 @@ export type OfficeStub = {
   fetch(request: Request): Promise<Response>;
 };
 
-/** What a route of the routes option gets for its request: the office object, a new network port, and the work after the answer. */
-export type OfficeCall = { stub: OfficeStub; net: () => NetApi; after?: After };
+/**
+ * What a route of the routes option gets for its request: the router that turns an enterprise id into an office object (the only way,
+ * server/enterprise/router.ts), the platform object, a new network port, and the work after the answer.
+ */
+export type OfficeCall = { router: EntRouter; platform: PlatformStub; net: () => NetApi; after?: After };
 export type OfficeRoute = { method: 'GET' | 'POST'; path: string; handler: (request: Request, call: OfficeCall) => Promise<Response> };
 
 export type OfficeRoutesOptions = {
   deps: Pick<Deps, 'config' | 'clock' | 'log'>;
-  verifyToken: (header: string | null) => Promise<{ authUserId: string }>;
-  stub: (env: Env) => OfficeStub;
+  /** The token check. ent is the claim of an own-key token; a token with no claim (the Supabase key on an office copy) serves ENT_VADO. */
+  verifyToken: (header: string | null) => Promise<{ authUserId: string; ent?: EnterpriseId }>;
+  /** The office object of an enterprise, by its id (server/entries/officeEntry.ts names it with idFromName). Reach it through the router. */
+  stubFor: (env: Env, ent: EnterpriseId) => OfficeStub;
+  /** The one platform object. */
+  platform: (env: Env) => PlatformStub;
   net: () => NetApi;
   jobsSecret: () => string | undefined;
   /** More routes under /api (the own sign-in, server/entries/officeSignin.ts), as apiApp takes AppOptions.routes. */
   routes?: OfficeRoute[];
-  /** The object of an op by its name (the office of the copy, or a spare object of the rehearsal). Default: stub, for "office". */
+  /** The object of an op by its name (the office of the copy, or a spare object of the rehearsal). Default: the object of ENT_VADO. */
   stubOf?: (env: Env, name: string) => Pick<OfficeStub, 'fetch'>;
   /** MADAR_EXPORT_SECRET: the nightly export of GitHub. */
   exportSecret?: () => string | undefined;
@@ -131,6 +140,9 @@ export function officeErrorOf(error: unknown, log: Deps['log']): RunError {
 
 export function officeRoutes(o: OfficeRoutesOptions) {
   const { log } = o.deps;
+  // The list of enterprises and the resolved addresses live as long as the isolate, so most requests read no platform object.
+  const listedCache = newListedCache();
+  const routerOf = (env: Env): EntRouter => entRouter({ stubFor: (ent) => o.stubFor(env, ent), platform: o.platform(env), cache: listedCache });
   let seen = 0;
   const reported = (): number => {
     const n = seen;
@@ -142,26 +154,31 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     let calls: OfficeBatchInput['calls'];
     let overviewCalls: number;
     let authUserId: string;
+    let ent: EnterpriseId;
     try {
       checkBuild(request.headers.get('X-Madar-Build') ?? undefined, o.deps.config.minClientBuild);
       const parsed = parseBatch(await readBody(request));
       calls = parsed.request.calls;
       overviewCalls = parsed.overviewCalls;
-      ({ authUserId } = await o.verifyToken(request.headers.get('Authorization')));
+      const checked = await o.verifyToken(request.headers.get('Authorization'));
+      authUserId = checked.authUserId;
+      // The claim of the signed token names the enterprise. No claim (the Postgres way back) is ENT_VADO.
+      ent = checked.ent ?? ENT_VADO;
     } catch (error) {
       if (!(error instanceof ApiError)) log.error('The batch failed before its calls.', { error: error instanceof Error ? error.message : String(error) });
       return errorResponse(runErrorOf(error));
     }
     const net = o.net();
+    const stub = routerOf(env).stub(ent);
     let out: OfficeBatchOutput;
     try {
-      out = await o.stub(env).batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId }, calls, overviewCalls, worker: reported() }, net);
+      out = await stub.batch({ ent, who: { kind: 'browser', authUserId }, calls, overviewCalls, worker: reported() }, net);
     } catch (error) {
       return errorResponse(officeErrorOf(error, log));
     }
     if (!out.ok) return errorResponse(out.error);
     if (out.later.length > 0) {
-      const work = o.stub(env).runEffects({ ent: ENT_VADO, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+      const work = stub.runEffects({ ent, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
         log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
       });
       if (after) after(work);
@@ -186,15 +203,17 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     }
     const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
     const net = o.net();
+    // Task 12 adds the address of an enterprise; until then /mcp serves ENT_VADO.
+    const stub = routerOf(env).stub(ENT_VADO);
     let out: OfficeMcpAnswer;
     try {
-      out = await o.stub(env).mcp({ ent: ENT_VADO, url: request.url, method: request.method, headers, body, worker: reported() }, net);
+      out = await stub.mcp({ ent: ENT_VADO, url: request.url, method: request.method, headers, body, worker: reported() }, net);
     } catch (error) {
       const refusal = officeErrorOf(error, log);
       return refusal.details?.reason === 'busy' ? mcpError(503, refusal.message, 'busy') : mcpError(500, 'Something went wrong. Try again.');
     }
     if (out.later.length > 0) {
-      const work = o.stub(env).runEffects({ ent: ENT_VADO, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+      const work = stub.runEffects({ ent: ENT_VADO, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
         log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
       });
       if (after) after(work);
@@ -217,7 +236,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     }
     const name = new URL(request.url).searchParams.get('office') ?? OFFICE_NAME;
     if (!nameAllowed(rule.names, name)) return errorResponse({ code: 'forbidden', message: 'This office name is not allowed for this op.' });
-    const stub = o.stubOf ? o.stubOf(env, name) : o.stub(env);
+    const stub = o.stubOf ? o.stubOf(env, name) : routerOf(env).stub(ENT_VADO);
     try {
       return await stub.fetch(new Request(`https://office.internal/office/${op}`, {
         method: 'POST', headers: { 'content-type': 'application/json', [OFFICE_NAME_HEADER]: name }, body: request.body, duplex: 'half',
@@ -231,7 +250,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response('This address needs a WebSocket.', { status: 426 });
     if (!TICKET_SHAPE.test(new URL(request.url).searchParams.get('ticket') ?? '')) return errorResponse(TICKET_REFUSED);
     try {
-      return await o.stub(env).fetch(request);
+      // Task 11 reads the enterprise from the tag of the ticket; until then a socket serves ENT_VADO.
+      return await routerOf(env).stub(ENT_VADO).fetch(request);
     } catch (error) {
       return errorResponse(officeErrorOf(error, log));
     }
@@ -244,7 +264,9 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const secret = o.jobsSecret();
     if (!secret || !(await sameSecret(given, secret))) return errorResponse({ code: 'unauthenticated', message: 'The job secret is not right.' });
     try {
-      return Response.json({ ...base, office: await o.stub(env).health() });
+      // Only ENT_VADO, and only when the platform lists it: the health check reads no other enterprise.
+      const vado = await routerOf(env).listedStub(ENT_VADO);
+      return Response.json(vado ? { ...base, office: await vado.stub.health() } : base);
     } catch (error) {
       log.error('The office object failed its health check.', { error: error instanceof Error ? error.message : String(error) });
       return Response.json({ ...base, ok: false }, { status: 503 });
@@ -306,7 +328,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   for (const route of o.routes ?? []) {
     app.on(route.method, `/api${route.path}`, (c) => {
       const after = afterOf(c);
-      return route.handler(c.req.raw, { stub: o.stub(c.env), net: o.net, ...(after ? { after } : {}) });
+      return route.handler(c.req.raw, { router: routerOf(c.env), platform: o.platform(c.env), net: o.net, ...(after ? { after } : {}) });
     });
   }
   app.notFound(() => errorResponse({ code: 'not_found', message: 'This address does not exist.' }));
@@ -331,7 +353,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     async scheduled(at: Date, env: Env): Promise<OfficeCronReport | undefined> {
       seen += 1;
       try {
-        const report = await o.stub(env).cron({ ent: ENT_VADO, at: at.toISOString(), worker: reported() }, o.net());
+        const report = await routerOf(env).stub(ENT_VADO).cron({ ent: ENT_VADO, at: at.toISOString(), worker: reported() }, o.net());
         log.info('The office jobs ran.', { ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed, day: report.day });
         return report;
       } catch (error) {

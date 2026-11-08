@@ -5,6 +5,8 @@ import { env as readEnv, setEnvSource } from '../env';
 import { refusingDb } from '../office/refusingDb';
 import { WorkerNet } from '../office/workerNet';
 import { officeSigninRoutes } from './officeSignin';
+import { PLATFORM_OBJECT } from '../enterprise/ids';
+import type { PlatformStub } from '../enterprise/platform/stub';
 import { OFFICE_NAME, officeRoutes, type OfficeRoute, type OfficeStub } from './officeWorker';
 import { withServerHeader, workersServer } from './serverHeader';
 
@@ -29,6 +31,23 @@ export function onOffice(env: Env): boolean {
   return env.MADAR_DATA === 'office' && typeof namespace?.idFromName === 'function' && typeof namespace.get === 'function';
 }
 
+/**
+ * The office object of an enterprise: its name is the enterprise id (Madar enterprises). The Worker reaches it through the router
+ * (server/enterprise/router.ts), which makes sure that an untrusted id is listed by the platform object first. The ops use a name
+ * (stubOf) for the spare objects of a rehearsal.
+ */
+export function stubFor(env: Env, name: string): OfficeStub {
+  const namespace = env.OFFICE as Namespace;
+  return namespace.get(namespace.idFromName(name)) as OfficeStub;
+}
+
+/** The one platform object. */
+export function platformStub(env: Env): PlatformStub {
+  const namespace = env.PLATFORM as Namespace | undefined;
+  if (!namespace) throw new Error('The Worker has no binding PLATFORM. Add it to this env of wrangler.server.toml.');
+  return namespace.get(namespace.idFromName(PLATFORM_OBJECT)) as PlatformStub;
+}
+
 export function officeEntry() {
   let routes: ReturnType<typeof officeRoutes> | undefined;
   const start = () => {
@@ -48,15 +67,10 @@ export function officeEntry() {
     routes = officeRoutes({
       deps,
       verifyToken: verifyBrowserToken,
-      stub: (env) => {
-        const namespace = env.OFFICE as Namespace;
-        return namespace.get(namespace.idFromName(OFFICE_NAME)) as OfficeStub;
-      },
+      stubFor,
+      platform: platformStub,
       // The office ops (exit wave 4): an object by its name, the office of the copy or a spare object of the rehearsal.
-      stubOf: (env, name) => {
-        const namespace = env.OFFICE as Namespace;
-        return namespace.get(namespace.idFromName(name)) as OfficeStub;
-      },
+      stubOf: (env, name) => stubFor(env, name),
       net: () => new WorkerNet({ files: deps.files, mail: deps.mail }),
       jobsSecret: () => values.jobsSecret,
       exportSecret: () => readEnv('MADAR_EXPORT_SECRET'),
