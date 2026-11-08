@@ -23,7 +23,8 @@ export type Via = 'page' | 'direct';
  */
 export function fromStatus(status: number, body: unknown, retryAfter: string | null, now = Date.now(), via?: Via): ApiError {
   const reason = reasonOf(body);
-  const where = via ? { status, via } : { status };
+  // "via" is undefined when the caller names no path: the key is then empty, and the screens never read it.
+  const where = { status, via };
   if (status === 401) return new ApiError('unauthenticated', 'Sign in to continue.', reason ? { reason } : {});
   if (status === 403) return new ApiError('unauthenticated', 'Your account is turned off.', { reason: 'account_off' });
   if (status === 409) return new ApiError('failed', 'Madar has a new version. Reload the page.', { reason: 'client_outdated', ...where });
@@ -36,7 +37,7 @@ export function fromStatus(status: number, body: unknown, retryAfter: string | n
 
 /** No answer came back: the network failed, or the time limit ended. */
 export function noAnswer(cause: 'timeout' | 'network', via?: Via): ApiError {
-  return new ApiError('failed', 'The call failed. Try again.', via ? { cause, via } : { cause });
+  return new ApiError('failed', 'The call failed. Try again.', { cause, via });
 }
 
 /** Retry-After in milliseconds: a number of seconds, or an HTTP date. */

@@ -16,7 +16,7 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
   // Chat fixes (owner report 2026-11-08): helpers and people named with @ have the to-do thread, quiet hours are off unless a person turns them on, a longer swipe keeps the unread mark, a date line no longer lifts a thread. The lead sets the real release day before the test deploy.
-  { id: '2026-11-08-160', day: '2026-11-08', to: '/settings' },
+  { id: '2026-11-08-160', day: '2026-11-08' },
   // The weekly question: Home asks what you plan on Sunday and what you did on Thursday, and the Week page shows the answers of the team (fbk_088, owner 2026-11-08). The lead sets the real release day before the test deploy.
   { id: '2026-11-08-159', day: '2026-11-08', to: '/week' },
   // A continuous project has no current stage: its header, rows, boxes and Overview show the open to-dos of each stage, and the order rules (a reason for a move back, the stage notice, the Activity line) are off. The To-dos tab gets a View button beside Filter, and the board of a continuous project has the stages as columns (fbk_084, fbk_085, owner 2026-11-08). The lead sets the real release day before the test deploy.
