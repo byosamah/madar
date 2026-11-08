@@ -92,6 +92,10 @@ export type NodeWorldOptions = {
   seeds?: Partial<Record<EnterpriseId, State | false>>;
   /** false: the first object is made without its identity row (an object that was never made). */
   row?: false;
+  /** The minimum answer time of the forgot and renew routes, in ms. Default: the real values. */
+  minMs?: { forgot?: number; renew?: number };
+  /** The sleep of the minimum answer time. Default: a real timer. A test that compares the waits records them here. */
+  sleep?: (ms: number) => Promise<void>;
 };
 
 export async function nodeWorld(o: NodeWorldOptions = {}) {
@@ -152,7 +156,7 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
   let verifyToken: TokenChecker = () => Promise.reject(new ApiError('unauthenticated', 'Sign in again.'));
   if (secret !== undefined) {
     try {
-      own = officeSigninRoutes({ jwks: ownPublicJwks(secret), deps: workerDeps });
+      own = officeSigninRoutes({ jwks: ownPublicJwks(secret), deps: workerDeps, ...(o.minMs ? { minMs: o.minMs } : {}), ...(o.sleep ? { sleep: o.sleep } : {}) });
       verifyToken = browserTokenChecker({ issuer: ownIssuer(workerDeps.config.mcpUrl), jwks: ownKeySet(secret), requireEnt: true });
     } catch (error) {
       log.error('The own sign-in routes are off: the key did not load.', { error: error instanceof Error ? error.message : String(error) });

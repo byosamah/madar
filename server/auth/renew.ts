@@ -73,6 +73,8 @@ export const RENEW_ROW_LITE =
 class Refused extends Error {}
 
 const Body = z.object({ key: z.string().trim().min(1).max(200) });
+/** The body of the renew route: the Worker of the office path reads it to find the enterprise of the key tag. */
+export const RenewBody = Body;
 
 type KeyRow = { id: string; user_id: string; invite_id: string; sent: boolean | number; renewed: boolean | number };
 

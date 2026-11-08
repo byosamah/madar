@@ -20,8 +20,8 @@ const PASSWORD = 'Office-pass-1';
  * The sample office with one sign-in row for usr_001, with the email of that person (the forgot route finds the person by it).
  * The hash is made before the transaction (no crypto.subtle inside one).
  */
-async function signedOffice(at?: string) {
-  const t = await nodeOffice(at ? { at } : {});
+async function signedOffice(at?: string, more: { sleep?: (ms: number) => Promise<void> } = {}) {
+  const t = await nodeOffice({ ...(at ? { at } : {}), ...more });
   const { email } = t.raw.prepare("select json_extract(doc, '$.email') as email from users where id = 'usr_001'").get() as { email: string };
   const hash = await hashPassword(PASSWORD);
   await t.signins([{ id: AUTH_ID, email, password_hash: hash, email_confirmed: true, banned: false, password_set: true, user_id: 'usr_001' }]);
@@ -92,6 +92,32 @@ describe('the routes of the office path, from the Worker into the object (server
     const stripped = await post('/api/auth/verify', { token_hash: untag(link)!.secret, type: 'recovery' });
     expect(stripped).toMatchObject({ status: 401, body: { error: { details: { reason: 'link_ended' } } } });
     expect((await post('/api/auth/verify', { token_hash: link, type: 'recovery' })).status).toBe(200);
+  });
+
+  it('forgot over the limit gives the same too-many answer for a known and an unknown email', async () => {
+    const t = await signedOffice(undefined, { sleep: async () => undefined });
+    const tries = async (email: string, address: string) => {
+      const out: { status: number; body: string }[] = [];
+      for (let i = 0; i < 5; i += 1) out.push(await t.route(httpOf('POST', '/api/auth/forgot', { email }, { 'x-madar-client-address': address })));
+      return out;
+    };
+    const known = await tries(t.email, '203.0.113.21');
+    const unknown = await tries('nobody@nowhere.test', '203.0.113.22');
+    expect(known.map((one) => one.status)).toEqual([200, 200, 200, 429, 429]);
+    expect(unknown).toEqual(known);
+    // The platform object counted the unknown email, and the object of ENT_VADO counted the known one.
+    expect(t.world.platformRaw.prepare('select count(*) as n from rate_limits').get()).toEqual({ n: 2 });
+    expect(t.raw.prepare('select count(*) as n from rate_limits').get()).toEqual({ n: 2 });
+  });
+
+  it('answers a key that no row holds the same for an untagged key, an unlisted tag and a tag of the object', async () => {
+    const t = await signedOffice(undefined, { sleep: async () => undefined });
+    const send = (key: string, address: string) => t.route(httpOf('POST', '/api/auth/renew-invite', { key }, { 'x-madar-client-address': address }));
+    const answers = [await send('ent_001.no-such-key', '203.0.113.31'), await send('no-such-key', '203.0.113.32'), await send('ent_009.no-such-key', '203.0.113.33')];
+    expect(answers[0].status).toBe(200);
+    expect(answers[1]).toEqual(answers[0]);
+    expect(answers[2]).toEqual(answers[0]);
+    expect(t.world.created).not.toContain('ent_009');
   });
 
   it('answers POST /mcp with no token with 401 and the challenge of the own server', async () => {

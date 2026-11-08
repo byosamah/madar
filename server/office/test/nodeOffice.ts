@@ -9,12 +9,14 @@ export type { OfficeHttpAnswer, OfficeHttpRequest };
  * The office path on node:sqlite for the node tests (exit wave 4): one enterprise, ENT_VADO, from nodeWorld (server/office/test/nodeWorld.ts).
  * It keeps the fields that the tests of one office read. A test of two enterprises uses nodeWorld.
  */
-export async function nodeOffice(o: { at?: string; env?: Record<string, string>; seed?: State | false; row?: false } = {}) {
+export async function nodeOffice(o: { at?: string; env?: Record<string, string>; seed?: State | false; row?: false; minMs?: { forgot?: number; renew?: number }; sleep?: (ms: number) => Promise<void> } = {}) {
   const world = await nodeWorld({
     ...(o.at ? { at: o.at } : {}),
     ...(o.env ? { env: o.env } : {}),
     ...(o.seed !== undefined ? { seeds: { [ENT_VADO]: o.seed } } : {}),
     ...(o.row === false ? { row: false as const } : {}),
+    ...(o.minMs ? { minMs: o.minMs } : {}),
+    ...(o.sleep ? { sleep: o.sleep } : {}),
   });
   const vado = world.ents.get(ENT_VADO)!;
   return {

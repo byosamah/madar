@@ -17,7 +17,7 @@ function setup(o: { mail?: OfficeMailAnswer; checkToken?: TokenChecker } = {}) {
   const deps = fakeDeps();
   const seen = {
     signins: [] as (OfficeSigninInput & { object: string })[], mailRoutes: [] as OfficeMailInput[], mailWorks: [] as OfficeMailWork[], sleeps: [] as number[],
-    created: [] as string[], resolved: [] as string[], refused: [] as { signin: string; input: unknown }[],
+    created: [] as string[], resolved: [] as string[], refused: [] as { signin: string; input: unknown }[], refusedMail: [] as { route: string; body: string; address: string }[],
   };
   const stubOf = (object: string) => ({
     signin: async (body: OfficeSigninInput) => (
@@ -32,6 +32,7 @@ function setup(o: { mail?: OfficeMailAnswer; checkToken?: TokenChecker } = {}) {
     listed: async () => ['ent_001', 'ent_002'],
     resolveAddress: async () => null,
     refuseSignin: async (input: { signin: string; input: unknown }) => (seen.refused.push(input), INVALID),
+    refuseMail: async (input: { route: string; body: string; address: string }) => (seen.refusedMail.push(input), { status: 200, body: '{"v":1,"ok":true}' }),
   };
   const net = recordingNet();
   const routes = officeRoutes({
@@ -159,10 +160,47 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     expect(net.calls).toEqual([]);
   });
 
+  it('sends the forgot request of an unknown email to refuseMail: no object, no mail work, the same body and the same minimum time', async () => {
+    const { seen, post } = setup();
+    const known = await post('/auth/forgot', { email: 'Hala@Madar.TEST' });
+    const unknown = await post('/auth/forgot', { email: 'nobody@nowhere.test' });
+    expect([unknown.status, await unknown.text()]).toEqual([known.status, await known.text()]);
+    expect(seen.mailRoutes).toHaveLength(1);
+    expect(seen.mailRoutes[0]).toMatchObject({ ent: 'ent_001', route: 'forgot' });
+    expect(seen.refusedMail).toEqual([{ route: 'forgot', body: JSON.stringify({ email: 'nobody@nowhere.test' }), address: ADDRESS }]);
+    expect(seen.mailWorks).toHaveLength(1);
+    expect(seen.created).toEqual(['ent_001']);
+    expect(seen.sleeps).toHaveLength(2);
+    for (const wait of seen.sleeps) expect(wait).toBeGreaterThan(1400);
+    expect(Math.abs(seen.sleeps[0] - seen.sleeps[1])).toBeLessThan(100);
+  });
+
+  it('sends a forgot body that does not parse, and a bad email, to refuseMail', async () => {
+    const { seen, routes } = setup();
+    const raw = (body: string) => routes.fetch(new Request('https://madar-server.internal/api/auth/forgot', { method: 'POST', headers: { 'content-type': 'application/json', 'x-madar-client-address': ADDRESS }, body }), {});
+    await raw('not json');
+    await raw('{"email":"nope"}');
+    await raw('{}');
+    expect(seen.refusedMail.map((one) => one.body)).toEqual(['not json', '{"email":"nope"}', '{}']);
+    expect(seen.mailRoutes).toEqual([]);
+  });
+
+  it('sends a renew key tagged ent_002 to ent_002 with the bare key, and any other key to refuseMail', async () => {
+    const { seen, post } = setup();
+    await post('/auth/renew-invite', { key: 'ent_002.the-key-1' });
+    expect(seen.mailRoutes).toEqual([{ ent: 'ent_002', route: 'renew', body: JSON.stringify({ key: 'the-key-1' }), address: ADDRESS }]);
+    expect(seen.mailWorks).toEqual([{ ent: 'ent_002', route: 'renew', value: 'value-1' }]);
+    const bad = ['the-key-1', 'ent_009.k', 'ENT_001.k', 'ent_001.a.b', `ent_001.${'k'.repeat(5000)}`];
+    for (const key of bad) await post('/auth/renew-invite', { key });
+    expect(seen.refusedMail.map((one) => one.route)).toEqual(bad.map(() => 'renew'));
+    expect(seen.mailRoutes).toHaveLength(1);
+    expect(seen.created).toEqual(['ent_002']);
+  });
+
   it('answers a refusal of the limits as it is, with no mail work', async () => {
     const refused = '{"v":1,"error":{"code":"conflict","message":"Too many tries. Wait a few minutes, then try again."}}';
     const { seen, post } = setup({ mail: { status: 409, body: refused } });
-    const answer = await post('/auth/renew-invite', { key: 'k' });
+    const answer = await post('/auth/renew-invite', { key: 'ent_001.k' });
     expect([answer.status, await answer.text()]).toEqual([409, refused]);
     expect(seen.mailRoutes[0].route).toBe('renew');
     expect(seen.mailWorks).toEqual([]);

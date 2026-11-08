@@ -70,6 +70,8 @@ export const FORGOT_PERSON_SQL = "select id, doc, auth_user_id::text as auth fro
 export const FORGOT_PERSON_LITE = 'select u.id as id, u.doc as doc, a.id as auth from auth_users a join users u on u.id = a.user_id where a.email = ?1';
 
 const Body = z.object({ email: z.email() });
+/** The body of the forgot route: the Worker of the office path reads it to find the enterprise of the email. */
+export const ForgotBody = Body;
 
 /** The header of the client address that the Pages Function writes for the Worker (server/http/pagesApiProxy.ts). */
 export { CLIENT_ADDRESS_HEADER };

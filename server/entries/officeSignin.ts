@@ -1,10 +1,12 @@
-import { ENT_VADO, normalizeEmail, untag, type EnterpriseId } from '../enterprise/ids';
+import { normalizeEmail, untag, type EnterpriseId } from '../enterprise/ids';
+import { padTo } from '../enterprise/pad';
+import type { EntStub } from '../enterprise/router';
 import type { JSONWebKeySet } from 'jose';
-import { CLIENT_ADDRESS_HEADER, FORGOT_MIN_MS, FORGOT_PATH } from '../auth/forgot';
+import { CLIENT_ADDRESS_HEADER, FORGOT_MIN_MS, FORGOT_PATH, ForgotBody } from '../auth/forgot';
 import type { OpInput, OpOutput, OpResult, SigninOffice, SigninOpName } from '../auth/own/office';
 import { ownApiRoutes } from '../auth/own/routes';
 import { GOOGLE_CALLBACK_PATH, callbackRedirect } from '../google/callback';
-import { RENEW_MIN_MS, RENEW_PATH } from '../auth/renew';
+import { RENEW_MIN_MS, RENEW_PATH, RenewBody } from '../auth/renew';
 import type { TokenChecker } from '../auth/verify';
 import type { Deps } from '../core/ports';
 import { errorResponse } from '../http/errors';
@@ -79,6 +81,12 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
   const routesOf = (office: SigninOffice): RouteDef[] => ownApiRoutes(office, options);
   const same = (a: RouteDef) => (b: RouteDef) => a.method === b.method && a.path === b.path;
 
+  /**
+   * The forgot and renew routes (Madar enterprises, design 5.2). The Worker reads the body once and finds the enterprise: the email
+   * through the directory for forgot, the tag of the key for renew. A good enterprise runs the limits in its object (mailRoute) and the
+   * mail after the answer (mailWork). Every other case, a body that does not parse included, runs platform.refuseMail: the same limits
+   * and the same answer on the empty tables of the platform object, and no work. Every branch ends at the same minimum time (padTo).
+   */
   const mailRoute = (route: OfficeMailRoute, path: string, minMs: number): OfficeRoute => ({
     method: 'POST',
     path,
@@ -88,26 +96,47 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
       try {
         body = await readBody(request);
       } catch {
-        // A body over the limit: the object answers it as a body with no email or key.
+        // A body over the limit: the platform object answers it as a body with no email or key.
       }
       // The address that the Pages Function wrote (clientAddress on the Workers host).
       const address = request.headers.get(CLIENT_ADDRESS_HEADER)?.trim() || 'unknown';
       const net = call.net();
       let answer: OfficeMailAnswer;
+      let target: EntStub | null = null;
+      let sent = body;
       try {
-        answer = await call.router.stub(ENT_VADO).mailRoute({ ent: ENT_VADO, route, body, address }, net);
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          parsed = undefined;
+        }
+        if (route === 'forgot') {
+          const good = ForgotBody.safeParse(parsed);
+          const found = good.success ? await call.platform.resolveEmail({ email: normalizeEmail(good.data.email) }) : null;
+          target = found ? await call.router.listedStub(found.ent) : null;
+        } else {
+          const good = RenewBody.safeParse(parsed);
+          const tag = good.success ? untag(good.data.key) : null;
+          target = tag ? await call.router.listedStub(tag.ent) : null;
+          // The object keeps the sha256 of the bare key: it gets the bare key.
+          if (tag && target) sent = JSON.stringify({ key: tag.secret });
+        }
+        answer = target
+          ? await target.stub.mailRoute({ ent: target.ent, route, body: sent, address }, net)
+          : await call.platform.refuseMail({ route, body, address });
       } catch (error) {
         return errorResponse(officeErrorOf(error, o.deps.log));
       }
-      if (answer.work !== undefined) {
-        const work = call.router.stub(ENT_VADO).mailWork({ ent: ENT_VADO, route, value: answer.work }, net).catch((error: unknown) => {
+      if (answer.work !== undefined && target) {
+        const { stub, ent } = target;
+        const work = stub.mailWork({ ent, route, value: answer.work }, net).catch((error: unknown) => {
           o.deps.log.warn(route === 'forgot' ? 'A reset mail did not go out.' : 'A renewed invitation did not go out.', { error: error instanceof Error ? error.message : String(error) });
         });
         if (call.after) call.after(work);
         else await work;
       }
-      const spent = performance.now() - started;
-      if (spent < minMs) await sleep(minMs - spent);
+      await padTo(started, minMs, sleep);
       return new Response(answer.body, { status: answer.status, headers: { 'content-type': 'application/json' } });
     },
   });
