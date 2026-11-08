@@ -16,6 +16,7 @@ import { isEnterpriseId, normalizeEmail, type EnterpriseId } from '../ids';
 import { runMailRoute } from '../mailRoute';
 import type { DayCounts, EnterpriseRow, EnterpriseStatus } from '../types';
 import { PLATFORM_SCHEMA_VERSION } from './schema';
+import { activateEnterprise, activeEnterpriseIds, createEnterprise, getEnterprise, listEnterprises, ownersOfEnterprises, setEnterpriseState, updateEnterprise } from './enterprises';
 import type { AddressAnswer, AddressStep, CapAnswer, PlatformStub } from './stub';
 
 /**
@@ -175,6 +176,15 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
     async health() {
       return { schema: PLATFORM_SCHEMA_VERSION };
     },
+
+    list: () => listEnterprises(db),
+    getEnterprise: async ({ ent }) => getEnterprise(db, entOf(ent)),
+    create: (input) => createEnterprise(db, input, clock.now()),
+    activate: ({ ent }) => activateEnterprise(db, ent),
+    update: ({ ent, patch }) => updateEnterprise(db, ent, patch),
+    setState: ({ ent, state }) => setEnterpriseState(db, ent, state),
+    activeIds: () => activeEnterpriseIds(db),
+    ownersOf: () => ownersOfEnterprises(db),
   };
 }
 

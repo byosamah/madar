@@ -2,10 +2,10 @@ import { DurableObject, type DurableObjectState } from 'cloudflare:workers';
 import { env, setEnvSource } from '../../env';
 import { doHost, type DoHost } from '../../office/doHost';
 import type { EnterpriseId } from '../ids';
-import type { DayCounts, EnterpriseRow, EnterpriseStatus } from '../types';
+import type { DayCounts, EnterpriseLimits, EnterpriseRow, EnterpriseStatus } from '../types';
 import { platformParts, type PlatformParts } from './parts';
 import { applyPlatformSchema } from './schema';
-import type { CapAnswer, PlatformStub } from './stub';
+import type { CapAnswer, CreateRowInput, PlatformStub } from './stub';
 
 /**
  * The platform object (Madar enterprises): one SQLite Durable Object named "platform". The schema step runs inside blockConcurrencyWhile,
@@ -91,5 +91,37 @@ export class Platform extends DurableObject<Env> implements PlatformStub {
 
   health() {
     return this.parts.health();
+  }
+
+  list() {
+    return this.parts.list();
+  }
+
+  getEnterprise(input: { ent: EnterpriseId }) {
+    return this.parts.getEnterprise(input);
+  }
+
+  create(input: CreateRowInput) {
+    return this.parts.create(input);
+  }
+
+  activate(input: { ent: EnterpriseId }) {
+    return this.parts.activate(input);
+  }
+
+  update(input: { ent: EnterpriseId; patch: { name?: string; nameAr?: string; logo?: string | null; limits?: EnterpriseLimits } }) {
+    return this.parts.update(input);
+  }
+
+  setState(input: { ent: EnterpriseId; state: 'active' | 'paused' }) {
+    return this.parts.setState(input);
+  }
+
+  activeIds() {
+    return this.parts.activeIds();
+  }
+
+  ownersOf() {
+    return this.parts.ownersOf();
   }
 }
