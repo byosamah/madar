@@ -62,6 +62,8 @@ function routeTable(remote: boolean): Entry[] {
         { path: 'whats-new', screen: 'whatsNew' },
         // One route for the list and each section, so a change of section keeps the side list (owner, 2026-10-05, item 4).
         { path: 'admin/:section?', screen: 'admin' },
+        // Madar enterprises (plan C): the platform page. The screen itself shows the wrong-link page to a person who is no platform owner.
+        { path: 'enterprises', screen: 'enterprises' },
         { path: '*', element: <NotFound /> },
       ] satisfies Entry[]).map((route) => ({ ...route, errorElement: <RouteError /> })),
     },

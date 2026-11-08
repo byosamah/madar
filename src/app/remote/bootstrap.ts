@@ -192,7 +192,7 @@ export function liveKindOf(auth: AuthMode, flag: string | undefined): string | u
   return auth === 'madar' ? 'socket' : flag;
 }
 
-export type RemoteRuntime = Runtime & { api: MadarApi; auth: AuthPort; changes: PersonChangeSource; mode: 'remote' };
+export type RemoteRuntime = Runtime & { api: MadarApi; auth: AuthPort; changes: PersonChangeSource; platformConfig: NonNullable<Runtime['platformConfig']>; mode: 'remote' };
 
 /**
  * Builds the remote runtime. The parts can come in for tests; by default they come from the public values of the build.
@@ -222,14 +222,15 @@ export async function bootstrapRemote(o: {
   setTileTokenSource(() => auth.accessToken());
   const adapters: Partial<Record<CallName, Adapter>> = remoteFileAdapters();
   let changes: PersonChangeSource | undefined;
+  // WebKit sends its batch calls through the page's own /api: no CORS preflight (DF-12, LV-6). The sign-in and agent requests keep config.apiUrl.
+  const batchBase = batchApiUrl({
+    apiUrl: config.apiUrl,
+    pageHosts: o.page ? o.page.pageHosts : import.meta.env.VITE_API_PAGE_HOSTS,
+    hostname: o.page ? o.page.hostname : window.location.hostname,
+    userAgent: o.page ? o.page.userAgent : window.navigator.userAgent,
+  });
   const api = createRemoteApi<Calls>({
-    // WebKit sends its batch calls through the page's own /api: no CORS preflight (DF-12, LV-6). The sign-in and agent requests keep config.apiUrl.
-    url: batchApiUrl({
-      apiUrl: config.apiUrl,
-      pageHosts: o.page ? o.page.pageHosts : import.meta.env.VITE_API_PAGE_HOSTS,
-      hostname: o.page ? o.page.hostname : window.location.hostname,
-      userAgent: o.page ? o.page.userAgent : window.navigator.userAgent,
-    }),
+    url: batchBase,
     build: config.build,
     token: () => auth.accessToken(),
     refresh: async () => {
@@ -263,5 +264,7 @@ export async function bootstrapRemote(o: {
       live,
     }),
   });
-  return { api, auth, changes, live, mode: 'remote' };
+  // The platform calls of the page Madar enterprises (plan C): the same address and token as the batch. The client itself loads with the page.
+  const platformConfig = { url: batchBase, build: config.build, token: () => auth.accessToken(), ...(o.fetch ? { fetch: o.fetch } : {}) };
+  return { api, auth, changes, live, platformConfig, mode: 'remote' };
 }

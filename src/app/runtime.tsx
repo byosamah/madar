@@ -28,6 +28,11 @@ export type Runtime = {
   store?: Store; api: MadarApi; auth?: AuthPort; changes?: ChangeSource; mode?: 'prototype' | 'remote';
   /** Who is here and who types (chat presence design). Left out: every person shows Offline and no typing shows. */
   live?: LivePort;
+  /**
+   * What the page Madar enterprises needs to call the platform (Madar enterprises): the real build fills it, the prototype leaves it out. It is plain
+   * data, so the client code loads with the page and not with the first script.
+   */
+  platformConfig?: { url: string; build: string; token: () => Promise<string | null>; fetch?: typeof fetch };
 };
 
 const RuntimeContext = createContext<Runtime | null>(null);
