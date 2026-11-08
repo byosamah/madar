@@ -5,6 +5,7 @@ import { processOutbox } from '../core/effects';
 import { sendReset } from '../auth/forgot';
 import { signingKeysOf, type SigningKeys } from '../auth/own/keys';
 import { liteAuthAdmin } from '../auth/own/liteAdmin';
+import { sessionEnded } from '../auth/own/sessions';
 import { localSigninOffice, runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../auth/own/office';
 import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from '../auth/ownKeys';
 import { renewInvitation } from '../auth/renew';
@@ -410,6 +411,9 @@ export function officeParts(o: PartsInput): OfficeParts {
       // A paused object lets the sign-in steps through to the step: plan C decides each step of a paused object (design 5.8).
       const refused = await guard(body.ent, { allow: 'paused' });
       if (refused) return { ok: false, error: refused };
+      // A paused enterprise (design 5.8): only the password step runs its checks, and it ends with the paused answer after a right password
+      // (server/auth/own/ops.ts). Every other step answers like a session that ended, so no token, link or consent opens a paused object.
+      if (facts.state() === 'paused' && body.signin !== 'auth.password') return { ok: false, error: runErrorOf(sessionEnded()) };
       meter.request();
       // An export lets the sign-in steps run (their rows are drift tables of server/office/ops.ts); an import refuses them. The
       // day cap counts a sign-in step as a read: it stops only over the rows read or the requests.
@@ -432,11 +436,19 @@ export function officeParts(o: PartsInput): OfficeParts {
       // The limits and the links of forgot and renew are drift tables: an export lets them run, an import refuses them.
       const held = hold.refusal({ now: clock.now(), writes: false }) ?? await capped(false);
       if (held) return mailRefusal(held);
-      return runMailRoute(depsFor(net), input);
+      const answer = await runMailRoute(depsFor(net), input);
+      // A paused enterprise gets the usual answer and sends no mail: the value of the work is dropped, so the Worker makes no second call.
+      if (facts.state() === 'paused') {
+        const { work: _work, ...usual } = answer;
+        return usual;
+      }
+      return answer;
     },
     async mailWork(input, net) {
       const refused = await guard(input.ent, { allow: 'paused' });
       if (refused) throw refusalError(refused);
+      // A paused enterprise sends no mail. The mailRoute of a paused object keeps no work, so this is the second guard.
+      if (facts.state() === 'paused') return;
       meter.request();
       if (hold.refusal({ now: clock.now(), writes: false })) {
         log.warn(input.route === 'forgot' ? 'A reset mail did not go out: an import holds the office.' : 'A renewed invitation did not go out: an import holds the office.');

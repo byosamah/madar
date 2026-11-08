@@ -27,6 +27,17 @@ export function accountOff(): ApiError {
   return new ApiError('unauthenticated', 'This account is turned off in Madar.', { reason: 'account_off' });
 }
 
+/**
+ * The paused answer (Madar enterprises, design 5.8). It shows only after a correct password, so a stranger who types an email never learns
+ * that the email exists, or that its enterprise is paused. The text is the exact sentence of the design.
+ */
+export function pausedSignIn(): ApiError {
+  return new ApiError('unauthenticated', 'Madar is paused for your company. Ask your Admin.', { reason: 'enterprise_paused' });
+}
+
+/** The state of the enterprise of this object (the table enterprise has one row). No row reads as not paused. */
+export const PAUSED_SQL = 'select state from enterprise limit 1';
+
 const liteOf = (deps: SigninDeps) => deps.db as LiteDb;
 
 /**
@@ -44,6 +55,9 @@ export async function passwordSignIn(deps: SigninDeps, input: { email: string; p
   const [found] = await deps.db.statement<AuthUserRow>('read', AUTH_USER_BY_EMAIL, [email]);
   const check = await verifyPassword(input.password, found?.password_hash ?? null);
   if (!found || !check.ok) throw wrongCredentials();
+  // A paused enterprise: the right password gets the calm paused answer, and no session is made (design 5.8).
+  const [identity] = await deps.db.statement<{ state: string }>('read', PAUSED_SQL);
+  if (identity?.state === 'paused') throw pausedSignIn();
   const upgraded = check.upgrade ? await hashPassword(input.password) : null;
   const refresh = randomToken();
   const refreshHash = await sha256Hex(refresh);
