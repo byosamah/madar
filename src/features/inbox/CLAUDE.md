@@ -47,7 +47,10 @@ in a chat: `src/features/files/CLAUDE.md`. The chat inside Focus mode: `src/feat
   by its name. The line "unread messages are in other chats" with "Show all" (`inboxLine.*`) shows only for a kind other than All with no
   search word and no archived list. It has no red and no badge.
 - `chats.archive` writes no event, so the Undo of an archive calls it again with the other value (`archive.ts`, `useArchive`).
-  A swipe on a row archives it on a phone or under a finger.
+  A swipe on a row archives it on a phone or under a finger, after a drag of more than `SWIPE_PX` (160 px, `swipe.ts`; it was 80 px until 2026-11-08).
+  An archive keeps the unread mark (owner, 2026-11-08): the row keeps its number, Undo brings it back with the number, and a new message brings the chat back
+  with the whole number. The Inbox badge (`chats.unreadCount`) and the line of hidden unread messages skip an archived chat. The "Archived (n)" row shows a
+  small number: how many archived chats have unread messages (`chat.archivedUnread` for a screen reader).
 - The Inbox does not call `chats.waiting` (the API keeps the rule for agents). The menu of a chat has "Mark as unread" instead
   (`chatMenuItems`): it shows only for a chat with nothing unread that is not archived. The Undo of its toast calls `chats.markRead`
   (`markUnread.ts`, kept in `InboxScreen` so the toast stays when the open chat closes).

@@ -106,6 +106,17 @@ async function chatsOf(L: Load, userId: string, conversations: readonly Conversa
   await L.batch(chatsCounts(L, userId, conversations, mode));
 }
 
+/**
+ * The badge skips an archived chat (owner, 2026-11-08), and a chat is archived only while no message is newer than the archive. The badge
+ * loads no message, so for the chats that U archived it reads the time of the newest message: the three fields that messagesOf and the
+ * archive test read. Nothing when U archived no chat, or for the list, which loads the newest message of every chat already.
+ */
+function archivedNewest(L: Load, userId: string, conversations: readonly Conversation[], mode: Mode) {
+  if (!mode.badge) return undefined;
+  const ids = conversations.filter((c) => L.get<ChatRead>('chatReads', chatReadKey(c.id, userId))?.archivedAt).map((c) => c.id);
+  return ids.length === 0 ? undefined : ({ select: { ...newestMessagesRead(ids), pick: ['id', 'conversationId', 'createdAt', 'deletedAt'] } } as const);
+}
+
 /** The question for the task threads of U, or undefined when U may not read comments. */
 function threadsAsk(L: Load, userId: string): ThreadsArgs | undefined {
   if (!L.authority || !L.authority.active) return undefined;
@@ -234,7 +245,7 @@ async function everyChat(L: Load, mode: Mode): Promise<void> {
   const threads = found ?? [];
   const [plain, named] = chatsCounts(L, userId, conversations, mode);
   const [tasks, marks, latest, mine, ownRead, namedRead] = threadsMiddle(userId, ask?.me ?? [], threads, mode);
-  const answers = await L.batch([plain, named, tasks, marks, latest, mine, ownRead, namedRead] as const);
+  const answers = await L.batch([plain, named, tasks, marks, latest, mine, ownRead, namedRead, archivedNewest(L, userId, conversations, mode)] as const);
   const count = threadsCount(L, userId, ask?.me ?? [], threads, (answers[6] ?? []) as Comment[], mode);
   await L.batch([count] as const);
 }
@@ -251,15 +262,13 @@ export async function chatsUnread(L: Load): Promise<void> {
 
 /**
  * chats.archive: the chat (its office record, already loaded) or the task of a thread, and the own read mark, which the write keeps.
- * It reads no message and no comment: the archive mark needs neither (owner, 2026-10-18).
+ * It reads no message, no comment and no notice: the archive mark needs none of them (owner, 2026-10-18; an archive reads no notice since 2026-11-08).
  */
 export async function chatsArchive(L: Load, input: Input): Promise<void> {
   const id = typeof input.conversationId === 'string' ? input.conversationId : '';
   if (!L.authority || id === '') return;
   if (id.startsWith('tsk_')) await L.byKey('tasks', [id]);
   await L.byKey('chatReads', [chatReadKey(id, L.authority.id)]);
-  // An archive reads the mention notices of the chat too (chat design item 20).
-  if (input.archived === true) await mentionNoticesOf(L, id);
 }
 
 /** chats.setNotify: the own read mark of the chat (its office record is already loaded). The write keeps every other field of the mark. */

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp } from '../../test/render';
-import { stubPhone, withArchivedTower, withEveryKind } from './phoneHarness';
+import { stubPhone, withArchivedTower, withArchivedUnreadGroup, withEveryKind } from './phoneHarness';
 
 const list = async () => screen.findByRole('list', { name: 'Chats' });
 const chips = async () => screen.findByRole('radiogroup', { name: 'Kind of chat' });
@@ -107,5 +107,46 @@ describe('the chat list on a phone (Direction D)', () => {
     await renderApp('/inbox', withEveryKind);
     await list();
     expect(screen.queryByText(/in other chats/)).toBeNull();
+  });
+
+  // Owner, 2026-11-08 ("Longer swipe, keep the unread mark"): an archive keeps the unread number of a chat.
+  it('shows the number of archived chats that have unread messages on the "Archived (n)" row, and says it to a screen reader', async () => {
+    stubPhone();
+    await renderApp('/inbox', withArchivedUnreadGroup);
+    const quiet = await screen.findByRole('button', { name: /^Archived \(1\)/ });
+    expect(quiet.querySelector('span[aria-hidden]:not([data-animated-icon])')).toHaveTextContent('1');
+    expect(quiet).toHaveAccessibleName('Archived (1)');
+    expect(quiet).toHaveAccessibleDescription('1 archived chat has unread messages');
+  });
+
+  it('shows no number on the "Archived (n)" row when the archived chats are read', async () => {
+    stubPhone();
+    await renderApp('/inbox', withArchivedTower);
+    const quiet = await screen.findByRole('button', { name: 'Archived (1)' });
+    expect(quiet.querySelector('span[aria-hidden]:not([data-animated-icon])')).toBeNull();
+  });
+
+  it('keeps the unread number on the row inside the archived list, and counts it nowhere else', async () => {
+    stubPhone();
+    await renderApp('/inbox', withArchivedUnreadGroup);
+    await userEvent.click(await screen.findByRole('button', { name: /^Archived \(1\)/ }));
+    const row = within(await list()).getByRole('link', { name: /Site crew/ });
+    expect(within(row).getByText('Unread: 1')).toBeInTheDocument();
+  });
+
+  it('leaves an archived chat out of the line of hidden unread messages (fbk_056)', async () => {
+    stubPhone();
+    const lineOf = async (prepare?: Parameters<typeof renderApp>[1]) => {
+      const view = await renderApp('/inbox', prepare);
+      await userEvent.click(within(await chips()).getByRole('radio', { name: 'Projects' }));
+      await list();
+      const line = screen.queryByText(/unread messages? (is|are) in other chats\./)?.textContent ?? null;
+      view.unmount();
+      cleanup();
+      return line;
+    };
+    // The office has other unread chats of its own. The archived group adds nothing to the line.
+    const before = await lineOf();
+    expect(await lineOf(withArchivedUnreadGroup)).toBe(before);
   });
 });

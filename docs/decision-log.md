@@ -27,6 +27,10 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
     held push no longer wait for Sunday to Thursday, 8:00 to 17:00. A person who saved hours keeps them exactly (Faisal: on, every day 07:00 to
     23:30; Anas: off). The Admin lock keeps its meaning. This reverses the owner decision of 2026-10-22 (fbk_048) about the default only. The
     Settings switch shows off for a person with nothing saved, with a hint on what happens when it is on.
+  - Phone swipe: "Longer swipe, keep the unread mark". The swipe that archives a row needs 160 px (it was 80 px). An archive no longer marks the
+    chat read and no longer reads its mention notices, so an unread chat keeps its number in the archived list, and Undo brings it back with the
+    number. The lead's rule for the rest: an archived chat does not count in the Inbox badge, the "Archived (n)" row shows how many archived
+    chats have unread messages, and a new message brings an archived chat back with its whole unread number.
 - Who reviews a to-do (fbk_087, owner, from the report of Faisal about tsk_624): the person who does the work never approves it. Faisal
   made an office to-do, did the work, named Moataz as lead and sent it to review; Madar named the maker (Faisal) as reviewer, so Faisal saw
   "Your review" and Moataz got no notice. The owner's words: "the maker not means he's the leader or the reviewer, the leader or the

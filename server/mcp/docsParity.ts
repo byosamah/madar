@@ -175,7 +175,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'notifications.markRead': {
     title: 'Mark notices read',
-    description: 'Marks notices of your person as read: ids (from notifications.list). It changes what your person sees in the bell. A read by you is not a read by your person. Do it only when your person asks.',
+    description: 'Marks notices of your person as read: ids (from notifications.list). It changes what your person sees in the bell. A read by you is not a read by your person. Only when your person asks.',
   },
   'notifications.markAllRead': {
     title: 'Mark every notice read',
@@ -195,7 +195,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'chats.markUnread': {
     title: 'Mark a chat unread',
-    description: 'Marks a chat or a task thread (conversationId or a task ID) as unread for your person, as a reminder. An archived chat comes back to the Inbox. Do it only when your person asks.',
+    description: 'Marks a chat or a task thread (conversationId or a task ID) as unread for your person, as a reminder. An archived chat comes back to the Inbox. Only when your person asks.',
   },
   'chats.unreadCount': {
     title: 'Count the unread chats',
@@ -203,11 +203,11 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'chats.archive': {
     title: 'Archive a chat',
-    description: 'Archives a chat or a task thread for your person (archived true), or moves it back to the Inbox (archived false). An archive marks the chat read. A new message brings it back. Do it only when your person asks.',
+    description: 'Archives a chat or a task thread for your person (archived true), or moves it back to the Inbox (archived false). An archive keeps the unread mark and leaves the badge. A new message brings it back. Only when your person asks.',
   },
   'chats.setNotify': {
     title: 'Set Notify me for a chat',
-    description: 'Sets the Notify me choice of your person for one chat (conversationId): all pushes every message, named pushes only a message that names your person. A task thread has no choice. Do it only when your person asks.',
+    description: 'Sets the Notify me choice of your person for one chat (conversationId): all pushes every message, named pushes only a message that names your person. A task thread has no choice. Only when your person asks.',
   },
   // Templates of projects and stages.
   'stageTemplates.list': {

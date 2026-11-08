@@ -9,5 +9,9 @@
         "body": "Helpers and people named with @ now find the to-do in their Inbox. Quiet hours are off unless you turn them on in Settings. Messages reach you at once."
       }
     }
+  },
+  "chat": {
+    "archivedUnread_one": "{{count}} archived chat has unread messages",
+    "archivedUnread_other": "{{count}} archived chats have unread messages"
   }
 }

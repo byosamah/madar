@@ -6,6 +6,7 @@ import { addProjectConversation, isArchived } from '../chatState';
 import { chatReadKey } from '../store';
 import { makeTask, makeUser, NOW, STAMP, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
+import { mentionMarkup } from '../../lib/text';
 
 beforeEach(() => setNow(NOW));
 
@@ -69,16 +70,75 @@ describe('chats.archive', () => {
     expect((await t.api.call('chats.list', {})).find((row) => row.id === t.room)?.archived).toBe(false);
   });
 
-  it('writes no event, and marks the chat read so the badge never counts a chat that is out of the list (INT-01)', async () => {
+  it('writes no event, and keeps the unread number of the chat; the badge never counts a chat that is out of the list (INT-01, changed 2026-11-08)', async () => {
+    const t = world();
+    t.as('usr_001');
+    await t.api.call('chats.send', { conversationId: t.room, body: 'Please check the riser.' });
+    await t.api.call('chats.send', { conversationId: t.room, body: 'And the slab.' });
+    t.as('usr_003');
+    const events = Object.keys(t.store.state.events).length;
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(2);
+    await t.api.call('chats.archive', { conversationId: t.room, archived: true });
+    expect(Object.keys(t.store.state.events)).toHaveLength(events);
+    // The row keeps its unread number, and sits in the archived list.
+    expect((await t.api.call('chats.list', {})).find((row) => row.id === t.room)).toMatchObject({ archived: true, unread: 2 });
+    // The badge does not count a chat that is out of the list.
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(0);
+  });
+
+  it('keeps the unread mark through an archive, and Undo brings the chat back with its unread number (owner, 2026-11-08: "Longer swipe, keep the unread mark")', async () => {
     const t = world();
     t.as('usr_001');
     await t.api.call('chats.send', { conversationId: t.room, body: 'Please check the riser.' });
     t.as('usr_003');
-    const events = Object.keys(t.store.state.events).length;
+    const read = t.store.state.chatReads[chatReadKey(t.room, 'usr_003')];
     await t.api.call('chats.archive', { conversationId: t.room, archived: true });
-    expect(Object.keys(t.store.state.events)).toHaveLength(events);
-    expect((await t.api.call('chats.list', {})).find((row) => row.id === t.room)?.unread).toBe(0);
+    expect(t.store.state.chatReads[chatReadKey(t.room, 'usr_003')]?.lastReadAt).toBe(read?.lastReadAt ?? '1970-01-01T00:00:00.000Z');
+    await t.api.call('chats.archive', { conversationId: t.room, archived: false });
+    expect((await t.api.call('chats.list', {})).find((row) => row.id === t.room)).toMatchObject({ archived: false, unread: 1 });
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(1);
+  });
+
+  it('leaves the mention notices of the chat unread when the chat is archived, and a read still reads them', async () => {
+    const t = world();
+    t.as('usr_001');
+    await t.api.call('chats.send', { conversationId: t.room, body: `${mentionMarkup('Sara Team', 'usr_003')} please check the riser.` });
+    t.as('usr_003');
+    const mine = () => Object.values(t.store.state.notifications).filter((n) => n.userId === 'usr_003' && n.trigger === 'mention' && n.targetId === t.room);
+    expect(mine().length).toBeGreaterThan(0);
+    await t.api.call('chats.archive', { conversationId: t.room, archived: true });
+    expect(mine().every((n) => !n.read)).toBe(true);
+    await t.api.call('chats.markRead', { conversationId: t.room });
+    expect(mine().every((n) => n.read)).toBe(true);
+  });
+
+  it('counts an archived chat in the badge again when a new message brings it back, with the whole unread number', async () => {
+    const t = world();
+    t.as('usr_001');
+    await t.api.call('chats.send', { conversationId: t.room, body: 'First.' });
+    t.as('usr_003');
+    await t.api.call('chats.archive', { conversationId: t.room, archived: true });
     expect((await t.api.call('chats.unreadCount', {})).unread).toBe(0);
+    setNow(new Date(NOW.getTime() + 60_000));
+    t.as('usr_001');
+    await t.api.call('chats.send', { conversationId: t.room, body: 'Second.' });
+    t.as('usr_003');
+    expect((await t.api.call('chats.list', {})).find((row) => row.id === t.room)).toMatchObject({ archived: false, unread: 2 });
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(2);
+  });
+
+  it('does not count an archived task thread in the badge, and keeps its unread number', async () => {
+    const t = world();
+    t.store.state.tasks.tsk_001 = makeTask();
+    t.as('usr_002');
+    await t.api.call('comments.create', { targetType: 'task', targetId: 'tsk_001', body: 'Please fix the door schedule.' });
+    t.as('usr_003');
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(1);
+    await t.api.call('chats.archive', { conversationId: 'tsk_001', archived: true });
+    expect((await t.api.call('chats.list', {})).find((row) => row.id === 'tsk_001')).toMatchObject({ archived: true, unread: 1 });
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(0);
+    await t.api.call('chats.archive', { conversationId: 'tsk_001', archived: false });
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(1);
   });
 
   it('archives a task thread that the person may read', async () => {

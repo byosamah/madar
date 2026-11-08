@@ -473,10 +473,48 @@ describe('the 18 places of AM 6', () => {
     expect(docs(chat, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_901', true]]);
     const thread = await same(state, 'chats.markRead', { conversationId: task.id }, 'usr_001');
     expect(docs(thread, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_902', true]]);
+    // An archive keeps the unread mark: it reads no notice and writes none (owner, 2026-11-08).
     const archived = await same(state, 'chats.archive', { conversationId: room.id, archived: true }, 'usr_001');
-    expect(docs(archived, 'notifications').map((d) => d.id)).toEqual(['ntf_901']);
+    expect(docs(archived, 'notifications')).toEqual([]);
+    expect(docs(archived, 'chat_reads')).toHaveLength(1);
     const back = await same(state, 'chats.archive', { conversationId: room.id, archived: false }, 'usr_001');
     expect(docs(back, 'notifications')).toEqual([]);
+  });
+
+  it('the badge skips an archived chat and an archived thread while the list keeps their unread numbers, and a new message brings them back (owner, 2026-11-08)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const leader = state.projects.prj_001.leaderId as string;
+    const task = tasksOfProject(state, 'prj_001').find((t) => t.ownerId === ADMIN) ?? tasksOfProject(state, 'prj_001')[0];
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    apply(state, 'chats.markRead', { conversationId: room.id }, ADMIN, { now: at(1) });
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A note.' }, ADMIN, { now: at(2) });
+    apply(state, 'chats.markRead', { conversationId: task.id }, ADMIN, { now: at(3) });
+    // The Admin counts the messages of a project chat only when they name the Admin (item 23): the messages here name the Admin.
+    const named = mentionMarkup(state.users[ADMIN].name, ADMIN);
+    apply(state, 'chats.send', { conversationId: room.id, body: `${named} please check the slab.` }, leader, { now: at(4) });
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'And the door.' }, leader, { now: at(5) });
+    const rowsOf = async () => (await same(state, 'chats.list', {}, ADMIN, { now: at(10) })).outcome.output as { id: string; unread: number; archived: boolean }[];
+    const badgeOf = async () => ((await same(state, 'chats.unreadCount', {}, ADMIN, { now: at(10) })).outcome.output as { unread: number }).unread;
+    const before = await rowsOf();
+    const total = before.reduce((sum, row) => sum + row.unread, 0);
+    expect(before.find((row) => row.id === room.id)?.unread).toBe(1);
+    expect(before.find((row) => row.id === task.id)?.unread).toBe(1);
+    expect(await badgeOf()).toBe(total);
+    for (const id of [room.id, task.id]) apply(state, 'chats.archive', { conversationId: id, archived: true }, ADMIN, { now: at(6) });
+    const archived = await rowsOf();
+    expect(archived.find((row) => row.id === room.id)).toMatchObject({ archived: true, unread: 1 });
+    expect(archived.find((row) => row.id === task.id)).toMatchObject({ archived: true, unread: 1 });
+    expect(await badgeOf()).toBe(total - 2);
+    // Undo: both come back with their unread numbers.
+    for (const id of [room.id, task.id]) apply(state, 'chats.archive', { conversationId: id, archived: false }, ADMIN, { now: at(7) });
+    expect(await badgeOf()).toBe(total);
+    // A new message brings an archived chat back with its whole unread number.
+    apply(state, 'chats.archive', { conversationId: room.id, archived: true }, ADMIN, { now: at(8) });
+    expect(await badgeOf()).toBe(total - 1);
+    apply(state, 'chats.send', { conversationId: room.id, body: `${named} one more.` }, leader, { now: at(9) });
+    expect(await badgeOf()).toBe(total + 1);
+    expect((await rowsOf()).find((row) => row.id === room.id)).toMatchObject({ archived: false, unread: 2 });
   });
 
   it('chats.waiting: the loader gives the handler the same answer, for a project mention and a named task thread (fbk_011, owner 2026-10-18)', async () => {

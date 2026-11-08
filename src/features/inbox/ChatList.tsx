@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { SearchIcon } from '../../components/icons/animated/search';
 import { motion } from 'motion/react';
-import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -32,6 +32,7 @@ import { GroupPicture } from './GroupPicture';
 import { chatState } from './chatBack';
 import { ChatKindChips } from './ChatKindChips';
 import { KINDS, type ChatKind } from './chatKinds';
+import { swipeArchives } from './swipe';
 import { useProjectName } from '../../app/projectName';
 
 type Row = CallOutput<'chats.list'>[number];
@@ -93,9 +94,6 @@ function inKind(row: Row, kind: ChatKind): boolean {
 /** The rows that the Inbox list draws before the first paint. A longer list draws the others at an idle moment (RN-2). */
 const FIRST_ROWS = 40;
 
-/** How far a swipe goes before the row archives. The same as the swipe of the Notifications rows. */
-const SWIPE_PX = 80;
-
 /**
  * Memoized, so a chat switch, a send or a key in the search renders again only the rows whose data or selection changed
  * (performance audit 2026-10-07, RND-5). A row keeps its object across reloads (structural sharing), and its age refreshes
@@ -156,7 +154,7 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, noMenu, sh
         swiped.current = true;
       }}
       onDragEnd={(_event, info) => {
-        if (Math.abs(info.offset.x) > SWIPE_PX) onArchive(row.id, !row.archived);
+        if (swipeArchives(info.offset.x)) onArchive(row.id, !row.archived);
         window.setTimeout(() => {
           swiped.current = false;
         }, 0);
@@ -253,7 +251,8 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   const kindLabel = t(`chatFilter.${kind}`);
   // The unread messages that the chosen kind hides (fbk_056). The sum uses the same count as the badge, row by row. The line shows only
   // when nothing else explains the list: no search word and no archived list.
-  const hiddenUnread = kind === 'all' || needle !== '' || archivedOpen ? 0 : rows.reduce((sum, row) => sum + (inKind(row, kind) ? 0 : row.unread), 0);
+  // An archived chat keeps its unread number but is not in the main list, so it is not counted here (owner, 2026-11-08).
+  const hiddenUnread = kind === 'all' || needle !== '' || archivedOpen ? 0 : rows.reduce((sum, row) => sum + (inKind(row, kind) || row.archived ? 0 : row.unread), 0);
   const hiddenLine = hiddenUnread > 0 && (
     <div className={`flex shrink-0 flex-wrap items-center gap-x-2 text-footnote text-ink-2 ${phone ? 'mt-3 px-1' : 'border-t border-hairline px-4 py-2'}`}>
       <p>{t('inboxLine.hidden', { count: hiddenUnread })}</p>
@@ -263,15 +262,31 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
     </div>
   );
   const showArchivedRow = !archivedOpen && needle === '' && archivedRows.length > 0;
+  // The archived chats that still have unread messages (owner, 2026-11-08): an archive keeps the unread mark, and the badge of the Inbox
+  // skips these chats, so this row is where the person finds them.
+  const archivedUnread = archivedRows.filter((row) => row.unread > 0).length;
+  const unreadNoteId = useId();
   const archivedButton = (
-    <button
-      type="button"
-      onClick={() => setWantArchived(true)}
-      className="pressable flex min-h-11 w-full shrink-0 items-center justify-between gap-2 px-4 py-2 text-start text-footnote text-ink-2 hover:text-ink"
-    >
-      <span>{t('chat.archivedCount', { count: archivedRows.length })}</span>
-      <AnimatedIcon icon={ChevronRightIcon} size={16} className="rtl:-scale-x-100" aria-hidden />
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => setWantArchived(true)}
+        aria-describedby={archivedUnread > 0 ? unreadNoteId : undefined}
+        className="pressable flex min-h-11 w-full shrink-0 items-center justify-between gap-2 px-4 py-2 text-start text-footnote text-ink-2 hover:text-ink"
+      >
+        <span>{t('chat.archivedCount', { count: archivedRows.length })}</span>
+        <span className="flex items-center gap-2">
+          {archivedUnread > 0 && (
+            <span aria-hidden className="signature tabular inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-caption font-semibold">
+              {archivedUnread > 99 ? '99+' : archivedUnread}
+            </span>
+          )}
+          <AnimatedIcon icon={ChevronRightIcon} size={16} className="rtl:-scale-x-100" aria-hidden />
+        </span>
+      </button>
+      {/* The name of the button stays "Archived (n)". This note is its description for a screen reader, outside the button. */}
+      {archivedUnread > 0 && <span id={unreadNoteId} className="sr-only">{t('chat.archivedUnread', { count: archivedUnread })}</span>}
+    </>
   );
   return (
     <>

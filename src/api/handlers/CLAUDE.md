@@ -215,8 +215,11 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   sends no push and no mail. `reactions.toggle` writes no event and no notice. In a direct chat or a group the signal of
   these calls goes to the members only.
 - `ChatRead.markedUnread` is optional, so there is no `STATE_VERSION` step. `writeReadMark` drops it (`chats.markRead`,
-  `chats.send`, an archive). `chats.markRead` and `chats.archive` also mark the unread mention and reply notices of that chat
-  read (`readMentionNotices`), so their `WRITE_KINDS` lines hold `notifications`. `chats.markUnread` has `WRITE_KINDS`
+  `chats.send`). `chats.markRead` also marks the unread mention and reply notices of that chat read (`readMentionNotices`), so its
+  `WRITE_KINDS` line holds `notifications`. `chats.archive` reads nothing and clears no notice since 2026-11-08 (owner: "Longer swipe, keep
+  the unread mark"): its `WRITE_KINDS` line is `['chatReads']`. An archived chat or thread keeps its unread number in `chats.list`, and
+  `totalUnread` (the badge) skips it while `isArchived` holds. The badge loader (`archivedNewest`, `chat.ts`) reads the time of the newest
+  message of the archived chats only. The Inbox shows the count of archived chats with unread messages on the "Archived (n)" row. `chats.markUnread` has `WRITE_KINDS`
   `['chatReads']`. `chats.waiting` stays in the contract and on the MCP allow list; no screen reads it.
 - `Conversation.log` (the quiet lines of a group) keeps the newest `GROUP_LOG_MAX`. A line is no message: no unread count, no
   preview, no push. `actingMaker` is the maker while active, else the first active person (`ChatRow.makerId`).

@@ -77,19 +77,21 @@ describe('a read of a chat marks its mention notices read (item 20)', () => {
     expect((await t.api.call('notifications.count', {})).unread).toBe(2);
   });
 
-  it('marks them read when the person archives the chat, and changes none when the chat moves back', async () => {
+  it('leaves them unread when the person archives the chat (an archive keeps the unread mark, owner 2026-11-08), and reads them with the chat', async () => {
     const t = world();
     t.as('usr_002');
     await t.api.call('chats.send', { conversationId: t.room, body: `${mentionMarkup('Sara Team', 'usr_003')} first` });
     expect(await unreadOf(t, 'usr_003')).toBe(1);
     await t.api.call('chats.archive', { conversationId: t.room, archived: true });
-    expect((await t.api.call('notifications.count', {})).unread).toBe(0);
+    expect((await t.api.call('notifications.count', {})).unread).toBe(1);
     setNow(new Date(NOW.getTime() + 60_000));
     t.as('usr_002');
     await t.api.call('chats.send', { conversationId: t.room, body: `${mentionMarkup('Sara Team', 'usr_003')} second` });
-    expect(await unreadOf(t, 'usr_003')).toBe(1);
+    expect(await unreadOf(t, 'usr_003')).toBe(2);
     await t.api.call('chats.archive', { conversationId: t.room, archived: false });
-    expect((await t.api.call('notifications.count', {})).unread).toBe(1);
+    expect((await t.api.call('notifications.count', {})).unread).toBe(2);
+    await t.api.call('chats.markRead', { conversationId: t.room });
+    expect((await t.api.call('notifications.count', {})).unread).toBe(0);
   });
 
   it('leaves the notices of other people unread', async () => {
