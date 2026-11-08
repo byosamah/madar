@@ -1,5 +1,6 @@
 import posthog, { type PostHog, type PostHogConfig } from 'posthog-js/dist/module.full.no-external';
 import type { QueryClient } from '@tanstack/react-query';
+import { usageAllowed } from '../../lib/enterprise';
 import { PRIVATE } from '../privateMark';
 import type { AppRouter } from './index';
 import type { InsightClient, InsightPerson } from './notes';
@@ -40,6 +41,12 @@ type OptionsInput = {
   person: () => InsightPerson | null;
   /** False after a sign-out: every record is dropped, so nothing of the next visitor goes out before the next start. */
   active?: () => boolean;
+  /**
+   * True when the enterprise of the session may send usage data and replays (`usageAllowed`, VADOs' Companies only). Required, with no
+   * default, so a caller cannot forget it. With false, `before_send` drops every record except an `$exception`, and an `$exception`
+   * carries the enterprise id and no name (Madar enterprises, design 5.16).
+   */
+  usage: () => boolean;
 };
 
 /**
@@ -47,7 +54,7 @@ type OptionsInput = {
  * console, no lasting id, scrubbed addresses, and the person on error records only.
  */
 export function posthogOptions(o: OptionsInput): Partial<PostHogConfig> {
-  const { env, build, person, active = () => true } = o;
+  const { env, build, person, active = () => true, usage } = o;
   return {
     api_host: POSTHOG_HOST,
     ui_host: 'https://eu.posthog.com',
@@ -86,15 +93,18 @@ export function posthogOptions(o: OptionsInput): Partial<PostHogConfig> {
         // A record that the scrub cannot read is dropped (the scrub fails closed).
         const clean = scrubEvent(record);
         if (!clean) return null;
+        // An enterprise that may not send usage data sends error records only: no view, click, slow step, web vital or replay packet.
+        if (clean.event !== '$exception' && !usage()) return null;
         if (clean.event === '$exception' && harmlessError(clean.properties)) return null;
-        const extra: Record<string, unknown> = { env, build };
-        if (clean.event === '$exception') {
-          try {
-            const who = person();
-            if (who) Object.assign(extra, { personId: who.id, personName: who.name });
-          } catch {
-            // An error record without a person is better than none.
-          }
+        let who: InsightPerson | null = null;
+        try {
+          who = person();
+        } catch {
+          // A record without a person is better than none.
+        }
+        const extra: Record<string, unknown> = { env, build, ...(who?.ent ? { ent: who.ent } : {}) };
+        if (clean.event === '$exception' && who) {
+          Object.assign(extra, { personId: who.id, ...(usage() ? { personName: who.name } : {}) });
         }
         return { ...clean, properties: { ...clean.properties, ...extra } };
       } catch {
@@ -117,16 +127,73 @@ type ClientOptions = {
 let instance: PostHog | undefined;
 let live = false;
 let currentPerson: () => InsightPerson | null = () => null;
+let currentUsage = false;
+/** The time of the last stop (a sign-out). A session answer from before it is the answer of the person who left. */
+let leftAt = 0;
 
+const SESSION_KEY = ['api', 'session.get', {}];
+const NO_CLIENT: InsightClient = { track: () => undefined, exception: () => undefined, stop: () => undefined };
+
+/**
+ * The client of one sign-in. The enterprise of the session decides what may go out (`usageAllowed`: VADOs' Companies only), and the
+ * session answer names it. So nothing starts, not even PostHog, until the answer of this sign-in is in the cache. Until then the
+ * client drops every call. `stop` ends the wait too.
+ */
 export function createInsightClient(o: ClientOptions): InsightClient {
+  const known = (): InsightPerson | null => ((o.queryClient.getQueryState(SESSION_KEY)?.dataUpdatedAt ?? 0) < leftAt ? null : o.person());
+  let inner: InsightClient = NO_CLIENT;
+  let ended = false;
+  let unwatch: (() => void) | undefined;
+  const begin = (): boolean => {
+    const who = known();
+    if (!who || ended) return false;
+    inner = startClient(o, who);
+    return true;
+  };
+  if (!begin()) {
+    unwatch = o.queryClient.getQueryCache().subscribe(() => {
+      try {
+        if (!begin()) return;
+      } catch {
+        // PostHog is never allowed to break Madar. A failed start stays off for this sign-in.
+      }
+      unwatch?.();
+      unwatch = undefined;
+    });
+  }
+  return {
+    track: (event, props) => inner.track(event, props),
+    exception: (error, props) => inner.exception(error, props),
+    stop: () => {
+      ended = true;
+      unwatch?.();
+      unwatch = undefined;
+      leftAt = Date.now();
+      inner.stop();
+      inner = NO_CLIENT;
+    },
+  };
+}
+
+function startClient(o: ClientOptions, who: InsightPerson): InsightClient {
+  const usage = usageAllowed(who.ent);
   live = true;
   currentPerson = o.person;
+  currentUsage = usage;
   if (instance) {
-    instance.startSessionRecording();
+    if (usage) instance.startSessionRecording();
   } else {
-    instance = posthog.init(o.key, posthogOptions({ env: o.env, build: o.build, person: () => currentPerson(), active: () => live }));
+    instance = posthog.init(o.key, posthogOptions({ env: o.env, build: o.build, person: () => currentPerson(), active: () => live, usage: () => currentUsage }));
   }
   const ph = instance;
+  // No usage: no recorder. The before_send rule also drops any replay packet that a late start would make.
+  if (!usage) {
+    try {
+      ph.stopSessionRecording();
+    } catch {
+      // The drop rule of before_send holds.
+    }
+  }
   const client: InsightClient = {
     track: (event, props) => {
       try {
@@ -146,6 +213,7 @@ export function createInsightClient(o: ClientOptions): InsightClient {
       // Drop first, so nothing goes out while the watchers, the recorder and the ids are cleared.
       live = false;
       currentPerson = () => null;
+      currentUsage = false;
       for (const stop of stops) {
         try {
           stop();
@@ -163,7 +231,10 @@ export function createInsightClient(o: ClientOptions): InsightClient {
   };
   const stops: (() => void)[] = [];
   try {
-    stops.push(watchRoutes(o.router, client.track), watchCalls(o.queryClient, client));
+    // The screen views are usage data: an enterprise without usage data gets none. The call watcher stays, because it also reports the
+    // bugs of a call as error records (with the enterprise id and no name). Its action events are dropped by before_send.
+    if (usage) stops.push(watchRoutes(o.router, client.track));
+    stops.push(watchCalls(o.queryClient, client));
   } catch {
     // A watcher that fails to start leaves the others running.
   }

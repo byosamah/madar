@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import type { OfficeBatchInput } from '../office/batch';
 import type { NetApi } from '../office/net';
@@ -6,6 +6,7 @@ import type { OfficeMcpInput } from '../office/parts';
 import { recordingNet } from '../office/test/fakes';
 import { fakeDeps, testConfig } from '../test/fakes/deps';
 import { clientAddress } from '../auth/forgot';
+import { currentEnterprise } from '../enterprise/context';
 import { TICKET_REFUSE_MIN_MS, TICKET_REFUSED } from '../office/live';
 import { hasOfficeBinding, LIVE_PATH, OFFICE_NAME, OFFICE_OPS_PREFIX, officeRoutes, servesOffice, type OfficeCall, type OfficeRoute, type OfficeStub } from './officeWorker';
 
@@ -673,5 +674,46 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
 
   it('names the office object of a copy office, from this file', () => {
     expect(OFFICE_NAME).toBe('office');
+  });
+});
+
+describe('the request scope of the enterprise (Madar enterprises, design 5.16)', () => {
+  /** A set of stubs that note the enterprise of the scope when the Worker calls them. */
+  function scoped() {
+    const seen: Record<string, (string | undefined)[]> = { batch: [], effects: [], mcp: [], cron: [], live: [] };
+    const stub = {
+      batch: async () => (seen.batch.push(currentEnterprise()), { ok: true, body: ANSWER, later: ['1'] }),
+      runEffects: async () => (seen.effects.push(currentEnterprise()), { done: 1, failed: 0 }),
+      mcp: async () => (seen.mcp.push(currentEnterprise()), { status: 200, headers: [] as [string, string][], body: '{}', later: [] as string[] }),
+      cron: async (input: { at: string }) => (seen.cron.push(currentEnterprise()), { ok: true, at: input.at, steps: [], closed: 0, day: null, status: STATUS }),
+      fetch: async () => (seen.live.push(currentEnterprise()), { status: 101, webSocket: {} } as unknown as Response),
+    } as unknown as OfficeStub;
+    const routes = officeRoutes({
+      deps: fakeDeps(),
+      verifyToken: async () => ({ authUserId: 'auth-1', ent: 'ent_002' }),
+      stubFor: () => stub,
+      platform: () => ({ ...PLATFORM, report: async () => undefined, meter: async () => ({ allowed: true }), capState: async () => ({ stop: false, writesStop: false }) }) as never,
+      net: () => recordingNet(),
+      jobsSecret: () => 'jobs-secret',
+    });
+    return { seen, routes };
+  }
+  const ctx = { waitUntil: (work: Promise<unknown>) => void work };
+
+  it('runs the batch, the work after it, the MCP request, the Cron leg and the socket for the enterprise of the request', async () => {
+    const { seen, routes } = scoped();
+    await routes.fetch(new Request('https://madar-server.internal/api/batch', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer good' }, body: BODY }), {}, ctx);
+    await vi.waitFor(() => expect(seen.effects).toEqual(['ent_002']));
+    expect(seen.batch).toEqual(['ent_002']);
+    await routes.fetch(new Request('https://madar-server.internal/mcp/globex', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer t' }, body: '{}' }), {}, ctx);
+    expect(seen.mcp).toEqual(['ent_002']);
+    await routes.fetch(new Request('https://madar-server.internal/api/internal/cron', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-madar-jobs-secret': 'jobs-secret' }, body: JSON.stringify({ ent: 'ent_001', at: '2026-11-08T06:00:00.000Z' }),
+    }), {}, ctx);
+    expect(seen.cron).toEqual(['ent_001']);
+    await routes.fetch(new Request(`https://madar-server.internal${LIVE_PATH}?ticket=ent_002.${TICKET}`, { headers: { upgrade: 'websocket' } }), {}, ctx);
+    expect(seen.live).toEqual(['ent_002']);
+    // Outside a request the scope is empty.
+    expect(currentEnterprise()).toBeUndefined();
   });
 });

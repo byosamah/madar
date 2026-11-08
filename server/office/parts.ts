@@ -37,6 +37,7 @@ import { DAY_ROW_LITE, OfficeMeter } from './meter';
 import { brandOfSettings } from '../enterprise/brand';
 import { EnterpriseFacts } from '../enterprise/facts';
 import { EnterpriseGate } from '../enterprise/gate';
+import { entLogger } from '../enterprise/context';
 import { FREE_LIMITS, planFrom, shareCapOf } from '../enterprise/plan';
 import { isMcpToolPath } from '../enterprise/router';
 import { initEnterprise, reinviteAdmin, writeIdentity, writeLimits, writePlatformOwners, writeState } from '../enterprise/lifecycle';
@@ -183,7 +184,8 @@ export function officeParts(o: PartsInput): OfficeParts {
   const values = serverEnvFrom(o.read, { database: { writeUrl: '', readUrl: '' } });
   const db = liteDb(o.host);
   const clock = o.clock ?? { now: () => new Date() };
-  const log = o.log ?? consoleLogger();
+  // Every line of the object carries its enterprise, from the identity row (design 5.16). Before the gate has a row, a line has no ent.
+  const log = entLogger(o.log ?? consoleLogger(), () => gate.current()?.id);
   const meter = new OfficeMeter(o.host);
   const tickets = new LiveTickets(() => gate.id());
   const hold = new OfficeHold();

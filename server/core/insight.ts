@@ -1,4 +1,5 @@
 import { redactText, scrubText } from '../../src/lib/urlScrub';
+import { isEnterpriseId } from '../enterprise/ids';
 import { requestHost } from './after';
 import type { LogFields, Logger } from './ports';
 
@@ -47,8 +48,9 @@ function exceptionText(message: string, error: string | undefined): string {
 }
 
 /**
- * Wraps a logger. Only these fields of a line go out: the call name (`name` or `call`), `error`, `personId` and `agentId`. Any other
- * field stays in the log, so a call input or a text that a person wrote never leaves the server.
+ * Wraps a logger. Only these fields of a line go out: the call name (`name` or `call`), `error`, `personId`, `agentId` and `ent`. Any other
+ * field stays in the log, so a call input or a text that a person wrote never leaves the server. A line with an enterprise id (`ent`) posts
+ * the `distinct_id` `<ent>:<personId>`, because a record id such as usr_001 repeats in every enterprise (Madar enterprises, design 5.16).
  */
 export function insightLogger(log: Logger, o: InsightLoggerOptions): Logger {
   const now = o.now ?? Date.now;
@@ -73,15 +75,19 @@ export function insightLogger(log: Logger, o: InsightLoggerOptions): Logger {
     const personId = text(fields?.personId);
     const agentId = text(fields?.agentId);
     const call = text(fields?.name) ?? text(fields?.call);
+    // Only a real enterprise id goes out. Any other value of the field is dropped, and the record keeps the form of a line with no enterprise.
+    const entField = fields?.ent;
+    const ent = isEnterpriseId(entField) ? entField : undefined;
     const body = {
       api_key: o.key,
       event: '$exception',
-      distinct_id: personId ?? ANONYMOUS,
+      distinct_id: ent === undefined ? (personId ?? ANONYMOUS) : `${ent}:${personId ?? ANONYMOUS}`,
       timestamp: new Date(now()).toISOString(),
       properties: {
         $exception_list: [{ type: 'ServerError', value: exceptionText(message, text(fields?.error)), mechanism: { handled: true, synthetic: true } }],
         $exception_source: 'server',
         ...(call ? { call } : {}),
+        ...(ent ? { ent } : {}),
         ...(personId ? { personId } : {}),
         ...(agentId ? { agentId } : {}),
         env: o.env,

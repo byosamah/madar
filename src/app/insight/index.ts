@@ -13,11 +13,16 @@ export type { InsightClient, InsightPerson, SheetName, SheetStep } from './notes
  */
 export type AppRouter = ReturnType<typeof createAppRouter>;
 
-/** The person of the signed-in session, read from the cached `session.get` answer. Null while the answer has not come. */
+/**
+ * The person of the signed-in session, read from the cached `session.get` answer. Null while the answer has not come. `ent` is the id of
+ * the enterprise of the session, or null when the answer names none. The lazy client decides the usage rule from it (client.ts): this file
+ * is in the first load and stays small.
+ */
 function personOf(queryClient: QueryClient): InsightPerson | null {
-  const session = queryClient.getQueryData<{ user?: { id?: unknown; name?: unknown } }>(['api', 'session.get', {}]);
+  const session = queryClient.getQueryData<{ user?: { id?: unknown; name?: unknown }; enterprise?: { id?: unknown } }>(['api', 'session.get', {}]);
   const { id, name } = session?.user ?? {};
-  return typeof id === 'string' && typeof name === 'string' && name !== '' ? { id, name } : null;
+  const ent = session?.enterprise?.id;
+  return typeof id === 'string' && typeof name === 'string' && name !== '' ? { id, name, ent: typeof ent === 'string' ? ent : null } : null;
 }
 
 /**

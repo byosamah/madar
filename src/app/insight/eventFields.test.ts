@@ -20,7 +20,7 @@ const FIELDS: Record<string, string[]> = {
   madar_sheet: ['sheet', 'step'],
 };
 const PERSON_FIELDS = ['personId', 'personName'];
-const PERSON = { id: 'usr_1', name: 'Alice Example' };
+const PERSON = { id: 'usr_1', name: 'Alice Example', ent: 'ent_001' };
 
 /** The non-test source files of the insight module. */
 const sources = () =>
@@ -58,12 +58,12 @@ describe('the fields of every Madar PostHog event', () => {
   });
 
   it('adds personId and personName in before_send to an $exception record and to no other event', () => {
-    const options = posthogOptions({ env: 'test', build: '1', person: () => PERSON });
+    const options = posthogOptions({ env: 'test', build: '1', person: () => PERSON, usage: () => true });
     const send = options.before_send;
     if (typeof send !== 'function') throw new Error('before_send must be one function');
     const record = (event: string) => ({ uuid: 'u', event, properties: {} as Record<string, unknown> });
     const withPerson = send(record('$exception'))?.properties ?? {};
-    expect(withPerson).toMatchObject({ personId: PERSON.id, personName: PERSON.name });
+    expect(withPerson).toMatchObject({ personId: PERSON.id, personName: PERSON.name, ent: PERSON.ent });
     const events = [...Object.keys(FIELDS), '$autocapture', '$pageleave', '$web_vitals', '$snapshot', '$identify', 'some_new_event'];
     for (const event of events) {
       const properties = send(record(event))?.properties ?? {};

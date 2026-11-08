@@ -161,7 +161,7 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
       if (answer.work !== undefined && target) {
         const { stub, ent } = target;
         const work = stub.mailWork({ ent, route, value: answer.work }, call.net(ent)).catch((error: unknown) => {
-          o.deps.log.warn(route === 'forgot' ? 'A reset mail did not go out.' : 'A renewed invitation did not go out.', { error: error instanceof Error ? error.message : String(error) });
+          o.deps.log.warn(route === 'forgot' ? 'A reset mail did not go out.' : 'A renewed invitation did not go out.', { ent, error: error instanceof Error ? error.message : String(error) });
         });
         if (call.after) call.after(work);
         else await work;

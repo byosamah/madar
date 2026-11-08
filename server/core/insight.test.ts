@@ -47,6 +47,35 @@ describe('insightLogger', () => {
     expect(body.properties.$exception_list[0].value).toContain('a bug');
   });
 
+  it('sends distinct_id ent_002:usr_001 and the property ent for a line with an enterprise', async () => {
+    const t = setup();
+    t.log.error('A call failed.', { name: 'tasks.update', error: 'a bug', personId: 'usr_001', ent: 'ent_002' });
+    await Promise.all(t.kept);
+    const body = t.bodies()[0]!;
+    expect(body.distinct_id).toBe('ent_002:usr_001');
+    expect(body.properties).toMatchObject({ ent: 'ent_002', personId: 'usr_001' });
+    // The log line keeps its field.
+    expect(t.lines[0]!.fields).toMatchObject({ ent: 'ent_002' });
+  });
+
+  it('keeps the server name for a line with an enterprise and no person', async () => {
+    const t = setup();
+    t.log.error('The health check failed.', { error: 'boom', ent: 'ent_003' });
+    await Promise.all(t.kept);
+    expect(t.bodies()[0]!.distinct_id).toBe('ent_003:madar-server');
+  });
+
+  it('a line with no ent keeps the old form, and a value that is no enterprise id is dropped', async () => {
+    const t = setup();
+    t.log.error('A call failed.', { name: 'a.b', personId: 'usr_7' });
+    t.log.error('A call failed.', { name: 'a.b', personId: 'usr_8', ent: 'Globex Ltd' });
+    await Promise.all(t.kept);
+    expect(t.bodies()[0]!.distinct_id).toBe('usr_7');
+    expect(t.bodies()[0]!.properties).not.toHaveProperty('ent');
+    expect(t.bodies()[1]!.distinct_id).toBe('usr_8');
+    expect(t.bodies()[1]!.properties).not.toHaveProperty('ent');
+  });
+
   it('uses the distinct id madar-server when the line has no person', async () => {
     const t = setup();
     t.log.error('The health check failed.', { error: 'boom' });

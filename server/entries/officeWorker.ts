@@ -21,6 +21,7 @@ import { padTo } from '../enterprise/pad';
 import { platformRoute } from '../enterprise/platform/route';
 import { writeOwners } from '../enterprise/platform/owners';
 import type { PlatformStub } from '../enterprise/platform/stub';
+import { runInEnterprise } from '../enterprise/context';
 import { entRouter, isMcpToolPath, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
 import { challengeOf } from '../mcp/metadata';
 import type { EnterpriseInit, EnterpriseLimits, EnterpriseState, EnterpriseStatus } from '../enterprise/types';
@@ -214,25 +215,29 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       if (!(error instanceof ApiError)) log.error('The batch failed before its calls.', { error: error instanceof Error ? error.message : String(error) });
       return errorResponse(runErrorOf(error));
     }
-    const stopped = await accountCap(env, ent, writesIn(calls));
-    if (stopped) return errorResponse(stopped);
-    const net = o.net(env, ent);
-    const stub = routerOf(env).stub(ent);
-    let out: OfficeBatchOutput;
-    try {
-      out = await stub.batch({ ent, who: { kind: 'browser', authUserId }, calls, overviewCalls, worker: reported() }, net);
-    } catch (error) {
-      return errorResponse(officeErrorOf(error, log));
-    }
-    if (!out.ok) return errorResponse(out.error);
-    if (out.later.length > 0) {
-      const work = stub.runEffects({ ent, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
-        log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
-      });
-      if (after) after(work);
-      else await work;
-    }
-    return new Response(out.body, { headers: { 'content-type': 'application/json' } });
+    // The rest of the request runs for this enterprise: every log line gets its id (server/enterprise/context.ts). The work after the answer
+    // starts inside the scope, so it keeps the id.
+    return runInEnterprise(ent, async () => {
+      const stopped = await accountCap(env, ent, writesIn(calls));
+      if (stopped) return errorResponse(stopped);
+      const net = o.net(env, ent);
+      const stub = routerOf(env).stub(ent);
+      let out: OfficeBatchOutput;
+      try {
+        out = await stub.batch({ ent, who: { kind: 'browser', authUserId }, calls, overviewCalls, worker: reported() }, net);
+      } catch (error) {
+        return errorResponse(officeErrorOf(error, log));
+      }
+      if (!out.ok) return errorResponse(out.error);
+      if (out.later.length > 0) {
+        const work = stub.runEffects({ ent, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+          log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
+        });
+        if (after) after(work);
+        else await work;
+      }
+      return new Response(out.body, { headers: { 'content-type': 'application/json' } });
+    });
   }
 
   /**
@@ -266,25 +271,29 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const forward = new URL(request.url);
     forward.pathname = parsed.rest;
     const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
-    // A tool call of MCP (the path /mcp) carries work; the OAuth routes under it do not (design 5.14).
-    const stopped = await accountCap(env, target.ent, isMcpToolPath(parsed.rest));
-    if (stopped) return mcpError(503, stopped.message, 'busy');
-    const net = o.net(env, target.ent);
-    let out: OfficeMcpAnswer;
-    try {
-      out = await target.stub.mcp({ ent: target.ent, mcpUrl, url: forward.toString(), method: request.method, headers, body, worker: reported() }, net);
-    } catch (error) {
-      const refusal = officeErrorOf(error, log);
-      return refusal.details?.reason === 'busy' ? mcpError(503, refusal.message, 'busy') : mcpError(500, 'Something went wrong. Try again.');
-    }
-    if (out.later.length > 0) {
-      const work = target.stub.runEffects({ ent: target.ent, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
-        log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
-      });
-      if (after) after(work);
-      else await work;
-    }
-    return new Response(out.body, { status: out.status, headers: out.headers });
+    const { ent } = target;
+    // The rest of the request runs for this enterprise (log lines carry its id).
+    return runInEnterprise(ent, async () => {
+      // A tool call of MCP (the path /mcp) carries work; the OAuth routes under it do not (design 5.14).
+      const stopped = await accountCap(env, ent, isMcpToolPath(parsed.rest));
+      if (stopped) return mcpError(503, stopped.message, 'busy');
+      const net = o.net(env, ent);
+      let out: OfficeMcpAnswer;
+      try {
+        out = await target.stub.mcp({ ent, mcpUrl, url: forward.toString(), method: request.method, headers, body, worker: reported() }, net);
+      } catch (error) {
+        const refusal = officeErrorOf(error, log);
+        return refusal.details?.reason === 'busy' ? mcpError(503, refusal.message, 'busy') : mcpError(500, 'Something went wrong. Try again.');
+      }
+      if (out.later.length > 0) {
+        const work = target.stub.runEffects({ ent, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+          log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
+        });
+        if (after) after(work);
+        else await work;
+      }
+      return new Response(out.body, { status: out.status, headers: out.headers });
+    });
   }
 
   /**
@@ -351,22 +360,24 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const platform = o.platform(env);
     const { ent, stub } = target;
     seen += 1;
-    try {
-      const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net(env, ent));
-      log.info('The office jobs ran.', { ent, ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed });
-      await platform.report(report.status);
-      await platform.meter({ ent, day: utcDay(at), counts: report.status.day });
-      return Response.json({ ok: report.ok });
-    } catch (error) {
-      log.error('The office jobs did not run. The next run tries again.', { ent, error: error instanceof Error ? error.message : String(error) });
-      // A paused object refuses the jobs but answers its status, so the platform page still shows it.
+    return runInEnterprise(ent, async () => {
       try {
-        await platform.report(await stub.status({ ent }));
-      } catch (again) {
-        log.warn('The status of an enterprise did not load.', { ent, error: again instanceof Error ? again.message : String(again) });
+        const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net(env, ent));
+        log.info('The office jobs ran.', { ent, ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed });
+        await platform.report(report.status);
+        await platform.meter({ ent, day: utcDay(at), counts: report.status.day });
+        return Response.json({ ok: report.ok });
+      } catch (error) {
+        log.error('The office jobs did not run. The next run tries again.', { ent, error: error instanceof Error ? error.message : String(error) });
+        // A paused object refuses the jobs but answers its status, so the platform page still shows it.
+        try {
+          await platform.report(await stub.status({ ent }));
+        } catch (again) {
+          log.warn('The status of an enterprise did not load.', { ent, error: again instanceof Error ? again.message : String(again) });
+        }
+        return errorResponse({ code: 'failed', message: 'Something went wrong. Try again.' });
       }
-      return errorResponse({ code: 'failed', message: 'Something went wrong. Try again.' });
-    }
+    });
   }
 
   /**
@@ -419,12 +430,14 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     if (!TICKET_SHAPE.test(ticket)) return refused();
     const target = await routerOf(env).listedStub(untag(ticket)?.ent);
     if (!target) return refused();
-    try {
-      const response = await target.stub.fetch(request);
-      return response.status === 401 ? await refused() : response;
-    } catch (error) {
-      return errorResponse(officeErrorOf(error, log));
-    }
+    return runInEnterprise(target.ent, async () => {
+      try {
+        const response = await target.stub.fetch(request);
+        return response.status === 401 ? await refused() : response;
+      } catch (error) {
+        return errorResponse(officeErrorOf(error, log));
+      }
+    });
   }
 
   async function health(request: Request, env: Env): Promise<Response> {
