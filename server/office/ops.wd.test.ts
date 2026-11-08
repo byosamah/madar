@@ -3,6 +3,7 @@ import { buildSeed } from '../../src/data/seed';
 import { importOffice } from '../../scripts/office/import';
 import { opsOf } from '../../scripts/office/ops';
 import { seedSource } from '../../scripts/office/seed';
+import { stateSource } from '../../scripts/office/source';
 import { localPasswords } from '../../tests/e2e-deploy/local';
 import { startLive } from './test/live/harness';
 
@@ -44,6 +45,32 @@ describe('the office ops on local workerd (server/office/ops.wd.test.ts)', () =>
     await expect(live.ops('drop', {})).rejects.toThrow(/403/);
     expect((await live.rows<{ id: string }>("select id from users where id = 'usr_001'")).length).toBe(1);
   });
+
+  it('an import into ent_002 never writes to the object of ent_001, and makes the identity row of ent_002', async () => {
+    await live.fresh(await buildSeed(TODAY, async () => undefined));
+    // The platform lists ent_002 first (the op of the Mac), then the import names it. An unlisted id is refused.
+    await expect(live.ops('import', { step: 'begin', mode: 'replace' }, { office: 'ent_002' })).rejects.toThrow(/403/);
+    await live.ops('platform-register', {
+      row: {
+        id: 'ent_002', address: 'globex', name: 'Globex', nameAr: 'جلوبكس', state: 'active', limits: { people: null, storageBytes: null },
+        createdAt: '2026-11-08T08:00:00.000Z', firstAdmin: { name: 'Hana', email: 'hana@globex.test' },
+      },
+      emails: ['hana@globex.test'],
+    });
+    const before = await live.rows<{ n: number }>('select count(*) as n from tasks');
+    const ops = opsOf({ base: 'http://office.test', header: 'x-madar-ops-secret', secret: 'test-ops-secret', office: 'ent_002', fetch: ((url: string, init?: RequestInit) => {
+      const target = new URL(url);
+      return live.worker().fetch(`${target.pathname}${target.search}`, init as WorkerInit);
+    }) as unknown as typeof fetch });
+    const small = await buildSeed(TODAY, async () => undefined);
+    await importOffice(ops, stateSource(small), { mode: 'replace' });
+    expect(await live.rows('select id from enterprise', [], { ent: 'ent_002' })).toEqual([{ id: 'ent_002' }]);
+    expect((await live.rows<{ n: number }>('select count(*) as n from tasks', [], { ent: 'ent_002' }))[0].n).toBe(Object.keys(small.tasks).length);
+    // The object of ent_001 holds what it held, with its own identity.
+    expect(await live.rows<{ n: number }>('select count(*) as n from tasks')).toEqual(before);
+    expect(await live.rows('select id from enterprise')).toEqual([{ id: 'ent_001' }]);
+    expect(await live.platform('resolveEmail', { email: 'hana@globex.test' })).toEqual({ ent: 'ent_002' });
+  }, 120_000);
 
   it('answers a peek with the test tools on, and refuses the export with no secret', async () => {
     expect(await live.ops('peek', { text: "select id from users where id = 'usr_001'", values: [] })).toEqual([{ id: 'usr_001' }]);

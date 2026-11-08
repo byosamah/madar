@@ -17,6 +17,7 @@ import pg from 'pg';
 import { copyOfPageHost, type Copy } from '../../server/core/serverHost';
 import { EXPORT_SECRET_HEADER, OPS_SECRET_HEADER } from '../../server/entries/officeWorker';
 import { IMPORT_PART_ROWS, type ImportBegin, type ImportFinish, type ImportMode, type ImportPartAnswer } from '../../server/office/import';
+import { ENTERPRISE_ID } from '../../server/enterprise/ids';
 import { REHEARSAL_NAME } from '../../server/office/ops';
 import { exportOffice } from '../backup/officeExport';
 import { parseSecretsFile, POOLER_HOST, REFS } from '../deploy/secrets';
@@ -181,14 +182,23 @@ export async function sourceFrom(from: string, today: string): Promise<OfficeSou
 
 const MODES: readonly string[] = ['empty', 'resume', 'replace'];
 
+/**
+ * The value of --office (Madar enterprises): an enterprise id (the object of that enterprise, which the platform list must hold), a
+ * rehearsal name, or nothing for ent_001 (VADOs' Companies). The old name "office" is not an option of this tool any more.
+ */
+export function officeNameOf(flag: string | undefined): string | undefined {
+  if (flag === undefined) return undefined;
+  if (ENTERPRISE_ID.test(flag) || REHEARSAL_NAME.test(flag)) return flag;
+  throw new Error('--office must be an enterprise id (ent_NNN) or a rehearsal name (rehearsal-YYYYMMDD), or left out for ent_001.');
+}
+
 async function main(argv: string[]): Promise<void> {
   const from = flagOf(argv, '--from');
   const target = targetOf(flagOf(argv, '--to'));
-  const office = flagOf(argv, '--office') || undefined;
+  const office = officeNameOf(flagOf(argv, '--office') || undefined);
   const mode = flagOf(argv, '--mode', 'empty');
   if (!MODES.includes(mode)) throw new Error('--mode must be empty, resume or replace.');
-  if (office !== undefined && !REHEARSAL_NAME.test(office)) throw new Error('--office must be a rehearsal name (rehearsal-YYYYMMDD), or left out for the office of the copy.');
-  if (from === 'production' && office === undefined) throw new Error('A copy of production goes only into a rehearsal name (--office rehearsal-YYYYMMDD).');
+  if (from === 'production' && (office === undefined || !REHEARSAL_NAME.test(office))) throw new Error('A copy of production goes only into a rehearsal name (--office rehearsal-YYYYMMDD).');
   if (from === 'production' && (await typedWord()) !== 'production') throw new Error('The typed word was not production. Nothing changed.');
   const today = new Date().toISOString().slice(0, 10);
   const source = await sourceFrom(from, today);

@@ -27,7 +27,7 @@ function rowOf(row: Record<string, unknown>): Record<string, unknown> {
 }
 
 export async function officePeek<T = Record<string, unknown>>(target: OfficeTarget, text: string, values: readonly unknown[], send: typeof fetch = fetch): Promise<T[]> {
-  const response = await send(`${target.apiUrl}/office/peek`, {
+  const response = await send(`${target.apiUrl}/office/peek${target.office ? `?office=${encodeURIComponent(target.office)}` : ''}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-madar-ops-secret': target.opsSecret },
     body: JSON.stringify({ text, values: values.map(valueOf) }),

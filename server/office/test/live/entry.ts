@@ -29,7 +29,7 @@ const pushFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof fetch;
 
 // The object of the test Worker is named with the enterprise id, as the real Worker names it (the gate compares the name with its row).
-const stubOf = (env: Env, ent: string = ENT_VADO) => env.OFFICE.get(env.OFFICE.idFromName(ent)) as Test;
+const stubOf = (env: Env, ent: string = ENT_VADO) => env.OFFICE.get(env.OFFICE.idFromName(ent === 'office' ? ENT_VADO : ent)) as Test;
 const platformOf = (env: Env) => env.PLATFORM.get(env.PLATFORM.idFromName(PLATFORM_OBJECT)) as unknown as PlatformStub;
 const routes = officeRoutes({
   // The MCP address of the Worker is the MCP_URL of the objects (wrangler.toml): the Worker builds the address of each request from it.
@@ -44,8 +44,7 @@ const routes = officeRoutes({
   },
   stubFor: (env, ent) => stubOf(env as Env, ent),
   platform: (env) => platformOf(env as Env),
-  // The office ops of exit wave 4: an object by its name, and the two secrets of this test Worker (harness.ts sends them).
-  stubOf: (env, name) => (env as Env).OFFICE.get((env as Env).OFFICE.idFromName(name === 'office' ? ENT_VADO : name)) as Test,
+  // The two secrets of this test Worker (harness.ts sends them). The ops name an object by its name through stubFor.
   net: () => new WorkerNet({ files, mail, fetch: pushFetch }),
   jobsSecret: () => 'test-jobs-secret',
   exportSecret: () => 'test-export-secret',

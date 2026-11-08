@@ -368,7 +368,9 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
   const quiet = { info: () => undefined, warn: () => undefined, error: () => undefined };
   function opsRoutes() {
     const seen: { name: string; path: string; header: string | null; body: string }[] = [];
-    const stubFor = (name: string) => ({
+    const created: string[] = [];
+    const platformCalls: { method: string; input: unknown }[] = [];
+    const stubFor = (name: string) => (created.push(name), {
       fetch: async (request: Request) => {
         seen.push({ name, path: new URL(request.url).pathname, header: request.headers.get('x-madar-office-name'), body: await request.text() });
         return Response.json({ ok: true });
@@ -377,15 +379,14 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
     const routes = officeRoutes({
       deps: { config: testConfig(), clock: { now: () => new Date() }, log: quiet },
       verifyToken: async () => ({ authUserId: 'x' }),
-      stubFor: () => stubFor('office') as never,
-      platform: () => PLATFORM as never,
-      stubOf: (_env, name) => stubFor(name) as never,
+      stubFor: (_env, name) => stubFor(name) as never,
+      platform: () => ({ ...PLATFORM, register: async (input: unknown) => void platformCalls.push({ method: 'register', input }), setOwners: async (input: unknown) => void platformCalls.push({ method: 'setOwners', input }) }) as never,
       net: () => ({}) as never,
       jobsSecret: () => 'jobs',
       exportSecret: () => 'export-secret-of-the-test',
       opsSecret: () => 'ops-secret-of-the-test',
     });
-    return { routes, seen };
+    return { routes, seen, created, platformCalls };
   }
   const post = (path: string, headers: Record<string, string>) => new Request(`https://w.test${path}`, { method: 'POST', headers, body: '{"step":"begin"}' });
 
@@ -404,9 +405,70 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
     expect((await routes.fetch(post('/api/office/export', { 'x-madar-export-secret': 'export-secret-of-the-test' }), {})).status).toBe(200);
     expect((await routes.fetch(post('/api/office/import?office=rehearsal-20261020', { 'x-madar-ops-secret': 'ops-secret-of-the-test' }), {})).status).toBe(200);
     expect(seen).toEqual([
-      { name: 'office', path: '/office/export', header: 'office', body: '{"step":"begin"}' },
+      { name: 'ent_001', path: '/office/export', header: 'ent_001', body: '{"step":"begin"}' },
       { name: 'rehearsal-20261020', path: '/office/import', header: 'rehearsal-20261020', body: '{"step":"begin"}' },
     ]);
+  });
+
+  it('export of ent_002 reaches the ent_002 stub; export of an unlisted ent_009 gives 403 and makes no stub', async () => {
+    const { routes, seen, created } = opsRoutes();
+    const exportOp = { 'x-madar-export-secret': 'export-secret-of-the-test' };
+    expect((await routes.fetch(post('/api/office/export?office=ent_002', exportOp), {})).status).toBe(200);
+    expect(seen).toEqual([{ name: 'ent_002', path: '/office/export', header: 'ent_002', body: '{"step":"begin"}' }]);
+    for (const name of ['ent_009', 'ENT_002', 'ent_2', 'ent_002.x']) expect((await routes.fetch(post(`/api/office/export?office=${name}`, exportOp), {})).status, name).toBe(403);
+    expect(created).toEqual(['ent_002']);
+  });
+
+  it('import takes the old name office, a rehearsal name and a listed id, and nothing else', async () => {
+    const { routes, created } = opsRoutes();
+    const ops = { 'x-madar-ops-secret': 'ops-secret-of-the-test' };
+    for (const name of ['office', 'rehearsal-20261020', 'ent_001', 'ent_002']) expect((await routes.fetch(post(`/api/office/import?office=${name}`, ops), {})).status, name).toBe(200);
+    expect((await routes.fetch(post('/api/office/import?office=ent_009', ops), {})).status).toBe(403);
+    expect(created).toEqual(['office', 'rehearsal-20261020', 'ent_001', 'ent_002']);
+  });
+
+  it('peek without ?office= reaches ENT_VADO, and a drop of an enterprise id gives 403', async () => {
+    const { routes, seen } = opsRoutes();
+    const ops = { 'x-madar-ops-secret': 'ops-secret-of-the-test' };
+    expect((await routes.fetch(post('/api/office/peek', ops), {})).status).toBe(200);
+    expect(seen.map((one) => one.name)).toEqual(['ent_001']);
+    expect((await routes.fetch(post('/api/office/drop?office=ent_001', ops), {})).status).toBe(403);
+    expect((await routes.fetch(post('/api/office/drop?office=ent_002', ops), {})).status).toBe(403);
+    expect(seen).toHaveLength(1);
+  });
+
+  describe('the ops of the platform object', () => {
+    const row = {
+      id: 'ent_002', address: 'globex', name: 'Globex', nameAr: 'جلوبكس', state: 'active', limits: { people: null, storageBytes: null },
+      createdAt: '2026-11-08T08:00:00.000Z', firstAdmin: { name: 'Hana', email: 'hana@globex.test' },
+    };
+    const send = (routes: ReturnType<typeof opsRoutes>['routes'], op: string, body: unknown, headers: Record<string, string> = { 'x-madar-ops-secret': 'ops-secret-of-the-test' }) =>
+      routes.fetch(new Request(`https://w.test/api/office/${op}?office=ent_002`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) }), {});
+
+    it('platform-register needs the ops secret (401 otherwise), refuses a bad row with 400, and calls platform.register', async () => {
+      const { routes, platformCalls, created } = opsRoutes();
+      expect((await send(routes, 'platform-register', { row, emails: ['hana@globex.test'] }, {})).status).toBe(401);
+      expect((await send(routes, 'platform-register', { row, emails: [] }, { 'x-madar-export-secret': 'export-secret-of-the-test' })).status).toBe(401);
+      for (const bad of [{ row: { ...row, id: 'ENT_2' }, emails: [] }, { row: { ...row, address: 'oauth' }, emails: [] }, { row: { ...row, state: 'gone' }, emails: [] }, { row, emails: 'x' }, { emails: [] }, 'text']) {
+        expect((await send(routes, 'platform-register', bad)).status, JSON.stringify(bad).slice(0, 40)).toBe(400);
+      }
+      expect(platformCalls).toEqual([]);
+      const ok = await send(routes, 'platform-register', { row, emails: ['hana@globex.test'] });
+      expect([ok.status, await ok.json()]).toEqual([200, { ok: true }]);
+      expect(platformCalls).toEqual([{ method: 'register', input: { row, emails: ['hana@globex.test'] } }]);
+      // The op takes no ?office= and makes no object.
+      expect(created).toEqual([]);
+    });
+
+    it('platform-owners needs the ops secret, refuses a bad body, and calls platform.setOwners', async () => {
+      const { routes, platformCalls } = opsRoutes();
+      const owners = [{ ent: 'ent_001', userId: 'usr_001' }];
+      expect((await send(routes, 'platform-owners', { owners }, {})).status).toBe(401);
+      for (const bad of [{ owners: [{ ent: 'x', userId: 'usr_001' }] }, { owners: [{ ent: 'ent_001', userId: 'someone' }] }, { owners: 'x' }, {}]) expect((await send(routes, 'platform-owners', bad)).status).toBe(400);
+      expect(platformCalls).toEqual([]);
+      expect((await send(routes, 'platform-owners', { owners })).status).toBe(200);
+      expect(platformCalls).toEqual([{ method: 'setOwners', input: { owners } }]);
+    });
   });
 
   it('drops only a rehearsal object, and peeks only into the office of the copy', async () => {

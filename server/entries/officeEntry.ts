@@ -69,8 +69,6 @@ export function officeEntry() {
       verifyToken: verifyBrowserToken,
       stubFor,
       platform: platformStub,
-      // The office ops (exit wave 4): an object by its name, the office of the copy or a spare object of the rehearsal.
-      stubOf: (env, name) => stubFor(env, name),
       net: () => new WorkerNet({ files: deps.files, mail: deps.mail }),
       jobsSecret: () => values.jobsSecret,
       exportSecret: () => readEnv('MADAR_EXPORT_SECRET'),

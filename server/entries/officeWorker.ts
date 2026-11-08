@@ -11,7 +11,8 @@ import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSE_MIN_MS, TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
 import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn } from '../office/ops';
 import { runFanout, selfTransport } from '../enterprise/fanout';
-import { ENT_VADO, untag, type EnterpriseId } from '../enterprise/ids';
+import { ENT_VADO, isEnterpriseId, untag, type EnterpriseId } from '../enterprise/ids';
+import { OwnersBodyShape, RegisterBodyShape } from '../enterprise/shapes';
 import { padTo } from '../enterprise/pad';
 import type { PlatformStub } from '../enterprise/platform/stub';
 import { entRouter, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
@@ -46,7 +47,11 @@ export const OFFICE_NAME = 'office';
 export const EXPORT_SECRET_HEADER = 'x-madar-export-secret';
 export const OPS_SECRET_HEADER = 'x-madar-ops-secret';
 
-type OpRule = { secret: 'export' | 'ops'; names: 'any' | 'office' | 'rehearsal' };
+/**
+ * names: any (the old name office, a rehearsal name, or a listed enterprise id), office (the old name or a listed enterprise id), rehearsal
+ * (a rehearsal name only), none (an op of the platform object: it takes no ?office=).
+ */
+type OpRule = { secret: 'export' | 'ops'; names: 'any' | 'office' | 'rehearsal' | 'none' };
 
 /** Each op, its secret and the object names it takes. export is the nightly GitHub job; the others run from the Mac. */
 const OPS: Readonly<Record<string, OpRule>> = {
@@ -54,12 +59,16 @@ const OPS: Readonly<Record<string, OpRule>> = {
   import: { secret: 'ops', names: 'any' },
   peek: { secret: 'ops', names: 'office' },
   drop: { secret: 'ops', names: 'rehearsal' },
+  'platform-register': { secret: 'ops', names: 'none' },
+  'platform-owners': { secret: 'ops', names: 'none' },
 };
 
-function nameAllowed(rule: OpRule['names'], name: string): boolean {
-  if (rule === 'office') return name === OFFICE_NAME;
+/** The names that an op takes without the list of the platform. An enterprise id needs the list (listed). */
+function nameAllowed(rule: OpRule['names'], name: string, listed: boolean): boolean {
+  if (rule === 'none') return false;
   if (rule === 'rehearsal') return REHEARSAL_NAME.test(name);
-  return name === OFFICE_NAME || REHEARSAL_NAME.test(name);
+  if (rule === 'office') return name === OFFICE_NAME || listed;
+  return name === OFFICE_NAME || REHEARSAL_NAME.test(name) || listed;
 }
 
 /** True when the env has the office binding OFFICE (the test Worker from wave 3; production from wave 6). */
@@ -114,8 +123,6 @@ export type OfficeRoutesOptions = {
   jobsSecret: () => string | undefined;
   /** More routes under /api (the own sign-in, server/entries/officeSignin.ts), as apiApp takes AppOptions.routes. */
   routes?: OfficeRoute[];
-  /** The object of an op by its name (the office of the copy, or a spare object of the rehearsal). Default: the object of ENT_VADO. */
-  stubOf?: (env: Env, name: string) => Pick<OfficeStub, 'fetch'>;
   /** The timer of the minimum answer time of a refused ticket. Default: setTimeout. A test records the waits here. */
   sleep?: (ms: number) => Promise<void>;
   /** MADAR_EXPORT_SECRET: the nightly export of GitHub. */
@@ -263,14 +270,50 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     if (!secret || given === null || !(await sameSecret(given, secret))) {
       return errorResponse({ code: 'unauthenticated', message: 'The secret of this address is not right.' });
     }
-    const name = new URL(request.url).searchParams.get('office') ?? OFFICE_NAME;
-    if (!nameAllowed(rule.names, name)) return errorResponse({ code: 'forbidden', message: 'This office name is not allowed for this op.' });
-    const stub = o.stubOf ? o.stubOf(env, name) : routerOf(env).stub(ENT_VADO);
+    if (rule.names === 'none') return platformOp(request, env, op);
+    // Without ?office= the op is for ENT_VADO. An enterprise id works only when the platform object lists it, so an op never makes an object.
+    const name = new URL(request.url).searchParams.get('office') ?? ENT_VADO;
+    const listed = isEnterpriseId(name) ? await routerOf(env).listedStub(name) : null;
+    if (!nameAllowed(rule.names, name, listed !== null)) return errorResponse({ code: 'forbidden', message: 'This office name is not allowed for this op.' });
+    const stub = listed?.stub ?? o.stubFor(env, name);
     try {
       return await stub.fetch(new Request(`https://office.internal/office/${op}`, {
         method: 'POST', headers: { 'content-type': 'application/json', [OFFICE_NAME_HEADER]: name }, body: request.body, duplex: 'half',
       } as RequestInit));
     } catch (error) {
+      return errorResponse(officeErrorOf(error, log));
+    }
+  }
+
+  /**
+   * The two ops of the platform object (Madar enterprises, with the ops secret): platform-register writes one enterprise row and its emails
+   * (an upsert, any state), and platform-owners replaces the list of the platform owners. The body is checked with zod first.
+   */
+  async function platformOp(request: Request, env: Env, op: string): Promise<Response> {
+    let value: unknown;
+    try {
+      value = JSON.parse(await readBody(request));
+    } catch {
+      return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body of this op is one JSON object.')));
+    }
+    try {
+      const platform = o.platform(env);
+      if (op === 'platform-register') {
+        const parsed = RegisterBodyShape.safeParse(value);
+        if (!parsed.success) return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body is { row, emails }, with an enterprise row.')));
+        await platform.register(parsed.data);
+        // This isolate reads the list again at its next lookup, so the import that follows finds the new enterprise at once. Another
+        // isolate sees it after LISTED_MISS_MS at most.
+        delete listedCache.list;
+        listedCache.addresses.clear();
+      } else {
+        const parsed = OwnersBodyShape.safeParse(value);
+        if (!parsed.success) return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body is { owners: [{ ent, userId }] }.')));
+        await platform.setOwners(parsed.data);
+      }
+      return Response.json({ ok: true });
+    } catch (error) {
+      if (error instanceof ApiError || (error as { code?: unknown })?.code !== undefined) return errorResponse(runErrorOf(error));
       return errorResponse(officeErrorOf(error, log));
     }
   }

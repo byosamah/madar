@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { State } from '../../src/api/store';
 import { verifyPassword } from '../../server/auth/own/password';
+import { ENT_VADO, normalizeEmail } from '../../server/enterprise/ids';
 import { httpOf, nodeOffice } from '../../server/office/test/nodeOffice';
 import { DEPLOY_ACCOUNTS } from '../../tests/e2e-deploy/accounts';
 import { localPasswords } from '../../tests/e2e-deploy/local';
@@ -59,6 +60,8 @@ describe('the test seed into the office object (scripts/office/seed.ts)', () => 
     const t = await nodeOffice({ env: { MADAR_TEST_TOOLS: 'on' } });
     const { source } = await seedSource({ now: NOW, passwords: localPasswords() });
     await importOffice(partsOps(t.parts), source, { mode: 'replace' });
+    // The email directory of the platform object holds the sign-in emails (the register op of the Mac writes them with the enterprise).
+    for (const row of source.signin) await t.world.platform.reserveEmail({ ent: ENT_VADO, email: normalizeEmail(row.email) });
     const answer = await t.route(httpOf('POST', '/api/auth/token', {
       grant_type: 'password', email: DEPLOY_ACCOUNTS.member.email, password: localPasswords()[DEPLOY_ACCOUNTS.member.passwordSecret],
     }));
