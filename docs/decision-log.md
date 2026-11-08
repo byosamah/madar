@@ -14,7 +14,8 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   answered; no email. The card starts with the to-dos of the person (Sunday: open, due this week; Thursday: done since Sunday), each one kept until the person
   clears it, and one box "Anything else". The build adds two basic switches ("Answer the weekly question", "Read the weekly answers"), a page `/week` with
   the plan and the done list of each person side by side and the people who have not answered, and two MCP tools for the weekly report of Moataz. The
-  build also keeps the title of a to-do with no project and of a to-do of a hidden project out of an answer, because everyone reads the answers.
+  build stores only the ids of the to-dos of an answer; a reader sees the title of a to-do only when that reader may view the to-do, and a
+  History line of an answer shows only to a holder of "Read the weekly answers" or to its author (security review 2026-11-08).
 - Chat fixes (owner report 2026-11-08, from Moataz and others): "some of them see them sorted some not, some take a lot of time to reach
   the chat to them some not, and there's an old conversations go down until they disappear ... i send a message for moataz on to-do ... we
   tried on mobile reach the message, but we didn't reach!" The investigation found: Moataz was only a helper of tsk_479 and only named
