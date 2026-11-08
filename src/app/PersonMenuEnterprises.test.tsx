@@ -37,6 +37,13 @@ describe('the person menu line of Madar enterprises', () => {
     expect(places.indexOf('Madar enterprises')).toBe(places.indexOf('Admin') + 1);
   });
 
+  it('draws a building icon for it, not the shield of the Admin line', async () => {
+    flag = true;
+    const menu = await openMenu();
+    const icon = (name: string) => within(menu).getByRole('link', { name }).querySelector('svg')!.innerHTML;
+    expect(icon('Madar enterprises')).not.toBe(icon('Admin'));
+  });
+
   it('does not show it to an Admin who is no owner', async () => {
     flag = false;
     const menu = await openMenu();

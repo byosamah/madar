@@ -10,7 +10,7 @@ import { TextField } from '../../components/Fields';
 import { Sheet } from '../../components/Sheet';
 import { formatDay } from '../../lib/dates';
 import { FormError } from '../auth/AuthPage';
-import { bytesOfGb, gbOne, gbText, peopleOf } from './limits';
+import { bytesOfGb, gbOne, gbText, hasStatus, peopleOf } from './limits';
 import { LogoPicker } from './LogoPicker';
 import { usePlatform } from './usePlatform';
 
@@ -104,8 +104,12 @@ export function EnterpriseSheet({ row, open, onOpenChange, onTryAgain }: { row: 
       <div className="flex flex-col gap-4 pt-1">
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-subheadline text-ink-2">
           <span className="font-semibold text-ink">{t(`enterprises.state.${row.state}`)}</span>
-          <span>{t('enterprises.usage.people', { active: row.people, invited: row.invited })}</span>
-          <span>{t('enterprises.usage.storage', { used: gbOne(row.storageBytes) })}</span>
+          {hasStatus(row) ? (
+            <>
+              <span>{t('enterprises.usage.people', { active: row.people, invited: row.invited })}</span>
+              <span>{t('enterprises.usage.storage', { used: gbOne(row.storageBytes) })}</span>
+            </>
+          ) : <span>{t('enterprises.notCounted')}</span>}
           <span>{lastText(row, lang, t as never)}</span>
         </p>
         {unfinished ? (
@@ -115,7 +119,7 @@ export function EnterpriseSheet({ row, open, onOpenChange, onTryAgain }: { row: 
             <TextField id="ent-edit-name" label={t('enterprises.field.name')} value={name} dir="auto" maxLength={80} autoComplete="off" onChange={(event) => setName(event.target.value)} />
             <TextField id="ent-edit-name-ar" label={t('enterprises.field.nameAr')} value={nameAr} dir="auto" maxLength={80} autoComplete="off" onChange={(event) => setNameAr(event.target.value)} />
             <TextField id="ent-edit-address" label={t('enterprises.field.address')} value={row.address} dir="ltr" readOnly />
-            <LogoPicker id="ent-edit-logo" label={t('enterprises.field.logo')} value={logo} onChange={setLogo} />
+            <LogoPicker id="ent-edit-logo" label={t('enterprises.field.logo')} value={logo} onChange={setLogo} name={nameOf({ name, nameAr }, lang)} />
             <TextField id="ent-edit-people" label={t('enterprises.field.people')} hint={t('enterprises.limitHint')} value={people} inputMode="numeric" dir="ltr" onChange={(event) => setPeople(event.target.value)} />
             <TextField id="ent-edit-storage" label={t('enterprises.field.storage')} hint={t('enterprises.limitHint')} value={storage} inputMode="decimal" dir="ltr" onChange={(event) => setStorage(event.target.value)} />
           </>

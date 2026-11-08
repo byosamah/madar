@@ -15,6 +15,7 @@ import { PROTOTYPE, REMOTE } from './mode';
 import { useSwitchLanguage } from './languageTurn';
 import { usePersonName } from './personName';
 import { useAction, useCall, useRuntime } from './runtime';
+import { BuildingIcon } from '../components/icons/animated/building';
 import { ShieldCheckIcon } from '../components/icons/animated/shield-check';
 import { MessageSquarePlusIcon } from '../components/icons/animated/message-square-plus';
 import { useSignOut } from '../features/auth/signOut';
@@ -130,7 +131,7 @@ export function PersonMenuPanel({ id, anchor, onClose, onLeave, onFeedback }: Pe
           {/* The platform page of Madar enterprises: only a platform owner sees the line (session.platformOwner). It sits under the Admin line. */}
           {session?.platformOwner === true && (
             <Link to="/enterprises" onClick={onClose} className={row}>
-              <AnimatedIcon icon={ShieldCheckIcon} size={18} className="text-ink-2" aria-hidden />
+              <AnimatedIcon icon={BuildingIcon} size={18} className="text-ink-2" aria-hidden />
               {t('enterprises.title')}
             </Link>
           )}

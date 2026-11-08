@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -100,12 +100,23 @@ function Consent({ authorizationId }: { authorizationId: string }) {
   return <Decide request={details.data.request} leave={leave} />;
 }
 
-/** The title: the AI app, and the company when the Admin set a name ("Allow <app> to act for you in <name>?"). */
-function titleOf(request: ConsentRequest, t: TFunction, language: string): string {
+/** A mark that stands in the sentence where the name of the AI app goes, so the code can wrap the name apart from the words around it. */
+const NAME_MARK = '\u0001';
+
+/**
+ * The title: the AI app, and the company when the Admin set a name ("Allow <app> to act for you in <name>?"). The app name is Latin text
+ * in an Arabic sentence. It sits in a bdi that never breaks, so a name such as "Claude Code" stays on one line and keeps its order.
+ */
+function titleOf(request: ConsentRequest, t: TFunction, language: string): ReactNode {
   if (!request.clientName) return t('consent.generic');
-  if (!request.enterprise) return t('consent.title', { name: request.clientName });
-  const company = language.startsWith('ar') ? request.enterprise.nameAr : request.enterprise.name;
-  return t('consent.titleIn', { name: request.clientName, company });
+  let text: string;
+  if (!request.enterprise) text = t('consent.title', { name: NAME_MARK });
+  else {
+    const company = language.startsWith('ar') ? request.enterprise.nameAr : request.enterprise.name;
+    text = t('consent.titleIn', { name: NAME_MARK, company });
+  }
+  const [before = '', ...rest] = text.split(NAME_MARK);
+  return <>{before}<bdi className="whitespace-nowrap">{request.clientName}</bdi>{rest.join(request.clientName)}</>;
 }
 
 function Decide({ request, leave }: { request: ConsentRequest; leave: (url: string) => void }) {

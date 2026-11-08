@@ -22,3 +22,11 @@ export function peopleOf(text: string): number | null | undefined {
 
 /** Gigabytes with one decimal, for a line of use. */
 export const gbOne = (bytes: number): string => (bytes / GB).toFixed(1);
+
+/**
+ * True when the enterprise sent its first status. The list call answers 0 for every count of an enterprise that sent none (a new local
+ * stack, a new enterprise), so a row with no person, no invited person, no bytes and no write has no status yet. A real status always
+ * holds the first Admin (active or invited), so it is never all zero.
+ */
+export const hasStatus = (row: { people: number; invited: number; storageBytes: number; lastWriteAt: string | null }): boolean =>
+  row.people > 0 || row.invited > 0 || row.storageBytes > 0 || row.lastWriteAt !== null;

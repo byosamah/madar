@@ -59,7 +59,7 @@ describe('the Sign in screen (plan 5.1, client map 7.1)', () => {
     const paused = () => fakeAuth({ accounts: [{ ...HALA, paused: true }] });
     const cases = [
       ['en', 'Email', 'Password', 'Sign in', 'Madar is paused for your company. Ask your Admin.'],
-      ['ar', 'البريد الإلكتروني', 'كلمة المرور', 'سجّل الدخول', 'توقّف مدار في منشأتك مؤقتاً. تواصل مع مدير النظام لديكم.'],
+      ['ar', 'البريد الإلكتروني', 'كلمة المرور', 'سجّل الدخول', 'توقّف مدار في شركتك مؤقتاً. اسأل مدير النظام عن السبب.'],
     ] as const;
     for (const [language, email, password, button, line] of cases) {
       const { unmount } = await renderAuth('/sign-in', { auth: paused(), language });
