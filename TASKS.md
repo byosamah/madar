@@ -1445,3 +1445,19 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
   Done 2026-11-08: production at 09162e8a. Record: proof.md.
 - [ ] Proposed (owner to decide): PostHog's free managed proxy on a subdomain of vado.sa, so ad blockers stop no PostHog data. It uses a DNS
   record and no Cloudflare request quota (the reason the insight design refused a Pages Functions proxy).
+
+## 2026-11-08: Madar enterprises (owner; branch `rb/enterprises`, worktree `~/dev/madar-rb/enterprises`)
+Sell Madar to other enterprises. Each enterprise gets its own office object; today's office becomes "VADOs' Companies".
+Design: `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. Plans A to E and the shared names:
+`docs/superpowers/plans/2026-11-08-madar-enterprises-*.md`. The Opus lead approved the design and the plans on the owner's
+order; builders run on Sonnet 5.5. Each track merges into `rb/enterprises`; the full gate runs once before main.
+- [x] Design, builder check, the lead's 6 decisions (D1 to D6)
+- [x] The shared names and plans A to E, with the lead decisions on the conflicts
+- [ ] Wave 1: plan A (track `ent-a`: Google Calendar and Daftra on the office path, the satellite own key)
+- [ ] Wave 1: plan B (track `ent-b`: ids, the `ent` claim, the object identity, the platform object, routing, tags, MCP address, Cron fan-out)
+- [ ] Lead step S1: the Cron fan-out probe on the deployed test Worker (plan B)
+- [ ] Merge A, then B, into `rb/enterprises`
+- [ ] Wave 2: plan C (track `ent-c`: platform calls and page, create, pause, limits, name and logo, meter and day cap)
+- [ ] Wave 3: plan D (track `ent-d`: mail pool, file prefix, logs and PostHog, backups, prototype, What's new, MCP words, sweep, guides)
+- [ ] The full merge gate on `rb/enterprises`, screenshots, then main
+- [ ] Plan E: the move of VADOs' Companies (owner OK at each production step)
