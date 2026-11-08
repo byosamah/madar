@@ -23,7 +23,7 @@ describe('the Arabic words of the request statuses and the continuous switch', (
     expect(body).not.toContain('قيد التنفيذ');
   });
 
-  it('says in the hint of the continuous switch that the project has no end date and that the work goes on', () => {
-    expect(fbk069.projectForm.continuousHint).toBe('لا موعد لانتهاء المشروع. العمل فيه مستمر.');
+  it('says in the hint of the continuous switch that the project has no end date and that the stages run together (fbk_084)', () => {
+    expect(fbk069.projectForm.continuousHint).toBe('لا موعد لانتهاء المشروع. المراحل تعمل معًا.');
   });
 });

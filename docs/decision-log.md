@@ -18,6 +18,26 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   (decided by the lead of the build for these edge cases). Madar stores the sender (`Task.reviewSentBy`). A to-do already in review with
   no stored sender (tsk_624) keeps the old rule until it is sent again. The old rule that a leader without `task.review.lead` is no
   reviewer now holds only for those old to-dos.
+- A continuous project has no current stage (fbk_084, owner): the report said that the header of a project with no deadline shows "Development" and a
+  bar that fills from left to right, while the work runs in Development, Marketing and Workshops at once (MAZJ) or in the lanes Now, Next, Later and
+  Maybe (Kutla). The owner chose the study option B and said "Continuous is enough": the existing Continuous switch (no end date) also means that
+  the stages run together, with no new switch. The one fact of the header is "Open to-dos". Rules: the desk header says "Continuous, 12 open" and its
+  menu lists each stage with its open count (no numbers, no ticks, no "Current stage" tag, no step bar; the health dot stays); the phone line "Stage 1 of 3"
+  becomes "12 open"; the Projects rows and the Home and Projects boxes say "Continuous, 12 open" in place of the stage name and the bar; the Overview
+  Standing panel lists the open count of each stage and has no "Moved back" note. The order rules switch off for the project: no reason for a move to an
+  earlier stage, no `stage_changed` notice, no `project.stage_changed` event (so no line in Activity), and no new stage move in the office report. Stage
+  prerequisites (an order that a person sets) keep working. The default stage of a new to-do keeps the old rule. The hint of the switch is "No deadline. The
+  stages run together." The saved `currentStageId` of such a project is not updated any more; `currentStage` stays in the contract (it names the earliest
+  stage with an open to-do). Old `project.stage_changed` events stay in the History and in the count of a report period. After the release the lead marks
+  Kutla (prj_017) Continuous. A project whose stages go in order (TFP Maker) keeps everything.
+- The board in the project page (fbk_085, owner; this closes tsk_443 "one look" for the View button): step 1 for every project. A visible "View" button
+  beside Filter on the To-dos tab, the same button as the View button of the Work page (a round toggle on a phone); the View choice leaves the Filter box.
+  A board card names its stage in one quiet line. The Done column shows the last 7 days with the note "Last 7 days", as the Work board does (the screen cuts
+  the rows it already holds, so there is no new read). A card of the list says "3 open, 4 done" on a desk. Step 2, a continuous project only: the columns are the
+  stages, each with the header "Marketing, 6 open"; a card shows its status as a shape sign and an ink word; a drag between columns, or "Move to stage" in the
+  card menu, is one `tasks.update` with `patch.stageId`, allowed only for a person who may change the details of that to-do (`TaskRow.canEditDetails`, the rule
+  `task.details`; the drag and the menu hide for others); a done to-do shows as one quiet line at the foot of its column ("4 done"); on a 390 px phone one column
+  fills the width and a stage button at the top replaces the dots. An ordered project keeps the status columns.
 
 - Home Today cuts text (fbk_083, owner, from the report of Osama; study of 2026-11-08). The owner's answers: to-do titles show up to two
   lines in every list that uses the row ("option A"); each small fact of the meta line stays whole and wraps only between facts, with the

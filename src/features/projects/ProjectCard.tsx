@@ -41,8 +41,9 @@ export function ProjectCover({ summary, className = 'aspect-video', layoutId }: 
 export function NextDeadlineLabel({ deadline, stageEnd, continuous, wrap = false }: { deadline: ProjectSummary['nextDeadline']; stageEnd?: ProjectSummary['stageEnd']; continuous?: boolean; wrap?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
-  // A continuous project (fbk_069) never ends: with no named deadline it says "Continuous", also when a stage has an end date.
-  if (!deadline && continuous) return <span className="text-footnote text-ink-2">{t('projects.continuous')}</span>;
+  // A continuous project (fbk_069) never ends: with no named deadline it shows nothing here, also when a stage has an end date. Its stage
+  // button, row or box already says "Continuous, N open" (fbk_084).
+  if (!deadline && continuous) return null;
   const shown = deadline ?? (stageEnd ? { name: t('projects.stageEnds'), date: stageEnd.date, daysLeft: stageEnd.daysLeft } : null);
   if (!shown) return <span className="text-footnote text-ink-2">{t('projects.noDeadline')}</span>;
   const word = wordForDays(shown.daysLeft);

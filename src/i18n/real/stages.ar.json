@@ -1,0 +1,45 @@
+{
+  "projects": {
+    "continuousOpen": "مستمر، {{count}} مهمة مفتوحة",
+    "openShort": "{{count}} مهمة مفتوحة",
+    "continuousOpen_zero": "مستمر، لا مهام مفتوحة",
+    "continuousOpen_one": "مستمر، مهمة مفتوحة واحدة",
+    "continuousOpen_two": "مستمر، مهمتان مفتوحتان",
+    "continuousOpen_few": "مستمر، {{count}} مهام مفتوحة",
+    "continuousOpen_many": "مستمر، {{count}} مهمة مفتوحة",
+    "continuousOpen_other": "مستمر، {{count}} مهمة مفتوحة",
+    "openShort_zero": "لا مهام مفتوحة",
+    "openShort_one": "مهمة مفتوحة واحدة",
+    "openShort_two": "مهمتان مفتوحتان",
+    "openShort_few": "{{count}} مهام مفتوحة",
+    "openShort_many": "{{count}} مهمة مفتوحة",
+    "openShort_other": "{{count}} مهمة مفتوحة"
+  },
+  "project": {
+    "stagesTogether": "المراحل تعمل معًا. تحت كل مرحلة عدد مهامها المفتوحة."
+  },
+  "overview": {
+    "stagesOpen": "المهام المفتوحة في كل مرحلة"
+  },
+  "tasks": {
+    "doneLine": "{{count}} مهمة منجزة",
+    "openDone": "{{open}} مفتوحة، {{done}} منجزة",
+    "stageColumn": "{{stage}}، {{open}}",
+    "doneLine_zero": "لا مهام منجزة",
+    "doneLine_one": "مهمة منجزة واحدة",
+    "doneLine_two": "مهمتان منجزتان",
+    "doneLine_few": "{{count}} مهام منجزة",
+    "doneLine_many": "{{count}} مهمة منجزة",
+    "doneLine_other": "{{count}} مهمة منجزة",
+    "moveToStage": "انقل إلى مرحلة",
+    "movedToStage": "نُقلت إلى «{{stage}}»."
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-08-158": {
+        "title": "المشاريع المستمرة ولوحة المشروع",
+        "body": "المشروع المستمر يعرض مهامه المفتوحة في كل مرحلة، ولا مرحلة حالية له. في تبويب المهام زر «العرض» للقائمة أو اللوحة. وفي المشروع المستمر تكون أعمدة اللوحة هي المراحل. اسحب المهمة لتنقلها إلى مرحلة أخرى."
+      }
+    }
+  }
+}

@@ -8,6 +8,8 @@ import { currentStageIndex } from '../../lib/stageFlow';
 export function StageProgress({ detail, size, className }: { detail: ProjectDetail; size?: 'sm' | 'md' | 'lg'; className?: string }) {
   const { t } = useTranslation();
   const { stages, currentStage, project } = detail;
+  // A continuous project has no current stage, so it has no steps to fill (fbk_084).
+  if (project.continuous) return null;
   const index = currentStageIndex(stages, currentStage);
   return (
     <ProgressLine

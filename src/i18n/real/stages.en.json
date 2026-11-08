@@ -1,0 +1,33 @@
+{
+  "projects": {
+    "continuousOpen": "Continuous, {{count}} open",
+    "openShort": "{{count}} open",
+    "continuousOpen_one": "Continuous, 1 open",
+    "continuousOpen_other": "Continuous, {{count}} open",
+    "openShort_one": "1 open",
+    "openShort_other": "{{count}} open"
+  },
+  "project": {
+    "stagesTogether": "The stages run together. Each stage shows how many to-dos are open."
+  },
+  "overview": {
+    "stagesOpen": "Open to-dos in each stage"
+  },
+  "tasks": {
+    "doneLine": "{{count}} done",
+    "openDone": "{{open}} open, {{done}} done",
+    "stageColumn": "{{stage}}, {{open}}",
+    "doneLine_one": "1 done",
+    "doneLine_other": "{{count}} done",
+    "moveToStage": "Move to stage",
+    "movedToStage": "Moved to {{stage}}."
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-08-158": {
+        "title": "Continuous projects and the project board",
+        "body": "A continuous project shows its open to-dos in every stage, with no current stage. The To-dos tab has a View button for List or Board. On a continuous project, the columns of the board are the stages. Drag a to-do to move it to another stage."
+      }
+    }
+  }
+}

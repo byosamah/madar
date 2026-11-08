@@ -31,7 +31,11 @@ The Projects screen, the New and Edit project sheets, the form fields, the templ
   `kind: 'internal'` and none of the client fields. `validateProjectForm` skips the code and the sub-company. The edit sheet reads `kind` from
   the project. The "same contract" list leaves internal projects out. The Projects list row shows "Internal" where a client shows.
 - The switch "Continuous project" (`Switch`, id `project-continuous`) sits right under the dates of both sheets. While it is on, the Target
-  end date field is gone and its value is empty (the switch clears it). Words: `real/fbk069.*`.
+  end date field is gone and its value is empty (the switch clears it). The hint says "No deadline. The stages run together." because a
+  continuous project has no current stage (fbk_084). Words: `real/fbk069.*`.
+- A row and a box show "Continuous, N open" in place of the stage name and the step bar for a continuous project (`StageLine` in
+  `ProjectListRow.tsx`, one part for both; `ProjectSummary.openTasks`). The deadline slot shows nothing then. Keep the part small: Home
+  shows these boxes in the first load (`ContinuousRows.test.tsx`).
 - A project has an English name and maybe an Arabic name (`nameAr`; an empty value means none). Every spot that shows a project name uses
   `useProjectName()` (`app/projectName.ts`) or `shownName(project, lang)` (`lib/projectLabel.ts`), and lists sort with `useByProjectName()`.
   Arabic screens show the Arabic name, else the English name. Every view that names a project builds its ref with `projectRef` or

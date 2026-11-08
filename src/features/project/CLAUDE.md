@@ -18,6 +18,24 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   deadline" shows only with neither. That line wraps and never truncates; a named deadline truncates. A continuous project says "Continuous"
   (`NextDeadlineLabel` takes `continuous`; key `projects.continuous`). The About panel shows "Continuous" for the end date. The Overview
   "Stage ends" row shows the plain date, never a late count. Test: `features/projects/ProjectContinuous.test.tsx`.
+- A continuous project has no current stage (fbk_084, owner 2026-11-08: the stages run together). `NextDeadlineLabel` shows nothing for it
+  (no named deadline), because the stage button already says it. The desk header button says "Continuous, N open" (`projects.continuousOpen`, N
+  is `ProjectSummary.openTasks`); on a phone the button says "Continuous" and the line beside it says "N open" (`projects.openShort`). `StageProgress`
+  returns null, so the header and the Overview draw no step bar. The stage menu is `TogetherStages` in `StageControl.tsx`: each stage with its
+  open count from `tasks.list` (the read that `StageDetails` makes, so one request), with no number, tick or "Current stage" tag; a press on a stage
+  opens its details. The Overview Standing panel is `StandingTogether`: the health, and the open to-dos of each stage (`lib/stageCounts.ts`); it never
+  shows "Stage n of m" or the "Moved back" note. The server side is `watchStage` and `resyncStage` in `api/flow.ts`: both return at once for
+  `project.continuous`, so no reason, no `stage_changed` notice and no stage event. Test: `ContinuousHeader.test.tsx`,
+  `api/handlers/continuousStages.test.ts`.
+- The To-dos tab has a View button beside Filter: `WorkViewButton` with `inline` (the desk box View with List and Board; the round toggle on a
+  phone), the same part as Work (fbk_085, tsk_443). The choice stays in `madar.tasks.view`. The status board of a project holds the open to-dos and
+  the done to-dos of the last 7 days (`tasks/boardWindow.ts`, cut on the screen from the rows it holds), with the note "Last 7 days", and a card names
+  its stage (`showStage`). The list card says "n open, m done" on a desk and "n of m done" on a phone, under the filter All.
+- The board of a continuous project has the stages as columns (`TaskBoard` with `stages`): the header "Name, N open", a card with `StatusMark`
+  (shape sign and ink word), the done to-dos as one line at the foot of the column, and a drag or "Move to stage" as one `tasks.update` with
+  `patch.stageId` (`useMoveToStage.ts`, a file of its own: `useTaskMoves.ts` is in the first load). A card moves only when `TaskRow.canEditDetails` is
+  true. On a phone one column fills the width and the stage button at the top (`StageSwitch`) replaces the dots. Test: `tasks/ProjectBoard.test.tsx`,
+  `app/StageBoardTrip.test.tsx` (one request for a move).
 - The paused banner (`PausedBanner.tsx`) says "Restart reminder on <date>." before the day. After it, the banner says "Planned restart was
   <date>." in the Attention color, with Resume project and the field "Set a new date" (`projects.setRestart`, toast with Undo). Never write
   "Restarts": Madar restarts nothing.

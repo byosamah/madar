@@ -153,6 +153,10 @@ Own OAuth server (consent, token step, grants): `server/mcp/oauth/CLAUDE.md`.
   of a stage that keeps its id from the current stage (`keepStageDates`, `keepDates.ts`). A null that the agent sends clears the date.
   `stages.setDates` needs no reason and has no `dateReason` field. Tests: `keepDates.test.ts`, `stageReplace.test.ts`, `stageDates.test.ts`.
 - `tasks.move` sets the status only. A move to another stage is `tasks.update` with `patch.stageId`.
+- A continuous project has no current stage (fbk_084, owner 2026-11-08). The `Continuous projects:` paragraph of `INSTRUCTIONS` tells the agent that
+  `currentStage` and `stageName` there only name the earliest stage with an open to-do, that a to-do change needs no `reason` for an earlier stage,
+  and that no stage change or notice follows. The `TOOL_DOCS` of `tasks.create`, `tasks.move`, `tasks.update` and `projects.get` say it in a few
+  words ("not if continuous"), and the list stays under its size limit. `TaskRow.canEditDetails` rides in the full `tasks.list` rows.
 - Reports: the `Reports:` line of `INSTRUCTIONS` sends every report request to `reports.office` with `guide: true`
   (`src/api/reportGuide.ts`, from the owner Claude skill "madar-office-report"). After a change of the guide, tell the owner
   that his skill can disagree with it. The `Words:` paragraph of `INSTRUCTIONS` follows the to-do word rule of `src/i18n/CLAUDE.md`.

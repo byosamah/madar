@@ -12,6 +12,7 @@ import { useCall } from '../../app/runtime';
 import { SheetOrPopover } from '../../components/SheetOrPopover';
 import { useIsPhone } from '../../app/useIsPhone';
 import { formatDay, listFormat, type Lang } from '../../lib/dates';
+import { stageCounts } from '../../lib/stageCounts';
 import { currentStageIndex, openStagesNeededBy, overlappingWith, stageOverlaps, type Overlap } from '../../lib/stageFlow';
 
 /** The dates of a stage in words. A stage with one date says that date, not "No dates" (audit 2026-10-03, PRJ-23). */
@@ -84,8 +85,46 @@ function StageDetails({ detail, stage }: { detail: ProjectDetail; stage: Stage }
 }
 
 /**
+ * The stage menu of a continuous project (fbk_084, owner 2026-11-08): its stages run together, so there is no current stage. Each stage
+ * shows its open to-dos, with no number, no tick and no tag. A press on a stage opens its details (dates, prerequisites, overlap).
+ */
+function TogetherStages({ detail }: { detail: ProjectDetail }) {
+  const { t } = useTranslation();
+  const phone = useIsPhone();
+  const tasks = useCall('tasks.list', { projectId: detail.project.id, activeProjectsOnly: false });
+  const [picked, setPicked] = useState<string | null>(null);
+  const selected = detail.stages.find((stage) => stage.id === picked);
+  const counts = stageCounts(detail.stages, (tasks.data ?? []).map((row) => row.task));
+  return (
+    <div className="flex flex-col gap-3">
+      {/* The sheet of a phone draws the title itself. */}
+      {!phone && <p className="text-headline text-ink">{t('project.stages')}</p>}
+      <p className="text-footnote text-ink-2">{t('project.stagesTogether')}</p>
+      <ul className="-mx-1 flex flex-col">
+        {counts.map(({ stage, open }) => (
+          <li key={stage.id}>
+            <button
+              type="button"
+              aria-pressed={stage.id === picked}
+              onClick={() => setPicked(stage.id === picked ? null : stage.id)}
+              className={`pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 text-start text-subheadline ${stage.id === picked ? 'bg-fill font-semibold text-ink' : 'text-ink hover:bg-fill'}`}
+            >
+              <bdi className="min-w-0 flex-1 truncate">{stage.name}</bdi>
+              {' '}
+              {tasks.data && <span className="tabular shrink-0 text-footnote font-normal text-ink-2">{t('projects.openShort', { count: open })}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {selected && <StageDetails key={selected.id} detail={detail} stage={selected} />}
+    </div>
+  );
+}
+
+/**
  * The current stage as one quiet button. It opens the stages in time order, each with its dates, tasks and prerequisites.
  * The current stage follows the tasks (the earliest stage with an open task), so nobody picks it here (owner, 2026-10-02).
+ * A continuous project has none: the button says "Continuous, N open" and the menu lists the stages with their open to-dos (fbk_084).
  */
 export function StageControl({ detail, open, onOpenChange }: { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
@@ -94,6 +133,7 @@ export function StageControl({ detail, open, onOpenChange }: { detail: ProjectDe
   // the desk panel: a state, so the panel draws when the button of the new layout has mounted.
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const [picked, setPicked] = useState(detail.currentStage.id);
+  const together = detail.project.continuous === true;
   const currentIndex = currentStageIndex(detail.stages, detail.currentStage);
   const selected = detail.stages.find((stage) => stage.id === picked) ?? detail.currentStage;
   const toggle = () => {
@@ -110,11 +150,12 @@ export function StageControl({ detail, open, onOpenChange }: { detail: ProjectDe
         onClick={toggle}
         className="pressable -ms-2 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-subheadline font-semibold text-ink hover:bg-fill"
       >
-        <bdi>{detail.currentStage.name}</bdi>
+        {/* A phone says the open count on its own line beside the button. */}
+        <bdi>{together ? t(phone ? 'projects.continuous' : 'projects.continuousOpen', { count: detail.openTasks }) : detail.currentStage.name}</bdi>
         <AnimatedIcon icon={ChevronDownIcon} size={16} className="text-ink-2" aria-hidden />
       </button>
       <SheetOrPopover open={open} onOpenChange={onOpenChange} anchor={anchor} title={t('project.stages')}>
-        <div className="flex flex-col gap-3">
+        {together ? <TogetherStages detail={detail} /> : <div className="flex flex-col gap-3">
           {/* The sheet of a phone draws the title itself. */}
           {!phone && <p className="text-headline text-ink">{t('project.stages')}</p>}
           <p className="text-footnote text-ink-2">{t('project.stageAuto')}</p>
@@ -141,7 +182,7 @@ export function StageControl({ detail, open, onOpenChange }: { detail: ProjectDe
             })}
           </ol>
           <StageDetails key={selected.id} detail={detail} stage={selected} />
-        </div>
+        </div>}
       </SheetOrPopover>
     </>
   );

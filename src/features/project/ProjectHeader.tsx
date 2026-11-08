@@ -77,8 +77,10 @@ function PhoneHeader({ detail, onPost, tab, controls }: { detail: ProjectDetail;
   const hasDraft = useHasPostDraft(project.id);
   const main = phoneMainButton(tab, detail.viewerCan, hasDraft);
   const viewOnly = isViewOnly(detail.viewerCan);
-  const index = currentStageIndex(detail.stages, detail.currentStage);
-  const count = t('projects.stageCount', { n: index + 1, total: detail.stages.length });
+  // A continuous project has no current stage: the line says how many to-dos are open (fbk_084).
+  const count = project.continuous
+    ? t('projects.openShort', { count: detail.openTasks })
+    : t('projects.stageCount', { n: currentStageIndex(detail.stages, detail.currentStage) + 1, total: detail.stages.length });
   return (
     <header className="flex flex-col gap-3">
       <div className="flex items-start gap-3">

@@ -17,13 +17,15 @@ import { validateProjectForm, emptyProjectForm } from './projectForm';
 const LOAD = { timeout: 10_000 };
 
 describe('the label of the next deadline', () => {
-  it('says "No deadline" for a project with no deadline, and "Continuous" for a continuous one', async () => {
+  // A continuous project says "Continuous, N open" in its stage button, row or box (fbk_084), so the deadline slot adds nothing.
+  it('says "No deadline" for a project with no deadline, and nothing for a continuous one', async () => {
     const first = await renderWithRuntime(<NextDeadlineLabel deadline={null} stageEnd={null} />, undefined, { path: '/' });
     expect(await screen.findByText('No deadline')).toBeInTheDocument();
     first.unmount();
-    await renderWithRuntime(<NextDeadlineLabel deadline={null} stageEnd={null} continuous />, undefined, { path: '/' });
-    expect(await screen.findByText('Continuous')).toBeInTheDocument();
+    await renderWithRuntime(<div data-testid="slot"><NextDeadlineLabel deadline={null} stageEnd={null} continuous /></div>, undefined, { path: '/' });
+    expect(await screen.findByTestId('slot')).toBeEmptyDOMElement();
     expect(screen.queryByText('No deadline')).toBeNull();
+    expect(screen.queryByText('Continuous')).toBeNull();
   });
 
   it('still shows a named deadline of a continuous project', async () => {
@@ -32,9 +34,9 @@ describe('the label of the next deadline', () => {
     expect(screen.queryByText('Continuous')).toBeNull();
   });
 
-  it('shows "Continuous" in place of the end of the stage, since a stage date does not drive a continuous project', async () => {
-    await renderWithRuntime(<NextDeadlineLabel deadline={null} stageEnd={{ date: '2026-10-12', daysLeft: 12 }} continuous />, undefined, { path: '/' });
-    expect(await screen.findByText('Continuous')).toBeInTheDocument();
+  it('shows no end of the stage, since a stage date does not drive a continuous project', async () => {
+    await renderWithRuntime(<div data-testid="slot"><NextDeadlineLabel deadline={null} stageEnd={{ date: '2026-10-12', daysLeft: 12 }} continuous /></div>, undefined, { path: '/' });
+    expect(await screen.findByTestId('slot')).toBeEmptyDOMElement();
     expect(screen.queryByText(/Stage ends/)).toBeNull();
   });
 });
@@ -50,10 +52,10 @@ const continuousArabic = (state: State) => {
 };
 
 describe('the project page of a continuous project', () => {
-  it('shows "Continuous" in the header and in the About panel, and no "No deadline"', async () => {
+  it('shows "Continuous, N open" in the header and "Continuous" in the About panel, and no "No deadline"', async () => {
     await renderApp('/projects/prj_001', continuous);
     const header = await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' }, LOAD);
-    expect(await within(header.closest('header') as HTMLElement).findByText('Continuous')).toBeInTheDocument();
+    expect(await within(header.closest('header') as HTMLElement).findByText(/^Continuous, \d+ open$/)).toBeInTheDocument();
     const about = (await screen.findByRole('heading', { name: 'About' }, LOAD)).closest('section') as HTMLElement;
     expect(within(about).getByText('Continuous')).toBeInTheDocument();
     expect(screen.queryByText('No deadline')).toBeNull();
@@ -62,7 +64,7 @@ describe('the project page of a continuous project', () => {
   it('says «مستمر» on an Arabic screen', async () => {
     await renderApp('/projects/prj_001', continuousArabic);
     const header = await screen.findByRole('heading', { level: 1 }, LOAD);
-    expect(await within(header.closest('header') as HTMLElement).findByText('مستمر')).toBeInTheDocument();
+    expect(await within(header.closest('header') as HTMLElement).findByText(/^مستمر، /)).toBeInTheDocument();
     expect(screen.queryByText('لا يوجد موعد')).toBeNull();
   });
 
@@ -73,16 +75,16 @@ describe('the project page of a continuous project', () => {
       for (const stage of Object.values(state.stages)) if (stage.projectId === 'prj_001') stage.endDate = '2026-09-01';
     });
     const header = (await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' }, LOAD)).closest('header') as HTMLElement;
-    await within(header).findByText('Continuous');
+    await within(header).findByText(/^Continuous, /);
     expect(within(header).queryByText('Late')).toBeNull();
   });
 });
 
 describe('the Projects list', () => {
-  it('shows "Continuous" on the row of a continuous project with no named deadline', async () => {
+  it('shows "Continuous, N open" on the row of a continuous project with no named deadline', async () => {
     await renderApp('/projects', continuous);
     const row = await screen.findByRole('link', { name: /Corniche Office Tower/ }, LOAD);
-    expect(await within(row).findByText('Continuous')).toBeInTheDocument();
+    expect(await within(row).findByText(/^Continuous, \d+ open$/)).toBeInTheDocument();
   });
 });
 
@@ -118,7 +120,7 @@ describe('the New Project sheet', () => {
     const sheet = await screen.findByRole('dialog', { name: 'New Project' });
     const control = within(sheet).getByRole('switch', { name: 'Continuous project' });
     expect(control).toHaveAttribute('aria-checked', 'false');
-    expect(within(sheet).getByText('No deadline. The project goes on.')).toBeInTheDocument();
+    expect(within(sheet).getByText('No deadline. The stages run together.')).toBeInTheDocument();
     expect(within(sheet).getByLabelText('Target end date')).toBeInTheDocument();
   });
 

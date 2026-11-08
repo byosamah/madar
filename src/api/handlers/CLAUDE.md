@@ -29,7 +29,11 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   fails with `continuous_has_no_end`. A continuous project never turns Late from a stage end date (`health.ts`). The gap "a
   stage with no end date" skips it in the same three places, so the count equals the list: `dashboard.get`
   (`projectsStageNoEnd`), the `projects.list` filter `stage_no_end` (also `server/data/loaders/overview.ts`), and the line of
-  `reports.office`. Test: `projectContinuous.test.ts`.
+  `reports.office`. Test: `projectContinuous.test.ts`. A continuous project also means that its stages run together (fbk_084, owner
+  2026-11-08): it has no current stage, so `watchStage` and `resyncStage` (`flow.ts`) return at once. No reason for a move to an earlier stage, no
+  `project.stage_changed` event, no `stage_changed` notice, and the saved `currentStageId` and `stageBack` stay as they were. Stage prerequisites
+  still block. `TaskRow.canEditDetails` (`mayChangeTask(viewer, 'details')`) tells the board of such a project who may move a card to a stage.
+  Test: `continuousStages.test.ts`.
 - **Internal projects** (`Project.kind`, set only by `projects.create`, never changed). Helpers: `src/api/internalProject.ts`,
   `INTERNAL_PREFIX` and `isInternalCode` in `lib/projectCode.ts`. The fields of a client project (`clientId`, `geo`,
   `areaM2`, `subCompanyId`, `contractStartDate`, `location`, a typed code) fail with `internal_project`; an empty value passes
