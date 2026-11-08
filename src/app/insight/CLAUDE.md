@@ -11,7 +11,7 @@ The owner sees how the team uses Madar, which errors they hit and replays of the
   PostHog code), the public key `VITE_POSTHOG_KEY` in `config/remote.<env>.env` (optional: with none, nothing starts), a signed-in person, and
   an address behind the gate (`screensAt(path, true).gated`). A sign-out stops it (`stop()`); the next sign-in starts it for the new person
   (`init` runs once). A failed import stays quiet and never reloads the page. `check-bundles.ts` fails when `$snapshot_data` reaches the
-  first load, or `$snapshot_data` or `eu.i.posthog.com` reaches the prototype.
+  first load, or `$snapshot_data` or `relay.madar.vado.sa` reaches the prototype.
 - Names (owner, 2026-10-25 and 2026-10-28): only an `$exception` record carries `personId` and `personName` (added in `before_send`). An
   action carries none: screen views, clicks, slow steps, refusals, failed calls (`madar_call_failed`) and sheets. `eventFields.test.ts`
   pins the fields of every event that `src/app/insight/` captures; a new event needs its line there.
@@ -21,8 +21,11 @@ The owner sees how the team uses Madar, which errors they hit and replays of the
   link. `privateMark.test.ts` is a source test: a new file that calls `useFileLink`, `useScreenshotLink`, `useFileUrl` or `amountText` without
   `PRIVATE` fails it. Put the class on a new place of the same kind.
 - A new main sheet adds its name to `SheetName` and calls `useSheetSteps(name, open)` (`sheetWiring.test.ts`).
-- No proxy through the Pages Functions (the replay packets could use the free request quota). The CSP names only the two `eu` PostHog hosts
-  in `connect-src`. The team sees one line in Settings (`UsageDataSection`) and in the Me hub (`UsageDataNote`).
+- The page sends to PostHog through the free managed proxy of PostHog on `https://relay.madar.vado.sa` (`POSTHOG_HOST`, 2026-11-08), so an
+  ad blocker does not stop it. It is a CNAME of vado.sa (the DNS is in the owner's Vercel team) to `52398457ceaf413c2690.cf-prod-eu-proxy.europehog.com`;
+  PostHog keeps the certificate (`proxy-get` of the PostHog MCP gives the status). It uses no Cloudflare request quota, so still no proxy
+  through the Pages Functions (the replay packets could use the free quota). The CSP names only this host in `connect-src`. The server
+  (`server/core/insight.ts`) still posts straight to `eu.i.posthog.com`: no ad blocker sits on a server. The team sees one line in Settings (`UsageDataSection`) and in the Me hub (`UsageDataNote`).
 - Read a web vitals row with care (tsk_487, 2026-10-28). `$web_vitals` CLS is the worst 5 s burst of the whole tab, and the row carries the
   path at the moment of the report, not the screen that shifted. A tab that stays open keeps one `$web_vitals_CLS_event.id` across days
   (the 0.82 row of `/work` shared its id with a row of the day before, and `navigationURL` was `/`). The events hold no element name, so a

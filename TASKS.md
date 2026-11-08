@@ -1443,5 +1443,11 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
   What's new 153.
 - [x] Release: test copy, then production by Claude after the owner picked "Retry fix to production now, proxy to production after".
   Done 2026-11-08: production at 09162e8a. Record: proof.md.
-- [ ] Proposed (owner to decide): PostHog's free managed proxy on a subdomain of vado.sa, so ad blockers stop no PostHog data. It uses a DNS
-  record and no Cloudflare request quota (the reason the insight design refused a Pages Functions proxy).
+- [x] Gates: typecheck, npm test (12,910 passed), build:remote test, npm run build. No server file changed, so test:db, test:it, test:office,
+  test:mcp and test:lite did not run. The first load is 970,840 B of 972,000 B (1,160 B left) and 295,500 B of 296,000 B in gzip (500 B left).
+- [x] PostHog's free managed proxy (owner: "do the posthog proxy too", 2026-11-08): `relay.madar.vado.sa`, made with the PostHog MCP
+  (`proxy-create`). The page and the CSP name only this host; the server keeps `eu.i.posthog.com`. It uses no Cloudflare request quota.
+  What's new 154.
+- [x] Owner step: the CNAME `relay.madar` in the vado.sa DNS (Vercel) to `52398457ceaf413c2690.cf-prod-eu-proxy.europehog.com` (added 2026-11-08).
+- [ ] Release of the proxy: production waits until `proxy-get` says the proxy works, or the page sends to an address with no certificate
+  and PostHog gets nothing.

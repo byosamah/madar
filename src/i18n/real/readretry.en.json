@@ -1,6 +1,10 @@
 {
   "whatsNew": {
     "items": {
+      "2026-11-08-154": {
+        "title": "Error and usage records reach us from every browser",
+        "body": "Madar now sends its error and usage records through its own address, so an ad blocker no longer stops them. What Madar records is the same: never what you type, chat messages or amounts. Details in Settings."
+      },
       "2026-11-08-153": {
         "title": "Your lists load after a short server fault",
         "body": "When a Madar server fails for a few seconds, the page now tries again by itself. Before, you saw \"The data did not load.\" and had to press Retry."

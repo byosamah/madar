@@ -11,8 +11,12 @@ import { watchCalls, watchRoutes } from './watch';
  * library with no external script (`module.full.no-external`: the replay recorder, the web vitals and the error capture are inside).
  */
 
-/** PostHog Cloud EU (Frankfurt). The security policy names this one host in `connect-src`. */
-export const POSTHOG_HOST = 'https://eu.i.posthog.com';
+/**
+ * The own address of the free managed proxy of PostHog (2026-11-08): a CNAME of vado.sa to PostHog Cloud EU (Frankfurt). An ad blocker
+ * stops the posthog.com hosts, not this one. With a host that is not a posthog.com host, the library sends the events, the replays and
+ * the settings file of the project to it. The security policy names this one host in `connect-src`.
+ */
+export const POSTHOG_HOST = 'https://relay.madar.vado.sa';
 
 export type InsightEnv = 'production' | 'test';
 
