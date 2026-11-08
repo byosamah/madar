@@ -16,6 +16,7 @@ import { firstRunOfDay } from '../office/jobs';
 import { ENT_VADO, isEnterpriseId, untag, type EnterpriseId } from '../enterprise/ids';
 import { OwnersBodyShape, RegisterBodyShape } from '../enterprise/shapes';
 import { accountGate } from '../enterprise/accountGate';
+import { logoResponse } from '../enterprise/logoRoute';
 import { padTo } from '../enterprise/pad';
 import { platformRoute } from '../enterprise/platform/route';
 import { writeOwners } from '../enterprise/platform/owners';
@@ -113,6 +114,7 @@ export type OfficeStub = {
   setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
   person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
   reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>>;
+  brand(input: { ent: EnterpriseId }): Promise<{ name: string; nameAr: string; logo: string | null }>;
   fetch(request: Request): Promise<Response>;
 };
 
@@ -471,6 +473,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   app.all('/mcp', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.all('/mcp/*', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.get('/api/health', (c) => health(c.req.raw, c.env));
+  // The logo of an enterprise for the mail header: public, the same 404 for every miss (plan C, Task 16).
+  app.get('/api/enterprise-logo/:ent', (c) => logoResponse(routerOf(c.env), c.req.param('ent')));
   app.all(CRON_PATH, (c) => cronLeg(c.req.raw, c.env));
   app.all('/api/internal/probe/fanout', (c) => probe(c.req.raw, c.env, 'fanout'));
   app.all('/api/internal/probe/leg', (c) => probe(c.req.raw, c.env, 'leg'));

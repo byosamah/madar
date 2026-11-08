@@ -62,4 +62,10 @@ export interface ServerHooks<I = unknown, P = unknown, D = unknown> {
    * A read call takes no lock and has no prepare: runCall passes the preflight value as "prepared".
    */
   prepare?(input: I, ctx: HookCtx<D> & { q: HookQuery }, preflight: unknown): Promise<P>;
+  /**
+   * After the write transaction ended, outside the lock (Madar enterprises, plan C): the call committed (ok, also a replay of an idempotency key)
+   * or it did not (any throw, the guard stop of an agent too). The preflight value comes back, so a hook can undo what its preflight did
+   * (an email reserved in the directory). A throw here is logged and never changes the answer. A read call runs no settle.
+   */
+  settle?(input: I, ctx: HookCtx<D>, preflight: unknown, outcome: { ok: true; output: unknown } | { ok: false }): Promise<void>;
 }

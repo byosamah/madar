@@ -100,8 +100,16 @@ function Consent({ authorizationId }: { authorizationId: string }) {
   return <Decide request={details.data.request} leave={leave} />;
 }
 
+/** The title: the AI app, and the company when the Admin set a name ("Allow <app> to act for you in <name>?"). */
+function titleOf(request: ConsentRequest, t: TFunction, language: string): string {
+  if (!request.clientName) return t('consent.generic');
+  if (!request.enterprise) return t('consent.title', { name: request.clientName });
+  const company = language.startsWith('ar') ? request.enterprise.nameAr : request.enterprise.name;
+  return t('consent.titleIn', { name: request.clientName, company });
+}
+
 function Decide({ request, leave }: { request: ConsentRequest; leave: (url: string) => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { port } = useOAuth();
   const nameOf = usePersonName();
   const me = useCall('session.get', {}).data?.user;
@@ -138,7 +146,7 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
   };
 
   return (
-    <AuthPage title={request.clientName ? t('consent.title', { name: request.clientName }) : t('consent.generic')}>
+    <AuthPage title={titleOf(request, t, i18n.language)}>
       {person && <p className="text-footnote text-ink-2">{t('consent.signedInAs', { name: person })}</p>}
       {/* An address that Madar would never leave for gets the plain error in place of the warning, and no Approve. */}
       {unsafe ? <FormError text={t('consent.badAddress')} /> : warn && (

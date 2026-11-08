@@ -98,7 +98,10 @@ export async function startAuthorization(deps: SigninDeps, input: { query: Recor
   return { redirect: `${deps.config.appUrl.replace(/\/+$/, '')}/oauth/consent?authorization_id=${encodeURIComponent(id)}` };
 }
 
-export type DetailsAnswer = { redirect_url: string } | { authorization_id: string; client: { id: string; name: string }; redirect_uri: string };
+/** enterprise: the name of the company that the AI app would act in (Madar enterprises). Left out when the Admin set no name. */
+export type DetailsAnswer =
+  | { redirect_url: string }
+  | { authorization_id: string; client: { id: string; name: string }; redirect_uri: string; enterprise?: { name: string; nameAr: string } };
 export type GrantRow = { client_id: string; client_name: string; granted_at: string };
 
 function ended(): ApiError {
@@ -134,7 +137,11 @@ export async function authorizationDetails(deps: SigninDeps, input: { authId: st
       await q(REQUEST_APPROVE, [request.id, codeHash, new Date(now.getTime() + CODE_LIFE_MS).toISOString()]);
       return { redirect_url: withQuery(request.redirect_uri, { code, state: request.state }) };
     }
-    return { authorization_id: request.id, client: { id: request.client_id, name: client?.name?.trim() ?? '' }, redirect_uri: request.redirect_uri };
+    const settings = office.lists.settings;
+    return {
+      authorization_id: request.id, client: { id: request.client_id, name: client?.name?.trim() ?? '' }, redirect_uri: request.redirect_uri,
+      ...(settings.enterpriseName?.trim() ? { enterprise: { name: settings.enterpriseName.trim(), nameAr: settings.enterpriseNameAr?.trim() || settings.enterpriseName.trim() } } : {}),
+    };
   });
 }
 

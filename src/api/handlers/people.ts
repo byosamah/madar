@@ -80,7 +80,7 @@ export const sessionGet = defineCall({
       ...(ctx.limits ? { limits: ctx.limits } : {}),
       ...(ctx.enterprise ? {
         enterprise: {
-          id: ctx.enterprise.id, name: ctx.state.settings.enterpriseName ?? 'Madar', nameAr: ctx.state.settings.enterpriseNameAr ?? 'مدار',
+          id: ctx.enterprise.id, name: ctx.state.settings.enterpriseName ?? 'Madar', nameAr: ctx.state.settings.enterpriseNameAr ?? ctx.state.settings.enterpriseName ?? 'مدار',
           logo: ctx.state.settings.enterpriseLogo ?? null,
         },
         ...(ctx.enterprise.platformOwner ? { platformOwner: true as const } : {}),

@@ -34,6 +34,7 @@ import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type Office
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, TICKET_REFUSED, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
+import { brandOfSettings } from '../enterprise/brand';
 import { EnterpriseFacts } from '../enterprise/facts';
 import { EnterpriseGate } from '../enterprise/gate';
 import { planFrom, shareCapOf } from '../enterprise/plan';
@@ -135,6 +136,8 @@ export type OfficeParts = {
   setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
   /** The Madar person behind a sign-in id, or null for a turned-off, a removed, an agent or an unknown one. */
   person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
+  /** The name and the logo of this enterprise, for the public logo route of the Worker (plan C, Task 16). */
+  brand(input: { ent: EnterpriseId }): Promise<{ name: string; nameAr: string; logo: string | null }>;
   /** The invitation of the first Admin again. */
   reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>>;
   /** One office op of the Worker (exit wave 4): /office/export, /office/import and /office/peek, as JSON in and out. */
@@ -648,6 +651,13 @@ export function officeParts(o: PartsInput): OfficeParts {
       } catch {
         return null;
       }
+    },
+    async brand(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      const { name, nameAr, logo } = brandOfSettings((await office()).lists.settings);
+      return { name, nameAr, logo };
     },
     async reinvite(input, net) {
       const refused = await guard(input.ent);

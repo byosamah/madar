@@ -11,5 +11,8 @@
       "not_finished": "Finish creating this enterprise first.",
       "already_accepted": "This person accepted the invitation already."
     }
+  },
+  "consent": {
+    "titleIn": "Allow {{name}} to act for you in {{company}}?"
   }
 }

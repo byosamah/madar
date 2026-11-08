@@ -71,6 +71,8 @@ describe('init of an enterprise object', () => {
     expect(sent[0].to_email).toBe('sara@acme.test');
     // The link carries the tag of the enterprise.
     expect(sent[0].mail as string).toContain('ent_002');
+    // The header names the enterprise (plan C, Task 16): the name in the language of the mail (Arabic here), with no logo address.
+    expect(sent[0].mail as string).toContain('أكمي');
     expect(rows(one, "select kind from outbox where kind = 'auth.invite'")).toHaveLength(1);
   });
 

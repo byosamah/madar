@@ -17,7 +17,13 @@ import { safeRedirect } from './knownHosts';
  * links in Madar (server/mcp/approval.ts).
  */
 
-export type ConsentRequest = { authorizationId: string; clientId: string; clientName: string; redirectUri: string };
+/** enterprise: the name of the company of the person, when the Admin set one (the own stack answers it). */
+export type ConsentRequest = { authorizationId: string; clientId: string; clientName: string; redirectUri: string; enterprise?: { name: string; nameAr: string } };
+
+function enterpriseOf(value: unknown): ConsentRequest['enterprise'] {
+  const row = (value ?? null) as { name?: unknown; nameAr?: unknown } | null;
+  return typeof row?.name === 'string' && row.name !== '' ? { name: row.name, nameAr: typeof row.nameAr === 'string' && row.nameAr !== '' ? row.nameAr : row.name } : undefined;
+}
 /** ask: the person decides. done: Auth knows this client from an earlier consent and gives the redirect at once. */
 export type ConsentDetails = { kind: 'ask'; request: ConsentRequest } | { kind: 'done'; redirectUrl: string };
 export type Grant = { clientId: string; clientName: string; grantedAt: string | null };
@@ -186,6 +192,7 @@ export function madarOAuthPort(o: { apiUrl: string; accessToken: () => Promise<s
         request: {
           authorizationId: String(data.authorization_id ?? authorizationId), clientId: String(client.id ?? ''),
           clientName: typeof client.name === 'string' ? client.name.trim() : '', redirectUri: String(data.redirect_uri ?? ''),
+          ...(enterpriseOf(data.enterprise) ? { enterprise: enterpriseOf(data.enterprise) } : {}),
         },
       };
     },

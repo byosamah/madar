@@ -19,6 +19,7 @@ import {
   CODE_TTL_MS, HOUR_MS, MAX_NEW_PER_HOUR, MAX_TRIES, codeHashOf, newCode, newConfirmId, sameHash, sqlConfirms, type ConfirmStore,
 } from './confirms';
 import { CONFIRM_FIELD, GUARDED_CALLS } from './guardCalls';
+import { mailOptionsOf } from '../enterprise/brand';
 
 export { CONFIRM_FIELD, GUARDED_CALLS };
 
@@ -383,7 +384,7 @@ export type RenderedConfirmMail = { subject: string; html: string; text: string 
  * The names are those in the language of the person (personName rule). The role names of the built-in roles come from the word files.
  */
 export function renderConfirmMail(
-  lang: Language, data: { act: z.infer<typeof Payload>['act']; agent: string; code: string; appUrl?: string }, reader?: Gender,
+  lang: Language, data: { act: z.infer<typeof Payload>['act']; agent: string; code: string; appUrl?: string; brand?: { name: string; logoUrl?: string } }, reader?: Gender,
 ): RenderedConfirmMail {
   const words = wordsOf(lang);
   const roleNames = words.roleNames as Record<string, string>;
@@ -409,7 +410,7 @@ export function renderConfirmMail(
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const mailText = [title, '', ...lines, '', intro, data.code, '', validity, '', note].join('\n');
   const html = page(lang, [
-    brandHeader(mailWords(lang)('mail.common.brand'), dir, data.appUrl ? logoAddress(data.appUrl) : undefined),
+    brandHeader(data.brand?.name ?? mailWords(lang)('mail.common.brand'), dir, data.brand?.logoUrl ?? (data.appUrl ? logoAddress(data.appUrl) : undefined)),
     `<h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(title)}</h1>`,
     ...lines.map((one, i) => `<p style="font-size:15px;line-height:1.5;margin:0 0 ${i === lines.length - 1 ? 24 : 8}px">${escapeHtml(one)}</p>`),
     `<p style="font-size:15px;line-height:1.5;margin:0 0 8px">${escapeHtml(intro)}</p>`,
@@ -453,7 +454,7 @@ export async function sendConfirmMail(raw: Record<string, unknown>, deps: Deps):
     await scrub(deps, payload.confirmId);
     return;
   }
-  const mail = renderConfirmMail(person.preferences.language, { act: payload.act, agent: payload.agent, code: payload.code, appUrl: deps.config.appUrl }, person.gender ?? undefined);
+  const mail = renderConfirmMail(person.preferences.language, { act: payload.act, agent: payload.agent, code: payload.code, ...(await mailOptionsOf(deps, person.preferences.language)) }, person.gender ?? undefined);
   const sent = await sendCounted(deps, 'signin', { to: person.email, ...mail, tag: 'confirm', idempotencyKey: `mcp-confirm-${payload.confirmId}` }, { userId: person.id });
   if (sent.status === 'over') throw new QuotaFull('The mail with the code of an agent act did not go out: the daily mail quota is full. The job tries it again.', deps.clock.now());
   await scrub(deps, payload.confirmId);

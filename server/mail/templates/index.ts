@@ -35,7 +35,7 @@ export type MailData = {
 export type MailGenders = { actor?: Gender; reader?: Gender };
 
 /** appUrl: the screens (APP_URL of the server config), for the Madar mark in the header. Without it the header shows the name only. */
-export type MailOptions = { appUrl?: string };
+export type MailOptions = { appUrl?: string; /** The enterprise name and logo (server/enterprise/brand.ts). Without it the header says Madar, as before. */ brand?: { name: string; logoUrl?: string } };
 
 type Parts = {
   subject: string; greeting?: string; paragraphs: string[]; groups?: MailGroup[]; closing?: string[]; button: string;
@@ -115,8 +115,8 @@ export function renderMail<K extends MailTemplate>(kind: K, lang: Language, data
       button: { label: parts.button, link: data.link },
       linkHelp: t('mail.common.linkHelp', reader),
       footer: t(`mail.common.${parts.footer}`, reader),
-      logo: o.appUrl ? logoAddress(o.appUrl) : undefined,
+      logo: o.brand?.logoUrl ?? (o.appUrl ? logoAddress(o.appUrl) : undefined),
     },
-    t('mail.common.brand'),
+    o.brand?.name ?? t('mail.common.brand'),
   );
 }

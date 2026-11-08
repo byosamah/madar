@@ -30,6 +30,7 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: O
     setIdentity: async () => undefined,
     setPlatformOwners: async () => undefined,
     person: async () => ({ userId: 'usr_001' }),
+    brand: async () => ({ name: 'Madar', nameAr: 'مدار', logo: null }),
     reinvite: async () => ({ ok: true, value: { sentAt: '2026-10-04T09:00:00.000Z' } }),
     cron: async (input, net) => (seen.cron.push({ ...input, net }), { ok: true, at: input.at, steps: [], closed: 0, day: null, status: STATUS }),
     signin: async (body) => (seen.signins.push(body), { ok: true, value: { echo: body.signin } }),

@@ -131,6 +131,10 @@ export class Office extends DurableObject<Env> {
     return this.parts.person(input);
   }
 
+  brand(input: { ent: EnterpriseId }): Promise<{ name: string; nameAr: string; logo: string | null }> {
+    return this.parts.brand(input);
+  }
+
   reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>> {
     return this.parts.reinvite(input, net);
   }
