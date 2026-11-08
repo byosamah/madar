@@ -198,7 +198,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       'google.connect', 'google.connectStart', 'google.disconnect', 'google.status', 'live.ticket', 'meetings.extend', 'meetings.settle', 'payments.linkInvoice',
       'payments.unlinkInvoice', 'projects.delete', 'push.mine', 'push.register', 'push.remove', 'resources.delete', 'resources.list', 'resources.saveFolder', 'resources.updateFile',
       'session.get',
-      // The platform calls of Madar enterprises (plan C): the Worker runs them for a platform owner only.
+      // The platform calls of Madar enterprises (plan C): the Worker runs them for a platform account only (plan F).
       ...PLATFORM_CALL_NAMES,
     ].sort());
   });

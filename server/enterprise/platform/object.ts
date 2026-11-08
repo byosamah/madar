@@ -49,14 +49,6 @@ export class Platform extends DurableObject<Env> implements PlatformStub {
     return this.parts.releaseEmail(input);
   }
 
-  isOwner(input: { ent: EnterpriseId; userId: string }) {
-    return this.parts.isOwner(input);
-  }
-
-  setOwners(input: { owners: { ent: EnterpriseId; userId: string }[] }) {
-    return this.parts.setOwners(input);
-  }
-
   report(input: EnterpriseStatus) {
     return this.parts.report(input);
   }
@@ -127,10 +119,6 @@ export class Platform extends DurableObject<Env> implements PlatformStub {
 
   activeIds() {
     return this.parts.activeIds();
-  }
-
-  ownersOf() {
-    return this.parts.ownersOf();
   }
 
   platformSignIn(input: Parameters<PlatformStub['platformSignIn']>[0]) {

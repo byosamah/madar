@@ -714,16 +714,15 @@ describe('runCall: the enterprise in session.get (Madar enterprises, design 5.20
     }
   });
 
-  it('on the office path gives the id of its own object, and the platform owner flag from its facts', async () => {
+  it('on the office path gives the id of its own object, and never a platform owner flag (design D9)', async () => {
     const s = setup();
     const facts = new EnterpriseFacts();
     await facts.load({ statement: async () => [] }, { id: 'ent_002', state: 'active', limits: { people: null, storageBytes: null } });
-    facts.set({ owners: [ADMIN] });
     s.deps.enterprise = facts;
     const owner = await session(s);
     expect(owner.enterprise?.id).toBe('ent_002');
     expect(usageAllowed(owner.enterprise?.id)).toBe(false);
-    expect(owner.platformOwner).toBe(true);
+    expect(owner).not.toHaveProperty('platformOwner');
     const other = await session(s, 'usr_003');
     expect(other.enterprise?.id).toBe('ent_002');
     expect(other).not.toHaveProperty('platformOwner');

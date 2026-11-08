@@ -89,15 +89,10 @@ describe('the list of enterprises', () => {
   });
 });
 
-describe('the owners, the meter and the status', () => {
-  it('setOwners replaces the list and isOwner follows it', async () => {
+describe('the meter and the status', () => {
+  it('has no owner list: the platform object offers no method for it (design D11)', async () => {
     const { parts } = await platform();
-    await parts.setOwners({ owners: [{ ent: 'ent_001', userId: 'usr_001' }, { ent: 'ent_002', userId: 'usr_001' }] });
-    expect(await parts.isOwner({ ent: 'ent_001', userId: 'usr_001' })).toBe(true);
-    expect(await parts.isOwner({ ent: 'ent_001', userId: 'usr_002' })).toBe(false);
-    await parts.setOwners({ owners: [{ ent: 'ent_002', userId: 'usr_005' }] });
-    expect(await parts.isOwner({ ent: 'ent_001', userId: 'usr_001' })).toBe(false);
-    expect(await parts.isOwner({ ent: 'ent_002', userId: 'usr_005' })).toBe(true);
+    for (const name of ['isOwner', 'setOwners', 'ownersOf']) expect(parts).not.toHaveProperty(name);
   });
 
   it('meter replaces the counts of (ent, day) and the account total sums two enterprises', async () => {

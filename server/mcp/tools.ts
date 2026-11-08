@@ -186,7 +186,7 @@ export const MCP_DENY = [
   // The Resources page (fbk_078): the four calls of its screen. An agent uses the file and folder tools with a Resources target (files.list and folders.create with
   // resources true, folders.rename, folders.setLock, folders.delete, files.move and files.delete with a Resources id, files.uploadContent with resources true). The tool list has no room for four more tools.
   'resources.list', 'resources.saveFolder', 'resources.updateFile', 'resources.delete',
-  // The platform calls of Madar enterprises (plan C): they run in the Worker for a platform owner, never inside an enterprise. No agent creates, pauses
+  // The platform calls of Madar enterprises (plan C): they run in the Worker for a platform account (plan F), never inside an enterprise. No agent creates, pauses
   // or changes an enterprise, and none sees the platform part (design 5.5 and 5.6). The Worker route also refuses an agent token with 403 agent_token.
   ...PLATFORM_CALL_NAMES,
 ] as const satisfies readonly (SharedCallName | ServerCallName | PlatformCallName)[];

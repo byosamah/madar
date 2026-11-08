@@ -120,7 +120,7 @@ describe('the lists and the state', () => {
     await expect(parts.getEnterprise({ ent: 'bad' })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
-  it('update changes the name, the logo and the limits, and ownersOf lists the owner pairs', async () => {
+  it('update changes the name, the logo and the limits', async () => {
     const { parts } = await platform();
     await parts.create(input());
     await parts.update({ ent: 'ent_002', patch: { name: 'New', nameAr: 'جديد', logo: 'data:image/png;base64,AAAA', limits: { people: 9, storageBytes: null } } });
@@ -128,8 +128,6 @@ describe('the lists and the state', () => {
     await parts.update({ ent: 'ent_002', patch: { logo: null } });
     expect((await parts.getEnterprise({ ent: 'ent_002' }))?.logo).toBeNull();
     await parts.update({ ent: 'ent_002', patch: {} });
-    await parts.setOwners({ owners: [{ ent: 'ent_001', userId: 'usr_001' }] });
-    expect(await parts.ownersOf()).toEqual([{ ent: 'ent_001', userId: 'usr_001' }]);
   });
 });
 

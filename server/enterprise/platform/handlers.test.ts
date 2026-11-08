@@ -24,7 +24,6 @@ async function setup() {
     row: { id: 'ent_001', address: 'vados', name: 'VADO', nameAr: 'فادو', state: 'active', limits: { people: null, storageBytes: null }, createdAt: NOW, firstAdmin: { name: 'O', email: 'o@vado.test' } },
     emails: ['o@vado.test'],
   });
-  await real.setOwners({ owners: [{ ent: 'ent_001', userId: 'usr_001' }] });
   const log: string[] = [];
   const spy = (key: string) => key === 'setState' || key === 'update' || key === 'activate' || key === 'create';
   const platform = new Proxy(real, {
@@ -63,13 +62,13 @@ describe('platform.me and platform.enterprises.list', () => {
     expect(await t.run('platform.me', {})).toEqual({ owner: true, ent: 'ent_000', createOpen: true });
   });
 
-  it('list gives one valid view for each row, with hasOwner, the paused state and the first Admin', async () => {
+  it('list gives one valid view for each row, with hasOwner false, the paused state and the first Admin', async () => {
     const t = await setup();
     await t.run('platform.enterprises.pause', { id: 'ent_002', confirmName: 'Acme Co' });
     const list = (await t.run('platform.enterprises.list', {})) as { id: string; state: string; hasOwner: boolean; firstAdmin: unknown }[];
     expect(list.map((row) => row.id)).toEqual(['ent_001', 'ent_002']);
     for (const row of list) expect(EnterpriseView.safeParse(row).success).toBe(true);
-    expect(list[0]).toMatchObject({ hasOwner: true, state: 'active' });
+    expect(list[0]).toMatchObject({ hasOwner: false, state: 'active' });
     expect(list[1]).toMatchObject({ hasOwner: false, state: 'paused', firstAdmin: { name: 'Sara', email: 'sara@acme.test' } });
   });
 });
@@ -112,10 +111,12 @@ describe('platform.enterprises.update', () => {
 });
 
 describe('platform.enterprises.pause and resume', () => {
-  it('refuses the enterprise of an owner with owner_enterprise', async () => {
+  it('pauses ent_001 (VADO) like any other company, with the typed name (design D11)', async () => {
     const t = await setup();
-    await expect(t.run('platform.enterprises.pause', { id: 'ent_001', confirmName: 'VADO' })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'owner_enterprise' } });
+    await expect(t.run('platform.enterprises.pause', { id: 'ent_001', confirmName: 'wrong' })).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'name_mismatch' } });
     expect(t.log).toEqual([]);
+    expect(await t.run('platform.enterprises.pause', { id: 'ent_001', confirmName: 'VADO' })).toMatchObject({ id: 'ent_001', state: 'paused', hasOwner: false });
+    expect(t.log).toEqual(['office.setState', 'platform.setState']);
   });
 
   it('refuses a name that does not match, and takes the trimmed English or Arabic name', async () => {

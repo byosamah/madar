@@ -14,13 +14,12 @@ import { CRON_PATH, runFanout, selfTransport, type FanoutLeg, type FanoutTranspo
 import { utcDay } from '../mail/quota';
 import { firstRunOfDay } from '../office/jobs';
 import { ENT_VADO, isEnterpriseId, untag, type EnterpriseId } from '../enterprise/ids';
-import { OwnersBodyShape, RegisterBodyShape } from '../enterprise/shapes';
+import { RegisterBodyShape } from '../enterprise/shapes';
 import { accountGate } from '../enterprise/accountGate';
 import { logoResponse } from '../enterprise/logoRoute';
 import { padTo } from '../enterprise/pad';
 import { platformAuth } from '../enterprise/platform/auth';
 import { platformRoute } from '../enterprise/platform/route';
-import { writeOwners } from '../enterprise/platform/owners';
 import type { PlatformStub } from '../enterprise/platform/stub';
 import { runInEnterprise } from '../enterprise/context';
 import { entRouter, isMcpToolPath, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
@@ -71,7 +70,6 @@ const OPS: Readonly<Record<string, OpRule>> = {
   // The ids of the enterprises that the nightly backup must export (Madar enterprises). The export secret opens it, as it opens export.
   enterprises: { secret: 'export', names: 'none' },
   'platform-register': { secret: 'ops', names: 'none' },
-  'platform-owners': { secret: 'ops', names: 'none' },
 };
 
 /** The names that an op takes without the list of the platform. An enterprise id needs the list (listed). */
@@ -116,8 +114,6 @@ export type OfficeStub = {
   setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void>;
   setLimits(input: { ent: EnterpriseId; limits: EnterpriseLimits }): Promise<void>;
   setIdentity(input: { ent: EnterpriseId; name?: string; nameAr?: string; logo?: string | null }): Promise<void>;
-  setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
-  person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
   reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>>;
   brand(input: { ent: EnterpriseId }): Promise<{ name: string; nameAr: string; logo: string | null }>;
   fetch(request: Request): Promise<Response>;
@@ -390,8 +386,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   }
 
   /**
-   * The two ops of the platform object (Madar enterprises, with the ops secret): platform-register writes one enterprise row and its emails
-   * (an upsert, any state), and platform-owners replaces the list of the platform owners. The body is checked with zod first.
+   * The ops of the platform object (Madar enterprises, with the ops secret): platform-register writes one enterprise row and its emails (an
+   * upsert, any state). The body is checked with zod first.
    */
   async function platformOp(request: Request, env: Env, op: string): Promise<Response> {
     let value: unknown;
@@ -410,14 +406,9 @@ export function officeRoutes(o: OfficeRoutesOptions) {
         // isolate sees it after LISTED_MISS_MS at most.
         delete listedCache.list;
         listedCache.addresses.clear();
-      } else {
-        const parsed = OwnersBodyShape.safeParse(value);
-        if (!parsed.success) return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body is { owners: [{ ent, userId }] }.')));
-        // The master list in the platform object, and the copy in each enterprise object (plan C): session.get shows platformOwner from the copy.
-        const router = routerOf(env);
-        await writeOwners({ platform, office: (ent) => router.stub(ent), log }, parsed.data.owners);
+        return Response.json({ ok: true });
       }
-      return Response.json({ ok: true });
+      return errorResponse({ code: 'not_found', message: 'This address does not exist.' });
     } catch (error) {
       if (error instanceof ApiError || (error as { code?: unknown })?.code !== undefined) return errorResponse(runErrorOf(error));
       return errorResponse(officeErrorOf(error, log));

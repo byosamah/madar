@@ -67,7 +67,7 @@ describe('setLimits', () => {
   });
 });
 
-describe('setIdentity and setPlatformOwners', () => {
+describe('setIdentity and the platform owner flag', () => {
   it('shows the new name and logo in the next session.get', async () => {
     const { w, one } = await world();
     const logo = 'data:image/png;base64,AAAA';
@@ -78,39 +78,18 @@ describe('setIdentity and setPlatformOwners', () => {
     expect(await sessionOf(w, 'auth-usr_001')).toMatchObject({ output: { enterprise: { logo: null } } });
   });
 
-  it('makes session.get show platformOwner for the owner and for nobody else', async () => {
-    const { w, one } = await world();
-    await one.stub.setPlatformOwners({ ent: ENT, userIds: ['usr_001'] });
-    expect((await sessionOf(w, 'auth-usr_001') as { output: Record<string, unknown> }).output.platformOwner).toBe(true);
-    expect((await sessionOf(w, 'auth-usr_002') as { output: Record<string, unknown> }).output).not.toHaveProperty('platformOwner');
-    expect(one.raw.prepare('select owners from enterprise_use').get()).toEqual({ owners: '["usr_001"]' });
+  it('session.get never shows platformOwner: the platform has its own accounts (design D9)', async () => {
+    const { w } = await world();
+    for (const auth of ['auth-usr_001', 'auth-usr_002']) {
+      expect((await sessionOf(w, auth) as { output: Record<string, unknown> }).output).not.toHaveProperty('platformOwner');
+    }
   });
-});
 
-describe('person', () => {
-  it('gives the user id of an active linked person and null for a turned-off, a removed, an agent and an unknown sign-in', async () => {
+  it('the object has no owner list any more: no RPC method for it, and enterprise_use.owners stays at its default', async () => {
     const { one } = await world();
-    expect(await one.stub.person({ ent: ENT, authUserId: 'auth-usr_001' })).toEqual({ userId: 'usr_001' });
-    expect(await one.stub.person({ ent: ENT, authUserId: 'auth-usr_004' })).toBeNull();
-    expect(await one.stub.person({ ent: ENT, authUserId: 'auth-usr_005' })).toBeNull();
-    expect(await one.stub.person({ ent: ENT, authUserId: 'auth-nobody' })).toBeNull();
-    expect(await one.stub.person({ ent: ENT, authUserId: '' })).toBeNull();
-  });
-
-  it('gives null for a removed person', async () => {
-    const state = makeWorld();
-    state.users.usr_004!.active = false;
-    state.users.usr_004!.removed = true;
-    const w = await nodeWorld({ ents: [ENT], seeds: { [ENT]: state } });
-    await w.signins([signin('usr_004')], ENT);
-    expect(await w.ents.get(ENT)!.stub.person({ ent: ENT, authUserId: 'auth-usr_004' })).toBeNull();
-  });
-
-  it('refuses another enterprise id and a paused object', async () => {
-    const { one } = await world();
-    await expect(one.stub.person({ ent: 'ent_009', authUserId: 'auth-usr_001' })).rejects.toThrow();
-    await one.stub.setState({ ent: ENT, state: 'paused' });
-    await expect(one.stub.person({ ent: ENT, authUserId: 'auth-usr_001' })).rejects.toThrow();
+    expect(one.stub).not.toHaveProperty('setPlatformOwners');
+    expect(one.stub).not.toHaveProperty('person');
+    expect(one.raw.prepare('select owners from enterprise_use').get()).toEqual({ owners: '[]' });
   });
 });
 

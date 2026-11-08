@@ -129,13 +129,6 @@ export async function writeIdentity(db: LiteDb, brand: { name?: string; nameAr?:
   });
 }
 
-/** The user ids that are platform owners in this enterprise (enterprise_use.owners), and the facts in memory. */
-export async function writePlatformOwners(o: Pick<InitOptions, 'db' | 'facts'>, userIds: readonly string[]): Promise<void> {
-  const owners = [...new Set(userIds)].sort();
-  await o.db.tx('write', (q) => q('update enterprise_use set owners = ?1 where id = 1', [JSON.stringify(owners)]));
-  o.facts.set({ owners });
-}
-
 /** The invitation of the first Admin, again. It refuses when the Admin set a password, and after 5 sends in a day (the rule of users.resendInvite). */
 export async function reinviteAdmin(o: Pick<InitOptions, 'db' | 'clock' | 'depsFor'>): Promise<{ sentAt: string }> {
   const [admin] = await o.db.statement<{ password_set: number }>('read', 'select password_set from auth_users where user_id = ?1', [FIRST_ADMIN_ID]);

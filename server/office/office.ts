@@ -110,7 +110,7 @@ export class Office extends DurableObject<Env> {
     return this.parts.init(input, net);
   }
 
-  /** The changes of the platform (plan C): the state, the limits, the name and logo, the platform owners, the person check, the invitation. */
+  /** The changes of the platform (plan C): the state, the limits, the name and logo, the invitation. */
   setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void> {
     return this.parts.setState(input);
   }
@@ -121,14 +121,6 @@ export class Office extends DurableObject<Env> {
 
   setIdentity(input: { ent: EnterpriseId; name?: string; nameAr?: string; logo?: string | null }): Promise<void> {
     return this.parts.setIdentity(input);
-  }
-
-  setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void> {
-    return this.parts.setPlatformOwners(input);
-  }
-
-  person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null> {
-    return this.parts.person(input);
   }
 
   brand(input: { ent: EnterpriseId }): Promise<{ name: string; nameAr: string; logo: string | null }> {

@@ -29,8 +29,6 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: O
     setState: async () => undefined,
     setLimits: async () => undefined,
     setIdentity: async () => undefined,
-    setPlatformOwners: async () => undefined,
-    person: async () => ({ userId: 'usr_001' }),
     brand: async () => ({ name: 'Madar', nameAr: 'مدار', logo: null }),
     reinvite: async () => ({ ok: true, value: { sentAt: '2026-10-04T09:00:00.000Z' } }),
     cron: async (input, net) => (seen.cron.push({ ...input, net }), { ok: true, at: input.at, steps: [], closed: 0, day: null, status: STATUS }),
@@ -554,7 +552,7 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
       deps: { config: testConfig(), clock: { now: () => new Date() }, log: quiet },
       verifyToken: async () => ({ authUserId: 'x' }),
       stubFor: (_env, name) => stubFor(name) as never,
-      platform: () => ({ ...PLATFORM, register: async (input: unknown) => void platformCalls.push({ method: 'register', input }), setOwners: async (input: unknown) => void platformCalls.push({ method: 'setOwners', input }) }) as never,
+      platform: () => ({ ...PLATFORM, register: async (input: unknown) => void platformCalls.push({ method: 'register', input }) }) as never,
       net: () => ({}) as never,
       jobsSecret: () => 'jobs',
       exportSecret: () => 'export-secret-of-the-test',
@@ -649,14 +647,10 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
       expect(created).toEqual([]);
     });
 
-    it('platform-owners needs the ops secret, refuses a bad body, and calls platform.setOwners', async () => {
+    it('platform-owners is gone: the old op answers 404 and calls nothing (design D11)', async () => {
       const { routes, platformCalls } = opsRoutes();
-      const owners = [{ ent: 'ent_001', userId: 'usr_001' }];
-      expect((await send(routes, 'platform-owners', { owners }, {})).status).toBe(401);
-      for (const bad of [{ owners: [{ ent: 'x', userId: 'usr_001' }] }, { owners: [{ ent: 'ent_001', userId: 'someone' }] }, { owners: 'x' }, {}]) expect((await send(routes, 'platform-owners', bad)).status).toBe(400);
+      expect((await send(routes, 'platform-owners', { owners: [{ ent: 'ent_001', userId: 'usr_001' }] })).status).toBe(404);
       expect(platformCalls).toEqual([]);
-      expect((await send(routes, 'platform-owners', { owners })).status).toBe(200);
-      expect(platformCalls).toEqual([{ method: 'setOwners', input: { owners } }]);
     });
   });
 

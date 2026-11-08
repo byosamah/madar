@@ -19,7 +19,7 @@ import type { DayCounts, EnterpriseRow, EnterpriseStatus } from '../types';
 import { mailReserve } from './mailPool';
 import { PLATFORM_SCHEMA_VERSION } from './schema';
 import { accountStop, capVerdict, planFrom, type Plan } from '../plan';
-import { activateEnterprise, activeEnterpriseIds, createEnterprise, getEnterprise, listEnterprises, ownersOfEnterprises, setEnterpriseState, updateEnterprise } from './enterprises';
+import { activateEnterprise, activeEnterpriseIds, createEnterprise, getEnterprise, listEnterprises, setEnterpriseState, updateEnterprise } from './enterprises';
 import type { AddressAnswer, AddressStep, CapAnswer, PlatformStub } from './stub';
 import { platformAccount, platformAccounts, platformRefresh, platformSignIn, platformSignOut, type AccountDeps } from './accounts';
 
@@ -125,19 +125,6 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
       await db.statement('write', 'delete from emails where email = ?1 and ent = ?2', [normalizeEmail(email), ent]);
     },
 
-    async isOwner({ ent, userId }) {
-      const [row] = await db.statement('read', 'select 1 as n from owners where ent = ?1 and user_id = ?2', [ent, userId]);
-      return row !== undefined;
-    },
-
-    async setOwners({ owners }) {
-      for (const one of owners) entOf(one.ent);
-      await db.tx('write', async (q) => {
-        await q('delete from owners');
-        for (const one of owners) await q('insert into owners (ent, user_id) values (?1, ?2) on conflict (ent, user_id) do nothing', [one.ent, one.userId]);
-      });
-    },
-
     async report(input: EnterpriseStatus) {
       entOf(input.ent);
       await db.tx('write', async (q) => {
@@ -235,7 +222,6 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
     update: ({ ent, patch }) => updateEnterprise(db, ent, patch),
     setState: ({ ent, state }) => setEnterpriseState(db, ent, state),
     activeIds: () => activeEnterpriseIds(db),
-    ownersOf: () => ownersOfEnterprises(db),
   };
 }
 

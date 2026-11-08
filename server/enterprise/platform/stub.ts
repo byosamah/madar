@@ -30,9 +30,6 @@ export type PlatformStub = {
   listed(): Promise<EnterpriseId[]>;
   reserveEmail(input: { ent: EnterpriseId; email: string }): Promise<'ok' | 'taken'>;
   releaseEmail(input: { ent: EnterpriseId; email: string }): Promise<void>;
-  isOwner(input: { ent: EnterpriseId; userId: string }): Promise<boolean>;
-  /** Ops secret only. Replaces the owner list. */
-  setOwners(input: { owners: { ent: EnterpriseId; userId: string }[] }): Promise<void>;
   /** The Cron of each object sends its status row. */
   report(input: EnterpriseStatus): Promise<void>;
   /** Stores the whole day so far for (ent, day) and replaces the old value, so a repeat adds nothing. */
@@ -69,7 +66,6 @@ export type PlatformStub = {
   setState(input: { ent: EnterpriseId; state: 'active' | 'paused' }): Promise<void>;
   /** The ids in state active: the Cron fan-out reads this list, so a paused enterprise gets no job. */
   activeIds(): Promise<EnterpriseId[]>;
-  ownersOf(): Promise<{ ent: EnterpriseId; userId: string }[]>;
   /**
    * The accounts of the platform (plan F, design D8). They belong to no company. A wrong password and an unknown email give one answer.
    * The tokens have the audience madar-platform and no ent.

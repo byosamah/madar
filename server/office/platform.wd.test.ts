@@ -27,12 +27,10 @@ describe('the platform object on local workerd', () => {
       },
       emails: ['hana@globex.test'],
     });
-    await live.platform('setOwners', { owners: [{ ent: 'ent_002', userId: 'usr_001' }] });
     await live.evictPlatform();
     expect(await live.platform('listed')).toEqual(['ent_002']);
     expect(await live.platform('resolveEmail', { email: 'hana@globex.test' })).toEqual({ ent: 'ent_002' });
     expect(await live.platform('resolveAddress', { address: 'globex' })).toEqual({ ent: 'ent_002' });
-    expect(await live.platform('isOwner', { ent: 'ent_002', userId: 'usr_001' })).toBe(true);
     expect(await live.platform('health')).toEqual({ schema: 4 });
   });
 

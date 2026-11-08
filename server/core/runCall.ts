@@ -168,10 +168,11 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
 
   function baseOf(deps: Deps, actorId: string, authorityId: string, correlationId: string, now: Date) {
     // The enterprise of the object (Madar enterprises): the office path gives it only when the id is known. The Postgres path has no facts
-    // and serves VADOs' Companies only (design 5.20), so it gives ENT_VADO and never a platform owner. Else the usage rule of the screens
-    // (usageAllowed) would stop the usage data and the replays of VADO on a copy that still runs the Postgres path.
+    // and serves VADOs' Companies only (design 5.20), so it gives ENT_VADO. Else the usage rule of the screens (usageAllowed) would stop the
+    // usage data and the replays of VADO on a copy that still runs the Postgres path. platformOwner is always false: the platform is a separate
+    // site with its own accounts (plan F, design D9), and session.get never sets the value.
     const facts = deps.enterprise;
-    const enterprise = facts === undefined ? { id: ENT_VADO, platformOwner: false } : facts.id() === undefined ? undefined : { id: facts.id()!, platformOwner: facts.owners().has(authorityId) };
+    const enterprise = facts === undefined ? { id: ENT_VADO, platformOwner: false } : facts.id() === undefined ? undefined : { id: facts.id()!, platformOwner: false };
     return {
       actorId, authorityId, correlationId, now, persistent: true, wireOutput: true, limits: { maxFileBytes: deps.config.limits.maxFileBytes },
       ...(enterprise !== undefined ? { enterprise } : {}),

@@ -4,8 +4,6 @@ import { importJWK, SignJWT, type JWK } from 'jose';
 import { signAgentToken, signingKeysOf, signPlatformToken } from '../../auth/own/keys';
 import { hashPassword } from '../../auth/own/password';
 import { httpOf, NODE_TODAY, nodeWorld } from '../../office/test/nodeWorld';
-import { ownersBodyOf, pairsOf } from '../../../scripts/office/platform-owners';
-import { OPS_SECRET_HEADER } from '../../entries/officeWorker';
 
 const PASSWORD = 'a good password';
 const PLATFORM_PASSWORD = 'a long platform password';
@@ -214,36 +212,26 @@ describe('POST /api/platform', () => {
   });
 });
 
-describe('the owners ops route', () => {
-  const ops = (t: World, body: unknown, secret?: string) =>
-    t.route(httpOf('POST', '/api/office/platform-owners', body, secret ? { [OPS_SECRET_HEADER]: secret } : {}));
-
-  it('answers 401 with no secret header and with a wrong secret', async () => {
+describe('VADO is a normal company (design D11)', () => {
+  it('the platform pauses ent_001 like any other company, the company sign-in then answers the paused text, and resume brings it back', async () => {
     const t = await world();
-    expect((await ops(t, { owners: [] })).status).toBe(401);
-    expect((await ops(t, { owners: [] }, 'wrong')).status).toBe(401);
-  });
-
-  it('writes the master list and the copy of each enterprise', async () => {
-    const t = await world();
-    const answer = await ops(t, { owners: [{ ent: 'ent_001', userId: 'usr_002' }] }, 'ops-secret');
-    expect(answer.status).toBe(200);
-    expect(await t.platform.isOwner({ ent: 'ent_001', userId: 'usr_002' })).toBe(true);
-    expect(await t.platform.isOwner({ ent: 'ent_001', userId: 'usr_001' })).toBe(false);
-    expect(t.ents.get('ent_001')!.parts.facts.owners().has('usr_002')).toBe(true);
-    expect([...t.ents.get('ent_002')!.parts.facts.owners()]).toEqual([]);
-  });
-
-  it('keeps the list when an enterprise is paused (the copy of a paused object is skipped)', async () => {
-    const t = await world();
-    await t.ents.get('ent_002')!.stub.setState({ ent: 'ent_002', state: 'paused' });
-    const answer = await ops(t, { owners: [{ ent: 'ent_001', userId: 'usr_001' }] }, 'ops-secret');
-    expect(answer.status).toBe(200);
+    const token = await platformToken(t);
+    const vado = 'VADOs\' Companies';
+    const refused = await post(t, token, call('platform.enterprises.pause', { id: 'ent_001', confirmName: 'wrong name' }));
+    expect(parse(refused.body).results[0]).toMatchObject({ ok: false, error: { code: 'invalid_input' } });
+    const paused = await post(t, token, call('platform.enterprises.pause', { id: 'ent_001', confirmName: vado }));
+    expect(parse(paused.body).results[0]).toMatchObject({ ok: true, output: { id: 'ent_001', state: 'paused' } });
+    const signin = await t.route(httpOf('POST', '/api/auth/token', { grant_type: 'password', email: 'owner@one.test', password: PASSWORD }));
+    expect(signin.status).toBe(401);
+    expect(parse(signin.body).error).toMatchObject({ message: 'Madar is paused for your company. Ask your Admin.', details: { reason: 'enterprise_paused' } });
+    const resumed = await post(t, token, call('platform.enterprises.resume', { id: 'ent_001' }));
+    expect(parse(resumed.body).results[0]).toMatchObject({ ok: true, output: { id: 'ent_001', state: 'active' } });
+    expect((await t.route(httpOf('POST', '/api/auth/token', { grant_type: 'password', email: 'owner@one.test', password: PASSWORD }))).status).toBe(200);
   });
 });
 
 describe('the Postgres path', () => {
-  it('has no POST /api/platform: the api app answers 404', async () => {
+  it('has no platform route: the api app answers 404 for the call and for both sign-in routes', async () => {
     const { setEnvSource } = await import('../../env');
     const denoApi = (await import('../../entries/deno-api')).default;
     setEnvSource({
@@ -251,24 +239,12 @@ describe('the Postgres path', () => {
       APP_URL: 'http://127.0.0.1:5173', MAIL_FROM: 'Madar <notices@madar.test>', MAIL_DRIVER: 'outbox',
     });
     try {
-      const response = await denoApi.fetch(new Request('http://127.0.0.1/api/platform', { method: 'POST', body: '{}' }));
-      expect(response.status).toBe(404);
+      for (const path of ['/api/platform', '/api/platform/auth/token', '/api/platform/auth/logout']) {
+        const response = await denoApi.fetch(new Request(`http://127.0.0.1${path}`, { method: 'POST', body: '{}' }));
+        expect({ path, status: response.status }).toEqual({ path, status: 404 });
+      }
     } finally {
       setEnvSource(undefined);
     }
-  });
-});
-
-describe('the owners script', () => {
-  it('builds the body from pairs and refuses a bad pair', () => {
-    expect(ownersBodyOf(['ent_001:usr_001', 'ent_002:usr_003'])).toEqual({ owners: [{ ent: 'ent_001', userId: 'usr_001' }, { ent: 'ent_002', userId: 'usr_003' }] });
-    expect(() => ownersBodyOf(['ent_001'])).toThrow('A pair is');
-    expect(() => ownersBodyOf(['ent_001:usr_001:x'])).toThrow('A pair is');
-    expect(() => ownersBodyOf(['ENT_1:usr_001'])).toThrow('A pair is');
-    expect(() => ownersBodyOf(['ent_001:person'])).toThrow('A pair is');
-  });
-
-  it('takes the pairs apart from the flags', () => {
-    expect(pairsOf(['--to', 'http://127.0.0.1:8787', 'ent_001:usr_001', '--production'])).toEqual(['ent_001:usr_001']);
   });
 });

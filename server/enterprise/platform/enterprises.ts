@@ -7,7 +7,7 @@ import type { CreateRowAnswer, CreateRowInput, EnterpriseListRow } from './stub'
 /**
  * The rows of the enterprises in the platform object (Madar enterprises, plan C): the list for the platform page, the create step, and the
  * changes of the name, the logo, the limits and the state. The platform object holds no record of an enterprise, and these rows hold no
- * person data except the name and the email of the first Admin that the owner typed.
+ * person data except the name and the email of the first Admin that the platform account typed.
  */
 
 type Raw = {
@@ -124,10 +124,6 @@ export async function setEnterpriseState(db: LiteDb, ent: EnterpriseId, state: '
 
 export async function activeEnterpriseIds(db: LiteDb): Promise<EnterpriseId[]> {
   return (await db.statement<{ id: string }>('read', "select id from enterprises where state = 'active' order by id")).map((row) => row.id);
-}
-
-export async function ownersOfEnterprises(db: LiteDb): Promise<{ ent: EnterpriseId; userId: string }[]> {
-  return (await db.statement<{ ent: string; user_id: string }>('read', 'select ent, user_id from owners order by ent, user_id')).map((row) => ({ ent: row.ent, userId: row.user_id }));
 }
 
 function entOf(value: unknown): EnterpriseId {

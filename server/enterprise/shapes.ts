@@ -21,4 +21,3 @@ export const EnterpriseRowShape: z.ZodType<EnterpriseRow> = z.object({
 });
 
 export const RegisterBodyShape = z.object({ row: EnterpriseRowShape, emails: z.array(z.string().trim().min(3).max(254)).max(500) });
-export const OwnersBodyShape = z.object({ owners: z.array(z.object({ ent: z.string().regex(ENTERPRISE_ID), userId: z.string().regex(/^usr_\d{3,}$/) })).max(100) });

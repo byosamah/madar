@@ -34,16 +34,16 @@ type CreateInput = z.output<(typeof platformContracts)['platform.enterprises.cre
 export type EnterpriseViewOut = z.output<typeof EnterpriseView>;
 
 /**
- * One row of the list, as the page sees it. firstAdmin is null when the record holds no name and no email. hasOwner is true when the
- * owner list names a person of this enterprise.
+ * One row of the list, as the page sees it. firstAdmin is null when the record holds no name and no email. hasOwner is always false: there is
+ * no owner list any more (plan F, design D11), and the key stays only because the contract of the page names it.
  */
-export function viewOf(row: EnterpriseListRow, hasOwner = false): EnterpriseViewOut {
+export function viewOf(row: EnterpriseListRow): EnterpriseViewOut {
   const { name, email } = row.firstAdmin;
   return {
     id: row.id, address: row.address, name: row.name, nameAr: row.nameAr, logo: row.logo, state: row.state, limits: row.limits,
     people: row.status?.people ?? 0, invited: row.status?.invited ?? 0, storageBytes: row.status?.storageBytes ?? 0,
     lastWriteAt: row.status?.lastWriteAt ?? null, createdAt: row.createdAt,
-    firstAdmin: name === '' && email === '' ? null : { name, email }, hasOwner,
+    firstAdmin: name === '' && email === '' ? null : { name, email }, hasOwner: false,
   };
 }
 
@@ -100,9 +100,7 @@ async function rowOf(ctx: PlatformCtx, ent: EnterpriseId): Promise<EnterpriseLis
 
 async function viewFor(ctx: PlatformCtx, ent: EnterpriseId): Promise<EnterpriseViewOut> {
   // One call after the other: the platform object runs one transaction at a time.
-  const row = await rowOf(ctx, ent);
-  const owners = await ctx.platform.ownersOf();
-  return viewOf(row, owners.some((one) => one.ent === ent));
+  return viewOf(await rowOf(ctx, ent));
 }
 
 /** An object that did not finish its creation takes no change: the page shows Not finished, and the owner tries create again. */
@@ -156,10 +154,7 @@ async function update(input: In<'platform.enterprises.update'>, ctx: PlatformCtx
 async function pause(input: In<'platform.enterprises.pause'>, ctx: PlatformCtx): Promise<Out<'platform.enterprises.pause'>> {
   const row = await rowOf(ctx, input.id);
   assertFinished(row);
-  // An enterprise that holds a platform owner never pauses, so the owner cannot lock himself out (decision D4).
-  if ((await ctx.platform.ownersOf()).some((one) => one.ent === input.id)) {
-    throw new ApiError('forbidden', 'You cannot pause an enterprise that holds a platform owner.', { reason: 'owner_enterprise' });
-  }
+  // VADO is a normal company: the platform pauses it like any other (design D11). The typed name below is the only guard.
   if (!nameMatches(row, input.confirmName)) throw invalid('confirmName', 'The name does not match.', 'name_mismatch');
   await ctx.office(input.id).setState({ ent: input.id, state: 'paused' });
   await ctx.platform.setState({ ent: input.id, state: 'paused' });
@@ -198,10 +193,7 @@ export const PLATFORM_HANDLERS: {
 } = {
   'platform.me': async (_input, ctx) => ({ owner: true, ent: ENT_NONE, createOpen: createOpen(ctx.read) }),
   'platform.enterprises.list': async (_input, ctx) => {
-    const rows = await ctx.platform.list();
-    const owners = await ctx.platform.ownersOf();
-    const holders = new Set(owners.map((one) => one.ent));
-    return rows.map((row) => viewOf(row, holders.has(row.id)));
+    return (await ctx.platform.list()).map((row) => viewOf(row));
   },
   'platform.enterprises.create': createEnterprise,
   'platform.enterprises.update': update,

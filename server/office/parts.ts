@@ -40,7 +40,7 @@ import { EnterpriseGate } from '../enterprise/gate';
 import { entLogger } from '../enterprise/context';
 import { FREE_LIMITS, planFrom, shareCapOf } from '../enterprise/plan';
 import { isMcpToolPath } from '../enterprise/router';
-import { initEnterprise, reinviteAdmin, writeIdentity, writeLimits, writePlatformOwners, writeState } from '../enterprise/lifecycle';
+import { initEnterprise, reinviteAdmin, writeIdentity, writeLimits, writeState } from '../enterprise/lifecycle';
 import { runMailRoute } from '../enterprise/mailRoute';
 import { ENT_VADO, isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { enterpriseStatusOf } from '../enterprise/status';
@@ -129,15 +129,12 @@ export type OfficeParts = {
   /** The first start of an enterprise (plan C): its row, its settings, the first Admin and the invitation. A repeat changes nothing. */
   init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>>;
   /**
-   * The changes that the platform makes (plan C, Task 6). setState runs on a paused object too, so a resume works. The other four refuse
+   * The changes that the platform makes (plan C, Task 6). setState runs on a paused object too, so a resume works. The others refuse
    * a paused object. Each one names the id in ent, and the gate checks it first.
    */
   setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void>;
   setLimits(input: { ent: EnterpriseId; limits: EnterpriseLimits }): Promise<void>;
   setIdentity(input: { ent: EnterpriseId; name?: string; nameAr?: string; logo?: string | null }): Promise<void>;
-  setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
-  /** The Madar person behind a sign-in id, or null for a turned-off, a removed, an agent or an unknown one. */
-  person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
   /** The name and the logo of this enterprise, for the public logo route of the Worker (plan C, Task 16). */
   brand(input: { ent: EnterpriseId }): Promise<{ name: string; nameAr: string; logo: string | null }>;
   /** The invitation of the first Admin again. */
@@ -655,23 +652,6 @@ export function officeParts(o: PartsInput): OfficeParts {
         ...(input.name !== undefined ? { name: input.name } : {}), ...(input.nameAr !== undefined ? { nameAr: input.nameAr } : {}),
         ...(input.logo !== undefined ? { logo: input.logo } : {}),
       });
-    },
-    async setPlatformOwners(input) {
-      const refused = await guard(input.ent);
-      if (refused) throw refusalError(refused);
-      meter.request();
-      await writePlatformOwners({ db, facts }, input.userIds);
-    },
-    async person(input) {
-      const refused = await guard(input.ent);
-      if (refused) throw refusalError(refused);
-      meter.request();
-      try {
-        const principal = o.principal({ kind: 'browser', authUserId: input.authUserId }, await office());
-        return { userId: principal.userId };
-      } catch {
-        return null;
-      }
     },
     async brand(input) {
       const refused = await guard(input.ent);
