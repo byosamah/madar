@@ -169,6 +169,7 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
     platform: () => platform,
     net: () => net,
     jobsSecret: () => read('MADAR_JOBS_SECRET'),
+    ...(o.sleep ? { sleep: o.sleep } : {}),
     ...(own ? { routes: own } : {}),
   });
 
@@ -177,6 +178,8 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
     const bodyless = input.method === 'GET' || input.method === 'HEAD';
     const request = new Request(input.url, { method: input.method, headers: input.headers, ...(bodyless ? {} : { body: input.body }) });
     const response = await routes.fetch(request, {});
+    // A socket upgrade answer (status 101) carries the client socket and no body.
+    if (response.status === 101) return { status: 101, headers: [], body: '' };
     return { status: response.status, headers: [...response.headers], body: await response.text() };
   }
 
