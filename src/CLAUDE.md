@@ -38,6 +38,12 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
   import can cut code out of the index chunk into many small chunks. One loader file shared by the task rows and the Files tab took the
   first load from 30 to 48 files (2026-10-27). Run `build:remote` after a cleanup that adds a shared file. To find the cause, build each
   commit from `git archive` and compare the chunk names of the first load.
+- The page Madar enterprises (2026-11-08) showed three causes of that red line. (1) A lazy page imported `NotFound` from `RouteError.tsx`: use a guard of
+  `useRight.tsx` (`RequirePlatformOwner`). (2) A lazy page imported one color from `SubCompanyLogo.tsx`: take it from `lib/logoPlate.ts`. (3) The faces of
+  the first screen imported `safePicture` from `lib/picture.ts`, which holds the canvas code that makes a picture: take it from `lib/safePicture.ts`, so the
+  canvas code stays out of the first load. A lazy page that needs the error makers of `api/remote/errors.ts` gets them from the runtime
+  (`platformConfig.errors`), because an import splits that file out of the first-load chunk. The prototype build drops `createPlatformClient` with the
+  `REMOTE` flag (`usePlatform.tsx`).
 
 ## The API address
 - `build:remote` sets `VITE_API_URL` from `config/server-host.json` (`scripts/build-remote.ts`, `remotePublicEnv`): the page's own `/api` when the

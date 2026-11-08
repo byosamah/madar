@@ -71,12 +71,6 @@ export function cropPreview(width: number, height: number, crop: PictureCrop, ci
   };
 }
 
-/** The picture when it is safe to show: picture data or an https address. Every other value gives null. */
-export function safePicture(url: string | null | undefined): string | null {
-  if (!url) return null;
-  return PICTURE_DATA.test(url) || /^https:\/\/[^\s]+$/.test(url) ? url : null;
-}
-
 /** The centre square of a picture: where it starts and how long its side is. */
 export function centreSquare(width: number, height: number): { sx: number; sy: number; side: number } {
   const side = Math.min(width, height);

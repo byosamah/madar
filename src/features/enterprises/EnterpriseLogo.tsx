@@ -1,5 +1,5 @@
 import type { EnterpriseView } from '../../api/contract/platform';
-import { LOGO_PLATE } from '../../components/SubCompanyLogo';
+import { LOGO_PLATE } from '../../lib/logoPlate';
 
 /** The first letter of a name, in the case of its language. It is empty for an empty name. */
 export const firstLetter = (name: string): string => (Array.from(name.trim())[0] ?? '').toUpperCase();

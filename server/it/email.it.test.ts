@@ -178,7 +178,7 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
     expect(warnings.every((w) => w.done)).toBe(true);
     const sent = await mails();
     expect(sent.filter((m) => m.tag === 'notice')).toEqual([]);
-    expect(sent.filter((m) => m.tag === 'quota-warning').map((m) => m.idempotency_key).sort()).toEqual(admins.map((id) => `quota-warning-${TODAY}-${id}`).sort());
+    expect(sent.filter((m) => m.tag === 'quota-warning').map((m) => m.idempotency_key).sort()).toEqual(admins.map((id) => `ent_001:quota-warning-${TODAY}-${id}`).sort());
     expect(await office.sql("select count(*)::integer as n from mail_log where kind = 'refused'")).toEqual([{ n: 1 }]);
     // Both notice rows are done: a refused mail stays in the app and is not tried again.
     expect((await outboxOf(NOTICE_EFFECT)).map((r) => r.done)).toEqual([true, true]);

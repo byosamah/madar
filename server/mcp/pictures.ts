@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { SubCompany, User } from '../../src/api/contract/entities';
 import { PICTURE_DATA } from '../../src/api/contract/limits';
 import { notFound } from '../../src/api/errors';
-import { safePicture } from '../../src/lib/picture';
+import { safePicture } from '../../src/lib/safePicture';
 import { personGlowCss, projectColorLook, tileSvg } from '../../src/lib/pictureLook';
 import type { Deps } from '../core/ports';
 import type { RunCall } from '../core/runCall';

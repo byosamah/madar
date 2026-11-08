@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallName, Calls, MadarApi } from '../../api/calls';
 import type { FreshReads } from '../../api/remote/follow';
+import { fromEntry, fromStatus, noAnswer } from '../../api/remote/errors';
 import { liveSocketSource, liveUrl } from '../../api/remote/liveSocket';
 import { batchApiUrl } from '../../api/remote/pageApi';
 import { createRemoteApi } from '../../api/remote/remoteApi';
@@ -265,6 +266,6 @@ export async function bootstrapRemote(o: {
     }),
   });
   // The platform calls of the page Madar enterprises (plan C): the same address and token as the batch. The client itself loads with the page.
-  const platformConfig = { url: batchBase, build: config.build, token: () => auth.accessToken(), ...(o.fetch ? { fetch: o.fetch } : {}) };
+  const platformConfig = { url: batchBase, build: config.build, token: () => auth.accessToken(), errors: { fromEntry, fromStatus, noAnswer }, ...(o.fetch ? { fetch: o.fetch } : {}) };
   return { api, auth, changes, live, platformConfig, mode: 'remote' };
 }

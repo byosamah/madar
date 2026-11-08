@@ -2,9 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EnterpriseView } from '../../api/contract/platform';
-import { NotFound } from '../../app/RouteError';
 import { useLang } from '../../app/lang';
-import { useCall } from '../../app/runtime';
+import { RequirePlatformOwner } from '../../app/useRight';
 import { Button } from '../../components/Button';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
@@ -21,10 +20,11 @@ import { usePlatform } from './usePlatform';
  * The page shows no project, task, chat, file or person of an enterprise: only counts, names and the first Admin of the enterprises the owner made.
  */
 export function EnterprisesScreen() {
-  const session = useCall('session.get', {}).data;
-  if (!session) return null;
-  if (session.platformOwner !== true) return <NotFound />;
-  return <OwnerPage />;
+  return (
+    <RequirePlatformOwner>
+      <OwnerPage />
+    </RequirePlatformOwner>
+  );
 }
 
 function OwnerPage() {

@@ -180,7 +180,7 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     const first = await summary(deps, new Date(`${day}T06:00:00Z`));
     expect(first).toMatchObject({ due: true, day, sent: wanted.length, already: 0 });
     expect(deps.mail.sent.map((m) => m.idempotencyKey).sort()).toEqual([...wanted].sort());
-    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toContain(`summary-${day}-${unset.id}`);
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toContain(`ent_001:summary-${day}-${unset.id}`);
     expect(await office.sql('select key from job_runs where key = $1', [`summary:${day}:${unset.id}`])).toEqual([{ key: `summary:${day}:${unset.id}` }]);
     expect(await summary(deps, new Date(`${day}T06:15:00Z`))).toEqual({ due: true, day, done: true });
     expect(deps.mail.sent).toHaveLength(wanted.length);

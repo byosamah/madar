@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { bytesOfDataUrl, centreSquare, containSquare, cropPlace, cropPreview, DEFAULT_CROP, fillCrop, MAX_ZOOM, encodePngSmallest, encodeSmallest, hasSeeThrough, PICTURE_MAX_BYTES, pictureType, safePicture } from './picture';
+import { bytesOfDataUrl, centreSquare, containSquare, cropPlace, cropPreview, DEFAULT_CROP, fillCrop, MAX_ZOOM, encodePngSmallest, encodeSmallest, hasSeeThrough, PICTURE_MAX_BYTES, pictureType } from './picture';
 
 describe('the profile picture helpers (owner item 10, 2026-10-05)', () => {
-  it('shows only picture data and https addresses', () => {
-    expect(safePicture('data:image/webp;base64,AAAA')).toBe('data:image/webp;base64,AAAA');
-    expect(safePicture('https://example.com/a.png')).toBe('https://example.com/a.png');
-    for (const bad of [null, undefined, '', 'javascript:alert(1)', 'http://example.com/a.png', 'data:image/svg+xml;base64,AAAA', '/a.png']) {
-      expect(safePicture(bad), String(bad)).toBeNull();
-    }
-  });
-
   it('cuts the centre square of a wide and of a tall picture', () => {
     expect(centreSquare(400, 200)).toEqual({ sx: 100, sy: 0, side: 200 });
     expect(centreSquare(300, 900)).toEqual({ sx: 0, sy: 300, side: 300 });

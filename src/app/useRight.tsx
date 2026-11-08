@@ -35,6 +35,16 @@ export function RequireRight({ action, framed = false, children }: { action: Act
 }
 
 /**
+ * The page of the platform owner (Madar enterprises). A person without the flag sees the page that a wrong link shows. The guard lives here, next to
+ * RequireRight, so the lazy page imports no second part of RouteError (the first load keeps its shared chunks, check-bundles).
+ */
+export function RequirePlatformOwner({ children }: { children: ReactNode }) {
+  const session = useCall('session.get', {}).data;
+  if (!session) return null;
+  return session.platformOwner === true ? <>{children}</> : <NotFound />;
+}
+
+/**
  * Starts the reads of a guarded screen with the session (performance audit 2026-10-21, DF-7). The guard draws nothing until
  * session.get answers, so without this the reads of the screen would start one round trip later. The reads come from guardReads.ts.
  * They start once, when the guard mounts; a later change of the link is read by the screen itself. A session in the cache that lacks
