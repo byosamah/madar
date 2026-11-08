@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ApiError } from './errors';
 import { executeParsed, resolveAuthority } from './execute';
-import type { AnyCall, PrepareCtx } from './registry';
+import type { AnyCall, Ctx, PrepareCtx } from './registry';
 import type { State, Store } from './store';
 import { now as clockNow } from '../lib/dates';
 
@@ -43,6 +43,8 @@ export type ApiOptions = {
   random?: () => number;
   /** The prototype: the sample office for session.resetSampleData (src/data/sampleOffice.ts). */
   sampleOffice?: PrepareCtx['sampleOffice'];
+  /** The prototype (Madar enterprises): the fake enterprise that this store belongs to, and whether the person is a platform owner now. session.get shows both. */
+  enterprise?: () => Ctx['enterprise'];
 };
 
 function storyEvents(state: State, storyId: string): number {
@@ -52,7 +54,7 @@ function storyEvents(state: State, storyId: string): number {
 }
 
 export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api<M> {
-  const { store, latencyMs = 120, failureRate = () => 0, random = Math.random, sampleOffice } = options;
+  const { store, latencyMs = 120, failureRate = () => 0, random = Math.random, sampleOffice, enterprise } = options;
 
   // call() returns this function's promise without an extra await, so it resolves on the same tick as before
   // (screen tests depend on that order).
@@ -72,7 +74,10 @@ export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api
     const prepared = def.prepare
       ? await def.prepare(parsed.data, { state: store.state, persister: store.persister, actor, now: at, sampleOffice })
       : undefined;
-    const base = { actorId, authorityId: authority.id, correlationId, now: at, persistent: store.persistent };
+    const enterpriseNow = enterprise?.();
+    const base = {
+      actorId, authorityId: authority.id, correlationId, now: at, persistent: store.persistent, ...(enterpriseNow ? { enterprise: enterpriseNow } : {}),
+    };
     const execute = (state: State) => executeParsed(def, name, parsed.data, state, base, prepared);
     const output = def.readOnly ? store.read(execute) : store.run(execute);
     // Work outside the state (removing stored file data) waits until the change is saved, so a closed tab never keeps a record

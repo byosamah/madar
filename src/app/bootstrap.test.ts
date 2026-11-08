@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap, startScheduler } from './bootstrap';
-import { memoryPersister } from '../api/persist';
+import { createStore, set } from 'idb-keyval';
+import { defaultDirectory, memoryDirectory } from '../api/fakeDirectory';
+import { idbPersister, memoryPersister } from '../api/persist';
+import { setPlatformOwnerMode } from './fakeEnterprise';
 import { emptyState, STATE_VERSION, Store } from '../api/store';
 import { addDays, setNow } from '../lib/dates';
 import { NOW, TODAY } from '../test/factories';
@@ -276,5 +279,85 @@ describe('the minute timer of the prototype (performance audit FET-11)', () => {
     await vi.advanceTimersByTimeAsync(60_000);
     stop();
     expect(heard).toBe(1);
+  });
+});
+
+describe('the fake enterprises of the prototype (Madar enterprises, design 5.19)', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+  const directory = () => memoryDirectory(defaultDirectory('2026-10-02'));
+
+  it('starts the second enterprise with the small seed and not the VADO sample', async () => {
+    setNow(NOW);
+    const runtime = await bootstrap({ persister: memoryPersister('ent_002'), directory: directory(), latencyMs: 0 });
+    const state = runtime.store.state;
+    expect(Object.keys(state.users)).toHaveLength(3);
+    expect(Object.keys(state.projects)).toHaveLength(1);
+    expect(state.settings).toMatchObject({ enterpriseName: 'Oasis Builders', codePrefix: 'OB' });
+    expect(JSON.stringify(state)).not.toMatch(/vado|bunah|khobar/i);
+    const session = await runtime.api.call('session.get', {});
+    expect(session.enterprise).toEqual({ id: 'ent_002', name: 'Oasis Builders', nameAr: 'واحة للإنشاءات', logo: null });
+    expect(session.platformOwner).toBeUndefined();
+  });
+
+  it('gives a company that the owner made its own name from the directory', async () => {
+    setNow(NOW);
+    const dir = directory();
+    const next = structuredClone(dir.read());
+    next.enterprises.push({ ...next.enterprises[1], id: 'ent_003', address: 'acme', name: 'Acme Co', nameAr: 'أكمي', emails: [] });
+    await dir.write(next);
+    const runtime = await bootstrap({ persister: memoryPersister('ent_003'), directory: dir, latencyMs: 0 });
+    expect(runtime.store.state.settings).toMatchObject({ enterpriseName: 'Acme Co', enterpriseNameAr: 'أكمي', codePrefix: 'AC' });
+  });
+
+  it('starts ent_001 with the sample office and the old saved state', async () => {
+    setNow(NOW);
+    const first = await bootstrap({ persister: memoryPersister(), directory: directory(), latencyMs: 0 });
+    await first.api.call('projects.update', { id: 'prj_001', patch: { name: 'Corniche Tower' } });
+    await first.store.flush();
+    // The old build saved the office under the key `state`. The new build still reads it and moves it on the first save.
+    const data = createStore('madar-boot-old', 'data');
+    await set('state', first.store.state, data);
+    const persister = await idbPersister('madar-boot-old');
+    const second = await bootstrap({ persister, directory: directory(), latencyMs: 0 });
+    expect(second.store.state.projects.prj_001.name).toBe('Corniche Tower');
+    expect(Object.keys(second.store.state.projects)).toHaveLength(13);
+    expect((await second.api.call('session.get', {})).enterprise).toMatchObject({ id: 'ent_001' });
+  });
+
+  it('opens the enterprise that the choice names, and the default for an id the directory does not know', async () => {
+    setNow(NOW);
+    window.localStorage.setItem('madar.fakeEnterprise', 'ent_002');
+    expect((await bootstrap({ directory: directory(), latencyMs: 0 })).store.persister.ent).toBe('ent_002');
+    window.localStorage.setItem('madar.fakeEnterprise', 'ent_099');
+    expect((await bootstrap({ directory: directory(), latencyMs: 0 })).store.persister.ent).toBe('ent_001');
+  });
+
+  it('shows the platform owner flag only in the owner mode and only for the owner of the directory', async () => {
+    setNow(NOW);
+    const runtime = await bootstrap({ persister: memoryPersister(), directory: directory(), latencyMs: 0 });
+    expect((await runtime.api.call('session.get', {})).platformOwner).toBeUndefined();
+    setPlatformOwnerMode(true);
+    expect((await runtime.api.call('session.get', {})).platformOwner).toBe(true);
+    await runtime.api.call('session.previewAs', { userId: 'usr_002' });
+    expect((await runtime.api.call('session.get', {})).platformOwner).toBeUndefined();
+  });
+
+  it('fills the platform calls of the runtime from the directory and the owner mode', async () => {
+    setNow(NOW);
+    const runtime = await bootstrap({ persister: memoryPersister(), directory: directory(), latencyMs: 0 });
+    await expect(runtime.platform!['platform.me']({})).rejects.toMatchObject({ code: 'not_found' });
+    setPlatformOwnerMode(true);
+    expect(await runtime.platform!['platform.me']({})).toMatchObject({ owner: true, ent: 'ent_001' });
+    expect(await runtime.platform!['platform.enterprises.list']({})).toHaveLength(2);
+  });
+
+  it('resets the sample data of the second enterprise to its own small office', async () => {
+    setNow(NOW);
+    const runtime = await bootstrap({ persister: memoryPersister('ent_002'), directory: directory(), latencyMs: 0 });
+    await runtime.api.call('session.resetSampleData', {});
+    expect(Object.keys(runtime.store.state.projects)).toHaveLength(1);
+    expect(runtime.store.state.settings.enterpriseName).toBe('Oasis Builders');
   });
 });

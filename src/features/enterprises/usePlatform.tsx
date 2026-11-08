@@ -6,7 +6,7 @@ import { useRuntime } from '../../app/runtime';
 
 /**
  * The platform calls of the page "Madar enterprises". The remote build puts the address, the build and the token into its runtime (src/app/remote/bootstrap.ts), and the page builds the client;
- * the prototype has none, so its page gets the fake (plan D fills it). A test gives its own api with PlatformProvider.
+ * the prototype has none, so its page gets the fake of the runtime (src/api/platformFake.ts) and, without one, the closed fallback. A test gives its own api with PlatformProvider.
  */
 const PlatformContext = createContext<PlatformApi | null>(null);
 
@@ -16,7 +16,8 @@ export function PlatformProvider({ api, children }: { api: PlatformApi; children
 
 export function usePlatform(): PlatformApi {
   const given = useContext(PlatformContext);
-  const config = useRuntime().platformConfig;
+  const runtime = useRuntime();
+  const config = runtime.platformConfig;
   const real = useMemo(() => (config ? createPlatformClient(config) : null), [config]);
-  return given ?? real ?? fakePlatform;
+  return given ?? real ?? runtime.platform ?? fakePlatform;
 }

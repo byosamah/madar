@@ -43,7 +43,11 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     const agent = ctx.office.lists.users[ctx.principal.userId];
     const person = agent?.ownerId ? ctx.office.lists.users[agent.ownerId] : undefined;
     if (!person) return { ok: false, error: { code: 'unauthenticated', message: 'This agent has no active person to act for.', details: { reason: 'account_off' } } };
-    return { ok: true, output: readFirstAnswer(person, ctx.office.lists.settings.roles, rightsOf(person, ctx.office.lists.settings.roles)), changed: false };
+    const enterpriseName = ctx.office.lists.settings.enterpriseName;
+    return {
+      ok: true, changed: false,
+      output: readFirstAnswer(person, ctx.office.lists.settings.roles, rightsOf(person, ctx.office.lists.settings.roles), enterpriseName ? { name: enterpriseName } : undefined),
+    };
   }
   if (tool.name === PICTURES_GET) return runPicture(args, ctx);
   if (UPLOAD_TOOLS.has(tool.name)) return runUpload(tool.name, args, ctx);

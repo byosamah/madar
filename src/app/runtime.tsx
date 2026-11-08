@@ -3,6 +3,8 @@ import {
   QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient, keepPreviousData, type MutateOptions, type Query,
 } from '@tanstack/react-query';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
+import type { PlatformApi } from '../api/contract/platform';
+import type { DirectoryHandle } from '../api/fakeDirectory';
 import { canFollow } from '../api/remote/follow';
 import { AttemptKeys } from '../api/remote/keys';
 import type { Store } from '../api/store';
@@ -33,6 +35,10 @@ export type Runtime = {
    * data, so the client code loads with the page and not with the first script.
    */
   platformConfig?: { url: string; build: string; token: () => Promise<string | null>; fetch?: typeof fetch };
+  /** The prototype: the fake platform calls (src/api/platformFake.ts). The real build leaves it out and uses platformConfig. */
+  platform?: PlatformApi;
+  /** The prototype: the fake directory of enterprises, for Preview as (src/api/fakeDirectory.ts). */
+  directory?: DirectoryHandle;
 };
 
 const RuntimeContext = createContext<Runtime | null>(null);

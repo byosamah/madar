@@ -88,6 +88,14 @@ What's new, the docs and your replies to the owner in Arabic.
 - Edit Arabic with the Edit tool or a script file. `perl -pi -e` without `use utf8` writes garbled text, and `node -e` or a
   `bash` string with a quote or `'` cuts the text. After a patch script, search for `[ÙØ]{2}` in the word files.
 
+## Neutral words (Madar enterprises, design D1)
+- Every enterprise sees the same words, so no word and no agent text names VADO content: Vado, Bunah, Khobar, the code prefix `KH`, or
+  their Arabic forms. `neutralWords.test.ts` scans the English and Arabic trees, `INSTRUCTIONS`, `TOOL_DOCS` and `PARITY_DOCS`. Its allow
+  list is empty: a new entry needs the owner's reason. An example in a hint uses a neutral value (`260902AZT`, `AB`). What stays outside
+  the words, and why, is in `server/enterprise/CLAUDE.md`, "The sweep of VADO text".
+- The Preview as words of the fake enterprises (`preview.enterprise`, `preview.platformOwner`, `preview.platformOwnerHint`) are in
+  `real/ent-d3.*.json`.
+
 ## Tests
 - Run `npx vitest run src/i18n` after a word change. `keys.test.ts`, `i18n.test.ts` and `arabic.test.ts` check the keys, the
   placeholders, the Arabic script and the `_female` pairs. `trees.test.ts` checks the merge.

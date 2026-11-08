@@ -6,13 +6,13 @@ describe('the agent docs of the project code (owner, 2026-10-05, item 6b)', () =
   it('explain the code format and the key in one line of the instructions', () => {
     const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Project codes:'));
     expect(line).toBeDefined();
-    for (const word of ['YYMMSSINI-CLS-Type', '260902AZT-RES-Villa', '260902AZT', 'KH-26-014', 'one contract', 'Admin']) expect(line, word).toContain(word);
+    for (const word of ['YYMMSSINI-CLS-Type', '260902AZT-RES-Villa', '260902AZT', 'AB-26-014', 'one contract', 'Admin']) expect(line, word).toContain(word);
   });
 
   it('name the code format in projects.list and projects.get', () => {
     for (const name of ['projects.list', 'projects.get']) {
       expect(TOOL_DOCS[name].description, name).toContain('260902AZT-RES-Villa');
-      expect(TOOL_DOCS[name].description, name).toContain('KH-26-014');
+      expect(TOOL_DOCS[name].description, name).toContain('AB-26-014');
     }
   });
 

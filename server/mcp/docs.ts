@@ -13,12 +13,12 @@ import { AI_SWITCH_LABELS, AI_SWITCHES, toolsOfAiSwitch } from './aiSwitches';
 import { PARITY_DOCS } from './docsParity';
 
 export const INSTRUCTIONS = [
-  'Madar is the project tool of an architecture office: projects, stages, tasks, updates, comments, the client tracker, payments and deadlines.',
+  'Madar is the project tool of one enterprise: projects, stages, tasks, updates, comments, the client tracker, payments and deadlines.',
   '',
   'Call madar.readFirst once, before you call any other tool. It returns this text in full and names the person you act for. Your client may show you only the start of this text.',
   '',
   'Rules:',
-  '1. You act for one person of one company, with that person\'s rights and never more. You cannot see or change other companies. You have no role of your own. A call that the person may not make fails for you too.',
+  '1. You act for one person of one enterprise, with that person\'s rights and never more. You see nothing of any other enterprise. You have no role of your own. A call that the person may not make fails for you too.',
   '2. Every change records two names: yours (the agent) and the person you act for. The History shows both.',
   '3. A story ties together the changes of one request. Call story.start once, then pass its storyId to each write of that request.',
   '4. The person you act for gets no notification for your changes. Tell the person what you changed.',
@@ -80,13 +80,13 @@ export const INSTRUCTIONS = [
   '',
   'Switches: the Admin sets the switches of each role. A switch with scopes works on the projects your person leads, on the projects of the team of your person, or on every project. Where a tool names a switch, your person needs it. By default the project leader holds the project switches on the projects the leader leads, and the Admin holds all of them. You change the switches of a role only as an Admin\'s agent with roles.update, after your person says yes (see Admin work).',
   '',
-  'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create. Correcting it with projects.update needs the switch "Correct the project code" (project.code), which only the Admin holds by default. Some projects keep a code of their own: a person may keep a code outside this pattern after a warning. A typed code outside the pattern fails with reason code_format, and one with the month and series of another contract with code_taken: only your person decides to keep it, and then you call again with codeAnyway: true.',
+  'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like AB-26-014. Two projects of one contract share one code. The code is fixed after create. Correcting it with projects.update needs the switch "Correct the project code" (project.code), which only the Admin holds by default. Some projects keep a code of their own: a person may keep a code outside this pattern after a warning. A typed code outside the pattern fails with reason code_format, and one with the month and series of another contract with code_taken: only your person decides to keep it, and then you call again with codeAnyway: true.',
   '',
   'Place: the location of a project is the address of its pin (geo). Send geo and location together in projects.update. A new geo without location clears the old address. A geo of null clears it too. A location alone fails with reason location_needs_pin while the project has a pin.',
   '',
   'Arabic names: a project can have an Arabic name (nameAr). The Arabic screens show it in place of the English name, and Search finds a project by either name. When your person gives you a list of Arabic names, call projects.list, match each name by the English name or the code, and call projects.update with nameAr for each project. If a match is not clear, ask your person. Never write an Arabic name yourself.',
   '',
-  'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names and project counts. projects.list, tasks.list, deadlines.list, dashboard.get and reports.office take subCompanyId, the sub-company of a project. projects.list filter no_sub_company lists the projects with none.',
+  'Sub-companies are the companies of the enterprise group, for example the brands or the branches of one group. subCompanies.list gives their names and project counts. projects.list, tasks.list, deadlines.list, dashboard.get and reports.office take subCompanyId, the sub-company of a project. projects.list filter no_sub_company lists the projects with none.',
   '',
   'Hidden projects: a project can be hidden from people who do not work on it. A project or a task that answers not_found may be hidden from your person. Never guess its content, and tell your person that you cannot see it.',
   '',
@@ -145,8 +145,11 @@ export function aiSwitchLines(held: readonly string[]): string {
  * (spec 1, section 17, rule 7), and the AI switches of that person (role rights version 2). run.ts (G3) passes the users row of the
  * agent principal's owner, the office roles and the rights of the person.
  */
-export function readFirstAnswer(person: Pick<User, 'name' | 'systemRole' | 'roleId'>, roles?: RoleSettings, held?: readonly string[]): string {
-  const who = `You act for ${person.name}, whose role in Madar is ${roleNameOf(person, roles)}.`;
+export function readFirstAnswer(
+  person: Pick<User, 'name' | 'systemRole' | 'roleId'>, roles?: RoleSettings, held?: readonly string[], enterprise?: { name: string },
+): string {
+  const of = enterprise ? ` of ${enterprise.name}` : '';
+  const who = `You act for ${person.name}${of}, whose role in Madar is ${roleNameOf(person, roles)}.`;
   return `${INSTRUCTIONS}\n\n${who}${held ? `\n${aiSwitchLines(held)}` : ''}${person.systemRole === 'admin' ? `\n${roleRightsLine()}` : ''}`;
 }
 
@@ -309,11 +312,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id: code, stages, team, leader, client, dates, health, deadlines, links, folders (id, stageId or null, name, preset, locked). Code: 260902AZT-RES-Villa or KH-26-014. stageEnd ends the current stage, or null. continuous: true, no end. geo: the pin ({ lat, lng }) or null. nameAr: Arabic name. location is the address of the pin. templateId: template or null. chatId: project chat or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). look: color and tile (look.tile uses shape).',
+    description: 'Returns one project by id: code, stages, team, leader, client, dates, health, deadlines, links, folders (id, stageId or null, name, preset, locked). Code: 260902AZT-RES-Villa or AB-26-014. stageEnd ends the current stage, or null. continuous: true, no end. geo: the pin ({ lat, lng }) or null. nameAr: Arabic name. location is the address of the pin. templateId: template or null. chatId: project chat or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). look: color and tile (look.tile uses shape).',
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects: code (260902AZT-RES-Villa or KH-26-014), stage, health, leader. Filters: status, filter (all, mine, at_risk, no_area, stage_no_end, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId; sort updated, deadline or name. Gives a page of short rows (id, code, name, nameAr, kind, status, stageName, health, leaderName, nextDeadline): limit (default 50, at most 200), offset, page.next. full: true gives full rows (stageEnd, continuous, subCompanyId, geo, access, templateId, look; look.tile uses shape). "Only my work" of an Admin does not change this list.',
+    description: 'Lists the projects: code (260902AZT-RES-Villa or AB-26-014), stage, health, leader. Filters: status, filter (all, mine, at_risk, no_area, stage_no_end, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId; sort updated, deadline or name. Gives a page of short rows (id, code, name, nameAr, kind, status, stageName, health, leaderName, nextDeadline): limit (default 50, at most 200), offset, page.next. full: true gives full rows (stageEnd, continuous, subCompanyId, geo, access, templateId, look; look.tile uses shape). "Only my work" of an Admin does not change this list.',
   },
   'projects.setStatus': {
     title: 'Set the project status',

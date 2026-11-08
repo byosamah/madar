@@ -17,7 +17,7 @@ pure handlers, an additive contract, a table for a new collection, a test count 
 - `permissions.ts`: `can(actor, action, resource)`. `rights.ts`: `rightsOf`. `rightsCatalog.ts`: the rights catalog.
   `taskGates.ts` and `meetingGates.ts`: the gates of one kind of change.
 - `notify.ts`, `adminCopies.ts`, `hiddenNotice.ts`: the notices. `projectView.ts`: the view rule for lists of projects.
-- `store.ts`, `persist.ts`: the prototype store in IndexedDB. `Store.runIf(fn)` saves and tells the listeners only when
+- `store.ts`, `persist.ts`: the prototype store in IndexedDB, one for each fake enterprise (see "Prototype data"). `Store.runIf(fn)` saves and tells the listeners only when
   `fn` returns true. On an error it puts the state back, as `run()` does (the prototype minute timer `startScheduler` uses it).
 - `rowKeys.ts`: `memberKey` and `chatReadKey` (`store.ts` exports them again). `remote/`: the client of the real build.
 
@@ -272,6 +272,21 @@ pure handlers, an additive contract, a table for a new collection, a test count 
   option `sampleOffice`, `src/data/sampleOffice.ts`), so the server bundles hold none.
 - `settleFuture` runs only on sample data: the prototype, the test office seed (madar-test only) and the local seed.
 - The call sweep (`server/core/everyCall.ts`) makes the role `rol_002` and removes it.
+- Fake enterprises (Madar enterprises, design 5.19). The prototype holds one store for each fake enterprise. `Persister.ent` names it.
+  The state key is `state:<ent>` and a blob key is `<ent>:<key>`. `ent_001` (`VADO_ENTERPRISE`, `vadoEnterprise.ts`; a test pins it to
+  `ENT_VADO`) still reads the old keys `state` and the blob keys with no prefix, and its first save moves the state to the new key.
+  `clear()` removes the data of its own enterprise only, so a reset of one enterprise never wipes the other.
+- `fakeDirectory.ts` (pure) holds the fake directory: `ent_001` VADOs' Companies (owner `usr_001`) and `ent_002` Oasis Builders, in
+  IndexedDB `madar-directory`, key `directory`. `platformFake.ts` fakes the eight `platform.*` calls on that directory and nothing
+  else: it takes no store and no state of an office. It follows the rules of the server (`address_taken`, `email_taken` with no other
+  enterprise named, `owner_enterprise`, `name_mismatch`, `enterprise_paused`, `already_accepted`). Every call answers `not_found`
+  unless Preview as is in the mode Platform owner. `fakePlatform` stays as the closed fallback for a test with no runtime.
+- Choice of plan D, task 8: the prototype fills `session.enterprise` and `session.platformOwner` through the `createApi` option
+  `enterprise` (a getter that gives the same `ctx.enterprise` the office object gives), not in a wrapper around the handler. `bootstrap`
+  puts `platform` (the fake calls) and `directory` in the runtime, and `usePlatform` prefers `runtime.platform` to `fakePlatform`.
+- `src/data/sampleSecondEnterprise.ts` builds the small neutral office of every fake enterprise except `ent_001` (one Admin, two
+  members, one client, one project, three to-dos). A company that the owner makes on the platform page opens with this office and its
+  own name from the directory. `session.resetSampleData` of such a company resets to this office, never to the VADO sample.
 
 ## Tests
 - A delete of the last task of a stage records a stage change after the delete. A test undoes the delete event or the story,

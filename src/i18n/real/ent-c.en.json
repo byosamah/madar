@@ -67,7 +67,7 @@
       "rowsWritten": "Rows written",
       "mails": "Mails",
       "warn": "{{limit}} is at {{percent}} percent of today's limit.",
-      "stop": "Other companies wait until 03:00 Riyadh. VADOs' Companies keeps working.",
+      "stop": "Other companies wait until 03:00 Riyadh. The company of the platform owner keeps working.",
       "of": "{{used}} of {{limit}}"
     },
     "createClosed": "Creating enterprises is closed now.",

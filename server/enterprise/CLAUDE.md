@@ -5,6 +5,25 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
 `docs/superpowers/plans/2026-11-08-madar-enterprises-contract.md` (the section "Lead decisions" wins). The office object is in
 `server/office/CLAUDE.md`. The Postgres path serves ENT_VADO only and loads no file here that imports `cloudflare:workers`.
 
+## The sweep of VADO text
+Every enterprise sees the same words, so no screen word and no agent text names VADO content (design D1). `src/i18n/neutralWords.test.ts`
+scans the English and Arabic word trees, `INSTRUCTIONS`, `TOOL_DOCS` and `PARITY_DOCS` for Vado, Bunah, Khobar, the prefix `KH` and their
+Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
+- Changed: the hint of an empty Search (`search.emptyHint`: a project code such as 260902AZT), the hint of the code prefix
+  (`admin.prefixHint`: for example AB), and the MCP texts (`INSTRUCTIONS` line 1, rule 1 and the sub-company line).
+- Stays, with its reason:
+  - `public/privacy.html`: the privacy page and the terms of a sold service are an owner task before the first sale (design section 2).
+  - `src/data/seed.ts`, `src/data/sampleSubCompanies.ts` and the codes `KH-26-...` in tests: the sample office of VADOs' Companies in the
+    prototype and the test copy. The second fake enterprise has its own small neutral office (`src/data/sampleSecondEnterprise.ts`).
+  - `DEFAULT_SETTINGS.codePrefix` (`server/data/lite/schema.ts`) and `emptyState` (`src/api/store.ts`): the value of VADOs' Companies, and
+    the default of a plain test office. Every new enterprise gets its prefix from `EnterpriseInit.codePrefix`.
+  - `src/features/map/mapStyle.ts` `START_POINT` (Al Khobar): the first view of a map with no pin. It shows no word. The owner may choose a
+    view of all Saudi Arabia later.
+  - `src/lib/placeSearch.ts` `LEAVE_OUT`: it cuts city names from a map search name. It shows nothing.
+  - `src/lib/insightEnv.ts`, `server/core/serverHost.ts` and `src/app/canonicalHost.ts`: host names of the product, not words.
+  - The sender `madar@vado.sa` (design call 7).
+  - The word "office" in the screens: it names a workplace in general, not VADO.
+
 ## Files
 - `ids.ts`: the id, the address name, the tag and the email rule. It has no import, so the Postgres path may load it.
   `RESERVED_ADDRESSES` holds `oauth` and `oauth-protected-resource` (path words of `/mcp/...`) and the words `mcp`, `api`, `platform`,
