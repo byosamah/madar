@@ -110,7 +110,7 @@ export const MEETING_LIMITS = {
 export const DAFTRA_ACCOUNT_PATTERN = /^[A-Z][A-Z0-9]{1,19}$/;
 
 /**
- * The limits of a weekly answer (fbk_088, owner 2026-11-08). The lines are the to-dos that the person keeps (30 at most, with their titles as
- * they were), and the text is the free line "Anything else". The title is cut to titleMax when the answer is saved.
+ * The limits of a weekly answer (fbk_088, owner 2026-11-08). The lines are the to-dos that the person keeps (30 at most, kept by id), and the
+ * text is the free line "Anything else". The title of a line is cut to titleMax when a reader gets the line.
  */
 export const CHECKIN_LIMITS = { itemsMax: 30, titleMax: 200, textMax: 2000 } as const;

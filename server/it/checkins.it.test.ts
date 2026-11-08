@@ -13,7 +13,7 @@ const MIGRATION = '20261108000100_checkins.sql';
 const MIGRATIONS = new URL('../../supabase/migrations/', import.meta.url);
 const schema = `madar_chk_${process.pid}`;
 const STAMP = '2026-11-08T09:00:00.000+03:00';
-const PLAN: Checkin = { id: 'chk_001', userId: 'usr_003', week: '2026-11-08', kind: 'plan', items: [{ taskId: 'tsk_001', title: 'Ground floor plan' }], text: 'Visit the site.', createdAt: STAMP, updatedAt: STAMP };
+const PLAN: Checkin = { id: 'chk_001', userId: 'usr_003', week: '2026-11-08', kind: 'plan', taskIds: ['tsk_001'], text: 'Visit the site.', createdAt: STAMP, updatedAt: STAMP };
 
 async function apply(db: pg.Client, names: string[]): Promise<void> {
   await db.query('begin');

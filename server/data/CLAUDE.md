@@ -48,7 +48,10 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   `loadFor` reads it after `LOADER_OF`. The Daftra tables: `server/daftra/CLAUDE.md`.
 - `checkins` (the weekly answers, fbk_088, `20261108000100_checkins.sql`) is no office list: about 30 rows a week, so the whole-office read of each request does
   not grow. Key columns `user_id`, `week`, `kind` and the unique index `checkins_one (week, user_id, kind)`; SQLite step 14. A loader reads the rows of one
-  week (`checkins.week`) or of one person in one week (`checkins.mine`, `checkins.save`, which also reads the kept to-dos by key); `loadJobs` reads the
+  week (`checkins.week`) or of one person in one week (`checkins.mine`, `checkins.save`); an answer keeps task ids only, so `checkins.mine` and
+  `checkins.week` then read the to-dos that the rows name, with only the fields of the view rule and the title (`loaders/checkins.ts`, a read never saves),
+  and `checkins.save` reads them by key. `events.list` adds the condition of the History rule for the events of the target `checkin` (the holders of
+  `checkin.read` and the author). `loadJobs` reads the
   answers of one kind only inside the window of the reminder. A save is an office signal with the kind `checkins`.
 - `meetings` is no office list. A handler that checks a right on a row the caller may not see (`meetings.extend`: the true last
   meeting of a series) needs a loader without `meetingConds`; with it, the shadow run finds `forbidden` on the scoped load and

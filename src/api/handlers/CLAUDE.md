@@ -327,18 +327,26 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
 ## Weekly question (fbk_088)
 - Owner decision 2026-11-08. Sunday: "What do you plan this week?" (the plan). Thursday: "What did you do this week?" (the review). Every active
   person answers, an Admin too, never an agent. The answer is a `Checkin` (`chk_`): `userId`, `week` (the Sunday that starts the week, office
-  time), `kind` (`plan` or `review`), `items` (the kept to-dos, each `{ taskId, title }`), `text`, two stamps. At most one answer for each
-  person, week and kind (the unique index `checkins_one`).
+  time), `kind` (`plan` or `review`), `taskIds` (the ids of the kept to-dos, never a title), `text`, two stamps. At most one answer for each
+  person, week and kind (the unique index `checkins_one`). A call answers with a `CheckinView`: the same record with `items`, the lines `{ taskId, title }`
+  that this reader may see.
 - Three calls (`handlers/checkins.ts`). `checkins.mine { week? }` gives the own plan and review of a week (null for a missing one), with no
   switch. `checkins.save { kind, items: TaskId[], text }` writes the own answer of the CURRENT week and needs `checkin.answer`; a second save
   changes the same answer; the same lines and text write no event. `checkins.week { week? }` gives every answer of a week, one row for each person
   who answered, and the people who have not (`missing.plan`; `missing.review` stays empty until the Thursday of that week), and needs
   `checkin.read`. Both switches are basic (on for every role). A week that has not begun is refused (`week_future`).
-- Everyone who holds `checkin.read` reads every answer (owner: "Everyone"). So the leak rule is about the lines, not the readers. The server
-  takes the title of each kept to-do from the to-do itself (never from the caller), refuses a to-do that is not the own to-do of the person
-  (`not_your_task`), and leaves out the to-do that has no project (private to its people) and the to-do of a hidden project (`mayShareTitle`),
-  so such a title is in no answer, no event and no History row. The card also leaves out the to-do with no project. An answer with no line
-  and no text is refused (`empty_answer`).
+- Everyone who holds `checkin.read` reads every answer (owner: "Everyone"). So the leak rules are about the lines and about the History, not about the
+  readers. Rule 1, the lines: the record keeps ids only, so no title is in a record, an event or a History row. Each read builds the lines when it reads
+  (`viewOf`, `handlers/checkins.ts`): the title is the one the live to-do has now, and a line stands only when the reader may view the to-do
+  (`mayViewTask`, the reader's own rights; an agent reads as its person). A to-do that the reader may not view, or that is gone, gives no line, and no
+  count of lines is in the answer. So a project that is hidden after the answer hides its titles at once, and an office to-do or a to-do of a hidden
+  project may be saved and shows only to the people who view it. The save still refuses a to-do that is not the own to-do of the person
+  (`not_your_task`) and an answer with no line and no text (`empty_answer`). The card offers every to-do of the person, office to-dos too.
+  An author who can no longer view a kept to-do does not see its line in the own form, so a new save drops it.
+- Rule 2, the History: the events `checkin.created` and `checkin.updated` show only to a holder of `checkin.read` and to the author (the event
+  acts for that person, so the agent of the author counts). `seesEvent` (`history.ts`) holds the one rule for `events.list`, `events.undo` and
+  `events.undoStory`; a person who may not see the event gets the answer for an unknown event, before any other rule. The loader of `events.list`
+  (`eventsList`, `loaders/overview.ts`) adds the same condition in SQL, so the limit counts only the rows the person reads.
 - A save writes the events `checkin.created` and `checkin.updated` (project null). The Undo belongs to the author alone, the person or the agent
   of the person, and needs `checkin.answer`; the Admin cannot undo the answer of another person (`assertMayUndo`, `history.ts`).
 - The reminder is the trigger `week_question` (in the app and in push, never in email, no copy for an Admin, no bell badge). `runScheduledTriggers`

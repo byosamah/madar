@@ -62,10 +62,14 @@ function lastMeetingCopy(state: State, meetingId: string): Meeting | undefined {
 }
 
 /**
- * True when the person sees the change: every change but one of an office task that the person does not see. viewer: another
- * person than the one of the call, for example the owner of a notice.
+ * True when the person sees the change: every change but one of an office task that the person does not see, one of a meeting that the person
+ * is not in, and one of a weekly answer that the person may not read. viewer: another person than the one of the call, for example the owner of
+ * a notice. events.list, events.undo and events.undoStory all ask this rule, so they agree.
  */
 export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = ctx.authority): boolean {
+  // A change of a weekly answer shows to the holders of "Read the weekly answers" and to its author only (fbk_088, security review). The
+  // author is the person whom the change acts for, so the agent of the author counts as the author. Its loader condition is checkinEventConds.
+  if (event.targetType === 'checkin' && event.actingForId !== viewer.id && !can(ensureRights(ctx.state, viewer), 'checkin.read')) return false;
   // A change of a meeting with no project shows to the people of that meeting only. The Admin has no extra view (owner, 2026-10-19).
   // A meeting that is gone shows its changes to nobody, so the History tells nothing of it. An Undo also reads the last copy of a
   // deleted meeting (meeting.deleted keeps it), so the people of that meeting take the delete back (owner, 2026-10-23).

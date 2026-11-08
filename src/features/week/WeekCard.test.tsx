@@ -52,7 +52,7 @@ describe('the plan card (Sunday to Wednesday)', () => {
     expect(within(line).getByRole('link', { name: "See the team's week" })).toHaveAttribute('href', '#/week');
     expect(within(line).queryByRole('checkbox')).toBeNull();
     expect(answersOf(store.state)).toEqual([expect.objectContaining({
-      userId: ME, kind: 'plan', week: '2026-09-27', text: 'Site visit on Tuesday.', items: [{ taskId: 'tsk_012', title: 'Civil Defense drawings' }],
+      userId: ME, kind: 'plan', week: '2026-09-27', text: 'Site visit on Tuesday.', taskIds: ['tsk_012'],
     })]);
   });
 
@@ -68,7 +68,7 @@ describe('the plan card (Sunday to Wednesday)', () => {
     await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
     await screen.findByText('Plan sent.');
     expect(answersOf(store.state)).toHaveLength(1);
-    expect(answersOf(store.state)[0].items.map((item) => item.taskId)).toEqual(['tsk_901']);
+    expect(answersOf(store.state)[0].taskIds).toEqual(['tsk_901']);
   });
 
   it('goes back to the quiet line with Cancel, and writes nothing', async () => {
@@ -102,13 +102,15 @@ describe('the plan card (Sunday to Wednesday)', () => {
     expect(within(plan).getByRole('button', { name: 'Save' })).toBeEnabled();
   });
 
-  it('leaves out the to-do of a person with no project, so a private office to-do never reaches the team', async () => {
-    await renderApp('/', (state) => mine(state, (office) => {
+  it('offers the office to-do of the person as a line, because the Week page shows its title only to the people who may view it', async () => {
+    const { store } = await renderApp('/', (state) => mine(state, (office) => {
       office.tasks.tsk_901 = { ...office.tasks.tsk_901, projectId: null, stageId: null, title: 'Private office to-do' };
     }));
     const plan = await card('What do you plan this week?');
-    expect(within(plan).queryByText('Private office to-do')).toBeNull();
-    expect(within(plan).getAllByRole('checkbox')).toHaveLength(1);
+    expect(within(plan).getAllByRole('checkbox').map((line) => line.closest('label')?.textContent)).toEqual(['Private office to-do', 'Civil Defense drawings']);
+    await userEvent.click(within(plan).getByRole('button', { name: 'Save' }));
+    await screen.findByText('Plan sent.');
+    expect(answersOf(store.state)[0].taskIds).toEqual(['tsk_901', 'tsk_012']);
   });
 
   it('draws nothing for a person without the switch "Answer the weekly question"', async () => {
@@ -138,7 +140,7 @@ describe('the review card (Thursday to Saturday)', () => {
     expect(within(review).getAllByRole('checkbox').map((line) => line.closest('label')?.textContent)).toEqual(['Probe stair section']);
     await userEvent.click(within(review).getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Answer sent.')).toBeInTheDocument();
-    expect(answersOf(store.state)).toEqual([expect.objectContaining({ kind: 'review', week: '2026-09-27', items: [{ taskId: 'tsk_901', title: 'Probe stair section' }] })]);
+    expect(answersOf(store.state)).toEqual([expect.objectContaining({ kind: 'review', week: '2026-09-27', taskIds: ['tsk_901'] })]);
   });
 
   it('shows the review card even when the plan of the week was never sent', async () => {

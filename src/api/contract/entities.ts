@@ -1253,10 +1253,6 @@ export type Meeting = z.infer<typeof Meeting>;
 /** The two weekly questions (fbk_088): the plan on Sunday ("What do you plan this week?") and the review on Thursday ("What did you do this week?"). */
 export const CheckinKind = z.enum(['plan', 'review']);
 export type CheckinKind = z.infer<typeof CheckinKind>;
-/** One line of a weekly answer: a to-do that the person kept, with its title as it was when the answer was saved. */
-export const CheckinItem = z.object({ taskId: TaskId, title: z.string().min(1).max(CHECKIN_LIMITS.titleMax) });
-export type CheckinItem = z.infer<typeof CheckinItem>;
-
 /**
  * The answer of one person to a weekly question (fbk_088, owner 2026-11-08). One person has at most one answer for each week and kind. The
  * week is the Sunday that starts it, in office time. Everyone who holds "Read the weekly answers" reads every answer, and only the author
@@ -1267,7 +1263,11 @@ export const Checkin = z.object({
   userId: UserId,
   week: Day,
   kind: CheckinKind,
-  items: z.array(CheckinItem).max(CHECKIN_LIMITS.itemsMax),
+  /**
+   * The to-dos that the person kept, by id only. The record holds no title: a reader gets the lines of an answer from `checkins.mine` and
+   * `checkins.week` (CheckinView), which build each line when they read it, from the live to-do and only when the reader may view that to-do.
+   */
+  taskIds: z.array(TaskId).max(CHECKIN_LIMITS.itemsMax),
   text: z.string().max(CHECKIN_LIMITS.textMax),
   createdAt: Stamp,
   updatedAt: Stamp,

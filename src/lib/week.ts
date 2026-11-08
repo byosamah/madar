@@ -32,20 +32,19 @@ export const weekHasBegun = (week: string, today: string): boolean => week <= we
 
 /**
  * The lines that the card offers (fbk_088). Sunday: the open to-dos of the person that fall due in this week, from Sunday to Saturday.
- * Thursday: the to-dos that the person finished since Sunday. A to-do with no project is left out, because an answer is read by everyone and
- * an office to-do is private to its people. The rows come from the Home list `tasks.list { filter: 'mine' }`, so the card asks the server for
- * nothing. The server drops what the card cannot know (a to-do of a hidden project), see `checkinItems` in handlers/checkins.ts.
+ * Thursday: the to-dos that the person finished since Sunday. An office to-do and a to-do of a hidden project are lines too: the answer keeps
+ * the id only, and every read shows a line only to the people who may view that to-do (`viewOf` in handlers/checkins.ts). The rows come from
+ * the Home list `tasks.list { filter: 'mine' }`, so the card asks the server for nothing.
  */
 export function weekLines(kind: WeekKind, today: string, rows: readonly TaskRow[]): TaskRow[] {
   const from = weekOf(today);
   const to = addDays(from, 6);
-  const shared = rows.filter((row) => row.project !== null);
   if (kind === 'plan') {
-    return shared
+    return rows
       .filter((row) => (row.task.status === 'todo' || row.task.status === 'in_progress') && row.task.dueDate !== null && row.task.dueDate >= from && row.task.dueDate <= to)
       .sort((a, b) => (a.task.dueDate ?? '').localeCompare(b.task.dueDate ?? '') || a.task.title.localeCompare(b.task.title));
   }
-  return shared
+  return rows
     .filter((row) => row.task.status === 'done' && row.task.completedAt !== null && stampDay(row.task.completedAt) >= from)
     .sort((a, b) => (a.task.completedAt ?? '').localeCompare(b.task.completedAt ?? '') || a.task.title.localeCompare(b.task.title));
 }

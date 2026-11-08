@@ -120,7 +120,7 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
   it('asks the weekly question once at 08:00 on Sunday, and leaves out the person who answered', async () => {
     const at = '2026-10-04T07:30:00.000+03:00';
     const { db, deps, seed } = await office((edit) => {
-      edit.checkins = { chk_001: { id: 'chk_001', userId: 'usr_002', week: DAY, kind: 'plan', items: [], text: 'My plan.', createdAt: at, updatedAt: at } };
+      edit.checkins = { chk_001: { id: 'chk_001', userId: 'usr_002', week: DAY, kind: 'plan', taskIds: [], text: 'My plan.', createdAt: at, updatedAt: at } };
     });
     const rows = () => db.statement<{ user_id: string; target: string }>('read', "select user_id, json_extract(doc, '$.targetId') as target from notifications where json_extract(doc, '$.trigger') = 'week_question' order by user_id");
     await triggers(deps, AT);

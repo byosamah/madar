@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS, INBOX_UPDATE_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, HIDDEN_CHOSEN, HIDDEN_OUTSIDER, HIDDEN_LIMIT_PROJECT, HIDDEN_WORD, hiddenSweep, HIDDEN_MEETING, hiddenTraps, VISIBLE_HIT, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, HIDDEN_CHOSEN, HIDDEN_OUTSIDER, HIDDEN_LIMIT_PROJECT, HIDDEN_WORD, hiddenSweep, HIDDEN_MEETING, hiddenTraps, VISIBLE_HIT, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, WEEK_QUIET, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -86,6 +86,46 @@ describe('the sweep: every read call on the sample office for every person and r
     const traps = trapOffice(seed);
     for (const [name, input, actor, prepared] of [...readSweep(traps), ...writeSweep(traps)]) await same(traps, name, input, actor, { prepared });
   }, 30_000);
+});
+
+describe('the weekly answers on the scoped load (security review of fbk_088)', () => {
+  type WeekRows = { rows: { user: { id: string }; plan: { items: { title: string }[] } | null }[] };
+  const titlesOf = async (traps: State, actor: string, of = 'usr_006') => {
+    const run = await same(traps, 'checkins.week', {}, actor);
+    return (run.outcome.output as WeekRows).rows.find((row) => row.user.id === of)?.plan?.items.map((line) => line.title);
+  };
+  const historyOf = async (traps: State, actor: string) => {
+    const run = await same(traps, 'events.list', { targetType: 'checkin', limit: 50 }, actor);
+    return (run.outcome.output as { event: { actingForId: string } }[]).map((line) => line.event.actingForId).sort();
+  };
+
+  it('builds a line only for the people who view the to-do: the hidden project and the office to-do read as missing for the rest', async () => {
+    const traps = trapOffice(seed);
+    // usr_006 keeps the to-do of the hidden project (he leads it) and the office to-do (he helps). usr_005 leads the hidden project and the office to-do.
+    expect(await titlesOf(traps, 'usr_006')).toHaveLength(2);
+    expect(await titlesOf(traps, 'usr_005')).toHaveLength(2);
+    for (const outsider of ['usr_003', 'usr_002']) expect(await titlesOf(traps, outsider), outsider).toEqual([]);
+    const outside = (await same(traps, 'checkins.week', {}, 'usr_003')).outcome.output as WeekRows;
+    expect(JSON.stringify(outside)).not.toMatch(/Hidden portfolio|Renew the trade licence/);
+    // The own answers follow the same rule.
+    const mine = await same(traps, 'checkins.mine', {}, 'usr_006');
+    expect((mine.outcome.output as { plan: { items: unknown[] } }).plan.items).toHaveLength(2);
+  });
+
+  it('shows the History of an answer to the holders of the switch and to its author only', async () => {
+    const traps = trapOffice(seed);
+    // The five answers of the traps: the leader (plan, review), the Admin, usr_006 and the quiet person. The quiet person reads her own only.
+    expect(await historyOf(traps, WEEK_QUIET)).toEqual([WEEK_QUIET]);
+    expect((await historyOf(traps, ADMIN)).length).toBe(5);
+    expect(await historyOf(traps, 'usr_006')).toHaveLength(5);
+    const first = Object.values(traps.events).find((e) => e.correlationId === 'cor_trap_checkin_private')!;
+    const missing = await same(traps, 'events.undo', { eventId: 'evt_99999' }, WEEK_QUIET);
+    const hidden = await same(traps, 'events.undo', { eventId: first.id }, WEEK_QUIET);
+    expect(hidden.outcome.error?.code).toBe('not_found');
+    expect(hidden.outcome.error?.message.replace(first.id, '#')).toBe(missing.outcome.error?.message.replace('evt_99999', '#'));
+    const story = await same(traps, 'events.undoStory', { correlationId: 'cor_trap_checkin_private' }, WEEK_QUIET);
+    expect(story.outcome.error?.code).toBe('not_found');
+  });
 });
 
 describe('the reads of track find on the scoped load', () => {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
 import type { OfficeRight } from '../contract/entities';
-import { checkinsOf } from '../store';
+import { checkinsOf, memberKey } from '../store';
 import { makeTask, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
@@ -38,7 +38,7 @@ function office(roles?: Record<string, { off: OfficeRight[] }>) {
 const events = (t: ReturnType<typeof office>) => Object.values(t.store.state.events).filter((event) => event.targetType === 'checkin');
 
 describe('checkins.save (fbk_088)', () => {
-  it('saves the plan of the week with the titles of the kept to-dos as the server has them, and one event', async () => {
+  it('saves the plan of the week with the ids of the kept to-dos, answers with their lines, and writes one event', async () => {
     const t = office();
     t.as('usr_003');
     const answer = await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_001', 'tsk_002'], text: '  Visit the site on Tuesday.  ' });
@@ -81,19 +81,19 @@ describe('checkins.save (fbk_088)', () => {
     expect(Object.keys(checkinsOf(t.store.state))).toEqual([]);
   });
 
-  it('keeps the title of a private to-do out of an answer that everyone reads: an office to-do and a to-do of a hidden project', async () => {
+  it('saves an office to-do and a to-do of a hidden project as ids: the author reads both lines, an answer of only such to-dos is not empty', async () => {
     const t = office();
     const state = t.store.state;
     state.tasks.tsk_010 = makeTask({ id: 'tsk_010', projectId: null, stageId: null, title: 'Private office to-do', ownerId: 'usr_003' });
     state.projects.prj_002 = { ...state.projects.prj_001, id: 'prj_002', code: 'KH-26-002', name: 'Secret Tower', access: { hidden: true, viewerIds: [] } };
+    state.members[memberKey('prj_002', 'usr_003')] = { projectId: 'prj_002', userId: 'usr_003', discipline: 'Architect' };
     state.tasks.tsk_011 = makeTask({ id: 'tsk_011', projectId: 'prj_002', stageId: null, title: 'Secret to-do', ownerId: 'usr_003' });
     t.as('usr_003');
     const answer = await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_010', 'tsk_011', 'tsk_001'], text: '' });
-    expect(answer.items).toEqual([{ taskId: 'tsk_001', title: 'Ground floor plan' }]);
-    expect(JSON.stringify(Object.values(state.events))).not.toContain('Secret');
-    expect(JSON.stringify(Object.values(state.events))).not.toContain('Private office');
-    // An answer with only private to-dos and no text is empty.
-    await expect(t.api.call('checkins.save', { kind: 'review', items: ['tsk_010'], text: '' })).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'empty_answer' } });
+    expect(answer.items.map((line) => line.taskId)).toEqual(['tsk_010', 'tsk_011', 'tsk_001']);
+    expect(checkinsOf(state).chk_001.taskIds).toEqual(['tsk_010', 'tsk_011', 'tsk_001']);
+    const review = await t.api.call('checkins.save', { kind: 'review', items: ['tsk_010'], text: '' });
+    expect(review.items).toEqual([{ taskId: 'tsk_010', title: 'Private office to-do' }]);
   });
 
   it('saves for the person when the agent of the person asks, and refuses a person without the switch', async () => {
@@ -210,7 +210,7 @@ describe('the Undo of a save', () => {
     await expect(t.api.call('events.undo', { eventId: updated.id })).rejects.toMatchObject({ code: 'forbidden' });
     t.as('usr_003');
     await t.api.call('events.undo', { eventId: updated.id });
-    expect(checkinsOf(t.store.state).chk_001).toMatchObject({ text: 'First.', items: [{ taskId: 'tsk_001', title: 'Ground floor plan' }] });
+    expect(checkinsOf(t.store.state).chk_001).toMatchObject({ text: 'First.', taskIds: ['tsk_001'] });
     await t.api.call('events.undo', { eventId: created.id });
     expect(checkinsOf(t.store.state)).toEqual({});
   });
@@ -222,5 +222,202 @@ describe('the Undo of a save', () => {
     t.as('usr_005');
     await t.api.call('events.undo', { eventId: events(t)[0].id });
     expect(checkinsOf(t.store.state)).toEqual({});
+  });
+});
+
+/**
+ * Security review of fbk_088. An answer stores the ids of the to-dos and no title. Each line is built when the answer is read, from the live
+ * to-do, and only when the reader may view that to-do. So a project that is hidden after the answer hides its titles at once.
+ */
+describe('the lines of an answer are built when it is read', () => {
+  const linesOf = async (t: ReturnType<typeof office>, userId: string, kind: 'plan' | 'review' = 'plan') => {
+    t.as(userId);
+    const view = await t.api.call('checkins.week', {});
+    return view.rows.flatMap((row) => (row[kind]?.items ?? []).map((line) => line.title));
+  };
+
+  it('stores the ids and no title, in the record and in the events', async () => {
+    const t = office();
+    t.as('usr_003');
+    await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_001', 'tsk_002'], text: 'Words.' });
+    await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_001'], text: 'Words.' });
+    expect(checkinsOf(t.store.state).chk_001).toMatchObject({ taskIds: ['tsk_001'] });
+    expect(checkinsOf(t.store.state).chk_001).not.toHaveProperty('items');
+    const stored = JSON.stringify([checkinsOf(t.store.state), Object.values(t.store.state.events)]);
+    expect(stored).not.toContain('Ground floor plan');
+    expect(stored).not.toContain('Roof detail');
+  });
+
+  it('reads the title the to-do has now, and gives no line for a to-do that was deleted', async () => {
+    const t = office();
+    t.as('usr_003');
+    await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_001', 'tsk_002'], text: '' });
+    t.store.state.tasks.tsk_001.title = 'Ground floor plan v2';
+    delete t.store.state.tasks.tsk_002;
+    expect(await linesOf(t, 'usr_004')).toEqual(['Ground floor plan v2']);
+    expect((await t.api.call('checkins.mine', {})).plan).toBeNull();
+    t.as('usr_003');
+    expect((await t.api.call('checkins.mine', {})).plan?.items).toEqual([{ taskId: 'tsk_001', title: 'Ground floor plan v2' }]);
+  });
+
+  it('hides the titles of a project that is hidden after the answer from the people outside it, and keeps them for its people', async () => {
+    const t = office();
+    t.as('usr_003');
+    await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_001', 'tsk_002'], text: 'Words stay.' });
+    expect(await linesOf(t, 'usr_004')).toEqual(['Ground floor plan', 'Roof detail']);
+    t.store.state.projects.prj_001.access = { hidden: true, viewerIds: [] };
+    // The outsider keeps the row and the words of the answer, and gets no title of the project.
+    t.as('usr_004');
+    const outside = await t.api.call('checkins.week', {});
+    expect(outside.rows[0]).toMatchObject({ user: { id: 'usr_003' }, plan: { text: 'Words stay.', items: [] } });
+    // The author, the leader and the Admin view the project, so they keep the lines.
+    expect(await linesOf(t, 'usr_003')).toEqual(['Ground floor plan', 'Roof detail']);
+    expect(await linesOf(t, 'usr_002')).toEqual(['Ground floor plan', 'Roof detail']);
+    expect(await linesOf(t, 'usr_001')).toEqual(['Ground floor plan', 'Roof detail']);
+    // The author who leaves the project reads no title of it either, in the own answer too.
+    delete t.store.state.members[memberKey('prj_001', 'usr_003')];
+    t.as('usr_003');
+    expect((await t.api.call('checkins.mine', {})).plan).toMatchObject({ text: 'Words stay.', items: [] });
+  });
+
+  it('shows an office to-do and a to-do of a hidden project to the people who view them, and to nobody else', async () => {
+    const t = office();
+    const state = t.store.state;
+    state.tasks.tsk_010 = makeTask({ id: 'tsk_010', projectId: null, stageId: null, title: 'Private office to-do', ownerId: 'usr_003', helperIds: ['usr_002'], createdBy: 'usr_003' });
+    state.projects.prj_002 = { ...state.projects.prj_001, id: 'prj_002', code: 'KH-26-002', name: 'Secret Tower', leaderId: 'usr_002', access: { hidden: true, viewerIds: [] } };
+    state.members[memberKey('prj_002', 'usr_003')] = { projectId: 'prj_002', userId: 'usr_003', discipline: 'Architect' };
+    state.tasks.tsk_011 = makeTask({ id: 'tsk_011', projectId: 'prj_002', stageId: null, title: 'Secret to-do', ownerId: 'usr_003' });
+    t.as('usr_003');
+    await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_010', 'tsk_011', 'tsk_001'], text: '' });
+    // usr_004 views no one of the three hidden things, usr_002 helps on the office to-do and leads the hidden project.
+    expect(await linesOf(t, 'usr_004')).toEqual(['Ground floor plan']);
+    expect(await linesOf(t, 'usr_002')).toEqual(['Private office to-do', 'Secret to-do', 'Ground floor plan']);
+    expect(await linesOf(t, 'usr_003')).toEqual(['Private office to-do', 'Secret to-do', 'Ground floor plan']);
+    // The outsider cannot tell how many lines the answer keeps: the answer holds no count of them.
+    t.as('usr_004');
+    const outside = (await t.api.call('checkins.week', {})).rows[0].plan!;
+    expect(Object.keys(outside).sort()).toEqual(['createdAt', 'id', 'items', 'kind', 'text', 'updatedAt', 'userId', 'week']);
+    expect(JSON.stringify(outside)).not.toMatch(/tsk_010|tsk_011|Secret|Private office/);
+  });
+
+  it('gives the agent of a person the lines that the person reads, and no line the person may not view', async () => {
+    const t = office();
+    const state = t.store.state;
+    state.projects.prj_002 = { ...state.projects.prj_001, id: 'prj_002', code: 'KH-26-002', name: 'Secret Tower', leaderId: 'usr_002', access: { hidden: true, viewerIds: [] } };
+    state.tasks.tsk_011 = makeTask({ id: 'tsk_011', projectId: 'prj_002', stageId: null, title: 'Secret to-do', ownerId: 'usr_002' });
+    t.as('usr_002');
+    await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_011', 'tsk_003'], text: '' });
+    // usr_005 is the agent of usr_003, who is not on the hidden project: the agent reads what usr_003 reads.
+    expect(await linesOf(t, 'usr_005')).toEqual(['Faisal only']);
+    expect(await linesOf(t, 'usr_003')).toEqual(['Faisal only']);
+    expect(await linesOf(t, 'usr_002')).toEqual(['Secret to-do', 'Faisal only']);
+  });
+});
+
+/**
+ * Security review of fbk_088. The save writes History events (checkin.created, checkin.updated). They show to the holders of "Read the weekly
+ * answers" and to the author only, in events.list, events.undo and events.undoStory. A person without the switch gets a missing event.
+ */
+describe('the History of a weekly answer', () => {
+  /** usr_004 holds no "Read the weekly answers"; Sara (usr_003) writes a plan, Omar (usr_004) writes his own. */
+  async function answered() {
+    const t = office({ usr_004: { off: ['checkin.read'] } });
+    t.as('usr_003');
+    await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_001'], text: 'Sara plan.' });
+    await t.api.call('checkins.save', { kind: 'plan', items: [], text: 'Sara plan v2.' });
+    t.as('usr_004');
+    await t.api.call('checkins.save', { kind: 'plan', items: [], text: 'Omar plan.' });
+    return t;
+  }
+  const checkinLines = async (t: ReturnType<typeof office>, userId: string, input: Record<string, unknown> = {}) => {
+    t.as(userId);
+    return (await t.api.call('events.list', { limit: 100, ...input })).filter((line) => line.event.targetType === 'checkin').map((line) => [line.event.verb, line.event.targetId]);
+  };
+
+  it('lists no change of an answer for a person without the switch, but the own changes of that person', async () => {
+    const t = await answered();
+    expect(await checkinLines(t, 'usr_004')).toEqual([['checkin.created', 'chk_002']]);
+    expect(await checkinLines(t, 'usr_004', { targetType: 'checkin' })).toEqual([['checkin.created', 'chk_002']]);
+    expect(await checkinLines(t, 'usr_004', { targetId: 'chk_001' })).toEqual([]);
+  });
+
+  it('lists every change of an answer for the holders of the switch: the author, the leader, the Admin and the agent of the author', async () => {
+    const t = await answered();
+    const all = [['checkin.updated', 'chk_001'], ['checkin.created', 'chk_001'], ['checkin.created', 'chk_002']].sort();
+    for (const userId of ['usr_001', 'usr_002', 'usr_003', 'usr_005']) {
+      expect((await checkinLines(t, userId)).sort(), userId).toEqual([['checkin.created', 'chk_002'], ['checkin.created', 'chk_001'], ['checkin.updated', 'chk_001']].sort());
+    }
+    expect(all).toHaveLength(3);
+  });
+
+  it('keeps the ids of the kept to-dos out of the events that it shows, so the History names no to-do that a reader may not view', async () => {
+    const t = await answered();
+    const state = t.store.state;
+    state.projects.prj_002 = { ...state.projects.prj_001, id: 'prj_002', code: 'KH-26-002', name: 'Secret Tower', access: { hidden: true, viewerIds: [] } };
+    state.members[memberKey('prj_002', 'usr_003')] = { projectId: 'prj_002', userId: 'usr_003', discipline: 'Architect' };
+    state.tasks.tsk_011 = makeTask({ id: 'tsk_011', projectId: 'prj_002', stageId: null, title: 'Secret to-do', ownerId: 'usr_003' });
+    t.as('usr_003');
+    await t.api.call('checkins.save', { kind: 'review', items: ['tsk_011', 'tsk_001'], text: 'Done.' });
+    for (const userId of ['usr_002', 'usr_003']) {
+      t.as(userId);
+      const lines = (await t.api.call('events.list', { targetType: 'checkin', limit: 100 }));
+      expect(lines.length).toBeGreaterThan(0);
+      expect(JSON.stringify(lines), userId).not.toMatch(/tsk_011|tsk_001|Secret/);
+    }
+    // The Undo answer carries none either, and it still takes the answer back.
+    const created = events(t).find((event) => event.targetType === 'checkin' && (event.after as { kind?: string }).kind === 'review')!;
+    const undone = await t.api.call('events.undo', { eventId: created.id });
+    expect(JSON.stringify(undone)).not.toMatch(/tsk_011|tsk_001/);
+    expect(Object.values(checkinsOf(state)).some((one) => one.kind === 'review')).toBe(false);
+  });
+
+  it('counts the agent of the author without the switch as the author', async () => {
+    const t = office({ usr_003: { off: ['checkin.read'] } });
+    t.as('usr_005');
+    await t.api.call('checkins.save', { kind: 'plan', items: [], text: 'Sara plan by the agent.' });
+    expect(await checkinLines(t, 'usr_005')).toEqual([['checkin.created', 'chk_001']]);
+    expect(await checkinLines(t, 'usr_003')).toEqual([['checkin.created', 'chk_001']]);
+    expect(await checkinLines(t, 'usr_002')).toEqual([['checkin.created', 'chk_001']]);
+    // Omar holds the switch and reads it too; a person without the switch who is not the author does not.
+    expect(await checkinLines(t, 'usr_004')).toEqual([['checkin.created', 'chk_001']]);
+    const quiet = office({ usr_003: { off: ['checkin.read'] }, usr_004: { off: ['checkin.read'] } });
+    quiet.as('usr_003');
+    await quiet.api.call('checkins.save', { kind: 'plan', items: [], text: 'Sara plan.' });
+    expect(await checkinLines(quiet, 'usr_004')).toEqual([]);
+  });
+
+  it('gives a missing event for the Undo of an answer that the person may not read, with the code and the text of an unknown event', async () => {
+    const t = await answered();
+    const first = events(t).find((event) => event.verb === 'checkin.created' && event.targetId === 'chk_001')!;
+    t.as('usr_004');
+    const missing = await t.api.call('events.undo', { eventId: 'evt_9999' }).catch((error: Error) => error);
+    const hidden = await t.api.call('events.undo', { eventId: first.id }).catch((error: Error) => error);
+    expect(hidden).toMatchObject({ code: 'not_found' });
+    expect(hidden).toMatchObject({ code: (missing as unknown as { code: string }).code });
+    expect((hidden as Error).message.replace(first.id, '#')).toBe((missing as Error).message.replace('evt_9999', '#'));
+    expect(checkinsOf(t.store.state).chk_001).toBeDefined();
+  });
+
+  it('gives a missing story for the story Undo of an answer that the person may not read', async () => {
+    const t = await answered();
+    const second = events(t).find((event) => event.verb === 'checkin.updated')!;
+    t.as('usr_004');
+    const missing = await t.api.call('events.undoStory', { correlationId: 'cor_unknown_story' }).catch((error: Error) => error);
+    const hidden = await t.api.call('events.undoStory', { correlationId: second.correlationId }).catch((error: Error) => error);
+    expect(hidden).toMatchObject({ code: 'not_found' });
+    expect((hidden as Error).message.replace(second.correlationId, '#')).toBe((missing as Error).message.replace('cor_unknown_story', '#'));
+    expect(checkinsOf(t.store.state).chk_001).toMatchObject({ text: 'Sara plan v2.' });
+  });
+
+  it('lets the author without the switch take back the own answer, and refuses the same Undo with the same words as before for the others', async () => {
+    const t = await answered();
+    const own = events(t).find((event) => event.targetId === 'chk_002')!;
+    t.as('usr_004');
+    await t.api.call('events.undo', { eventId: own.id });
+    expect(checkinsOf(t.store.state).chk_002).toBeUndefined();
+    // A holder of the switch who is not the author still sees the change and is refused (assertMayUndo), as in the first batch of tests.
+    const second = events(t).find((event) => event.verb === 'checkin.updated')!;
+    t.as('usr_002');
+    await expect(t.api.call('events.undo', { eventId: second.id })).rejects.toMatchObject({ code: 'forbidden' });
   });
 });

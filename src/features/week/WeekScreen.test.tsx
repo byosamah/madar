@@ -9,14 +9,14 @@ import { renderApp } from '../../test/render';
  * has "now" on Wednesday 2026-09-30, so the week began on Sunday 2026-09-27. usr_001 is the Admin (Hala), usr_002 leads prj_001 (Faisal).
  */
 const STAMP = '2026-09-28T09:00:00.000+03:00';
-const answer = (id: string, userId: string, kind: 'plan' | 'review', text: string, items: { taskId: string; title: string }[] = [], week = '2026-09-27') => ({
-  id, userId, week, kind, text, items, createdAt: STAMP, updatedAt: STAMP,
+const answer = (id: string, userId: string, kind: 'plan' | 'review', text: string, taskIds: string[] = [], week = '2026-09-27') => ({
+  id, userId, week, kind, text, taskIds, createdAt: STAMP, updatedAt: STAMP,
 });
 
 function answers(state: State) {
   state.session.currentUserId = 'usr_003';
   Object.assign(checkinsOf(state), {
-    chk_001: answer('chk_001', 'usr_002', 'plan', 'Send the facade drawings.', [{ taskId: 'tsk_012', title: 'Civil Defense drawings' }]),
+    chk_001: answer('chk_001', 'usr_002', 'plan', 'Send the facade drawings.', ['tsk_012']),
     chk_002: answer('chk_002', 'usr_005', 'plan', 'Check the stair section.'),
     chk_003: answer('chk_003', 'usr_005', 'review', 'The stair section is done.'),
     chk_004: answer('chk_004', 'usr_002', 'plan', 'An old plan.', [], '2026-09-20'),
@@ -65,6 +65,20 @@ describe('the Week page', () => {
       state.session.currentUserId = 'usr_003';
     });
     expect(await screen.findByText('No one has answered yet.')).toBeInTheDocument();
+  });
+
+  it('builds the lines now: the title the to-do has now, and no title of a to-do in a project that the reader may not view', async () => {
+    await renderApp('/week', (state) => {
+      answers(state);
+      state.tasks.tsk_012.title = 'Civil Defense drawings v2';
+      state.tasks.tsk_901 = { ...structuredClone(state.tasks.tsk_012), id: 'tsk_901', title: 'Secret tower to-do', projectId: 'prj_901', ownerId: 'usr_002' };
+      state.projects.prj_901 = { ...structuredClone(state.projects.prj_001), id: 'prj_901', code: 'KH-26-901', name: 'Secret tower', access: { hidden: true, viewerIds: [] } };
+      checkinsOf(state).chk_001.taskIds = ['tsk_012', 'tsk_901'];
+    });
+    const [faisal] = await rows();
+    expect(within(faisal).getByText('Civil Defense drawings v2')).toBeInTheDocument();
+    expect(within(faisal).getByText('Send the facade drawings.')).toBeInTheDocument();
+    expect(screen.queryByText('Secret tower to-do')).toBeNull();
   });
 
   it('shows the wrong-link page to a person without the switch "Read the weekly answers"', async () => {

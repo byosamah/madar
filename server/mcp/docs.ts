@@ -429,11 +429,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'checkins.week': {
     title: 'Read the weekly answers',
-    description: 'The weekly answers of the team: what each person plans (plan, Sunday) and did (review, Thursday), the to-dos they kept, and who has not answered. week: any day of the week (default this week). Use it for the weekly report.',
+    description: 'The weekly answers of the team: what each person plans (plan, Sunday) and did (review, Thursday), the to-dos they kept (a title only for a to-do your person may view), and who has not answered. week: any day of the week (default this week). Use it for the weekly report.',
   },
   'checkins.save': {
     title: 'Save the weekly answer',
-    description: 'Saves the weekly answer of your person: kind plan or review, items (ids of the own to-dos to keep; a to-do with no project or in a hidden project is left out) and text. A second save changes the answer. Only when your person asks.',
+    description: 'Saves the weekly answer of your person: kind plan or review, items (ids of the own to-dos to keep) and text. A second save changes the answer. Only when your person asks.',
   },
   'reports.office': {
     title: 'Get the office report',

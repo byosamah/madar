@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { NOTIFY_LEVELS } from './limits';
+import { CHECKIN_LIMITS, NOTIFY_LEVELS } from './limits';
 import {
   Checkin, Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, FolderId, Gender, GeoPoint, HealthValue,
   MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectFolder, ProjectTemplateId, ResourceFolder, Team,
@@ -582,10 +582,21 @@ export const OfficeReport = z.object({
 export type OfficeReport = z.infer<typeof OfficeReport>;
 
 /**
+ * One line of a weekly answer as a reader gets it: a to-do that the author kept, with the title it has now. The server builds the line when it
+ * reads the answer, and only when the reader may view that to-do. A to-do that the reader may not view, and a to-do that is gone, give no line.
+ */
+export const CheckinItem = z.object({ taskId: TaskId, title: z.string().min(1).max(CHECKIN_LIMITS.titleMax) });
+export type CheckinItem = z.infer<typeof CheckinItem>;
+
+/** A weekly answer as a reader gets it: the record without its ids, and the lines that this reader may see. */
+export const CheckinView = Checkin.omit({ taskIds: true }).extend({ items: z.array(CheckinItem).max(CHECKIN_LIMITS.itemsMax) });
+export type CheckinView = z.infer<typeof CheckinView>;
+
+/**
  * The own answers of one week (fbk_088): the plan and the review of the person who asks. `week` is the Sunday of the week. A person with no
  * answer of a kind gets null for it. Only the person's own rows are in it, so it holds nothing of anyone else.
  */
-export const CheckinMine = z.object({ week: Day, plan: Checkin.nullable(), review: Checkin.nullable() });
+export const CheckinMine = z.object({ week: Day, plan: CheckinView.nullable(), review: CheckinView.nullable() });
 export type CheckinMine = z.infer<typeof CheckinMine>;
 
 /**
@@ -598,7 +609,7 @@ export const WeekView = z.object({
   week: Day,
   previous: Day,
   next: Day.nullable(),
-  rows: z.array(z.object({ user: UserCard, plan: Checkin.nullable(), review: Checkin.nullable() })),
+  rows: z.array(z.object({ user: UserCard, plan: CheckinView.nullable(), review: CheckinView.nullable() })),
   missing: z.object({ plan: z.array(UserCard), review: z.array(UserCard) }),
 });
 export type WeekView = z.infer<typeof WeekView>;

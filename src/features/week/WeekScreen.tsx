@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
-import type { Checkin } from '../../api/contract/entities';
-import type { UserCard } from '../../api/contract/views';
+import type { CheckinView, UserCard } from '../../api/contract/views';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
@@ -66,7 +65,7 @@ export function WeekScreen() {
 }
 
 /** One answer: its lines (the titles of the kept to-dos) and its words, or a quiet "No answer yet". */
-function Answer({ title, answer }: { title: string; answer: Checkin | null }) {
+function Answer({ title, answer }: { title: string; answer: CheckinView | null }) {
   const { t } = useTranslation();
   return (
     <div className="flex min-w-0 flex-col gap-1.5">

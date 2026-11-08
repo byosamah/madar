@@ -70,7 +70,7 @@ describe('the Sunday notice (the plan)', () => {
 
   it('leaves out a person who answered, a person without the switch and a person who turned the notice off', () => {
     state.checkins = checkinsOf(state);
-    state.checkins.chk_001 = { id: 'chk_001', userId: 'usr_002', week: WEEK, kind: 'plan', items: [], text: 'Plan.', createdAt: STAMP, updatedAt: STAMP };
+    state.checkins.chk_001 = { id: 'chk_001', userId: 'usr_002', week: WEEK, kind: 'plan', taskIds: [], text: 'Plan.', createdAt: STAMP, updatedAt: STAMP };
     state.users.usr_004.roleId = 'rol_001';
     state.settings.roles = { custom: [{ id: 'rol_001', name: 'Quiet', nameAr: 'هادئ', rights: [], off: ['checkin.answer'] }] };
     state.users.usr_001.preferences.notifications.week_question = false;
@@ -83,8 +83,8 @@ describe('the Thursday notice (the review)', () => {
   it('goes at 14:00 to the people who have no review, even when they sent the plan', () => {
     setNow(THURSDAY_14);
     state.checkins = {
-      chk_001: { id: 'chk_001', userId: 'usr_002', week: WEEK, kind: 'plan', items: [], text: 'Plan.', createdAt: STAMP, updatedAt: STAMP },
-      chk_002: { id: 'chk_002', userId: 'usr_003', week: WEEK, kind: 'review', items: [], text: 'Done.', createdAt: STAMP, updatedAt: STAMP },
+      chk_001: { id: 'chk_001', userId: 'usr_002', week: WEEK, kind: 'plan', taskIds: [], text: 'Plan.', createdAt: STAMP, updatedAt: STAMP },
+      chk_002: { id: 'chk_002', userId: 'usr_003', week: WEEK, kind: 'review', taskIds: [], text: 'Done.', createdAt: STAMP, updatedAt: STAMP },
     };
     expect(runScheduledTriggers(state, THURSDAY_1359)).toBe(0);
     expect(runScheduledTriggers(state, THURSDAY_14)).toBe(3);

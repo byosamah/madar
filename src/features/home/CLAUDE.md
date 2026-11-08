@@ -21,8 +21,8 @@ Home (`HomeScreen.tsx`). The first request of Home, the stored answers and the r
 
 - The weekly card (`features/week/WeekCard.tsx`, fbk_088, owner 2026-11-08) sits under the title, before `NextCard`. Sunday to Wednesday it asks "What do you
   plan this week?", Thursday to Saturday "What did you do this week?". It is a card, never a pop-up: nothing opens by itself. Its lines are the to-dos of
-  the person from the Home list `mine` (`weekLines`, `lib/week.ts`; Sunday: open, due this week; Thursday: done since Sunday; a to-do with no project is left
-  out), each kept until the person clears it, plus one box "Anything else". Save is the secondary button (Home keeps one navy button). After Save the card is
+  the person from the Home list `mine` (`weekLines`, `lib/week.ts`; Sunday: open, due this week; Thursday: done since Sunday; an office to-do is a line too, because
+  the server shows a line only to the people who may view the to-do), each kept until the person clears it, plus one box "Anything else". Save is the secondary button (Home keeps one navy button). After Save the card is
   one quiet line ("Plan sent.", Edit, "See the team's week" for a holder of `checkin.read`); Undo of the toast takes the answer back. The card lives in its
   own chunk (`weekCardLazy.ts`, `lazyOverlay`); Home only starts the import and the read `checkins.mine` in its first request, so the card
   adds no request. It draws nothing for a person without `checkin.answer`. The page `/week` (`WeekScreen.tsx`, route right `checkin.read`) shows one row for
