@@ -73,6 +73,7 @@ function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond, sin
     if ('field' in one) {
       const field = fieldName(one.field);
       if ('null' in one) return `(t.doc->'${field}' is null or t.doc->'${field}' = 'null'::jsonb)`;
+      if ('names' in one) return `t.doc->>'${field}' ~ ${param(mentionPattern(one.names), 'text')}`;
       if ('notIn' in one) return `(t.doc->>'${field}' is null or not (t.doc->>'${field}' = any(${param(one.notIn, 'text[]')})))`;
       return `t.doc->>'${field}' = any(${param(one.in, 'text[]')})`;
     }
@@ -100,6 +101,11 @@ function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond, sin
 
   const conds = s.where.map(cond);
   return { col, conds, where: conds.length > 0 ? ` where ${conds.join(' and ')}` : '' };
+}
+
+/** The regular expression (POSIX, Postgres) of the markup @[Name](id) that names one person: the same text as MENTION in src/lib/text.ts. */
+export function mentionPattern(id: string): string {
+  return `@\\[[^]]{1,80}\\]\\(${id.replace(/[.*+?^${}()|[\]\\]/g, (letter) => `\\${letter}`)}\\)`;
 }
 
 /**
@@ -241,12 +247,21 @@ function rowsOf(s: Select, rows: readonly { ord: string | number; doc: unknown }
   return rows.map((row): Row => ({ ord: Number(row.ord), doc: row.doc as Record<string, unknown> }));
 }
 
+/**
+ * A comment that is a message, not a quiet line (MESSAGES_ONLY in chat.ts, lineKindOf in src/lib/commentLine.ts): it has no dates move
+ * and no reopening kind. The alias of the comments table is "comments" or none, so the text names the doc column only.
+ */
+const MESSAGE_SQL = `(doc->'dates' is null or doc->'dates' = 'null'::jsonb) and (doc->'kind' is null or doc->'kind' = 'null'::jsonb)`;
+
 /** The SQL of the task threads (Source.threads): $1 and up are its values. */
 export function threadsSql(o: ThreadsArgs): { text: string; values: unknown[] } {
   return {
     text: `with mine as (select distinct target_id from comments where target_type = 'task' and doc->>'authorId' = any($3::text[])),
+         named as (select distinct target_id from comments where target_type = 'task' and ${MESSAGE_SQL}
+           and doc->>'body' ~ ('@\\[[^]]{1,80}\\]\\(' || $1::text || '\\)')),
          cand as (select k.id from tasks k
            where (k.owner_id = $1::text or k.project_id = any($2::text[]) or k.id in (select target_id from mine)
+               or k.doc->'helperIds' ? $1::text or k.id in (select target_id from named)
                or (k.project_id is null and k.doc->>'createdBy' = any($3::text[])))
              and (k.project_id = any($6::text[]) or (k.project_id is null and ($5::boolean or k.owner_id = $1::text or k.doc->'helperIds' ? $1::text
                or k.doc->>'createdBy' = any($3::text[]))))

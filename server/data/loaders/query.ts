@@ -100,6 +100,8 @@ export function fieldName(name: string): string {
  *   field / in    a doc field without a column has one of the values (doc->>'field')
  *   field / key / in  a key of an object field of doc has one of the values (doc->'field'->>'key'), for example after.status
  *   field / null  a doc field holds JSON null (or is absent)
+ *   field / names a doc text field names the person with the mention markup @[Name](usr_000) (chat, 2026-11-08: the thread rule). SQLite
+ *                 tests the two marks "@[" and "](id)" in the text; memory and Postgres test the whole markup
  *   field / notIn a doc field without a column is null or absent, or has none of the values
  *   has           a doc list field holds the value (doc->'field' ? value)
  *   notUndone     an event that no undo event names (events only)
@@ -119,6 +121,7 @@ export type Cond =
   | { field: string; in: readonly string[] }
   | { field: string; key: string; in: readonly string[] }
   | { field: string; null: true }
+  | { field: string; names: string }
   | { field: string; notIn: readonly string[] }
   | { has: string; value: string }
   | { notUndone: true }

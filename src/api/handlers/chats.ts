@@ -131,8 +131,8 @@ function taskUnread(state: State, taskId: string, comments: Comment[], viewerId:
 type TaskThread = { task: Task; project: Project | null; comments: Comment[] };
 
 /**
- * Tasks I own, lead or commented on, that have at least one comment, with their comments in time order. The comments are
- * grouped by task in one pass. Reading follows the rule of comments.list, so a thread never shows what the comments call would refuse.
+ * Tasks I own, lead, help on, am named in with @, or commented on, that have at least one comment, with their comments in time order.
+ * The rule is inTaskThread (taskUnread.ts; chat, 2026-11-08). The comments are grouped by task in one pass. Reading follows the rule of comments.list, so a thread never shows what the comments call would refuse.
  * An office task is a thread of its lead, its maker (who holds the leader's place) and a person who commented, while that person
  * sees the task (owner, 2026-10-06).
  * Only the newest TASK_THREAD_LIMIT threads count, for the list and for the unread number alike (plan 4.13, A5).

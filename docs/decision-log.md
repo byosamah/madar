@@ -15,6 +15,14 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   clears it, and one box "Anything else". The build adds two basic switches ("Answer the weekly question", "Read the weekly answers"), a page `/week` with
   the plan and the done list of each person side by side and the people who have not answered, and two MCP tools for the weekly report of Moataz. The
   build also keeps the title of a to-do with no project and of a to-do of a hidden project out of an answer, because everyone reads the answers.
+- Chat fixes (owner report 2026-11-08, from Moataz and others): "some of them see them sorted some not, some take a lot of time to reach
+  the chat to them some not, and there's an old conversations go down until they disappear ... i send a message for moataz on to-do ... we
+  tried on mobile reach the message, but we didn't reach!" The investigation found: Moataz was only a helper of tsk_479 and only named
+  with @ in tsk_632, so neither thread was in his Inbox; 9 of 11 people kept the default quiet hours; a phone swipe of 80 px archived and
+  marked read; a date line lifted a to-do thread. Owner answers:
+  - Thread members: "Add helpers and @mentioned people". A person is part of a to-do thread as its lead, the project leader (or the maker of an
+    office to-do), a commenter, a helper, or a person named with @ in a message of the thread. The view rule stays. A helper or a named person
+    who has read nothing sees every message of the thread as unread (the lead's note: no read mark means all unread).
 - Who reviews a to-do (fbk_087, owner, from the report of Faisal about tsk_624): the person who does the work never approves it. Faisal
   made an office to-do, did the work, named Moataz as lead and sent it to review; Madar named the maker (Faisal) as reviewer, so Faisal saw
   "Your review" and Moataz got no notice. The owner's words: "the maker not means he's the leader or the reviewer, the leader or the

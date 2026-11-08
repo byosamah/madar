@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Query } from '../../core/ports';
 import type { CountSelect, Select } from './query';
 import type { Read } from './source';
-import { batchSql, countSql, selectSql, sqlSource } from './sqlSource';
+import { batchSql, countSql, mentionPattern, selectSql, sqlSource } from './sqlSource';
 
 /**
  * The SQL text of the loader reads (performance audit 2026-10-07). server/it/loaders.it.test.ts proves that each form gives the
@@ -277,6 +277,30 @@ describe('the unread counts and the task threads of the badge (DB-6)', () => {
     expect(text).toContain('cand as (select k.id from tasks k where');
     expect(text).toContain("from comments c where c.target_type = 'task' and c.target_id in (select id from cand)");
     expect(text).not.toContain('join tasks');
+  });
+
+  it('finds the helpers and the people named with @ as candidates too, and counts a message only (chat, 2026-11-08)', async () => {
+    const sent: string[] = [];
+    const q: Query = async <R,>(text: string) => {
+      sent.push(text);
+      return [] as R[];
+    };
+    await sqlSource(q).threads({ owner: 'usr_005', led: [], me: ['usr_005'], limit: 100, admin: false, seen: ['prj_005'] });
+    const text = sent[0].replace(/\s+/g, ' ');
+    expect(text).toContain("named as (select distinct target_id from comments where target_type = 'task' and (doc->'dates' is null");
+    expect(text).toContain("doc->>'body' ~ ('@\\[[^]]{1,80}\\]\\(' || $1::text || '\\)')");
+    expect(text).toContain("or k.doc->'helperIds' ? $1::text or k.id in (select target_id from named)");
+  });
+
+  it('writes the regular expression of a name as the text of MENTION, with the id escaped', () => {
+    expect(mentionPattern('usr_010')).toBe('@\\[[^]]{1,80}\\]\\(usr_010\\)');
+    expect(mentionPattern('a.b')).toBe('@\\[[^]]{1,80}\\]\\(a\\.b\\)');
+  });
+
+  it('sends the markup test of a body condition as a parameter, never in the text', () => {
+    const { text, values } = selectSql({ c: 'comments', where: [{ field: 'body', names: 'usr_010' }] });
+    expect(text).toContain("t.doc->>'body' ~ $1::text");
+    expect(values).toEqual(['@\\[[^]]{1,80}\\]\\(usr_010\\)']);
   });
 });
 

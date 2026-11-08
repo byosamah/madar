@@ -3,6 +3,7 @@ import { markedUnread } from './chatState';
 import { principalOf } from './permissions';
 import { chatReadKey, unreadCountKey, type State } from './store';
 import { isLine } from '../lib/commentLine';
+import { mentionedUserIds } from '../lib/text';
 
 /**
  * The unread rule of a task thread, in one place (fbk_071, owner 2026-10-27). The Inbox thread (chats.list, chats.unreadCount) and the
@@ -21,12 +22,18 @@ export function newCommentsOf(state: State, readKey: string, comments: readonly 
 }
 
 /**
- * True when the person is part of the thread of a to-do: its lead, the leader of its project (for an office task, its maker), or a person
- * who wrote a comment in it (the person's own agent counts as the person). Only these people have the thread in the Inbox.
+ * True when the person is part of the thread of a to-do: its lead, the leader of its project (for an office task, its maker), a helper of
+ * the to-do, a person who wrote a comment in it (the person's own agent counts as the person), or a person who is named with @ in a
+ * message of the thread (chat report, owner 2026-11-08: "Add helpers and @mentioned people"). Only these people have the thread in the
+ * Inbox. A quiet line names nobody. The caller still checks that the person may view the to-do. The SQL twin is threadsSql
+ * (server/data/loaders/sqlSource.ts), and the same rule is in the lite and memory sources.
  */
 export function inTaskThread(state: State, task: Task, project: Project | null, viewer: Pick<User, 'id'>, comments: readonly Comment[]): boolean {
   const leads = project ? project.leaderId === viewer.id : principalOf(state, task.createdBy) === viewer.id;
-  return task.ownerId === viewer.id || leads || comments.some((c) => principalOf(state, c.authorId) === viewer.id);
+  if (task.ownerId === viewer.id || leads || (task.helperIds ?? []).includes(viewer.id)) return true;
+  // A server loader may bring a comment without its body (the badge reads only the fields of its rules): such a comment names nobody.
+  const names = (c: Comment) => typeof c.body === 'string' && !isLine(c) && mentionedUserIds(c.body).includes(viewer.id);
+  return comments.some((c) => principalOf(state, c.authorId) === viewer.id || names(c));
 }
 
 /** The unread number of a thread: a thread that the person marked unread (chats.markUnread, fbk_028) counts at least 1. */

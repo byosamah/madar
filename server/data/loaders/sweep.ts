@@ -893,7 +893,28 @@ export function trapOffice(seed: State): State {
     state.comments[id] = { id, targetType: 'task', targetId: thread.id, authorId, body: id, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };
   }
   state.chatReads[chatReadKey(thread.id, 'usr_006')] = { conversationId: thread.id, userId: 'usr_006', lastReadAt: '2026-10-03T10:00:00.000+03:00' };
+  threadMemberTraps(state, task.id, member, thread.id);
   return state;
+}
+
+/**
+ * Two people who are part of a to-do thread without a comment (chat, 2026-11-08): the helper of the trap task (the helper line above), and
+ * a person named with @ in a message of another to-do. The scoped load and the database must give them the thread, as the whole office does.
+ * A quiet line that names a third person makes that person part of nothing.
+ */
+function threadMemberTraps(state: State, helperTaskId: string, helper: string, otherThreadId: string): void {
+  const taskOf = state.tasks[helperTaskId];
+  const leader = state.projects[taskOf.projectId!].leaderId!;
+  const other = state.tasks[otherThreadId];
+  const lead = other.ownerId as string;
+  const people = crew(state).filter((id) => id !== helper && id !== leader && id !== lead && id !== state.projects[other.projectId!].leaderId);
+  const mentioned = (id: string) => `@[${state.users[id].name}](${id})`;
+  const put = (id: string, taskId: string, authorId: string, body: string, at: string, extra: Record<string, unknown> = {}) => {
+    state.comments[id] = { id, targetType: 'task', targetId: taskId, authorId, body, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null, ...extra } as never;
+  };
+  put('cmt_905', helperTaskId, leader, 'Please check the helper line.', '2026-10-03T12:00:00.000+03:00');
+  put('cmt_906', otherThreadId, lead, `${mentioned(people[0])} please look at this.`, '2026-10-03T12:30:00.000+03:00');
+  put('cmt_907', otherThreadId, lead, `${mentioned(people[1])} (reason)`, '2026-10-03T12:40:00.000+03:00', { kind: 'reopened' });
 }
 
 /** The name of the group of findTraps. */

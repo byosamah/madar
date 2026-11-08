@@ -171,7 +171,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.list': {
     title: 'List chats',
-    description: 'Lists the chats your person may open, newest first: project, direct, group and task threads. A row has its unread count, newest message, author and archived. For an Admin, a chat of a project the Admin neither leads nor works on counts only the unread messages that name the Admin, unless your person picks All messages. Settings can change this (see Messages). A direct chat with no message shows only for the person who opened it. Use the id with chats.messages and chats.send; a row of kind task with comments.list and comments.create. previewKind names a quiet line.',
+    description: 'Lists the chats your person may open, newest first: project, direct, group chats and to-do threads (kind task: lead, project leader, helpers, @-named people, commenters). A row has unread count, newest message, author, archived, previewKind. An Admin\'s chat of a project the Admin neither leads nor works on counts only the unread messages that name the Admin, unless your person picks All messages. Settings can change this. A direct chat with no message shows only for the person who opened it. Use the id with chats.messages and chats.send; a row of kind task: comments.list, comments.create.',
   },
   'chats.messages': {
     title: 'Read a chat',
@@ -183,7 +183,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.openDirect': {
     title: 'Open a direct chat',
-    description: 'Gives the id of the direct chat between your person and one active person (userId). It makes the chat when there is none, and it sends nothing. It shows in chats.list after the first message. Use that id as conversationId in chats.send. You cannot open a chat with your own person, or with an agent.',
+    description: 'Gives the id of the direct chat between your person and one active person (userId). It makes the chat when there is none, and it sends nothing. It shows in chats.list after the first message. Use that id as conversationId in chats.send. You cannot open a chat with your own person or an agent.',
   },
   'chats.send': {
     title: 'Send a message',

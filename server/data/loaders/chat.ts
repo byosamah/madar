@@ -116,11 +116,11 @@ function threadsAsk(L: Load, userId: string): ThreadsArgs | undefined {
 
 /**
  * Round 2 of the task threads, from the thread list of round 1: each thread's task, its read mark, its newest comment, U's newest
- * comment of any kind (a person who only wrote a line of a reason is part of the thread), and U's newest message, which gives the
- * bound of the unread count in round 3. Nothing for an empty list.
+ * comment of any kind (a person who only wrote a line of a reason is part of the thread), U's newest message, which gives the
+ * bound of the unread count in round 3, and the newest message that names U with @. Nothing for an empty list.
  */
 function threadsMiddle(userId: string, me: readonly string[], threads: readonly ThreadRow[], mode: Mode) {
-  if (threads.length === 0) return [undefined, undefined, undefined, undefined, undefined] as const;
+  if (threads.length === 0) return [undefined, undefined, undefined, undefined, undefined, undefined] as const;
   const ids = threads.map((thread) => thread.id);
   const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1, ...(mode.badge ? { pick: THREAD_COMMENT_FIELDS } : {}) };
   const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
@@ -133,6 +133,9 @@ function threadsMiddle(userId: string, me: readonly string[], threads: readonly 
     // The unread comments come after U's own last message in the order of the thread (stamp, then id), as taskUnread reads them.
     // A line that U wrote is no reply, so the bound is the newest message of U (fbk_027).
     { select: { c: 'comments', where: [...onThreads, { field: 'authorId', in: me }, ...MESSAGES_ONLY], ...newest } },
+    // The newest message that names U: it is why U is part of a thread that U has no comment in (inTaskThread, chat 2026-11-08). The
+    // rule reads its body, so the badge picks the body too.
+    { select: { c: 'comments', where: [...onThreads, { field: 'body', names: userId }, ...MESSAGES_ONLY], ...newest, ...(mode.badge ? { pick: [...THREAD_COMMENT_FIELDS, 'body'] } : {}) } },
   ] as const;
 }
 
@@ -160,8 +163,8 @@ function threadsCount(L: Load, userId: string, me: readonly string[], threads: r
  * The unread number on the rows of the to-dos of tasks.list (fbk_071, owner 2026-10-27), with the rule of the Inbox threads and no
  * statement for each row: round 1 reads the read marks of U for all the to-dos, and U's newest comment and newest message on them.
  * Round 2 counts the comments by other people after the mark and after U's last message, for the to-dos that U is part of (taskRowUnread,
- * inTaskThread: the lead, the leader of the project, the maker of an office task, or a person who commented). A to-do that U is no part
- * of gets no count, and the handler reads that as 0. Only a read keeps counts, so tasks.list is the one caller.
+ * inTaskThread: the lead, the leader of the project, the maker of an office task, a helper, a person named with @ in a message, or a
+ * person who commented). A to-do that U is no part of gets no count, and the handler reads that as 0. Only a read keeps counts, so tasks.list is the one caller.
  */
 export async function taskRowsUnread(L: Load, tasks: readonly Task[]): Promise<void> {
   if (!L.authority || !L.authority.active || tasks.length === 0) return;
@@ -171,7 +174,7 @@ export async function taskRowsUnread(L: Load, tasks: readonly Task[]): Promise<v
   const own = (task: Task): boolean | undefined => {
     const project = task.projectId === null ? null : L.office.projects[task.projectId];
     if (project === undefined) return undefined;
-    return task.ownerId === userId || (project ? project.leaderId === userId : me.includes(task.createdBy));
+    return task.ownerId === userId || (task.helperIds ?? []).includes(userId) || (project ? project.leaderId === userId : me.includes(task.createdBy));
   };
   const known = new Map(tasks.map((task) => [task.id, own(task)]));
   const ids = tasks.filter((task) => known.get(task.id) !== undefined).map((task) => task.id);
@@ -184,7 +187,10 @@ export async function taskRowsUnread(L: Load, tasks: readonly Task[]): Promise<v
   const answers = await L.batch([
     { byKey: { c: 'chatReads', keys: ids.map((id) => chatReadKey(id, userId)) } },
     { select: { c: 'comments', where: [...onTasks(ids), { field: 'authorId', in: me }], ...newest, pick: [...THREAD_COMMENT_FIELDS, 'kind', 'dates'] } },
+    // A message that names U with @ makes the thread U's too (chat, 2026-11-08): one read, the newest such message of each to-do.
+    { select: { c: 'comments', where: [...onTasks(ids), { field: 'body', names: userId }, ...MESSAGES_ONLY], ...newest, pick: THREAD_COMMENT_FIELDS } },
   ] as const);
+  const named = new Set(((answers[2] ?? []) as Comment[]).map((comment) => comment.targetId));
   const lastAny = new Map(((answers[1] ?? []) as Comment[]).map((comment) => [comment.targetId, comment]));
   // U's newest comment is a quiet line: only then the newest message of U needs a read of its own (rare, so the common load stays at two rounds).
   const lineFirst = [...lastAny.values()].filter(isLine).map((comment) => comment.targetId);
@@ -192,7 +198,7 @@ export async function taskRowsUnread(L: Load, tasks: readonly Task[]): Promise<v
     { select: { c: 'comments', where: [...onTasks(lineFirst), { field: 'authorId', in: me }, ...MESSAGES_ONLY], ...newest, pick: THREAD_COMMENT_FIELDS } },
   ] as const))[0] as Comment[];
   const own2 = [...[...lastAny.values()].filter((comment) => !isLine(comment)), ...messages];
-  const part = ids.filter((id) => known.get(id) === true || lastAny.has(id));
+  const part = ids.filter((id) => known.get(id) === true || lastAny.has(id) || named.has(id));
   const count = threadsCount(L, userId, me, part.map((id) => ({ id })), own2, {});
   await L.batch([count] as const);
 }
@@ -227,8 +233,8 @@ async function everyChat(L: Load, mode: Mode): Promise<void> {
   const [, , found] = await L.batch([reads, newest, ask ? { threads: ask } : undefined] as const);
   const threads = found ?? [];
   const [plain, named] = chatsCounts(L, userId, conversations, mode);
-  const [tasks, marks, latest, mine, ownRead] = threadsMiddle(userId, ask?.me ?? [], threads, mode);
-  const answers = await L.batch([plain, named, tasks, marks, latest, mine, ownRead] as const);
+  const [tasks, marks, latest, mine, ownRead, namedRead] = threadsMiddle(userId, ask?.me ?? [], threads, mode);
+  const answers = await L.batch([plain, named, tasks, marks, latest, mine, ownRead, namedRead] as const);
   const count = threadsCount(L, userId, ask?.me ?? [], threads, (answers[6] ?? []) as Comment[], mode);
   await L.batch([count] as const);
 }

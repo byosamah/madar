@@ -186,9 +186,11 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
 - **Unread number on a to-do row** (`TaskRow.unreadCount`, fbk_071, owner 2026-10-27). The chat icon of a row shows a number only for
   the comments that the person has not read, and none when all are read. Only `tasks.list` gives it (`tasks.get` leaves it out: the
   panel has no icon); the field is optional and `commentCount` stays. The rule is one (`src/api/taskUnread.ts`): `newCommentsOf`,
-  `inTaskThread` (the lead, the leader of the project, the maker of an office task, or a person who commented) and `threadUnread`
+  `inTaskThread` (the lead, the leader of the project, the maker of an office task, a helper, a person named with @ in a message, or a person who commented; chat, owner 2026-11-08) and `threadUnread`
   (a thread marked unread counts at least 1). The Inbox (`taskThreads`, `taskUnread` in `chats.ts`) and the row both call it, so the two
-  numbers never differ. A person who is no part of the thread gets 0. One difference: the Inbox keeps only the newest
+  numbers never differ. A person who is no part of the thread gets 0. A helper or a named person who has read nothing sees every message of the thread as unread.
+  The twins of the rule are `threadsSql` (Postgres), `THREADS_LITE` and `memorySource.threads`; the body test is the condition `{ field: 'body', names }`
+  (`query.ts`). The loader brings the newest message that names the person (`threadsMiddle`, `chat.ts`), because the handler reads its body. One difference: the Inbox keeps only the newest
   `TASK_THREAD_LIMIT` threads, and the row has no cap. The list builds one lookup of the comments for the call (`ViewIndex.taskCommentsOf`),
   never a scan for each row (`viewCost.test.ts`). The loader (`taskRowsUnread`, `server/data/loaders/chat.ts`) reads the marks and the
   own comments of all rows in one round and counts in a second round, and it puts a count only for a thread that the person is part of: a

@@ -6,7 +6,7 @@ import { isReferenced } from '../../../src/api/references';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
 import { chatReadKey, memberKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
-import { mentionMarkup } from '../../../src/lib/text';
+import { mentionedUserIds, mentionMarkup } from '../../../src/lib/text';
 import { snapshotOf } from '../officeCache';
 import { Load } from './build';
 import { THREAD_COMMENT_FIELDS, THREAD_TASK_FIELDS } from './chat';
@@ -1610,7 +1610,12 @@ describe('the chat badge and the bell (performance audit DB-6, DB-M1, DB-M2)', (
       const { loaded } = await runBoth(state, 'chats.unreadCount', {}, actor, { now: NOW, correlationId: 'cor_test' });
       expect(Object.keys(loaded.messages), actor).toEqual([]);
       for (const keys of keysOf(loaded.tasks)) expect(keys.every((key) => (THREAD_TASK_FIELDS as readonly string[]).includes(key)), `${actor} ${keys}`).toBe(true);
-      for (const keys of keysOf(loaded.comments)) expect(keys.every((key) => (THREAD_COMMENT_FIELDS as readonly string[]).includes(key)), `${actor} ${keys}`).toBe(true);
+      // The one exception is the body of a message that names the person with @: it makes the person part of the thread (chat, 2026-11-08).
+      for (const comment of Object.values(loaded.comments)) {
+        const keys = Object.keys(comment);
+        const allowed = [...THREAD_COMMENT_FIELDS, ...(keys.includes('body') && mentionedUserIds(comment.body).length > 0 ? ['body'] : [])] as readonly string[];
+        expect(keys.every((key) => allowed.includes(key)), `${actor} ${keys}`).toBe(true);
+      }
     }
     // The list keeps the newest message of each chat and the whole rows, for its previews.
     const { loaded } = await runBoth(state, 'chats.list', {}, ADMIN, { now: NOW, correlationId: 'cor_test' });

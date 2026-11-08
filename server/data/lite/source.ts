@@ -26,8 +26,13 @@ const rowsOf = (rows: Rec[]): DocRow[] => rows.map((row) => ({ ord: Number(row.o
 
 /** The task threads of a person (Source.threads): every candidate thread, cut and sorted in JavaScript as memorySource does. */
 export const THREADS_LITE = `with mine as (select distinct target_id from comments where target_type = 'task' and json_extract(doc, '$.authorId') in (select value from json_each(?3))),
+named as (select distinct target_id from comments where target_type = 'task'
+  and (json_type(doc, '$.dates') is null or json_type(doc, '$.dates') = 'null') and (json_type(doc, '$.kind') is null or json_type(doc, '$.kind') = 'null')
+  and instr(json_extract(doc, '$.body'), '@[') > 0 and instr(json_extract(doc, '$.body'), '](' || ?1 || ')') > 0),
 cand as (select k.id from tasks k
   where (k.owner_id = ?1 or k.project_id in (select value from json_each(?2)) or k.id in (select target_id from mine)
+      or (json_type(k.doc, '$.helperIds') = 'array' and exists (select 1 from json_each(k.doc, '$.helperIds') h where h.value = ?1))
+      or k.id in (select target_id from named)
       or (k.project_id is null and json_extract(k.doc, '$.createdBy') in (select value from json_each(?3))))
     and (k.project_id in (select value from json_each(?5)) or (k.project_id is null and (?4 or k.owner_id = ?1
       or (json_type(k.doc, '$.helperIds') = 'array' and exists (select 1 from json_each(k.doc, '$.helperIds') h where h.value = ?1))
