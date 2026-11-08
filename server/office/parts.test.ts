@@ -44,7 +44,8 @@ const keptLog = () => {
 };
 
 /** The office parts on node:sqlite with the sample office. The token of a batch is the user id itself, as in test:office. */
-async function office(edit: (seed: State) => void = () => undefined, o: { env?: Record<string, string>; log?: ReturnType<typeof keptLog>; net?: ReturnType<typeof recordingNet> } = {}) {
+async function office(edit: (seed: State) => void = () => undefined, o: { env?: Record<string, string>; log?: ReturnType<typeof keptLog>; net?: ReturnType<typeof recordingNet>; ent?: string } = {}) {
+  const ent = o.ent ?? ENT_VADO;
   const values = { ...OFFICE_ENV, ...o.env };
   const raw = new DatabaseSync(':memory:');
   const host = Object.assign(nodeHost(raw), { totals: { rowsRead: 0, rowsWritten: 0 } });
@@ -63,10 +64,10 @@ async function office(edit: (seed: State) => void = () => undefined, o: { env?: 
   const seed = await buildSeed(TODAY, async () => undefined);
   edit(seed);
   await parts.db.tx('write', (q) => liteWriteState(q, seed));
-  await parts.gate.create({ id: ENT_VADO, state: 'active', limits: { people: null, storageBytes: null }, now: new Date(NOW) });
+  await parts.gate.create({ id: ent, state: 'active', limits: { people: null, storageBytes: null }, now: new Date(NOW) });
   const net = o.net ?? recordingNet();
   const batch = async (userId: string, calls: Omit<OfficeBatchInput['calls'][number], 'i'>[]) => {
-    const out = await parts.batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId: userId }, calls: calls.map((c, i) => ({ i, ...c })), overviewCalls: 0, worker: 1 }, net);
+    const out = await parts.batch({ ent, who: { kind: 'browser', authUserId: userId }, calls: calls.map((c, i) => ({ i, ...c })), overviewCalls: 0, worker: 1 }, net);
     return out.ok ? { ...out, answer: JSON.parse(out.body) as WireResponse } : out;
   };
   return { raw, parts, sockets, seed, net, batch };
@@ -136,10 +137,28 @@ describe('the office parts (server/office/parts.ts)', () => {
   });
 
   it('gives the network call of a file link to the Worker port', async () => {
-    const { net, batch } = await office();
+    // The seed keys are prototype keys (blob_...). The file port refuses a key without the key form (Madar enterprises), as the stores do.
+    const { net, batch } = await office((seed) => {
+      for (const version of seed.files.fil_001.versions) version.blobKey = 'prj-001/fil-001/1/file';
+    });
     const { answer } = ok(await batch('usr_001', [{ name: 'files.link', input: { id: 'fil_001', variant: 'full', disposition: 'inline' } }]));
-    expect(answer.results[0]).toMatchObject({ ok: true, output: { url: 'https://files.test/get/blob_seed_001' } });
-    expect(net.calls).toEqual(['presignGet blob_seed_001']);
+    expect(answer.results[0]).toMatchObject({ ok: true, output: { url: 'https://files.test/get/prj-001/fil-001/1/file' } });
+    expect(net.calls).toEqual(['presignGet prj-001/fil-001/1/file']);
+  });
+
+  it('lets an object of another enterprise sign links only inside its own key folder', async () => {
+    const own = await office((seed) => {
+      for (const version of seed.files.fil_001.versions) version.blobKey = 'e/ent-002/prj-001/fil-001/1/file';
+    }, { ent: 'ent_002' });
+    const { answer } = ok(await own.batch('usr_001', [{ name: 'files.link', input: { id: 'fil_001', variant: 'full', disposition: 'inline' } }]));
+    expect(answer.results[0]).toMatchObject({ ok: true, output: { url: 'https://files.test/get/e/ent-002/prj-001/fil-001/1/file' } });
+    // A key without the folder (a bare VADO key) never reaches the Worker.
+    const other = await office((seed) => {
+      for (const version of seed.files.fil_001.versions) version.blobKey = 'prj-001/fil-001/1/file';
+    }, { ent: 'ent_002' });
+    const refused = ok(await other.batch('usr_001', [{ name: 'files.link', input: { id: 'fil_001', variant: 'full', disposition: 'inline' } }]));
+    expect(refused.answer.results[0].ok).toBe(false);
+    expect(other.net.calls).toEqual([]);
   });
 
   it('adds the counts of the batch to the day row in its write', async () => {

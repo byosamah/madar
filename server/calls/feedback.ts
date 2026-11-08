@@ -5,11 +5,12 @@ import { withRights } from '../../src/api/rights';
 import type { FeedbackPrepared, ScreenshotPrepared } from '../../src/api/handlers/feedback';
 import type { ServerHooks } from '../../src/api/registry';
 import type { Deps } from '../core/ports';
+import { entOfConfig } from '../enterprise/scope';
 import type { ServerCall } from '../core/types';
 import { confirmUpload } from '../files/confirm';
 import { removeNowOrLater } from '../files/effects';
 import { checkIntent, declaredType, insertIntents, intentExpiry, newUploadId, readIntents, useIntents, type Intent } from '../files/intents';
-import { screenshotKey, stagingKey } from '../files/keys';
+import { keysOf } from '../files/keys';
 import { isPictureType } from '../files/links';
 import { readFeedback } from '../files/records';
 import { assertMayReadReports, authorityOf } from '../files/rights';
@@ -33,13 +34,15 @@ export const feedbackUploadStart: ServerCall<'feedback.uploadStart'> = async (in
   if (input.screenshots.some((shot) => !isPictureType(shot.mimeType) || shot.mimeType.length > SHOT_TYPE_LIMIT)) {
     throw invalid('screenshots', 'A screenshot must be a PNG, JPEG, GIF, WebP or AVIF picture.');
   }
+  // The keys of this enterprise: every key starts with its folder (server/files/keys.ts).
+  const k = keysOf(entOfConfig(deps.config));
   const intents: Intent[] = [];
   const uploads = [];
   for (const shot of input.screenshots) {
     const id = newUploadId();
-    const put = await deps.files.presignPut(stagingKey(id), { mimeType: shot.mimeType, size: shot.size });
+    const put = await deps.files.presignPut(k.stagingKey(id), { mimeType: shot.mimeType, size: shot.size });
     intents.push({
-      id, actorId: userId, projectId: null, stagingKey: stagingKey(id), key: screenshotKey(id), thumbKey: null, size: shot.size,
+      id, actorId: userId, projectId: null, stagingKey: k.stagingKey(id), key: k.screenshotKey(id), thumbKey: null, size: shot.size,
       mimeType: declaredType(shot.mimeType), expiresAt: intentExpiry(now, deps.files.kind), usedAt: null,
     });
     uploads.push({ uploadId: id, put });
@@ -57,7 +60,7 @@ export const feedbackSendHooks: ServerHooks<unknown, FeedbackPrepared, Deps> = {
     if (ids.length === 0) return { shots: [] };
     if (new Set(ids).size !== ids.length) throw invalid('uploadIds', 'Send each screenshot once.');
     const found = await readIntents(deps.db, ids);
-    const intents = ids.map((id) => checkIntent(found.get(id), { id, actorId, now, field: 'uploadIds', projectId: null, allowUsed: true }));
+    const intents = ids.map((id) => checkIntent(found.get(id), { id, actorId, now, field: 'uploadIds', projectId: null, allowUsed: true, ent: entOfConfig(deps.config) }));
     const remove = (keys: string[]) => removeNowOrLater(deps, keys);
     // A used intent: a retry of a call that committed. No store call (as in files.upload); runCall replays the stored answer of the
     // key, and without one prepare refuses with conflict.

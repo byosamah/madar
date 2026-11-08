@@ -1,3 +1,4 @@
+import { ENT_VADO, isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { base64url, base64urlDecode } from '../push/vapid';
 
 /**
@@ -7,6 +8,10 @@ import { base64url, base64urlDecode } from '../push/vapid';
  * Google Cloud project. MADAR_GOOGLE_KEY is 32 random bytes in base64, one key for each copy. From it, HKDF-SHA256 makes two keys:
  * one seals the refresh token of a person (AES-256-GCM), one signs the state of the connect (HMAC-SHA256). WebCrypto only, so this
  * file runs on Supabase Edge Functions, Cloudflare Workers and Node.
+ *
+ * Madar enterprises (design 5.17): the one MADAR_GOOGLE_KEY serves every enterprise, but each enterprise gets its own two keys, because the
+ * HKDF info text holds the enterprise id. A sealed token or a state of one enterprise never opens for another. ENT_VADO keeps the info
+ * texts it always had, so the sealed tokens that the move imports still open.
  *
  * An error here names a variable or a code, never a value, a token or a person.
  */
@@ -57,21 +62,35 @@ function keyBytes(key: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+/** The most key pairs that an isolate keeps. At the limit the cache drops all of them: a flood of ids cannot grow it. */
+export const GOOGLE_KEY_CACHE_MAX = 64;
 const cache = new Map<string, Promise<GoogleKeys>>();
 
-/** The two keys of one MADAR_GOOGLE_KEY, kept for the life of the isolate: the HKDF import is the one slow step. */
-export function googleKeysOf(key: string): Promise<GoogleKeys> {
-  let found = cache.get(key);
+/** The number of key pairs that the isolate holds now (a test reads it). */
+export const googleKeyCacheSize = (): number => cache.size;
+
+/** The HKDF info text: the old text for ENT_VADO, and the old text with ":<ent>" for every other enterprise. */
+const infoOf = (base: string, ent: EnterpriseId): string => (ent === ENT_VADO ? base : `${base}:${ent}`);
+
+/**
+ * The two keys of one MADAR_GOOGLE_KEY for one enterprise (ENT_VADO when none is given), kept for the life of the isolate: the HKDF import
+ * is the one slow step. An id that is not an enterprise id throws, so no text can name a key that no enterprise owns.
+ */
+export function googleKeysOf(key: string, ent: EnterpriseId = ENT_VADO): Promise<GoogleKeys> {
+  if (!isEnterpriseId(ent)) return Promise.reject(new Error('The enterprise id is not valid.'));
+  const slot = `${ent}|${key}`;
+  let found = cache.get(slot);
   if (!found) {
     found = (async () => {
       const base = await crypto.subtle.importKey('raw', keyBytes(key), 'HKDF', false, ['deriveKey']);
       const salt = new Uint8Array(0);
-      const seal = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode(SEAL_INFO) }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-      const sign = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode(STATE_INFO) }, base, { name: 'HMAC', hash: 'SHA-256', length: 256 }, false, ['sign', 'verify']);
+      const seal = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode(infoOf(SEAL_INFO, ent)) }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+      const sign = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode(infoOf(STATE_INFO, ent)) }, base, { name: 'HMAC', hash: 'SHA-256', length: 256 }, false, ['sign', 'verify']);
       return { seal, sign };
     })();
-    cache.set(key, found);
-    found.catch(() => cache.delete(key));
+    if (cache.size >= GOOGLE_KEY_CACHE_MAX) cache.clear();
+    cache.set(slot, found);
+    found.catch(() => cache.delete(slot));
   }
   return found;
 }

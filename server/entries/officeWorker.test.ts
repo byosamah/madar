@@ -377,7 +377,7 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     const answer = await routes.fetch(new Request('https://madar-server.internal/api/auth/jwks', { headers: { 'x-madar-client-address': '203.0.113.7' } }), {}, { waitUntil: () => undefined });
     expect(answer.status).toBe(200);
     expect(got).toHaveLength(1);
-    expect([got[0].call.router.stub('ent_001'), got[0].call.net(), typeof got[0].call.after, got[0].address]).toEqual([stub, net, 'function', '203.0.113.7']);
+    expect([got[0].call.router.stub('ent_001'), got[0].call.net('ent_001'), typeof got[0].call.after, got[0].address]).toEqual([stub, net, 'function', '203.0.113.7']);
     expect((await get('/auth/jwks')).status).toBe(404);
   });
 
@@ -535,6 +535,21 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
     expect(seen).toEqual([{ name: 'ent_002', path: '/office/export', header: 'ent_002', body: '{"step":"begin"}' }]);
     for (const name of ['ent_009', 'ENT_002', 'ent_2', 'ent_002.x']) expect((await routes.fetch(post(`/api/office/export?office=${name}`, exportOp), {})).status, name).toBe(403);
     expect(created).toEqual(['ent_002']);
+  });
+
+  it('the enterprises op needs the export secret, answers the listed ids and makes no object', async () => {
+    const { routes, created, seen } = opsRoutes();
+    const tries: Record<string, string>[] = [{}, { 'x-madar-export-secret': 'no' }, { 'x-madar-ops-secret': 'ops-secret-of-the-test' }];
+    for (const headers of tries) {
+      expect((await routes.fetch(post('/api/office/enterprises', headers), {})).status).toBe(401);
+    }
+    const answer = await routes.fetch(post('/api/office/enterprises', { 'x-madar-export-secret': 'export-secret-of-the-test' }), {});
+    expect([answer.status, await answer.json()]).toEqual([200, { enterprises: ['ent_001', 'ent_002'] }]);
+    // The list holds ids only, and no object was asked for.
+    expect(created).toEqual([]);
+    expect(seen).toEqual([]);
+    // A GET gets the same answer as an address that does not exist.
+    expect((await routes.fetch(new Request('https://w.test/api/office/enterprises', { method: 'GET', headers: { 'x-madar-export-secret': 'export-secret-of-the-test' } }), {})).status).toBe(404);
   });
 
   it('import takes the old name office, a rehearsal name and a listed id, and nothing else', async () => {

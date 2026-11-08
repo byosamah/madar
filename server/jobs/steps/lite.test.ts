@@ -151,7 +151,7 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
       || (t.status === 'in_review' && active(t.projectId) && reviewersOfTask(seed, t).includes(id)));
     const expected = Object.values(seed.users)
       .filter((u) => u.kind === 'human' && u.active && (u.preferences.morningSummary ?? true) && says(u.id))
-      .map((u) => `summary-${DAY}-${u.id}`).sort();
+      .map((u) => `ent_001:summary-${DAY}-${u.id}`).sort();
     expect(expected.length).toBeGreaterThan(0);
     expect(await summary(deps, NINE)).toMatchObject({ due: true, day: DAY, sent: expected.length });
     expect(deps.mail.sent.map((m) => m.idempotencyKey).sort()).toEqual(expected);

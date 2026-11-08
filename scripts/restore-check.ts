@@ -98,7 +98,7 @@ function removeLeftovers(docker: string): void {
 const LOCK_KEY = 7_310_001;
 
 /** Ports that refuse: dashboard.get reads only, so it never reaches them. The office restore check uses them too. */
-export function readOnlyDeps(db: Deps['db']): Deps {
+export function readOnlyDeps(db: Deps['db'], o: { ent?: string } = {}): Deps {
   const refuse = (what: string) => () => {
     throw new Error(`The restore check reads only; it does not ${what}.`);
   };
@@ -127,6 +127,7 @@ export function readOnlyDeps(db: Deps['db']): Deps {
       getUser: refuse('read an Auth user'),
     },
     config: {
+      ...(o.ent ? { ent: o.ent } : {}),
       lockKey: LOCK_KEY,
       appUrl: local,
       apiUrl: local,

@@ -8,6 +8,7 @@ import { sqlFor, statementQuery } from '../data/dialect';
 import { errorResponse, runErrorOf } from '../http/errors';
 import { CLIENT_ADDRESS_HEADER } from '../http/pagesForward';
 import { reserve, sendCounted } from '../mail/quota';
+import { entOfConfig, scopedRef } from '../enterprise/scope';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey, hitLimit } from './rateLimit';
 
@@ -96,7 +97,7 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
   // The place in the quota before the link: a full day must not end the link that the person got earlier.
   const key = await hashedKey('reset', `${row.id}:${crypto.randomUUID()}`);
   const now = deps.clock.now();
-  if ((await deps.db.tx('write', (q) => reserve(q, 'signin', key, { now, userId: row.id }))) === 'over') {
+  if ((await deps.db.tx('write', (q) => reserve(q, 'signin', scopedRef(entOfConfig(deps.config), key), { now, userId: row.id }))) === 'over') {
     deps.log.warn('A reset mail did not go out: the daily mail quota is full.', { userId: row.id });
     return 'none';
   }

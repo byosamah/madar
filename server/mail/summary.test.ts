@@ -162,7 +162,7 @@ describe('sendSummary', () => {
     const { mem, deps } = setup({ person: { preferences: { ...defaultPreferences(), language: 'ar' } } });
     expect(await sendSummary(deps, 'usr_002', TODAY)).toBe('sent');
     const [mail] = deps.mail.sent;
-    expect(mail).toMatchObject({ to: 'sara@madar.test', tag: 'summary', idempotencyKey: `summary-${TODAY}-usr_002` });
+    expect(mail).toMatchObject({ to: 'sara@madar.test', tag: 'summary', idempotencyKey: `ent_001:summary-${TODAY}-usr_002` });
     expect(mail.html).toContain('dir="rtl"');
     expect(mail.text).toContain('- Check the setback\n  260902AZT \u00b7 الأحد، 4 أكتوبر');
     expect(mail.text).toContain('- Send the survey\n  260902AZT \u00b7 الخميس، 1 أكتوبر');
@@ -172,7 +172,7 @@ describe('sendSummary', () => {
     expect(mail.html).toContain('https://madar.test/work');
     // The Madar mark at the app address of the server config (TASKS.md, Logo, point 4).
     expect(mail.html).toContain('<img src="https://madar.test/icons/madar-192.png"');
-    expect(mem.log.map((r) => [r.kind, r.ref])).toEqual([['summary', `summary-${TODAY}-usr_002`]]);
+    expect(mem.log.map((r) => [r.kind, r.ref])).toEqual([['summary', `ent_001:summary-${TODAY}-usr_002`]]);
   });
 
   it('sends once when the job runs twice on the same day', async () => {

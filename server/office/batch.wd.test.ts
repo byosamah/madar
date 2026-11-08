@@ -56,10 +56,13 @@ describe('the batch call into the office object on local workerd', () => {
   });
 
   it('gives a file link to the network port of the Worker', async () => {
-    await live.fresh(await seedOf());
+    // The seed keys are prototype keys (blob_...). The file port refuses a key without the key form (Madar enterprises), as the stores do.
+    const seed = await seedOf();
+    for (const version of seed.files.fil_001.versions) version.blobKey = 'prj-001/fil-001/1/file';
+    await live.fresh(seed);
     const { body } = await live.batch('usr_001', [{ name: 'files.link', input: { id: 'fil_001', variant: 'full', disposition: 'inline' } }]);
-    expect(body.results[0]).toMatchObject({ ok: true, output: { url: expect.stringContaining('blob_seed_001') } });
-    expect((await live.net()).files).toContainEqual({ op: 'presignGet', key: 'blob_seed_001' });
+    expect(body.results[0]).toMatchObject({ ok: true, output: { url: expect.stringContaining('prj-001/fil-001/1/file') } });
+    expect((await live.net()).files).toContainEqual({ op: 'presignGet', key: 'prj-001/fil-001/1/file' });
   });
 
   it('runs two batches that arrive at one time one after the other', async () => {

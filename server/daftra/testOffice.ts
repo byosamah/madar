@@ -47,7 +47,8 @@ export function addSubCompanies(seed: State): { mazj: string; vado: string; stud
 
 export type DaftraOffice = Awaited<ReturnType<typeof daftraOffice>>;
 
-export async function daftraOffice(o: { at?: string; fakes?: FakeDaftra[]; edit?: (seed: State) => void } = {}) {
+/** `ent`: the enterprise of the office (Config.ent). With none, the office is ENT_VADO. */
+export async function daftraOffice(o: { at?: string; fakes?: FakeDaftra[]; edit?: (seed: State) => void; ent?: string } = {}) {
   const at = o.at ?? AT;
   const { raw, db } = await freshLite();
   const seed = await buildSeed(at.slice(0, 10), async () => undefined);
@@ -58,7 +59,7 @@ export async function daftraOffice(o: { at?: string; fakes?: FakeDaftra[]; edit?
   const base = fakeDeps({ db });
   base.clock.set(new Date(at));
   const wired = fakes.length > 0 ? daftraDeps(...fakes) : { config: base.config, daftraFetch: undefined };
-  const deps = { ...base, authAdmin: liteAuthAdmin({ db, clock: base.clock }), config: { ...base.config, ...(fakes.length > 0 ? { daftra: wired.config.daftra } : {}) } };
+  const deps = { ...base, authAdmin: liteAuthAdmin({ db, clock: base.clock }), config: { ...base.config, ...(o.ent ? { ent: o.ent } : {}), ...(fakes.length > 0 ? { daftra: wired.config.daftra } : {}) } };
   if (wired.daftraFetch) (deps as { daftraFetch?: typeof globalThis.fetch }).daftraFetch = wired.daftraFetch;
   const run = createRunCall({ data: liteData });
   const batch = () => ({ storyRefs: new Map<string, string>(), overviewCalls: 0 });

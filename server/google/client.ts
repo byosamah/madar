@@ -1,4 +1,5 @@
 import type { Deps } from '../core/ports';
+import { entOfConfig } from '../enterprise/scope';
 import type { GoogleClient } from './api';
 import { GOOGLE_CALLBACK_PATH } from './callback';
 import { googleKeysOf, type GoogleKeys } from './keys';
@@ -26,6 +27,6 @@ export function googleOf(deps: Pick<Deps, 'config' | 'googleFetch'>): GoogleRead
       redirectUri: redirectUriOf(deps.config.appUrl),
       ...(deps.googleFetch ? { fetch: deps.googleFetch } : {}),
     },
-    keys: () => googleKeysOf(google.key),
+    keys: () => googleKeysOf(google.key, entOfConfig(deps.config)),
   };
 }

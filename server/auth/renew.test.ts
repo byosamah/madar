@@ -110,14 +110,14 @@ function oneAtATime(db: Db): Db {
   };
 }
 
-async function setup(o: { host?: () => RequestHost } = {}) {
+async function setup(o: { host?: () => RequestHost; ent?: string } = {}) {
   const auth = fakeAuth();
   const users: Record<string, Row> = {
     usr_002: { doc: seed.users.usr_002, auth: null },
     usr_005: { doc: { ...seed.users.usr_005, preferences: { ...seed.users.usr_005.preferences, language: 'ar' } }, auth: null },
   };
   const db = memoryDb(users);
-  const deps = fakeDeps({ db: oneAtATime(db.mem.db), config: { appUrl: 'https://madar.test' } });
+  const deps = fakeDeps({ db: oneAtATime(db.mem.db), config: { appUrl: 'https://madar.test', ent: o.ent } });
   deps.authAdmin = auth;
   const slept: number[] = [];
   const route = createRenewRoute({ minMs: 0, sleep: async (ms) => void slept.push(ms), host: o.host });
@@ -139,6 +139,15 @@ async function setup(o: { host?: () => RequestHost } = {}) {
 describe('POST /auth/renew-invite (security fix 7)', () => {
   it('is mounted on the api function', () => {
     expect(ROUTES.some((route) => route.method === 'POST' && route.path === RENEW_PATH)).toBe(true);
+  });
+
+  it('puts the enterprise id before the place of the renewed invitation in the quota (Madar enterprises)', async () => {
+    const { db, invite, post } = await setup({ ent: 'ent_002' });
+    const first = await invite('usr_002');
+    // The Worker cuts the tag off before the object sees the key (plan B), so the test does the same.
+    expect((await post({ key: keyIn(first).replace(/^ent_002\./, '') })).status).toBe(200);
+    expect(db.mem.log).toHaveLength(2);
+    expect(db.mem.log.every((row) => /^ent_002:invite:/.test(row.ref))).toBe(true);
   });
 
   it('a good key sends a new invitation to the same person, at the address Madar holds, with a new link and a new key', async () => {

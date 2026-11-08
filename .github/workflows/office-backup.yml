@@ -1,11 +1,16 @@
-# The nightly backup of an office object (Supabase exit, wave 4; spec section 2, "Backups" (2)). It runs at 02:07 Riyadh, off the
-# busy start of the hour and between two runs of the 15-minute Cron of the office object (02:00 and 02:15).
+# The nightly backup of the office objects (Supabase exit, wave 4; spec section 2, "Backups" (2); Madar enterprises, design 5.15). It runs
+# at 02:07 Riyadh, off the busy start of the hour and between two runs of the 15-minute Cron of the office object (02:00 and 02:15).
 #
-# scripts/backup/officeExport.ts asks the export route of the copy (vars.OFFICE_BACKUP_URL) for every row, with the secret header.
-# The office object refuses writes for at most 5 minutes meanwhile; reads and sign-ins go on. The script encrypts the folder with
-# age to the owner's public key, and the file goes to a release of the private repository madar-backups. Releases of the same copy
-# older than 30 days go. The run fails, so GitHub mails the owner, when the export fails twice or when the newest office backup
-# before this run was older than 26 hours. Until vars.OFFICE_BACKUP_URL is set (wave 5), every run ends at its first step.
+# Each enterprise has its own office object, so each one has its own backup. The step "List the enterprises" asks the Worker for the ids
+# (scripts/backup/officeEnterprises.ts). scripts/backup/officeExport.ts then asks the export route of the copy (vars.OFFICE_BACKUP_URL) for
+# every row of one enterprise, with the secret header. The office object refuses writes for at most 5 minutes meanwhile; reads and
+# sign-ins go on. The script encrypts the folder with age to the owner's public key, and each file goes to its own release of the private
+# repository madar-backups, named madar-office-<copy>-<ent>-<stamp>. Releases of the same copy older than 30 days go.
+#
+# One enterprise that fails does not stop the others: the export goes on to the next id, and the run fails at the end. So GitHub mails the
+# owner when an export fails twice, when an upload fails, or when the newest backup of any enterprise before this run was older than 26
+# hours. A new enterprise with no backup yet counts as 0 hours. Until vars.OFFICE_BACKUP_URL is set (wave 5), every run ends at its first
+# step.
 #
 # Values, by name only:
 #   secrets.OFFICE_EXPORT_SECRET  the MADAR_EXPORT_SECRET of the Worker of that copy (scripts/office/new-secret.ts --github)
@@ -33,6 +38,8 @@ env:
   BACKUP_REPO: byosamah/madar-backups
   KEEP_DAYS: '30'
   STALE_HOURS: '26'
+  # VADOs' Companies. Its backups from before the enterprise names (madar-office-<copy>-<stamp>) count as its own in the age check.
+  VADO_ENT: ent_001
 
 jobs:
   backup:
@@ -73,24 +80,43 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q age
 
+      - name: List the enterprises
+        id: ents
+        if: steps.on.outputs.on == 'true'
+        env:
+          OFFICE_EXPORT_SECRET: ${{ secrets.OFFICE_EXPORT_SECRET }}
+          URL: ${{ vars.OFFICE_BACKUP_URL }}
+        run: |
+          npx tsx scripts/backup/officeEnterprises.ts --url "$URL" > "$RUNNER_TEMP/enterprises.json"
+          cat "$RUNNER_TEMP/enterprises.json"
+          echo "ids=$(jq -r '.enterprises | join(" ")' "$RUNNER_TEMP/enterprises.json")" >> "$GITHUB_OUTPUT"
+
+      # The newest backup of each enterprise, from one list of the releases. hours is the largest age: the step that fails the run reads it.
       - name: Age of the newest office backup
         id: fresh
         if: steps.on.outputs.on == 'true'
         env:
           GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
           COPY: ${{ vars.OFFICE_BACKUP_COPY }}
+          IDS: ${{ steps.ents.outputs.ids }}
         run: |
-          newest="$(gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,publishedAt \
-            --jq "[.[] | select(.tagName | startswith(\"madar-office-$COPY-\"))] | sort_by(.publishedAt) | last | .publishedAt // empty")"
-          if [ -z "$newest" ]; then
-            echo "No office backup yet."
-            echo "hours=0" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          hours=$(( ($(date -u +%s) - $(date -u -d "$newest" +%s)) / 3600 ))
-          echo "The newest office backup is $hours hours old."
-          echo "hours=$hours" >> "$GITHUB_OUTPUT"
+          releases="$(gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,publishedAt)"
+          worst=0
+          for ENT in $IDS; do
+            newest="$(printf '%s' "$releases" | jq -r \
+              "[.[] | select(.tagName | startswith(\"madar-office-$COPY-$ENT-\") or (\"$ENT\" == \"$VADO_ENT\" and test(\"^madar-office-$COPY-[0-9]{8}-\")))] | sort_by(.publishedAt) | last | .publishedAt // empty")"
+            if [ -z "$newest" ]; then
+              echo "No office backup of $ENT yet."
+              continue
+            fi
+            hours=$(( ($(date -u +%s) - $(date -u -d "$newest" +%s)) / 3600 ))
+            echo "The newest office backup of $ENT is $hours hours old."
+            if [ "$hours" -gt "$worst" ]; then worst="$hours"; fi
+          done
+          echo "hours=$worst" >> "$GITHUB_OUTPUT"
 
+      # One enterprise after the other. A failed export waits 2 minutes and tries once more; an enterprise that fails twice goes on the list
+      # of the failed ones and the loop goes on with the next id. The step ends with success, so the upload of the others still runs.
       - name: Export, count and encrypt
         id: dump
         if: steps.on.outputs.on == 'true'
@@ -99,28 +125,44 @@ jobs:
           BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
           URL: ${{ vars.OFFICE_BACKUP_URL }}
           COPY: ${{ vars.OFFICE_BACKUP_COPY }}
+          IDS: ${{ steps.ents.outputs.ids }}
         run: |
           mkdir -p "$RUNNER_TEMP/backup"
-          # A write during the export (rare at 02:07) or a dropped connection fails one run: try once more after 2 minutes.
-          if ! npx tsx scripts/backup/officeExport.ts --url "$URL" --copy "$COPY" --out "$RUNNER_TEMP/backup" > "$RUNNER_TEMP/backup.json"; then
-            sleep 120
-            npx tsx scripts/backup/officeExport.ts --url "$URL" --copy "$COPY" --out "$RUNNER_TEMP/backup" > "$RUNNER_TEMP/backup.json"
-          fi
-          cat "$RUNNER_TEMP/backup.json"
-          echo "file=$(jq -r .file "$RUNNER_TEMP/backup.json")" >> "$GITHUB_OUTPUT"
-          echo "name=$(jq -r .name "$RUNNER_TEMP/backup.json")" >> "$GITHUB_OUTPUT"
+          : > "$RUNNER_TEMP/backup/results.tsv"
+          failed=""
+          for ENT in $IDS; do
+            result="$RUNNER_TEMP/backup/$ENT.json"
+            # A write during the export (rare at 02:07) or a dropped connection fails one run: try once more after 2 minutes.
+            if ! npx tsx scripts/backup/officeExport.ts --url "$URL" --copy "$COPY" --enterprise "$ENT" --out "$RUNNER_TEMP/backup" > "$result"; then
+              sleep 120
+              if ! npx tsx scripts/backup/officeExport.ts --url "$URL" --copy "$COPY" --enterprise "$ENT" --out "$RUNNER_TEMP/backup" > "$result"; then
+                echo "::error::The export of $ENT failed twice."
+                failed="$failed $ENT"
+                continue
+              fi
+            fi
+            cat "$result"
+            printf '%s\t%s\t%s\n' "$ENT" "$(jq -r .file "$result")" "$(jq -r .name "$result")" >> "$RUNNER_TEMP/backup/results.tsv"
+          done
+          echo "failed=${failed# }" >> "$GITHUB_OUTPUT"
 
       - name: Upload to madar-backups
+        id: upload
         if: steps.on.outputs.on == 'true'
         env:
           GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
-          FILE: ${{ steps.dump.outputs.file }}
-          NAME: ${{ steps.dump.outputs.name }}
         run: |
-          gh release create "$NAME" "$FILE" --repo "$BACKUP_REPO" --title "$NAME" \
-            --notes "Nightly backup of an office object of Madar, encrypted with age to the owner's key. Check it with scripts/restore-check.ts."
+          failed=""
+          while IFS="$(printf '\t')" read -r ENT file name; do
+            if ! gh release create "$name" "$file" --repo "$BACKUP_REPO" --title "$name" \
+              --notes "Nightly backup of an office object of Madar, encrypted with age to the owner's key. Check it with scripts/restore-check.ts."; then
+              echo "::error::The upload of the backup of $ENT failed."
+              failed="$failed $ENT"
+            fi
+          done < "$RUNNER_TEMP/backup/results.tsv"
+          echo "failed=${failed# }" >> "$GITHUB_OUTPUT"
 
-      # Only after a good upload, so a run of failures never removes the last good backups. The shell puts the copy into the
+      # Only after the uploads, so a run of failures never removes the last good backups. The shell puts the copy into the
       # jq text (startswith("madar-office-test-")), so a run of the test copy never removes a production backup.
       - name: Remove office backups older than 30 days
         if: steps.on.outputs.on == 'true'
@@ -144,4 +186,14 @@ jobs:
           HOURS: ${{ steps.fresh.outputs.hours }}
         run: |
           echo "::error::The newest office backup before this run was $HOURS hours old (the limit is $STALE_HOURS). A night had no backup."
+          exit 1
+
+      # The last step: an enterprise that has no new backup tonight fails the run, so GitHub mails the owner. The others already have theirs.
+      - name: Fail when an enterprise has no backup tonight
+        if: steps.on.outputs.on == 'true' && always() && (steps.dump.outputs.failed != '' || steps.upload.outputs.failed != '')
+        env:
+          EXPORT_FAILED: ${{ steps.dump.outputs.failed }}
+          UPLOAD_FAILED: ${{ steps.upload.outputs.failed }}
+        run: |
+          echo "::error::No backup tonight for: ${EXPORT_FAILED} ${UPLOAD_FAILED}"
           exit 1

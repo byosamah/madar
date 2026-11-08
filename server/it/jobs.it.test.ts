@@ -142,9 +142,9 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
       'select payload, done_at is not null as done from outbox where kind = $1 and payload->>\'notificationId\' = $2', [NOTICE_EFFECT, notice.id],
     );
     expect(rows).toEqual([{ payload: { notificationId: notice.id }, done: true }]);
-    expect(deps.mail.sent.filter((m) => m.idempotencyKey === `notice-${notice.id}`).map((m) => [m.to, m.tag])).toEqual([[office.seed.users[owner].email, 'notice']]);
+    expect(deps.mail.sent.filter((m) => m.idempotencyKey === `ent_001:notice-${notice.id}`).map((m) => [m.to, m.tag])).toEqual([[office.seed.users[owner].email, 'notice']]);
     await triggers(deps, at('2026-11-22'));
-    expect(deps.mail.sent.filter((m) => m.idempotencyKey === `notice-${notice.id}`)).toHaveLength(1);
+    expect(deps.mail.sent.filter((m) => m.idempotencyKey === `ent_001:notice-${notice.id}`)).toHaveLength(1);
   });
 
   it('gives two runs at the same moment the same notices as one run, with no repeat (the office lock and the dedupe index)', async () => {
@@ -169,7 +169,7 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     const [unset, off] = withNews;
     await office.sql("update users set doc = doc #- '{preferences,morningSummary}' where id = $1", [unset.id]);
     await setDoc('users', off.id, ['preferences', 'morningSummary'], false);
-    const wanted = withNews.filter((u) => u.id !== off.id).map((u) => `summary-${day}-${u.id}`);
+    const wanted = withNews.filter((u) => u.id !== off.id).map((u) => `ent_001:summary-${day}-${u.id}`);
     deps.mail.sent.length = 0;
 
     expect(await summary(deps, new Date(`${day}T04:29:00Z`))).toEqual({ due: false });

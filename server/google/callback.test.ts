@@ -24,7 +24,7 @@ function setup(o: { google?: boolean } = {}) {
   const call = (query: string) => googleCallback(new Request(`https://madar.example/api/google/callback${query}`), deps);
   return { deps, call };
 }
-const goodState = async (at = NOW) => (await signState(await googleKeysOf(KEY), 'usr_003', at)).state;
+const goodState = async (at = NOW) => (await signState(await googleKeysOf(KEY), 'usr_003', at, 'ent_001')).state;
 
 describe('the callback route', () => {
   it('is a GET at /google/callback', () => {

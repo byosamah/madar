@@ -193,13 +193,13 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     expect(mem.outbox[0].payload).toMatchObject({ userId: 'usr_012', to: 'sara@madar.test', email: 'sara.new@madar.test', by: 'Faisal Al Harbi', key: 'email-changed:inv_a' });
     expect(store.payloads.get('inv_a')).toMatchObject({ notifyOld: 'sara@madar.test', noticeQueued: true });
     expect(deps.mail.sent.map((m) => [m.to, m.subject, m.tag, m.idempotencyKey])).toEqual([
-      ['sara@madar.test', 'Your Madar sign-in email changed', 'notice', 'email-changed:inv_a'],
+      ['sara@madar.test', 'Your Madar sign-in email changed', 'notice', 'ent_001:email-changed:inv_a'],
     ]);
     expect(deps.mail.sent[0].text).toContain('sara.new@madar.test');
     expect(deps.mail.sent[0].text).toContain('The change came from Faisal Al Harbi.');
     expect(deps.mail.sent[0].text).not.toMatch(/token_hash|https?:/);
     // It counts against the daily mail quota as sign-in mail.
-    expect(mem.log.map((row) => [row.kind, row.user_id, row.ref, row.resend_id])).toEqual([['signin', 'usr_012', 'email-changed:inv_a', 'mail_1']]);
+    expect(mem.log.map((row) => [row.kind, row.user_id, row.ref, row.resend_id])).toEqual([['signin', 'usr_012', 'ent_001:email-changed:inv_a', 'mail_1']]);
   });
 
   it('auth.email for a person who opened the link but saved no password: the notice at the old email and a working link at the new one', async () => {
@@ -364,7 +364,7 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     // Auth must not confirm a person who has no password: users.invites would show "active", and the next invite link would fail.
     expect(auth.confirmed.has(pending.authUserId!)).toBe(false);
     expect(auth.links.map((l) => [l.type, l.email])).toEqual([['invite', 'sara@madar.test'], ['invite', 'sara.new@madar.test']]);
-    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['sara.new@madar.test', 'invite:inv_b']]);
+    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['sara.new@madar.test', 'ent_001:invite:inv_b']]);
   });
 
   it('the invitation of auth.email counts as sign-in mail; on a full day the row waits (QuotaFull) and the next day sends it', async () => {
@@ -380,8 +380,8 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     expect([auth.links.length, deps.mail.sent.length]).toEqual([1, 0]);
     deps.clock.set('2026-10-04T00:05:00Z');
     await runAuthEffect(AUTH_KINDS.email, again(store, payload), deps, store);
-    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['sara.new@madar.test', 'invite:inv_q']]);
-    expect(mem.log.filter((row) => row.ref === 'invite:inv_q').map((row) => [row.utc_day, row.kind, row.resend_id])).toEqual([['2026-10-04', 'signin', 'mail_1']]);
+    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['sara.new@madar.test', 'ent_001:invite:inv_q']]);
+    expect(mem.log.filter((row) => row.ref === 'ent_001:invite:inv_q').map((row) => [row.utc_day, row.kind, row.resend_id])).toEqual([['2026-10-04', 'signin', 'mail_1']]);
   });
 
   it('a retry of auth.email sends the invitation when the mail failed after Auth took the new email, with the first link', async () => {
@@ -410,7 +410,7 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     await expect(runAuthEffect(AUTH_KINDS.email, payload, deps, store)).rejects.toThrow('Auth is slow');
     expect(auth.users.get(pending.authUserId!)!.email).toBe('sara.new@madar.test');
     await runAuthEffect(AUTH_KINDS.email, again(store, payload), deps, store);
-    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['sara.new@madar.test', 'invite:inv_l']]);
+    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['sara.new@madar.test', 'ent_001:invite:inv_l']]);
   });
 
   it('auth.email does nothing when the email did not change (a name change), and the effects skip a person with no sign-in link', async () => {

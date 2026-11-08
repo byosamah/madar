@@ -67,10 +67,10 @@ function memoryStore(people: Person[]) {
   return { store, payloads, relinks, byId, replaced, reads, queue };
 }
 
-function setup(people: Person[], o: { db?: ReturnType<typeof memoryMailDb> } = {}) {
+function setup(people: Person[], o: { db?: ReturnType<typeof memoryMailDb>; ent?: string } = {}) {
   // Every invitation counts against the daily mail quota (wave 6, V), so each test has the quota statements in memory.
   const db = o.db ?? memoryMailDb();
-  const deps = fakeDeps({ db: db.db, config: { appUrl: 'https://madar.test' } });
+  const deps = fakeDeps({ db: db.db, config: { appUrl: 'https://madar.test', ent: o.ent } });
   const auth = fakeAuth(deps.authAdmin);
   deps.authAdmin = auth;
   const mem = memoryStore(people);
@@ -84,6 +84,21 @@ const linkIn = (text: string) => /https:\/\/madar\.test\/\S+/.exec(text)?.[0];
 const renewIn = (text: string) => new URL(linkIn(text) ?? 'https://madar.test/').searchParams.get(RENEW_PARAM) ?? undefined;
 
 describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
+  it('puts the enterprise id before the place in the quota, before the Resend key, and before the place that a skipped row gives back (Madar enterprises)', async () => {
+    const { deps, mem, payloadOf, db } = setup([{ user: person(), authUserId: null }], { ent: 'ent_002' });
+    const row = inviteRow('usr_012');
+    expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
+    expect(db.log.map((r) => r.ref)).toEqual([`ent_002:invite:${row.payload.inviteId}`]);
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual([`ent_002:invite:${row.payload.inviteId}`]);
+    // A row that ends with no mail gives back the place under the same scoped ref.
+    const off = setup([{ user: person({ active: false }), authUserId: null }], { ent: 'ent_002' });
+    const second = inviteRow('usr_012');
+    off.db.fill('signin', 0, '2026-10-04');
+    off.db.log.push({ utc_day: '2026-10-04', kind: 'signin', user_id: 'usr_012', ref: `ent_002:invite:${second.payload.inviteId}`, resend_id: null });
+    expect(await sendInvitation(payloadOf(second), off.deps, { store: off.mem.store })).toBe('skipped');
+    expect(off.db.log.filter((r) => r.ref.includes('invite:'))).toEqual([]);
+  });
+
   it('makes an invite link, links the Auth user with setAuthUserId, and sends the mail in English with a Welcome link', async () => {
     const { deps, auth, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
     const row = inviteRow('usr_012');
@@ -93,7 +108,7 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     const { authUserId, tokenHash } = auth.links[0];
     expect(mem.relinks).toEqual([{ userId: 'usr_012', authUserId }]);
     const [mail] = deps.mail.sent;
-    expect(mail).toMatchObject({ to: 'sara@madar.test', subject: 'Your invitation to Madar', tag: 'invite', idempotencyKey: `invite:${row.payload.inviteId}` });
+    expect(mail).toMatchObject({ to: 'sara@madar.test', subject: 'Your invitation to Madar', tag: 'invite', idempotencyKey: `ent_001:invite:${row.payload.inviteId}` });
     // The link also carries the renew key of security fix 7, so the Welcome screen can ask for a new link when this one is out of date.
     const key = renewIn(mail.text)!;
     expect(linkIn(mail.text)).toBe(`https://madar.test/welcome?token_hash=${tokenHash}&type=invite&${RENEW_PARAM}=${key}`);
@@ -194,7 +209,7 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     const row = renewRow('usr_012');
     expect(row).toMatchObject({ kind: INVITE_KIND, payload: { userId: 'usr_012', counted: true } });
     expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
-    expect(db.log.map((r) => [r.kind, r.user_id, r.ref, r.resend_id])).toEqual([['signin', 'usr_012', `invite:${row.payload.inviteId}`, 'mail_1']]);
+    expect(db.log.map((r) => [r.kind, r.user_id, r.ref, r.resend_id])).toEqual([['signin', 'usr_012', `ent_001:invite:${row.payload.inviteId}`, 'mail_1']]);
     // A full day: the mail does not go out, and the row stays for the job (it throws).
     db.fill('notice', QUOTA_LIMITS.signin, deps.clock.now().toISOString().slice(0, 10));
     const second = renewRow('usr_012');
@@ -210,7 +225,7 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     await expect(sendInvitation(payloadOf(row), deps, { store: mem.store })).rejects.toThrow('Resend is down');
     expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
     // One place in the day for the two attempts, under the idempotency key of the mail, with the Resend id of the send.
-    expect(db.log.map((r) => [r.kind, r.user_id, r.ref, r.resend_id])).toEqual([['signin', 'usr_012', `invite:${row.payload.inviteId}`, 'mail_1']]);
+    expect(db.log.map((r) => [r.kind, r.user_id, r.ref, r.resend_id])).toEqual([['signin', 'usr_012', `ent_001:invite:${row.payload.inviteId}`, 'mail_1']]);
   });
 
   it('a full day makes no link and sends nothing; it throws QuotaFull with the next UTC midnight, so the row waits for a day with room', async () => {
@@ -224,12 +239,12 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     // No Auth link: a link lives 1 hour, so a link made today would be out of date in tomorrow's mail.
     expect([auth.links.length, deps.mail.sent.length]).toEqual([0, 0]);
     expect(mem.payloads.get(String(row.payload.inviteId))).toBeUndefined();
-    expect(db.log.filter((r) => r.ref.startsWith('invite:'))).toEqual([]);
+    expect(db.log.filter((r) => r.ref.startsWith('ent_001:invite:'))).toEqual([]);
     // The next UTC day has room: the same row makes its link and sends.
     deps.clock.set('2026-10-04T00:05:00Z');
     expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
     expect(auth.links).toHaveLength(1);
-    expect(db.log.filter((r) => r.ref === `invite:${row.payload.inviteId}`).map((r) => r.utc_day)).toEqual(['2026-10-04']);
+    expect(db.log.filter((r) => r.ref === `ent_001:invite:${row.payload.inviteId}`).map((r) => r.utc_day)).toEqual(['2026-10-04']);
   });
 
   it('rows that waited with no link send one mail on the next day: an older row gives way to a later invitation of the person and takes no place', async () => {
@@ -248,7 +263,7 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     for (const row of rows) results.push(await sendInvitation(payloadOf(row), deps, { store: mem.store }));
     expect(results).toEqual(['skipped', 'skipped', 'sent']);
     expect([auth.links.length, deps.mail.sent.length]).toEqual([1, 1]);
-    expect(db.log.filter((r) => r.ref.startsWith('invite:')).map((r) => r.ref)).toEqual([`invite:${rows[2].payload.inviteId}`]);
+    expect(db.log.filter((r) => r.ref.startsWith('ent_001:invite:')).map((r) => r.ref)).toEqual([`ent_001:invite:${rows[2].payload.inviteId}`]);
     // Another person's later row does not replace this one.
     const other = setup([{ user: person(), authUserId: null }, { user: person({ id: 'usr_013', email: 'omar@madar.test' }), authUserId: null }]);
     const mine = other.mem.queue(inviteRow('usr_012'));
@@ -260,18 +275,18 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     const { deps, mem, payloadOf, db } = setup([{ user: person(), authUserId: null }]);
     const row = renewRow('usr_012');
     const day = deps.clock.now().toISOString().slice(0, 10);
-    db.log.push({ utc_day: day, kind: 'signin', user_id: 'usr_012', ref: `invite:${row.payload.inviteId}`, resend_id: null });
+    db.log.push({ utc_day: day, kind: 'signin', user_id: 'usr_012', ref: `ent_001:invite:${row.payload.inviteId}`, resend_id: null });
     expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
-    expect(db.log.filter((r) => r.ref === `invite:${row.payload.inviteId}`)).toHaveLength(1);
+    expect(db.log.filter((r) => r.ref === `ent_001:invite:${row.payload.inviteId}`)).toHaveLength(1);
   });
 
   it('a row with no link that sends nothing gives back the place that the renew route reserved for it (wave 6 follow-up)', async () => {
     const { deps, mem, payloadOf, db } = setup([{ user: person(), authUserId: null }]);
     const day = deps.clock.now().toISOString().slice(0, 10);
     const place = (row: { payload: Record<string, unknown> }) => {
-      db.log.push({ utc_day: day, kind: 'signin', user_id: 'usr_012', ref: `invite:${row.payload.inviteId}`, resend_id: null });
+      db.log.push({ utc_day: day, kind: 'signin', user_id: 'usr_012', ref: `ent_001:invite:${row.payload.inviteId}`, resend_id: null });
     };
-    const places = () => db.log.filter((r) => r.ref.startsWith('invite:')).map((r) => r.ref);
+    const places = () => db.log.filter((r) => r.ref.startsWith('ent_001:invite:')).map((r) => r.ref);
     // A renewal waits; then the Admin sends the invitation again. The renewal gives way and frees its place for the later row.
     const renewal = mem.queue(renewRow('usr_012'));
     place(renewal);
@@ -279,13 +294,13 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     expect(await sendInvitation(payloadOf(renewal), deps, { store: mem.store })).toBe('skipped');
     expect(places()).toEqual([]);
     expect(await sendInvitation(payloadOf(later), deps, { store: mem.store })).toBe('sent');
-    expect(places()).toEqual([`invite:${later.payload.inviteId}`]);
+    expect(places()).toEqual([`ent_001:invite:${later.payload.inviteId}`]);
     // A renewal of a person who was turned off also frees its place.
     const off = mem.queue(renewRow('usr_012'));
     place(off);
     mem.byId.get('usr_012')!.user.active = false;
     expect(await sendInvitation(payloadOf(off), deps, { store: mem.store })).toBe('skipped');
-    expect(places()).toEqual([`invite:${later.payload.inviteId}`]);
+    expect(places()).toEqual([`ent_001:invite:${later.payload.inviteId}`]);
   });
 
   it('a row with a stored link that sends nothing keeps its place, because an earlier attempt may have sent its mail', async () => {
@@ -295,7 +310,7 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     await expect(sendInvitation(payloadOf(row), deps, { store: mem.store })).rejects.toThrow('Resend is down');
     mem.replaced.add(String(row.payload.inviteId));
     expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('skipped');
-    expect(db.log.filter((r) => r.ref === `invite:${row.payload.inviteId}`)).toHaveLength(1);
+    expect(db.log.filter((r) => r.ref === `ent_001:invite:${row.payload.inviteId}`)).toHaveLength(1);
   });
 
   it('writes the mail in Arabic, with the feminine forms, for an Arabic woman', async () => {

@@ -1,6 +1,8 @@
 import { isPushEndpoint } from '../../src/api/contract/push';
 import type { Config, FileStoreKind, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
 import { DAFTRA_API_PREFIX, DAFTRA_TIMEOUT_MS } from '../daftra/client';
+import { ENT_VADO, type EnterpriseId } from '../enterprise/ids';
+import { guardFilesPort } from '../files/guard';
 import { readOnlyFetch } from '../daftra/readOnly';
 import { GOOGLE_CONNECT_CALL_MS } from '../google/api';
 import { MailSendError } from '../mail/resend';
@@ -173,7 +175,7 @@ export const NET_IN_TRANSACTION = 'The office object makes no network call insid
 export type NetGuard = { open(): boolean; now(): Date };
 export type NetPorts = { files: FilesPort; mail: MailPort; pushFetch: typeof globalThis.fetch; googleFetch: typeof globalThis.fetch; daftraFetch: typeof globalThis.fetch; used(): number };
 
-export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind; maxFileBytes: number }): NetPorts {
+export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind; maxFileBytes: number; ent?: EnterpriseId }): NetPorts {
   let used = 0;
   async function call<T>(counts: boolean, work: () => Promise<NetAnswer<T>>): Promise<T> {
     if (o.guard.open()) throw new Error(NET_IN_TRANSACTION);
@@ -200,6 +202,9 @@ export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind;
     },
   };
   const mail: MailPort = { send: (one) => call(true, () => net.sendMail(one)) };
+  // The second wall of the file keys (Madar enterprises, design 5.11): the Worker holds the first. No enterprise given means ENT_VADO, so a
+  // caller that forgets it is refused for the keys of any other enterprise and never gets through to them.
+  const guarded = guardFilesPort(files, o.ent ?? ENT_VADO);
   // sendPush (server/push/send.ts) signs the VAPID token in the object and gives this fetch the POST: the Worker only posts.
   const pushFetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const headers = Object.fromEntries(new Headers(init?.headers).entries());
@@ -219,5 +224,5 @@ export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind;
     const reply = await call(true, () => net.daftraGet({ url: String(input) }));
     return new Response(reply.body === '' ? null : reply.body, { status: reply.status });
   }) as typeof globalThis.fetch;
-  return { files, mail, pushFetch, googleFetch, daftraFetch, used: () => used };
+  return { files: guarded, mail, pushFetch, googleFetch, daftraFetch, used: () => used };
 }

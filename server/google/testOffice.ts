@@ -6,8 +6,9 @@ import { signinOffice, type TestOffice } from '../auth/own/testOffice';
 // Registers the Google effects and their producers, as server/core/deps.ts does for the entries.
 import './effects';
 import { fakeGoogle, type FakeGoogle } from './fakeGoogle';
+import { ENT_VADO } from '../enterprise/ids';
 import { googleKeysOf } from './keys';
-import { readState } from './state';
+import { entOfState, readState } from './state';
 
 /**
  * A test office for the Google Calendar tests (fbk_022), for tests only: the sample office on node:sqlite (as signinOffice), Google
@@ -27,8 +28,10 @@ export type GoogleOffice = TestOffice & {
   connect(userId: string, code?: string): Promise<RunResult>;
 };
 
-export async function googleOffice(o: { google?: boolean; at?: string; fake?: Parameters<typeof fakeGoogle>[0] } = {}): Promise<GoogleOffice> {
-  const config = o.google === false ? { appUrl: APP_URL } : { appUrl: APP_URL, google: GOOGLE_CONFIG };
+/** `ent`: the enterprise of the office (Config.ent). With none, the office is ENT_VADO. */
+export async function googleOffice(o: { google?: boolean; at?: string; fake?: Parameters<typeof fakeGoogle>[0]; ent?: string } = {}): Promise<GoogleOffice> {
+  const base = o.google === false ? { appUrl: APP_URL } : { appUrl: APP_URL, google: GOOGLE_CONFIG };
+  const config = o.ent ? { ...base, ent: o.ent } : base;
   const t = await signinOffice({ at: o.at ?? AT, config });
   const google = fakeGoogle({ clientId: GOOGLE_CONFIG.clientId, clientSecret: GOOGLE_CONFIG.clientSecret, ...(o.fake ?? {}) });
   t.deps.googleFetch = google.fetch;
@@ -49,9 +52,9 @@ export async function googleOffice(o: { google?: boolean; at?: string; fake?: Pa
   };
 }
 
-/** The person that a state names, read with the key of the test office. */
+/** The person that a state names, read with the key of the test office and of the enterprise that the state names (ENT_VADO when none). */
 export async function stateOwner(state: string, now: Date): Promise<string | undefined> {
-  const read = await readState(await googleKeysOf(GOOGLE_KEY), state, now);
+  const read = await readState(await googleKeysOf(GOOGLE_KEY, entOfState(state) ?? ENT_VADO), state, now);
   return read.ok ? read.userId : undefined;
 }
 

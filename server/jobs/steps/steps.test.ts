@@ -150,7 +150,7 @@ describe('step 2, the morning summary (quiet hours, owner 2026-10-22: it goes at
     deps.clock.set(SUN_0730);
     // 07:30: only usr_c has started.
     expect(await summary(deps, SUN_0730)).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 0, over: 0, skipped: 0, refused: 0, already: 0 });
-    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['usr_c@madar.test', 'summary-2026-10-04-usr_c']]);
+    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['usr_c@madar.test', 'ent_001:summary-2026-10-04-usr_c']]);
     expect([...marks]).toEqual(['summary:2026-10-04:usr_c']);
     // 07:45: nobody new is due, so nobody is read again.
     expect(await summary(deps, new Date('2026-10-04T04:45:00Z'))).toEqual({ due: true, day: '2026-10-04', done: true });
@@ -205,7 +205,7 @@ describe('step 2, the morning summary (quiet hours, owner 2026-10-22: it goes at
     const { deps } = setup({ roster: [{ id: 'usr_a', work_hours: { quiet: true, days: [0, 1, 2, 3, 4, 5], from: '09:00', to: '17:00' }, office }] });
     const friday = new Date('2026-10-09T06:00:00Z');
     expect(await summary(deps, friday)).toMatchObject({ due: true, sent: 1 });
-    expect(deps.mail.sent[0].idempotencyKey).toBe('summary-2026-10-09-usr_a');
+    expect(deps.mail.sent[0].idempotencyKey).toBe('ent_001:summary-2026-10-09-usr_a');
   });
 
   it('mails on a Saturday when the office adds Saturday, and only the people who work on Saturday (fbk_058)', async () => {
@@ -239,7 +239,7 @@ describe('step 2, the morning summary (quiet hours, owner 2026-10-22: it goes at
 
   it('marks a person whose mail went out before, so a lost mark does not mail twice', async () => {
     const { r, deps, marks } = setup({ roster: [{ id: 'usr_c' }] });
-    r.mem.log.push({ utc_day: '2026-10-04', kind: 'summary', user_id: 'usr_c', ref: 'summary-2026-10-04-usr_c', resend_id: 'mail_1' });
+    r.mem.log.push({ utc_day: '2026-10-04', kind: 'summary', user_id: 'usr_c', ref: 'ent_001:summary-2026-10-04-usr_c', resend_id: 'mail_1' });
     expect(await summary(deps, SUN_0900)).toMatchObject({ due: true, sent: 0, already: 1 });
     expect(deps.mail.sent).toEqual([]);
     expect([...marks]).toEqual(['summary:2026-10-04:usr_c']);

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LITE_SCHEMA_VERSION } from '../../server/data/lite/schema';
 import { nodeOffice } from '../../server/office/test/nodeOffice';
+import { nodeWorld } from '../../server/office/test/nodeWorld';
 import { rowDigest } from '../office/digest';
 import { opsOf, partsOps } from '../office/ops';
 import { exportArgProblems, exportOffice, makeOfficeBackup, OFFICE_BACKUP_NAME, type ExportManifest } from './officeExport';
@@ -72,6 +73,45 @@ describe('the export client (scripts/backup/officeExport.ts)', () => {
     expect(readdirSync(tmpdir()).filter((name) => name.startsWith('madar-office-work-') && name.includes(String(process.pid)))).toEqual([]);
   });
 
+  it('names the file with the enterprise id, and the manifest holds ent', async () => {
+    const world = await nodeWorld({ ents: ['ent_002'] });
+    const parts = world.ents.get('ent_002')!.parts;
+    const out = folder();
+    const age = join(out, 'fake-age');
+    writeFileSync(age, '#!/bin/sh\nwhile [ "$1" != "-o" ]; do shift; done\nshift; out="$1"; shift; cp "$1" "$out"\n');
+    chmodSync(age, 0o755);
+    const result = await makeOfficeBackup({ ops: partsOps(parts), copy: 'production', ent: 'ent_002', recipient: `age1${'q'.repeat(58)}`, outDir: out, age, now: new Date('2026-11-08T23:07:00Z') });
+    expect(result.name).toBe('madar-office-production-ent_002-20261108-230700Z');
+    expect(result.name).toMatch(OFFICE_BACKUP_NAME);
+    expect(result.file).toBe(join(out, 'madar-office-production-ent_002-20261108-230700Z.tar.gz.age'));
+    expect(existsSync(result.file)).toBe(true);
+    const dir = folder();
+    const manifest = await exportOffice(partsOps(parts), { copy: 'local', folder: dir, ent: 'ent_002' });
+    expect(manifest.ent).toBe('ent_002');
+    expect((JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8')) as ExportManifest).ent).toBe('ent_002');
+  });
+
+  it('keeps the old name form valid, and refuses a name with a bad enterprise id', () => {
+    expect('madar-office-production-20261108-023000Z').toMatch(OFFICE_BACKUP_NAME);
+    expect('madar-office-production-ent_001-20261108-023000Z').toMatch(OFFICE_BACKUP_NAME);
+    for (const bad of ['madar-office-production-ent_1-20261108-023000Z', 'madar-office-production-ENT_001-20261108-023000Z', 'madar-office-production-ent_001-ent_002-20261108-023000Z']) expect(bad).not.toMatch(OFFICE_BACKUP_NAME);
+  });
+
+  it('stops when the object names another enterprise than the one asked for, and ends the hold', async () => {
+    const world = await nodeWorld({ ents: ['ent_002'] });
+    const parts = world.ents.get('ent_002')!.parts;
+    await expect(exportOffice(partsOps(parts), { copy: 'local', folder: folder(), ent: 'ent_003' })).rejects.toThrow('another enterprise');
+    expect(parts.hold.active(world.clock.now())).toBeUndefined();
+    // An export that asks for no enterprise still works, and still records the id of the object.
+    expect((await exportOffice(partsOps(parts), { copy: 'local', folder: folder() })).ent).toBe('ent_002');
+  });
+
+  it('a backup of an object with no identity row has no ent in its manifest', async () => {
+    const t = await nodeOffice({ row: false });
+    const manifest = await exportOffice(partsOps(t.parts), { copy: 'local', folder: folder() });
+    expect(manifest).not.toHaveProperty('ent');
+  });
+
   it('refuses a recipient that is not an age public key, before any export', async () => {
     const t = await nodeOffice();
     await expect(makeOfficeBackup({ ops: partsOps(t.parts), copy: 'local', recipient: 'not-a-key', outDir: folder() })).rejects.toThrow('starts with age1');
@@ -89,6 +129,14 @@ describe('the arguments of the export script (scripts/backup/officeExport.ts)', 
     expect(exportArgProblems(['--url', 'https://preview.madar-46r.pages.dev', '--copy', 'test', '--out', '/tmp/x'], env)).toEqual([]);
     expect(exportArgProblems(['--url', 'https://w.test', '--copy', 'local', '--out', '/tmp/x'], env)).toEqual(['--copy must be test or production.']);
     expect(exportArgProblems([], env).join(' ')).not.toContain('secret-of-the-test');
+  });
+
+  it('accepts --enterprise ent_002 and refuses --enterprise ent_2', () => {
+    const env = { OFFICE_EXPORT_SECRET: 'secret-of-the-test', BACKUP_AGE_RECIPIENT: `age1${'q'.repeat(58)}` };
+    const base = ['--url', 'https://w.test', '--copy', 'production', '--out', '/tmp/x'];
+    expect(exportArgProblems([...base, '--enterprise', 'ent_002'], env)).toEqual([]);
+    expect(exportArgProblems([...base, '--enterprise', 'ent_2'], env)).toEqual(['--enterprise must be an id such as ent_001.']);
+    expect(exportArgProblems([...base, '--enterprise'], env)).toEqual(['--enterprise must be an id such as ent_001.']);
   });
 });
 

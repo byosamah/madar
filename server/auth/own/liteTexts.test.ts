@@ -43,7 +43,7 @@ describe('the SQLite forms of the sign-in texts of today (Supabase exit, wave 2)
     deps.clock.set(NOW);
     const sent = await sendCounted(deps, 'signin', { to: 'p@madar.test', subject: 's', html: 'h', text: 't', tag: 'invite', idempotencyKey: 'invite:inv_1' }, { userId: 'usr_002' });
     expect(sent).toEqual({ status: 'sent', id: 'mail_1' });
-    expect(raw.prepare('select utc_day, kind, ref, resend_id from mail_log').all()).toEqual([{ utc_day: '2026-10-17', kind: 'signin', ref: 'invite:inv_1', resend_id: 'mail_1' }]);
+    expect(raw.prepare('select utc_day, kind, ref, resend_id from mail_log').all()).toEqual([{ utc_day: '2026-10-17', kind: 'signin', ref: 'ent_001:invite:inv_1', resend_id: 'mail_1' }]);
   });
 
   it('keeps the notes, the renew key once and the sent mark in the outbox payload', async () => {
