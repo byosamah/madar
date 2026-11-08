@@ -464,7 +464,8 @@ A calm single column on a phone, a centred column with side panels on a desk, an
 - **Home** reads in this order: a greeting with the date, the "Next for you" card (the single next step), Today, then Your
   projects. Never add a fourth kind of block above "Next for you". On a phone Home is one column of five blocks with a 16 px
   gap (the title, "Next for you", Today, Meetings and the push ask line) and has no Your projects block.
-- **Touch targets** are at least {spacing.touch-target}.
+- **Touch targets** are at least {spacing.touch-target}. A quiet icon toggle on a desk may show 32 px if its press area stays 44 px
+  (an `after:` strip, as the pill switch does). The View toggle of the desk Home does this (fbk_082).
 - **Direction:** every rule uses logical sides (start and end). Never write left or right in styles; a build check refuses
   them.
 

@@ -14,14 +14,18 @@ const isBox = (link: HTMLElement) => link.hasAttribute('data-project-box');
 
 // fbk_080 (owner, 2026-11-05): Your projects on a desk Home shows rows or boxes. The choice is the one of the Projects page.
 describe('Your projects on Home: rows or boxes', () => {
-  it('shows rows at first, with a round toggle beside the count', async () => {
+  it('shows rows at first, with a quiet round toggle beside the count', async () => {
     await renderApp('/', as('usr_002'));
     const region = await screen.findByRole('region', { name: 'Your projects' });
     const list = within(region).getByRole('list', { name: 'Your projects' });
     expect(within(list).getAllByRole('link').some(isBox)).toBe(false);
     const toggle = within(region).getByRole('button', { name: 'Show as boxes' });
     expect(toggle).toHaveAttribute('aria-pressed', 'false');
-    expect(toggle).toHaveClass('size-11', 'rounded-full');
+    // fbk_082: the desk Home shows a quiet 32 px disc with a 44 px press area (an after: strip), and a title for the mouse.
+    expect(toggle).toHaveClass('size-8', 'rounded-full', 'text-ink-2', 'after:-inset-1.5');
+    expect(toggle).not.toHaveClass('size-11');
+    expect(toggle).toHaveAttribute('title', 'Show as boxes');
+    expect(toggle.className).not.toContain('-my-2');
   });
 
   it('switches to boxes with one press, keeps the choice, and presses back to rows', async () => {

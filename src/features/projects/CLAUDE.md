@@ -24,7 +24,7 @@ The Projects screen, the New and Edit project sheets, the form fields, the templ
   small team stack (leader 28 px, team 22 px, the leader ring). Its last row wraps when the box is narrow, and the box passes `wrap` to `NextDeadlineLabel`: the deadline name takes 2 lines (`line-clamp-2`, no other display class, for Safari) and the date stays whole. The row keeps the cut name. `ProjectBoxGrid` is the grid:
   2 columns on a phone, `repeat(auto-fill,minmax(236px,1fr))` from 640 px. The groups "Projects" and "Internal" keep their own grid, and the
   phone search filters first. The switch: a desk Projects page has the View button beside Filter (Rows or Boxes as radios, `ProjectViewButton`);
-  a phone Projects page and a desk Home have one round 44 px toggle (`ProjectViewToggle`, its own file, so Home does not import `FilterButton` and its sheet into the first load; `aria-pressed`). Add no other control. The view is a
+  a phone Projects page has one round 44 px toggle and a desk Home has the quiet one (32 px disc, 16 px icon in `text-ink-2`, a 44 px press area through an `after:` strip, `size="quiet"`, fbk_082; `ProjectViewToggle`, its own file, so Home does not import `FilterButton` and its sheet into the first load; `aria-pressed`). Add no other control. The view is a
   browser choice: it adds no call, MCP tool or right. Tests: `ProjectBox.test.tsx`, `ProjectViewChoice.test.tsx`, `home/HomeProjectView.test.tsx`.
 - The New project sheet starts with one choice, "Client project" or "Internal project" (`ProjectFormValues.kind`, Client at first). Internal
   hides the code group, client, location, area, sub-company and contract date (`ProjectFields`, flag `internal`). The sheet sends

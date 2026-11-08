@@ -91,10 +91,10 @@ const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedE
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 id="your-projects" className="text-section text-ink">{t('home.projects')}</h2>
-          {/* The count and the one round toggle of the view (fbk_080). The negative margin keeps the header as high as before. */}
+          {/* The count and the one quiet round toggle of the view (fbk_080, fbk_082): 32 px to see, 44 px to press. */}
           <span className="flex items-center gap-3">
             {projects && <span className="tabular text-subheadline text-ink-2">{counted(t, 'home.projectCount', projects.length)}</span>}
-            {projects && projects.length > 0 && <ProjectViewToggle view={view} onView={onView} className="-my-2" />}
+            {projects && projects.length > 0 && <ProjectViewToggle view={view} onView={onView} size="quiet" />}
           </span>
         </div>
         {listedError ? <LoadFailed error={listedError} onRetry={onRetry} /> : null}
