@@ -177,6 +177,15 @@ export interface TypingPort {
   send(people: string[], signal: TypingSignal): Promise<void>;
 }
 
+/**
+ * The email directory of the platform object, bound to the enterprise of the call (Madar enterprises, design 5.4). reserve answers taken
+ * when another enterprise holds the email. Only the office object sets it, through its network port (a call outside a transaction).
+ */
+export interface DirectoryPort {
+  reserve(email: string): Promise<'ok' | 'taken'>;
+  release(email: string): Promise<void>;
+}
+
 export type Deps = {
   db: Db;
   /**
@@ -184,6 +193,8 @@ export type Deps = {
    * office object sets it. The Postgres path leaves it out: its hooks and limits then do nothing, and the enterprise is ENT_VADO.
    */
   enterprise?: EnterpriseFacts;
+  /** The email directory (plan C, Task 12). Left out on the Postgres path and in tests without one: the email hooks then do nothing. */
+  directory?: DirectoryPort;
   clock: Clock;
   files: FilesPort;
   mail: MailPort;

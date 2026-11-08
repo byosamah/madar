@@ -130,7 +130,8 @@ export type OfficeRoutesOptions = {
   stubFor: (env: Env, ent: EnterpriseId) => OfficeStub;
   /** The one platform object. */
   platform: (env: Env) => PlatformStub;
-  net: () => NetApi;
+  /** The network port of one request. ent: the enterprise of the request, so the port carries the email directory of that enterprise (plan C). */
+  net: (env: Env, ent?: EnterpriseId) => NetApi;
   jobsSecret: () => string | undefined;
   /** More routes under /api (the own sign-in, server/entries/officeSignin.ts), as apiApp takes AppOptions.routes. */
   routes?: OfficeRoute[];
@@ -203,7 +204,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       if (!(error instanceof ApiError)) log.error('The batch failed before its calls.', { error: error instanceof Error ? error.message : String(error) });
       return errorResponse(runErrorOf(error));
     }
-    const net = o.net();
+    const net = o.net(env, ent);
     const stub = routerOf(env).stub(ent);
     let out: OfficeBatchOutput;
     try {
@@ -253,7 +254,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const forward = new URL(request.url);
     forward.pathname = parsed.rest;
     const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
-    const net = o.net();
+    const net = o.net(env, target.ent);
     let out: OfficeMcpAnswer;
     try {
       out = await target.stub.mcp({ ent: target.ent, mcpUrl, url: forward.toString(), method: request.method, headers, body, worker: reported() }, net);
@@ -322,7 +323,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const { ent, stub } = target;
     seen += 1;
     try {
-      const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net());
+      const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net(env, ent));
       log.info('The office jobs ran.', { ent, ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed });
       await platform.report(report.status);
       await platform.meter({ ent, day: utcDay(at), counts: report.status.day });
@@ -472,7 +473,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   for (const route of o.routes ?? []) {
     app.on(route.method, `/api${route.path}`, (c) => {
       const after = afterOf(c);
-      return route.handler(c.req.raw, { router: routerOf(c.env), platform: o.platform(c.env), net: o.net, ...(after ? { after } : {}) });
+      return route.handler(c.req.raw, { router: routerOf(c.env), platform: o.platform(c.env), net: () => o.net(c.env), ...(after ? { after } : {}) });
     });
   }
   app.notFound(() => errorResponse({ code: 'not_found', message: 'This address does not exist.' }));

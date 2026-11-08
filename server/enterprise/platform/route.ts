@@ -26,7 +26,7 @@ export type PlatformRouteOptions = {
   verifyToken: (header: string | null) => Promise<{ authUserId: string; ent?: EnterpriseId }>;
   stubFor: (env: Env, ent: EnterpriseId) => OfficeStub;
   platform: (env: Env) => PlatformStub;
-  net: () => NetApi;
+  net: (env: Env, ent?: EnterpriseId) => NetApi;
   /** The handlers. Default: PLATFORM_HANDLERS. */
   handlers?: typeof PLATFORM_HANDLERS;
 };
@@ -61,7 +61,7 @@ export function platformRoute(o: PlatformRouteOptions): (request: Request, env: 
         throw new ApiError('invalid_input', 'The input of this call is not right.', { fields: [...new Set(parsed.error.issues.map((issue) => issue.path.join('.')))] });
       }
       const ctx: PlatformCtx = {
-        ent: owner.ent, userId: owner.userId, platform, office: (ent) => o.stubFor(env, ent), net: o.net, read: readerOf(env),
+        ent: owner.ent, userId: owner.userId, platform, office: (ent) => o.stubFor(env, ent), net: () => o.net(env, owner.ent), read: readerOf(env),
         now: () => o.deps.clock.now(), log,
       };
       let output: unknown;

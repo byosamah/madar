@@ -9,6 +9,7 @@ import { feedbackScreenshotHooks, feedbackSendHooks, feedbackUploadStart } from 
 import { filesLink, filesUploadHooks, filesUploadStart, projectsDeleteHooks } from './files';
 import { googleConnect, googleConnectStart, googleDisconnect, googleStatus } from './google';
 import { usersInvites, usersResendInvite } from './people';
+import { usersCreateHooks, usersRemoveHooks, usersUpdateHooks } from './peopleHooks';
 import { storyStart } from './story';
 import { liveTicket } from './live';
 import { chatsTyping } from './typing';
@@ -49,4 +50,8 @@ export const SERVER_HOOKS: Partial<Record<SharedCallName, ServerHooks<unknown, u
   'projects.delete': projectsDeleteHooks,
   // The Daftra link (owner, 2026-10-26): the preflight reads the invoice from Daftra before the lock. The prototype prepare of the call refuses.
   'payments.linkInvoice': paymentsLinkInvoiceHooks,
+  // The email directory of Madar enterprises (plan C): one email belongs to one enterprise. The hooks do nothing without deps.directory.
+  'users.create': usersCreateHooks,
+  'users.update': usersUpdateHooks,
+  'users.remove': usersRemoveHooks,
 };

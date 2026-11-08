@@ -1,5 +1,5 @@
 import { RpcTarget } from 'cloudflare:workers';
-import type { Config, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
+import type { Config, DirectoryPort, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
 import { answerOf, daftraRequest, googleRequest, postPush, type NetAnswer, type NetApi, type NetHttpReply, type NetHttpRequest } from './net';
 
 /**
@@ -12,9 +12,10 @@ export class WorkerNet extends RpcTarget implements NetApi {
   readonly #post: ReturnType<typeof postPush>;
   readonly #google: ReturnType<typeof googleRequest>;
   readonly #daftra: ReturnType<typeof daftraRequest> | null;
+  readonly #directory: DirectoryPort | null;
 
-  /** `daftra`: the Daftra accounts of the Worker. The keys stay here. */
-  constructor(o: { files: FilesPort; mail: MailPort; fetch?: typeof globalThis.fetch; daftra?: NonNullable<Config['daftra']> }) {
+  /** `daftra`: the Daftra accounts of the Worker. The keys stay here. `directory`: the email directory bound to the enterprise of this request (plan C). */
+  constructor(o: { files: FilesPort; mail: MailPort; fetch?: typeof globalThis.fetch; daftra?: NonNullable<Config['daftra']>; directory?: DirectoryPort }) {
     super();
     this.#files = o.files;
     this.#mail = o.mail;
@@ -22,6 +23,7 @@ export class WorkerNet extends RpcTarget implements NetApi {
     this.#post = postPush(run);
     this.#google = googleRequest(run);
     this.#daftra = o.daftra ? daftraRequest(o.daftra, run) : null;
+    this.#directory = o.directory ?? null;
   }
 
   presignPut(key: string, o: { mimeType: string; size?: number }): Promise<NetAnswer<PresignedPut>> {
@@ -54,6 +56,19 @@ export class WorkerNet extends RpcTarget implements NetApi {
 
   googleFetch(req: NetHttpRequest): Promise<NetAnswer<NetHttpReply>> {
     return this.#google(req);
+  }
+
+  /** With no directory the answer is a failure, so a write of an email stops (fail closed). */
+  directoryReserve(email: string): Promise<NetAnswer<'ok' | 'taken'>> {
+    const directory = this.#directory;
+    if (!directory) return Promise.resolve({ ok: false, failure: { name: 'NetworkError', message: 'The Worker holds no email directory for this call.' } });
+    return answerOf(() => directory.reserve(email));
+  }
+
+  directoryRelease(email: string): Promise<NetAnswer<null>> {
+    const directory = this.#directory;
+    if (!directory) return Promise.resolve({ ok: false, failure: { name: 'NetworkError', message: 'The Worker holds no email directory for this call.' } });
+    return answerOf(async () => (await directory.release(email), null));
   }
 
   async daftraGet(req: { url: string }): Promise<NetAnswer<NetHttpReply>> {

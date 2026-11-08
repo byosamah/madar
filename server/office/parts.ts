@@ -237,6 +237,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       db,
       clock,
       files: ports.files,
+      // The email directory of the platform, through the network port of this call (plan C). The hooks of the people calls use it.
+      directory: ports.directory,
       // MAIL_DRIVER=outbox (the test copy) writes the mail into mail_outbox of the object: no network, so no port.
       mail: values.mail.driver === 'outbox' ? outboxMailPort(db) : ports.mail,
       signal: signals,

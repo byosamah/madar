@@ -213,6 +213,28 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       resolveActor(req.batch.office ?? (await data.office()), req.principal);
       preflight = await hooks.preflight(parsed, { actorId, now: deps.clock.now(), deps });
     }
+    // The settle hook (plan C) hears how the write ended, so a preflight that reserved something outside the database can undo it.
+    let outcome: { ok: true; output: unknown } | { ok: false } = { ok: false };
+    try {
+      const result = await writeAfterPreflight(deps, req, entry, parsed, data, code, preflight);
+      if (result.ok) outcome = { ok: true, output: result.output };
+      return result;
+    } finally {
+      if (hooks?.settle) {
+        try {
+          await hooks.settle(parsed, { actorId, now: deps.clock.now(), deps }, preflight, outcome);
+        } catch (error) {
+          deps.log.warn('The settle step of a call did not finish.', { name: entry.name, error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+    }
+  }
+
+  async function writeAfterPreflight(
+    deps: Deps, req: RunRequest, entry: SharedEntry, parsed: unknown, data: CallData, code: { value?: string } | undefined, preflight: unknown,
+  ): Promise<RunResult> {
+    const actorId = req.principal.userId;
+    const hooks = entry.hooks;
     const digest = req.key !== undefined ? await digestOf(entry.name, parsed) : undefined;
     // The hash of the exact input, without the code, for the email code guard. Only a guarded act of an agent needs it.
     const inputHash = code ? await digestOf(entry.name, parsed) : undefined;

@@ -359,7 +359,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'settings.update': {
     title: 'Change the office settings',
-    description: 'Changes the settings of the office: any of defaultStages, codePrefix (INT is taken), workloadLimit, staleAfterDays and workHours (the default hours must hold the lock). It changes what every person sees. Needs office.settings (by default the Admin). Ask your person first, and say the old and the new value.',
+    description: 'Changes the settings of the office: any of defaultStages, codePrefix (INT is taken), workloadLimit, staleAfterDays, workHours (the default hours must hold the lock), and the name of the company (enterpriseName, enterpriseNameAr) and its logo (enterpriseLogo: picture data, null takes it off). It changes what every person sees. Needs office.settings (by default the Admin). Ask your person first, and say the old and the new value.',
   },
   'roles.create': {
     title: 'Make a role',

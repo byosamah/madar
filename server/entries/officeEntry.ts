@@ -5,6 +5,7 @@ import { env as readEnv, setEnvSource } from '../env';
 import { refusingDb } from '../office/refusingDb';
 import { WorkerNet } from '../office/workerNet';
 import { officeSigninRoutes } from './officeSignin';
+import { directoryOf } from '../enterprise/directory';
 import { PLATFORM_OBJECT } from '../enterprise/ids';
 import type { PlatformStub } from '../enterprise/platform/stub';
 import { OFFICE_NAME, officeRoutes, type OfficeRoute, type OfficeStub } from './officeWorker';
@@ -69,7 +70,11 @@ export function officeEntry() {
       verifyToken: verifyBrowserToken,
       stubFor,
       platform: platformStub,
-      net: () => new WorkerNet({ files: deps.files, mail: deps.mail, ...(deps.config.daftra ? { daftra: deps.config.daftra } : {}) }),
+      // The email directory is bound to the enterprise of the request (plan C), so an object can reserve an email for its own enterprise only.
+      net: (env, ent) => new WorkerNet({
+        files: deps.files, mail: deps.mail, ...(deps.config.daftra ? { daftra: deps.config.daftra } : {}),
+        ...(ent ? { directory: directoryOf(platformStub(env), ent) } : {}),
+      }),
       jobsSecret: () => values.jobsSecret,
       exportSecret: () => readEnv('MADAR_EXPORT_SECRET'),
       opsSecret: () => readEnv('MADAR_OPS_SECRET'),

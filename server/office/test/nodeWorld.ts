@@ -16,6 +16,8 @@ import { applyPlatformSchema } from '../../enterprise/platform/schema';
 import type { EnterpriseRow } from '../../enterprise/types';
 import { officeSigninRoutes } from '../../entries/officeSignin';
 import { officeRoutes, type OfficeRoute, type OfficeStub } from '../../entries/officeWorker';
+import { directoryOf } from '../../enterprise/directory';
+import type { NetApi } from '../net';
 import { fixedClock } from '../../test/fakes/clock';
 import { officeParts, type OfficeParts } from '../parts';
 import { refusingDb } from '../refusingDb';
@@ -143,6 +145,18 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
     await platform.register({ row: enterpriseRowOf(ent, at), emails: [] });
   }
 
+  // The network port of a request: the recording net, with the email directory of the platform bound to the enterprise (as officeEntry binds it).
+  // An id that is not in the world gets the net with no directory. A test that calls a stub by hand passes netFor(ent) for the real directory.
+  const netFor = (ent?: EnterpriseId): NetApi => {
+    if (!ent) return net;
+    const directory = directoryOf(platform, ent);
+    return {
+      ...net,
+      directoryReserve: async (email) => ({ ok: true, value: await directory.reserve(email) }),
+      directoryRelease: async (email) => (await directory.release(email), { ok: true, value: null }),
+    };
+  };
+
   // The names that stubFor got. A test reads it to show that a bad id made no object. An id the world does not hold gets an object
   // that was never made (no row), as a real name that nobody made would.
   const created: string[] = [];
@@ -174,7 +188,7 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
     verifyToken,
     stubFor,
     platform: () => platform,
-    net: () => net,
+    net: (_env, ent) => netFor(ent),
     jobsSecret: () => read('MADAR_JOBS_SECRET'),
     exportSecret: () => read('MADAR_EXPORT_SECRET'),
     opsSecret: () => read('MADAR_OPS_SECRET'),
@@ -200,7 +214,7 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
     for (const row of rows) await platform.reserveEmail({ ent, email: normalizeEmail(row.email) });
   }
 
-  return { ents, platform, platformRaw, created, clock, env, jwk, net, route, signins, lines: log.lines, stubFor: (ent: EnterpriseId) => stubFor(undefined, ent), make };
+  return { ents, platform, platformRaw, created, clock, env, jwk, net, netFor, route, signins, lines: log.lines, stubFor: (ent: EnterpriseId) => stubFor(undefined, ent), make };
 }
 
 /** One request to the routes of the office path, as a browser or an agent sends it through the Pages Function. */
