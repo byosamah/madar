@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addWorkingDays, compareStages, compareTasks, currentStageIndex, openPrerequisites, openPrerequisiteStages, stageOverlaps, stagesChrono, shiftPlan, stageTagOf, workingDaysLate } from './stageFlow';
+import { addWorkingDays, compareIds, compareStages, compareTasks, currentStageIndex, openPrerequisites, openPrerequisiteStages, stageOverlaps, stagesChrono, shiftPlan, stageTagOf, workingDaysLate } from './stageFlow';
 
 const stage = (id: string, order: number, startDate: string | null, endDate: string | null, prerequisiteIds?: string[]) => ({ id, order, startDate, endDate, prerequisiteIds });
 const task = (id: string, stageId: string, status = 'todo', extra: Record<string, unknown> = {}) => ({ id, stageId, title: id, status, dueDate: null, ...extra });
@@ -18,6 +18,18 @@ describe('stage and task order', () => {
     const c = task('c', 's1', 'todo', { startDate: null, dueDate: '2026-09-01' });
     const d = task('d', 's1', 'todo', { startDate: '2026-10-01', dueDate: null });
     expect([a, b, c, d].sort((x, y) => compareTasks(x, y, rank)).map((t) => t.id)).toEqual(['b', 'a', 'd', 'c']);
+  });
+});
+
+describe('compareIds (fbk_086)', () => {
+  it('orders by the prefix, then by the number, so 999 comes before 1000', () => {
+    expect(['tsk_1000', 'tsk_999', 'tsk_101', 'tsk_020'].sort(compareIds)).toEqual(['tsk_020', 'tsk_101', 'tsk_999', 'tsk_1000']);
+    expect(compareIds('prj_1000', 'tsk_001')).toBeLessThan(0);
+    expect(compareIds('tsk_007', 'tsk_007')).toBe(0);
+  });
+  it('falls back to the text when an id has no number', () => {
+    expect(compareIds('tsk_b', 'tsk_a')).toBeGreaterThan(0);
+    expect(compareIds('x', 'x')).toBe(0);
   });
 });
 

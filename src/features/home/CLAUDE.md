@@ -15,8 +15,8 @@ Home (`HomeScreen.tsx`). The first request of Home, the stored answers and the r
 - `PushAskCard` shows one of three cards (push ask, the iPhone steps, the Android install). Rules: `src/features/settings/CLAUDE.md`. On a
   phone it shows a 20 px bell before the ask line only; the other two cards have none.
 
-- "Your projects" shows rows or boxes by the one choice of the Projects page (`useProjectView`, fbk_080). A round 44 px toggle sits beside the
-  project count (`ProjectViewToggle`, only while the list has a project). The column is about 630 px wide, so it holds 2 boxes across.
+- "Your projects" shows rows or boxes by the one choice of the Projects page (`useProjectView`, fbk_080). A quiet round toggle (32 px to see, 44 px to press,
+  `size="quiet"`, fbk_082) sits beside the project count (`ProjectViewToggle`, only while the list has a project). The phone Projects page keeps the 44 px disc. The column is about 630 px wide, so it holds 2 boxes across.
   `HomeBody` takes `view` and the stable setter as props, so a link change does not render the boxes again.
 
 ## On a phone

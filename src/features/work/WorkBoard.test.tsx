@@ -210,6 +210,22 @@ describe('my reviews on the Board', () => {
     expect(within(review).getByText('Door and window schedule')).toBeInTheDocument();
   });
 
+  // fbk_087 (owner 2026-11-08): the helper sent the office to-do, so the lead has "Your review" and the sender has none.
+  it('marks "Your review" for the lead and not for the helper who sent the to-do', async () => {
+    for (const [who, mark] of [['usr_005', true], ['usr_006', false]] as const) {
+      const { unmount } = await renderApp('/work', (state) => {
+        as(who)(state);
+        withOfficeTask(state, { helperIds: ['usr_006'], status: 'in_review', reviewSentBy: 'usr_006', needsReview: true });
+      });
+      await chooseView('Board');
+      const review = await column(/^In review/);
+      const card = (await within(review).findByText('Renew the trade licence')).closest('li')!;
+      if (mark) expect(within(card).getByText('Your review')).toBeInTheDocument();
+      else expect(within(card).queryByText('Your review')).toBeNull();
+      unmount();
+    }
+  });
+
   it('shows a to-do once when it is mine and also waits for my review', async () => {
     await renderApp('/work', (state) => {
       as('usr_002')(state);

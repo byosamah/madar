@@ -240,6 +240,11 @@ export const TaskDetail = TaskRow.extend({
     comment: z.boolean().optional(),
     /** Uploads a file to the to-do: file.upload. */
     upload: z.boolean().optional(),
+    /**
+     * A tick by the viewer lands In review (fbk_087, owner 2026-11-08), so the button says "Send to review". A helper with task.work
+     * has no other tick: for a helper this flag also shows the control that sends the to-do to review. Only true is sent; missing: false.
+     */
+    sendToReview: z.boolean().optional(),
   }),
   history: z.array(EventView),
   /** Only from tasks.get: the count of people that @everyone names for the viewer in the thread of this to-do (fbk_041). Missing: nobody. */

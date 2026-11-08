@@ -1,6 +1,7 @@
 import { hierarchy, tree } from 'd3-hierarchy';
 import type { Deadline, Stage } from '../../api/contract/entities';
 import type { DeadlineRow, ProjectSummary, TaskRow } from '../../api/contract/views';
+import { compareIds } from '../../lib/stageFlow';
 
 /**
  * The kinds of card. A deadline is a named date of a project (the "milestone" of the team). A check is one item of the checklist of a
@@ -158,7 +159,7 @@ function byStageTime(a: Stage, b: Stage): number {
 }
 
 function byTaskDue(a: TaskRow, b: TaskRow): number {
-  return byDay(a.task.dueDate, b.task.dueDate) || (a.task.id < b.task.id ? -1 : a.task.id > b.task.id ? 1 : 0);
+  return byDay(a.task.dueDate, b.task.dueDate) || compareIds(a.task.id, b.task.id);
 }
 
 /**
@@ -194,7 +195,7 @@ export function buildSpaceTree(input: SpaceTreeInput): SpaceTree {
     const key = bucket === deadlinesByStage ? (deadline.stageId as string) : deadline.projectId;
     bucket.set(key, [...(bucket.get(key) ?? []), deadline]);
   }
-  const byDeadline = (a: Deadline, b: Deadline) => byDay(a.date, b.date) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const byDeadline = (a: Deadline, b: Deadline) => byDay(a.date, b.date) || compareIds(a.id, b.id);
 
   const involvedIn = (rows: TaskRow[]) => focusPersonId !== null && rows.some((row) => involves(row, focusPersonId));
   const fadedBy = (rows: TaskRow[]) => focusPersonId !== null && !involvedIn(rows);
@@ -218,7 +219,7 @@ export function buildSpaceTree(input: SpaceTreeInput): SpaceTree {
       ...(tasksByStage.get(stage.id) ?? []).map((row) => ({ day: row.task.dueDate, rank: 1, id: row.task.id, item: () => taskItem(row) })),
       ...(deadlinesByStage.get(stage.id) ?? []).map((deadline) => ({ day: deadline.date, rank: 0, id: deadline.id, item: () => deadlineItem(deadline) })),
     ];
-    return timeline.sort((a, b) => byDay(a.day, b.day) || a.rank - b.rank || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map((entry) => entry.item());
+    return timeline.sort((a, b) => byDay(a.day, b.day) || a.rank - b.rank || compareIds(a.id, b.id)).map((entry) => entry.item());
   };
   const stageItem = (stage: Stage): Item => ({
     id: stage.id,

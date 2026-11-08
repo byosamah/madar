@@ -23,7 +23,7 @@ const HINT = 'text-footnote text-ink-2';
  * takes no space when no step applies, and it changes with the usual fade.
  */
 export function NextStep({ panel, demote = false }: { panel: TaskPanel; demote?: boolean }) {
-  const step = nextStep(panel.data, panel.viewerCan, panel.makerId);
+  const step = nextStep(panel.data, panel.viewerCan);
   return (
     <AnimatePresence mode="wait" initial={false}>
       {step && (

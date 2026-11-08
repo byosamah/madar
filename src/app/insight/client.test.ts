@@ -13,9 +13,11 @@ function beforeSend(o = options()) {
 }
 
 describe('posthogOptions', () => {
-  it('sends to PostHog Cloud EU and keeps its ids in sessionStorage with no person profile', () => {
+  it('sends to PostHog Cloud EU through its own proxy address, and keeps its ids in sessionStorage with no person profile', () => {
     const o = options();
-    expect(o.api_host).toBe('https://eu.i.posthog.com');
+    // The free managed proxy of PostHog (2026-11-08): an ad blocker stops the posthog.com hosts, not this one.
+    expect(o.api_host).toBe('https://relay.madar.vado.sa');
+    expect(o.ui_host).toBe('https://eu.posthog.com');
     expect(o.person_profiles).toBe('identified_only');
     expect(o.persistence).toBe('sessionStorage');
     expect(o.save_referrer).toBe(false);

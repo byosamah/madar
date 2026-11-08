@@ -48,3 +48,18 @@ export function JoinBlock({ panel, look }: { panel: TaskPanel; look: StepLook })
     </section>
   );
 }
+
+/**
+ * A helper sends an open to-do that needs review into In review (fbk_087, owner 2026-11-08). The desk panel shows this block; the phone
+ * shows the same press as its one next step (nextStep.ts). The lead checks the to-do after that.
+ */
+export function SendBlock({ panel, look }: { panel: TaskPanel; look: StepLook }) {
+  const { t } = useTranslation();
+  const { task, complete } = panel;
+  return (
+    <section aria-label={t('phoneTask.sendToReview')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+      <p className={look.hint}>{t('taskSheet.sendHint')}</p>
+      <Button variant={look.variant} className={look.className} disabled={complete.isPending} onClick={() => complete.mutate({ id: task.id })}>{t('phoneTask.sendToReview')}</Button>
+    </section>
+  );
+}

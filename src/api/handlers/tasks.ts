@@ -9,11 +9,11 @@ import { isInternalId } from '../internalProject';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { assertHasLead, assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
-import { notifyIn, reviewersOfTask } from '../notify';
+import { mayReviewTask, notifyIn, reviewersOfTask, tickLandsInReview } from '../notify';
 import { peopleFilter } from '../pause';
 import { sentToReviewOn } from '../review';
 import { can, leadTookTask, mayViewTask, principalOf } from '../permissions';
-import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from '../taskGates';
+import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayHelperWork, mayTickChecklist } from '../taskGates';
 import { nextId, taskTemplatesOf } from '../store';
 import { taskDetailOf, taskRowOf, viewIndexOf } from '../views';
 import { taskRowUnread } from '../taskUnread';
@@ -120,14 +120,24 @@ function assertMayWork(ctx: Ctx, task: Task): void {
 
 const detail = (ctx: Ctx, task: Task) => taskDetailOf(ctx.state, task, ctx.today, ctx.authority);
 
+/** True when the to-do needs a review now: an office to-do that its maker leads needs none (owner, 2026-10-06). */
+export const needsReviewNow = (ctx: Ctx, task: Task): boolean => task.needsReview && !(task.projectId === null && task.ownerId === makerOf(ctx, task));
+
 /**
- * Spec 5.5, with clarification 2: the leader and the Admin are the reviewers, so their tick lands on Done. An office task goes to its
- * maker, so the tick of the maker (or the Admin) lands on Done, and a task that its maker leads needs no review.
+ * Where a tick or a Done lands (fbk_087, owner 2026-11-08; spec 5.5). The person who does the work never approves it. The rule is
+ * tickLandsInReview (src/api/notify.ts), which the view flag viewerCan.sendToReview reads too.
  */
 function landingStatus(ctx: Ctx, task: Task): 'done' | 'in_review' {
-  const reviewer = can(ctx.authority, 'task.review', taskRole(ctx, task));
-  const needs = task.needsReview && !(task.projectId === null && task.ownerId === makerOf(ctx, task));
-  return !needs || reviewer ? 'done' : 'in_review';
+  return tickLandsInReview(ctx.state, ctx.authority, task) ? 'in_review' : 'done';
+}
+
+/**
+ * A helper with task.work sends an open to-do that needs review into In review (fbk_087, owner 2026-11-08). Only that status: a helper
+ * still cannot mark it Done, move it to another status, or change its fields.
+ */
+export function helperMaySend(ctx: Ctx, task: Task): boolean {
+  return (task.status === 'todo' || task.status === 'in_progress') && task.ownerId !== null && mayHelperWork(ctx.authority, taskRole(ctx, task))
+    && tickLandsInReview(ctx.state, ctx.authority, task);
 }
 
 /**
@@ -148,7 +158,14 @@ export function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 't
   if (status === 'done' || status === 'in_review') assertMayFinish(ctx.state, task);
   const wasDone = task.status === 'done';
   const finishDay = status === 'done' ? finishedOn(ctx, task) : ctx.today;
-  const cause = applyPatch(ctx, task, { status, completedAt: status === 'done' ? ctx.stamp : null }, {
+  // The person behind the agent who sends the to-do to review is written down, and cleared when the to-do leaves review (fbk_087). The
+  // key is written as null first, so Undo has a value to bring back.
+  const changes: Partial<Task> = { status, completedAt: status === 'done' ? ctx.stamp : null };
+  if (status === 'in_review') {
+    task.reviewSentBy ??= null;
+    changes.reviewSentBy = ctx.authority.id;
+  } else if (task.reviewSentBy) changes.reviewSentBy = null;
+  const cause = applyPatch(ctx, task, changes, {
     projectId: task.projectId, verb, targetType: 'task', targetId: task.id,
   })!;
   if (wasDone && status !== 'done') reopenDependents(ctx, task, cause.id);
@@ -704,16 +721,19 @@ function approve(ctx: Ctx, task: Task): void {
   notifyIn(ctx, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id });
 }
 
-const reviews = (ctx: Ctx, task: Task): boolean => task.status === 'in_review' && can(ctx.authority, 'task.review', taskRole(ctx, task));
+const reviews = (ctx: Ctx, task: Task): boolean => mayReviewTask(ctx.state, ctx.authority, task);
 
 export const tasksComplete = defineCall({
   input: z.object({ id: TaskId }),
   output: Moved,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertMayWork(ctx, task);
+    const helperSends = !mayChangeTask(ctx.authority, 'work', taskRole(ctx, task)) && helperMaySend(ctx, task);
+    if (!helperSends) assertMayWork(ctx, task);
     if (task.status === 'done') throw invalid('id', 'This task is already done.');
     const result = landingStatus(ctx, task);
+    // A helper sends the to-do to review and never marks it Done (fbk_087).
+    if (helperSends && result !== 'in_review') throw forbidden('You cannot do this.', { action: 'task.work' });
     if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
     else {
       const watch = watchStage(ctx, task.projectId);
@@ -729,7 +749,10 @@ export const tasksMove = defineCall({
   output: Moved,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertMayWork(ctx, task);
+    // A helper moves the to-do into In review and nowhere else (fbk_087).
+    const helperSends = !mayChangeTask(ctx.authority, 'work', taskRole(ctx, task)) && helperMaySend(ctx, task);
+    if (helperSends ? input.status !== 'in_review' : false) throw forbidden('You cannot do this.', { action: 'task.work' });
+    if (!helperSends) assertMayWork(ctx, task);
     const result = input.status === 'done' ? landingStatus(ctx, task) : input.status;
     if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
     else {
@@ -747,12 +770,21 @@ export const tasksMove = defineCall({
   },
 });
 
+/**
+ * Approve and Send back (fbk_087): the named reviewer, or a holder of the review right as a backup, never the sender. A to-do that is not
+ * in review keeps the answer of the review right, so the refusal comes before the "not waiting" answer, as before.
+ */
+function assertMayReview(ctx: Ctx, task: Task): void {
+  const may = task.status === 'in_review' ? mayReviewTask(ctx.state, ctx.authority, task) : can(ctx.authority, 'task.review', taskRole(ctx, task));
+  if (!may) throw forbidden('You cannot do this.', { action: 'task.review' });
+}
+
 export const tasksApprove = defineCall({
   input: z.object({ id: TaskId }),
   output: TaskDetail,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.review', taskRole(ctx, task));
+    assertMayReview(ctx, task);
     if (task.status !== 'in_review') throw invalid('id', 'This task is not waiting for review.');
     approve(ctx, task);
     return detail(ctx, task);
@@ -764,7 +796,7 @@ export const tasksSendBack = defineCall({
   output: TaskDetail,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.review', taskRole(ctx, task));
+    assertMayReview(ctx, task);
     if (task.status !== 'in_review') throw invalid('id', 'This task is not waiting for review.');
     const watch = watchStage(ctx, task.projectId);
     changeStatus(ctx, task, 'in_progress', 'task.sent_back');

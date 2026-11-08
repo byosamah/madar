@@ -39,7 +39,7 @@ describe('My Work tasks', () => {
   it('ticks a task from My Work', async () => {
     const { store } = await renderApp('/work', as('usr_005'));
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Complete Civil Defense drawings' }));
-    expect(await screen.findByText('Sent to review. The leader checks it next.')).toBeInTheDocument();
+    expect(await screen.findByText('Sent to review. Another person checks it next.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_012.status).toBe('in_review');
   });
 

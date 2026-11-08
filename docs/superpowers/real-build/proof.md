@@ -3137,3 +3137,45 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   database, lock and asyncContext ok; /mcp with no token 401; madar.vado.sa serves `bootstrap-KI40ZyNJ.js`, the same as the deploy
   address, and it holds `[2e3,6e3]`.
 - Next on `rb/read-retry`: the PostHog managed proxy on `relay.madar.vado.sa` (What's new `2026-11-08-154`), after its certificate.
+
+### Release record: production at 80b8968e (2026-11-08, PostHog through its managed proxy)
+- Why (owner: "do the posthog proxy too"): the owner's Chrome blocker stopped every send to `eu.i.posthog.com`, and so would the blocker of
+  any team member. PostHog runs a managed proxy for free on an own address. It uses no Cloudflare request quota, so the rule against a
+  Pages Functions proxy (insight design) still holds.
+- Setup: `proxy-create` of the PostHog MCP made `relay.madar.vado.sa` (id 01a1ba1a-5bb8-0000-d9f6-70d22bc9a722). The owner added two
+  records in the vado.sa DNS (Vercel): the CNAME `relay.madar` to `52398457ceaf413c2690.cf-prod-eu-proxy.europehog.com`, and the CAA
+  `0 issue "ssl.com"` on vado.sa. Without the CAA record the certificate stayed at "issuing" for 55 minutes: the provider picked SSL.com,
+  and vado.sa allowed only letsencrypt.org, pki.goog and sectigo.com. The certificate is SSL.com ("Cloudflare TLS Issuing ECC CA 4"), valid
+  to 2027-02-06; PostHog renews it. `proxy-diagnose` refuses an MCP token (403), and `proxy-get` still said "issuing" with a live certificate
+  (PostHog issue 48399).
+- What shipped: `POSTHOG_HOST` is `https://relay.madar.vado.sa`; the CSP `connect-src` names only this PostHog host; the server keeps
+  `eu.i.posthog.com`. What's new `2026-11-08-154`.
+- Gates: typecheck; the touched tests (444, after the rebase on the record of 09162e8a); build:remote test (first load 970,840 B of
+  972,000 B); npm run build (no PostHog marker in the prototype). npm test (12,910) ran before the proxy commit; the proxy commit changed
+  only the files whose tests ran after it.
+- Checks through the proxy before production: a marked record (`madar_proxy_check`, env test, sent with curl) reached PostHog; the
+  settings file `/array/<token>/config` answered 200 with JSON; the test copy CSP named only the proxy for PostHog.
+- `scripts/deploy/all.sh test`, then `echo production | scripts/deploy/all.sh production` by Claude, 2026-11-08 about 08:50 UTC. Live
+  checks: health from supabase, 162 calls; database, lock and asyncContext ok; /mcp with no token 401; the CSP of madar.vado.sa names
+  `https://relay.madar.vado.sa` and no posthog.com host; madar.vado.sa serves `bootstrap-BQMQWaK7.js`.
+
+### Release record: production at ea14943a (2026-11-08, fbk_081, fbk_082, fbk_086 and fbk_087: four reported bugs)
+- Why (owner: "let's fix the bugs first"): the open reports of 2026-11-08 held four bugs. A read-only study (4 Sonnet agents) gave the
+  causes; two Sonnet builders built them on `rb/bugs-1108` and `rb/review-rule`; the lead stacked them on main `c5e3f027`.
+- fbk_081: a reaction no longer moves the sender's picture down (`MessageBubble.tsx`). fbk_082: the desk Home view toggle is a 32 px disc
+  with a 44 px press area. fbk_086: not a security bug (every read checks the person; both R2 buckets have no public address and no custom
+  domain, read with `wrangler r2 bucket dev-url get` and `domain list`, `-J eu`); `compareIds` keeps tsk_999 before tsk_1000 in the screen
+  sorts. fbk_087: the owner's reviewer rule (`docs/decision-log.md`, 2026-11-08), `Task.reviewSentBy`, helpers send to review. What's new
+  `2026-11-08-155` and `2026-11-08-156`.
+- Security review of the fbk_087 commits (automatic): an Undo of an own approval now asks `mayReviewTask` on the to-do as the Undo puts it
+  back; a change of the lead during the review keeps the sender out (pinned by a test).
+- Gates on the stack: typecheck; npm test 12,975 passed (`scripts/deploy/deploy.test.ts` timed out at 5 s under load, then 53 of 53 alone);
+  npm run build, build:server, build:remote test (first load 971,290 B of 972,000 B, gzip 295,724 B of 296,000 B, 32 files); test:it 368;
+  test:mcp (conformance 5 of 32, 27 expected); test:office 40. test:db and test:lite failed one rule test: the Dashboard loader lacked
+  `reviewSentBy` (`DASHBOARD_TASK_FIELDS`), so the database paths named the old reviewer. Fixed in ede61c2a; then 104 tests on Postgres and
+  76 on SQLite passed. The smoke failed on old toast words in two browser tests; fixed; then 140 of 140 passed.
+- `scripts/deploy/all.sh test` (record ea14943a), a hand check on the test copy in Dia (desk Home toggle, What's new 156 and 155 in order),
+  then `echo production | scripts/deploy/all.sh production` by Claude after the owner picked "Gates, test copy, then to production",
+  2026-11-08 about 10:25 UTC. Live checks: health from supabase, 162 calls; database, lock and asyncContext ok; /mcp with no token 401;
+  madar.vado.sa serves `bootstrap-DsjVwWMM.js`, and its first-load `index-Dv5fBnds.js` holds the class of the quiet toggle.
+- Open: tsk_624 keeps the old rule until it is sent again; the reports stay open until the owner says to close them (TASKS.md).

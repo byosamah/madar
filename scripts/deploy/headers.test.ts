@@ -9,9 +9,9 @@ const PRODUCTION = 'https://oprkvdjudjxxhvodkzgs.supabase.co';
 const ACCOUNT = 'd76d34779c63849f5acdf3d6af3751cd';
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
 const OPENFREEMAP = 'https://tiles.openfreemap.org';
-// PostHog Cloud EU: usage data, errors and masked replays for the owner (insight design, 2026-10-25). It is the only new host.
-const POSTHOG = 'https://eu.i.posthog.com';
-const POSTHOG_ASSETS = 'https://eu-assets.i.posthog.com';
+// PostHog Cloud EU: usage data, errors and masked replays for the owner (insight design, 2026-10-25). Since 2026-11-08 the page sends
+// everything through the free managed proxy of PostHog on an own address, so an ad blocker does not stop it.
+const POSTHOG = 'https://relay.madar.vado.sa';
 
 /** The sources of one CSP directive. */
 function directive(headers: string, name: string): string[] {
@@ -46,7 +46,7 @@ describe('renderHeaders', () => {
   it('adds no host for the push services: the browser, not the page, talks to them', () => {
     const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
     for (const host of ['fcm.googleapis.com', 'push.services.mozilla.com', 'push.apple.com', 'notify.windows.com']) expect(headers).not.toContain(host);
-    expect(directive(headers, 'connect-src').every((source) => source === "'self'" || source === NOMINATIM || source === OPENFREEMAP || source === POSTHOG || source === POSTHOG_ASSETS || source.includes('qdgwpnesxppnqsaabqzd.supabase.co'))).toBe(true);
+    expect(directive(headers, 'connect-src').every((source) => source === "'self'" || source === NOMINATIM || source === OPENFREEMAP || source === POSTHOG || source.includes('qdgwpnesxppnqsaabqzd.supabase.co'))).toBe(true);
   });
 
   it('while the files are on Supabase Storage, names the Supabase host for pictures, the PDF frame and the calls, and no R2 host', () => {
@@ -55,17 +55,16 @@ describe('renderHeaders', () => {
     expect(directive(headers, 'frame-src')).toEqual([TEST]);
     // A chat video plays from the signed link of the store (owner, 2026-11-03). Without media-src, default-src 'self' refuses it.
     expect(directive(headers, 'media-src')).toEqual(["'self'", TEST]);
-    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM, OPENFREEMAP, POSTHOG, POSTHOG_ASSETS]);
+    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM, OPENFREEMAP, POSTHOG]);
     expect(headers).not.toContain('r2.cloudflarestorage.com');
   });
 
-  it('lets the page send to PostHog Cloud EU and changes no other directive for it (insight design, section 6)', () => {
+  it('lets the page send to PostHog through its own proxy address only, and changes no other directive for it (2026-11-08)', () => {
     const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
+    // The events, the replays and the settings file of the project all go through the proxy address. No PostHog host stays.
     expect(directive(headers, 'connect-src')).toContain(POSTHOG);
-    // The settings file of the project (replays, clicks) comes from the assets host as JSON. Its scripts stay out (script-src below).
-    expect(directive(headers, 'connect-src')).toContain(POSTHOG_ASSETS);
-    expect(headers).not.toContain('posthog.com/static');
-    for (const name of ['script-src', 'worker-src', 'img-src', 'media-src', 'frame-src', 'default-src', 'style-src', 'font-src']) expect(directive(headers, name).join(' '), name).not.toContain('posthog');
+    expect(headers).not.toContain('posthog.com');
+    for (const name of ['script-src', 'worker-src', 'img-src', 'media-src', 'frame-src', 'default-src', 'style-src', 'font-src']) expect(directive(headers, name).join(' '), name).not.toContain('relay.madar.vado.sa');
   });
 
   it('names only the hosts of the chosen environment', () => {
@@ -74,8 +73,8 @@ describe('renderHeaders', () => {
     expect(test).not.toContain('oprkvdjudjxxhvodkzgs');
     expect(production).not.toContain('qdgwpnesxppnqsaabqzd');
     const hosts = (text: string) => [...new Set([...text.matchAll(/(?:https|wss):\/\/[^\s;]+/g)].map((match) => match[0]))];
-    expect(hosts(test)).toEqual([TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM, OPENFREEMAP, POSTHOG, POSTHOG_ASSETS]);
-    expect(hosts(production)).toEqual([PRODUCTION, 'wss://oprkvdjudjxxhvodkzgs.supabase.co', NOMINATIM, OPENFREEMAP, POSTHOG, POSTHOG_ASSETS]);
+    expect(hosts(test)).toEqual([TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM, OPENFREEMAP, POSTHOG]);
+    expect(hosts(production)).toEqual([PRODUCTION, 'wss://oprkvdjudjxxhvodkzgs.supabase.co', NOMINATIM, OPENFREEMAP, POSTHOG]);
   });
 
   it('after the move to R2, names the R2 EU host for the files and keeps the Supabase host for the calls', () => {
@@ -84,7 +83,7 @@ describe('renderHeaders', () => {
     expect(directive(headers, 'img-src')).toEqual(["'self'", 'data:', 'blob:', r2]);
     expect(directive(headers, 'frame-src')).toEqual([r2]);
     expect(directive(headers, 'media-src')).toEqual(["'self'", r2]);
-    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', r2, NOMINATIM, OPENFREEMAP, POSTHOG, POSTHOG_ASSETS]);
+    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', r2, NOMINATIM, OPENFREEMAP, POSTHOG]);
   });
 
   it('drops the comments of the template and leaves no placeholder', () => {

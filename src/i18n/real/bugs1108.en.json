@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-11-08-155": {
+        "title": "Two small fixes in chat and on Home",
+        "body": "A reaction no longer moves the profile picture of the sender down. The button for the project view on Home is now smaller and quieter."
+      }
+    }
+  }
+}

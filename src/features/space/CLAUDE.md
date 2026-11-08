@@ -18,3 +18,6 @@ only and fills the screen at `/dashboard/space`.
   the view; a pan never fits again). `maxZoomFor` gives the ceiling of a fit. The data of a card keeps its object while its fields stay the
   same, and the toggle never changes, so a tap redraws only the cards that changed.
 - The office card carries the `MadarMark` (one of the three places the mark may show).
+- Tie-break by id: an id has at least 3 digits, so as text `tsk_1000` sorts before `tsk_999` (fbk_086). The sorts of the tree and
+  `compareTasks` end with `compareIds` (`src/lib/stageFlow.ts`: the prefix, then the number). Use it for screen sorts only. A JS sort that
+  must match a SQL order (message paging, `sqlSource.ts`) keeps the plain text compare.

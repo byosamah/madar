@@ -78,8 +78,8 @@ export const LAZY_MARKERS = [
   { label: "Excel reader ('InvalidSpreadsheetError')", marker: 'InvalidSpreadsheetError' },
   { label: "HTML cleaner ('DOMPurify')", marker: 'DOMPurify' },
 ] as const;
-/** Text that only the PostHog library and its client file hold (insight design, section 6). The prototype build never holds either. */
-export const POSTHOG_MARKERS = ['$snapshot_data', 'eu.i.posthog.com'] as const;
+/** Text that only the PostHog library and its client file hold (insight design, section 6; the proxy address since 2026-11-08). The prototype build never holds either. */
+export const POSTHOG_MARKERS = ['$snapshot_data', 'relay.madar.vado.sa'] as const;
 /** Text that only dnd-kit holds (its hidden description of a drag handle). The sortable lists load it after the first screen (FL-2). */
 export const DRAG_MARKER = 'DndDescribedBy';
 export const WORD_MARKERS = {

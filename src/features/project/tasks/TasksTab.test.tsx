@@ -36,7 +36,7 @@ describe('the Tasks tab list', () => {
   it("sends a member's tick to review, then undoes it", async () => {
     const { store } = await renderApp(TASKS, as('usr_005'));
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Complete Civil Defense drawings' }));
-    expect(await screen.findByText('Sent to review. The leader checks it next.')).toBeInTheDocument();
+    expect(await screen.findByText('Sent to review. Another person checks it next.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_012.status).toBe('in_review');
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(store.state.tasks.tsk_012.status).toBe('todo'));

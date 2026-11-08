@@ -152,11 +152,21 @@ describe('what a helper may do', () => {
     await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { checklist: items.map((item) => ({ ...item, text: 'Other' })) } })).rejects.toMatchObject({ code: 'forbidden' });
   });
 
+  // fbk_087 (owner 2026-11-08): a helper may send a to-do that needs review into In review, and only that (reviewRule.test.ts). The old
+  // test expected a refusal of the tick; now the tick lands in review, and Done stays closed to the helper.
+  it('sends the task to review with a tick, and the lead reviews it', async () => {
+    const t = world();
+    t.as('usr_006');
+    expect((await t.api.call('tasks.complete', { id: 'tsk_001' })).result).toBe('in_review');
+    expect(notices(t.store, 'review_requested', 'usr_003')).toHaveLength(1);
+    expect(notices(t.store, 'review_requested', 'usr_002')).toHaveLength(0);
+  });
+
   it('cannot finish the task, move it, or change its title or dates', async () => {
     const t = world();
     t.as('usr_006');
-    await expect(t.api.call('tasks.complete', { id: 'tsk_001' })).rejects.toMatchObject({ code: 'forbidden' });
     await expect(t.api.call('tasks.move', { id: 'tsk_001', status: 'done' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('tasks.move', { id: 'tsk_001', status: 'todo' })).rejects.toMatchObject({ code: 'forbidden' });
     await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { dueDate: '2026-10-09' } })).rejects.toMatchObject({ code: 'forbidden' });
     await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-01' } })).rejects.toMatchObject({ code: 'forbidden' });
     await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { title: 'Mine now', checklist: [] } })).rejects.toMatchObject({ code: 'forbidden' });

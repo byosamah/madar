@@ -39,8 +39,9 @@ function PillRow({ bubble, used }: { bubble: Bubble; used: string[] }) {
     document.addEventListener('pointerdown', away, { capture: true, once: true });
     return () => document.removeEventListener('pointerdown', away, true);
   }, [tip]);
+  // The row sits under the face row of the bubble. For another person it has ps-9 (the face 28 px and its gap 8 px), so it lines up with the bubble (fbk_081).
   return (
-    <div role="group" aria-label={t('chat.reactions')} className={`flex flex-wrap gap-1 pt-1 ${bubble.mine ? 'justify-end' : 'justify-start'}`}>
+    <div role="group" aria-label={t('chat.reactions')} className={`flex flex-wrap gap-1 pt-1 ${bubble.mine ? 'justify-end' : 'justify-start ps-9'}`}>
       {used.map((emoji) => (
         <Pill key={emoji} bubble={bubble} emoji={emoji} actions={actions} tipped={tip === emoji} onTip={() => setTip(emoji)} />
       ))}

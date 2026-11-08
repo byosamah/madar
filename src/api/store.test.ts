@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Store, emptyState, memberKey, nextId } from './store';
 import { memoryPersister } from './persist';
+import { TaskId } from './contract/entities';
+import { compareTasks } from '../lib/stageFlow';
 
 describe('Store', () => {
   it('gives ids with a prefix and three digits', () => {
@@ -8,6 +10,18 @@ describe('Store', () => {
     expect(nextId(state, 'prj')).toBe('prj_001');
     expect(nextId(state, 'prj')).toBe('prj_002');
     expect(nextId(state, 'tsk')).toBe('tsk_001');
+  });
+
+  // fbk_086: an id has at least 3 digits, so tsk_1000 is the next id after tsk_999. The zod rule takes it, and a tie-break sort puts it after tsk_999.
+  it('goes on to four digits after 999, and a tie-break puts tsk_999 before tsk_1000', () => {
+    const state = emptyState('2026-09-30');
+    state.counters.tsk = 998;
+    const ids = [nextId(state, 'tsk'), nextId(state, 'tsk')];
+    expect(ids).toEqual(['tsk_999', 'tsk_1000']);
+    expect(TaskId.safeParse('tsk_1000').success).toBe(true);
+    const task = (id: string) => ({ id, stageId: 'stg_001', title: 'Same title', status: 'todo', startDate: '2026-11-01', dueDate: '2026-11-10' });
+    // The later id first in the list: the sort must still put tsk_999 first.
+    expect([task('tsk_1000'), task('tsk_999')].sort((a, b) => compareTasks(a, b)).map((t) => t.id)).toEqual(['tsk_999', 'tsk_1000']);
   });
 
   it('keys members by project and user', () => {

@@ -4,6 +4,21 @@ The owner decisions and the history that the CLAUDE.md guides held until 2026-10
 keep each decision that still sets a rule, as a rule. This file is the record of when and why. Newest wins.
 Sections follow the guide that held the text. Line numbers and counts in this file are from that day and can be old.
 
+## 2026-11-08
+- Who reviews a to-do (fbk_087, owner, from the report of Faisal about tsk_624): the person who does the work never approves it. Faisal
+  made an office to-do, did the work, named Moataz as lead and sent it to review; Madar named the maker (Faisal) as reviewer, so Faisal saw
+  "Your review" and Moataz got no notice. The owner's words: "the maker not means he's the leader or the reviewer, the leader or the
+  reviewer is the selected leader of the to-do even if the maker is different". Scope: "both" (office and project to-dos). For a project
+  to-do whose lead sends it: "if there's a project leader take the to-do leader, but never the admin because it's admin or the maker because
+  it's maker". An Admin who leads an office to-do and ticks it: it "goes to the maker". Helpers: "Yes, helpers can send it". The named
+  reviewer approves with no switch. The rule, in plain words: a sender who is not the lead sends the to-do to the lead; the lead of a
+  project to-do sends it to the project leader; the lead of an office to-do sends it to the maker; a lead who is the project leader or the
+  maker means no review; the sender never approves (also an Admin); a holder of the review right of the project, or `task.officeAll` on an
+  office to-do, approves as a backup without notice. A project with no active leader, or a maker who left, falls back to the active Admins
+  (decided by the lead of the build for these edge cases). Madar stores the sender (`Task.reviewSentBy`). A to-do already in review with
+  no stored sender (tsk_624) keeps the old rule until it is sent again. The old rule that a leader without `task.review.lead` is no
+  reviewer now holds only for those old to-dos.
+
 ## 2026-11-05
 - Resources (fbk_078, owner, from the report of Faisal): the office keeps shared files, such as building codes and office policies, on one page. Place:
   inside Projects. On a desk, a quiet "Resources" link sits at the end side of the Filter and View row of Projects (not a second main button).

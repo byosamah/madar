@@ -22,13 +22,30 @@ export function currentStageIndex(stages: { id: string }[], currentStage: { id: 
   return stages.findIndex((stage) => stage.id === currentStage.id);
 }
 
+/**
+ * A tie-break for ids (fbk_086). An id is a prefix and a number padded to at least 3 digits, so as text `tsk_1000` sorts before `tsk_999`.
+ * This compares the prefix, then the number. Use it only for sorts on the screen. A sort that must match a SQL order (message paging)
+ * keeps the plain text compare. An id with no number falls back to the text.
+ */
+export function compareIds(a: string, b: string): number {
+  const cut = (id: string) => id.lastIndexOf('_') + 1;
+  const ca = cut(a);
+  const cb = cut(b);
+  const text = a < b ? -1 : a > b ? 1 : 0;
+  if (ca === 0 || cb === 0 || a.slice(0, ca) !== b.slice(0, cb)) return text;
+  const na = Number(a.slice(ca));
+  const nb = Number(b.slice(cb));
+  if (!Number.isInteger(na) || !Number.isInteger(nb) || na === nb) return text;
+  return na < nb ? -1 : 1;
+}
+
 /** Tasks in time order: start date, then due date, then the stage's place in time, then the title. A date that is not set comes last. */
 export function compareTasks(a: TaskShape, b: TaskShape, stageRank: (stageId: string | null) => number = () => 0): number {
   return (a.startDate ?? LATE).localeCompare(b.startDate ?? LATE)
     || (a.dueDate ?? LATE).localeCompare(b.dueDate ?? LATE)
     || stageRank(a.stageId) - stageRank(b.stageId)
     || a.title.localeCompare(b.title)
-    || a.id.localeCompare(b.id);
+    || compareIds(a.id, b.id);
 }
 
 /** A project's tasks in time order, given its stages. */

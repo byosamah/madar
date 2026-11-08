@@ -88,6 +88,8 @@ describe('the View choice on a phone', () => {
     const toggle = screen.getByRole('button', { name: 'Show as boxes' });
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
     expect(toggle).toHaveClass('size-11', 'rounded-full');
+    // fbk_082: only the desk Home gets the quiet 32 px look. The phone keeps the 44 px disc.
+    expect(toggle).not.toHaveClass('size-8');
     await userEvent.type(screen.getByRole('searchbox'), 'Corniche');
     await waitFor(() => expect(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('link')).toHaveLength(1));
     expect(isBox(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('link')[0])).toBe(true);

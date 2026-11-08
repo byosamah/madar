@@ -242,4 +242,34 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
     expect(await sendSummary(live(), someone.id, TODAY)).toBe('sent');
     expect((await mails()).map((m) => [m.to_email, m.tag, m.idempotency_key])).toEqual([[someone.email, 'summary', `summary-${TODAY}-${someone.id}`]]);
   });
+
+  // fbk_087 (owner 2026-11-08): the stored sender of a to-do in review decides who reviews it. The SQL must name the same people as
+  // reviewersOfTask for a to-do that a helper sent, one that the lead sent, and one that has no stored sender.
+  it('counts the reviews by the stored sender, as reviewersOfTask names them', async () => {
+    const load = async () => ({
+      tasks: (await office.sql<{ doc: Task }>('select doc from tasks')).map((r) => r.doc),
+      projects: Object.fromEntries((await office.sql<{ doc: Project }>('select doc from projects')).map((r) => [r.doc.id, r.doc])),
+      users: Object.fromEntries((await office.sql<{ doc: User }>('select doc from users')).map((r) => [r.doc.id, r.doc])),
+      settings: (await office.sql<{ doc: State['settings'] }>('select doc from settings'))[0]?.doc,
+    });
+    const [maker, lead, helper] = Object.values((await load()).users).filter((u) => u.active && u.kind === 'human' && u.systemRole === 'member');
+    const made = async (title: string) => okOf<{ task: { id: string } }>(await call(maker.id, 'tasks.create', { title, ownerId: lead.id, helperIds: [helper.id] })).task.id;
+    const byHelper = await made('Sent by a helper');
+    okOf(await call(helper.id, 'tasks.move', { id: byHelper, status: 'in_review' }));
+    const byLead = await made('Sent by the lead');
+    okOf(await call(lead.id, 'tasks.complete', { id: byLead }));
+    const { tasks, projects, users, settings } = await load();
+    expect(tasks.find((t) => t.id === byHelper)?.reviewSentBy).toBe(helper.id);
+    expect(tasks.find((t) => t.id === byLead)?.reviewSentBy).toBe(lead.id);
+    const state = { projects, users, settings } as unknown as State;
+    const liveTask = (t: Task) => t.projectId === null || projects[t.projectId]?.status === 'active';
+    for (const person of Object.values(users).filter((u) => u.active && u.kind === 'human')) {
+      const expected = tasks.filter((t) => liveTask(t) && t.status === 'in_review' && reviewersOfTask(state, t).includes(person.id)).length;
+      const summary = await deps.db.tx('read', (q) => buildSummary(q, person, TODAY));
+      expect({ id: person.id, reviews: summary?.reviewsWaiting ?? 0 }).toEqual({ id: person.id, reviews: expected });
+    }
+    // The lead reviews what the helper sent, and the maker reviews what the lead sent.
+    expect(reviewersOfTask(state, tasks.find((t) => t.id === byHelper)!)).toEqual([lead.id]);
+    expect(reviewersOfTask(state, tasks.find((t) => t.id === byLead)!)).toEqual([maker.id]);
+  });
 });
