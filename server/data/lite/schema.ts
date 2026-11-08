@@ -50,7 +50,7 @@ import type { SqlHost } from './host';
  * object serves. It is an office object table only: Postgres has no such table, and an export leaves it out (EXPORT_SKIP). Its step is in LITE_STEPS.
  *
  * Version 16 (Madar enterprises, plan C): the server table enterprise_use, one row: the running total of the file bytes (storage_bytes), and the
- * platform owners of this enterprise (owners, JSON text). It is derived data and an office object table only, like enterprise. The step counts
+ * platform owners of this enterprise (owners, JSON text; unused since plan F, a released step never changes). It is derived data and an office object table only, like enterprise. The step counts
  * the bytes of the files that the office holds. Its step is in LITE_STEPS.
  */
 export const LITE_SCHEMA_VERSION = 16;
@@ -153,7 +153,7 @@ const ENTERPRISE_SQL = 'create table enterprise (id text primary key, state text
 
 /**
  * The use of the enterprise (version 16): the running total of the bytes of every version of every file, and the platform owners of this
- * enterprise (the user ids, JSON text). One row, id 1. The total is kept by writeTable and repaired by the daily step "storage" (server/enterprise/storage.ts).
+ * enterprise (the user ids, JSON text; unused since plan F). One row, id 1. The total is kept by writeTable and repaired by the daily step "storage" (server/enterprise/storage.ts).
  */
 const ENTERPRISE_USE_SQL = 'create table enterprise_use (id integer primary key check (id = 1), storage_bytes integer not null default 0, owners text not null default \'[]\')';
 const FILES_BYTES_STEP = "(select coalesce(sum(json_extract(v.value, '$.size')), 0) from files f, json_each(f.doc, '$.versions') v)";

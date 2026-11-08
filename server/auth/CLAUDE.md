@@ -63,6 +63,11 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   session. Sign-out others ends agents too. The API checks no session for a browser token (15 minutes at most, as on Supabase).
 - Links: random bytes, only the sha256 in the table, one use; a new link ends the open links of the person. A link opens a link
   session that may set a password once with no current password. An agent token never sets a password (403 `agent_token`).
+- Platform tokens (plan F, design D10): `signPlatformToken` (`own/keys.ts`) signs the token of a platform account with the audience `PLATFORM_AUDIENCE`
+  (`madar-platform`, `ownKeys.ts`), `sub` = `pla_NNN`, claim `sid`, no `ent`. `platformTokenChecker` and `verifyPlatformToken` (`verify.ts`) accept only that
+  audience and refuse a token with an `ent` or a `client_id`; `browserTokenChecker` accepts only the audience `authenticated`, so a platform token never passes
+  a company route. `isPlatformBearer` reads the audience of an unchecked token only to send it away early (the MCP route). The sign-in of the platform accounts
+  is in `server/enterprise/platform/accounts.ts`; it reuses `countLimits`, `rotateSession`-like rotation, `hashPassword` and `verifyPassword`.
 - Limits are in `own/limits.ts` (sign-ins for one email and for one address, link opens, OAuth registrations). The address is
   `clientAddress` (`forgot.ts`).
   On the office path the limit of the address for `auth.password`, `auth.verify`, forgot and renew is counted once, in the platform object

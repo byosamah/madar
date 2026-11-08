@@ -1,7 +1,8 @@
 # Madar enterprises (the enterprise core)
 
-The shared server code of Madar enterprises: each enterprise has its own office object, and one platform object holds the list. The
-design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The shared names are
+The shared server code of Madar enterprises: each enterprise has its own office object, and one platform object holds the list and the
+accounts of the platform. Madar enterprises is a separate platform (plan F, design section 12): the companies' app, VADO included, holds no
+door to it. The design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The shared names are
 `docs/superpowers/plans/2026-11-08-madar-enterprises-contract.md` (the section "Lead decisions" wins). The office object is in
 `server/office/CLAUDE.md`. The Postgres path serves ENT_VADO only and loads no file here that imports `cloudflare:workers`.
 
@@ -40,7 +41,7 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
 - `pad.ts`: `padTo`, the minimum answer time of a branch. `mailRoute.ts`: `runMailRoute`, the limits of forgot and renew, shared by the
   office object and the platform object.
 - `fanout.ts`: the Cron fan-out (`runFanout`, `selfTransport`, `CRON_PATH`).
-- `platform/`: the platform object (`schema.ts`, `stub.ts` = `PlatformStub`, `parts.ts` = the work, `object.ts` = the class `Platform`), and the platform calls (`enterprises.ts`, `handlers.ts`, `guard.ts`, `route.ts`, `owners.ts`).
+- `platform/`: the platform object (`schema.ts`, `stub.ts` = `PlatformStub`, `parts.ts` = the work, `object.ts` = the class `Platform`), the platform accounts (`accounts.ts`), and the platform calls (`enterprises.ts`, `handlers.ts`, `guard.ts`, `route.ts`, `auth.ts` = the sign-in routes, `answer.ts` = the refusal answer).
 
 ## Rules
 - The enterprise never comes from a header, a query value or a body field that the browser sets. It comes from the signed claim `ent`, a
@@ -62,19 +63,39 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
   with a good email or key, as before. Do not move this count into an object: a per-object count tells whether two emails share an enterprise.
 - A limit that comes from a Cloudflare plan is a named constant or a setting, never a bare number in a branch.
 
-## Platform calls (plan C)
-- The eight calls `platform.me`, `platform.enterprises.{list,create,update,pause,resume,resendInvite}` and `platform.meter.get` have their contract in
+## Platform accounts and calls (plans C and F)
+- **Accounts (plan F, design D8).** A platform account belongs to no company. The platform object holds it: `platform_accounts` (id `pla_NNN`, email, name,
+  PBKDF2 hash, state `active` or `off`) and `platform_sessions` (the sha256 of the refresh secret, `prev_hash` and `used_at` for the 10 s reuse window,
+  `ends_at`). `accounts.ts` holds the work: `platformSignIn`, `platformRefresh`, `platformSignOut`, `platformAccount`, `platformAccounts` (the ops).
+  A wrong password and an unknown email give one answer after the same work (one PBKDF2 each). `off` shows only after the right password. The limits
+  use the counts and windows of `server/auth/own/limits.ts` with their own keys (`psignin:ip`, `psignin:email`), so a try on the platform never counts
+  against a company. A refresh rotates like `rotateSession`; the previous token after the window ends the session. A new password ends every session;
+  `off` ends none (the refresh then gives `account_off`). The password has 12 to 200 characters (`PLATFORM_PASSWORD_MIN`).
+- **Refusals are data.** `platformSignIn`, `platformRefresh` and `platformAccounts` return `PlatformOutcome` (`{ ok: true, value }` or `{ ok: false, error }`),
+  not a throw: an `ApiError` thrown in a Durable Object loses its class over the RPC hop. The Worker calls `valueOfOutcome` to throw it again. Tests that read a
+  refusal as a throw wrap the parts (`accounts.test.ts`, `unwrapped`; `nodeWorld` offers `accounts()`).
+- **Token (design D10).** `signPlatformToken` (`server/auth/own/keys.ts`): audience `madar-platform` (`PLATFORM_AUDIENCE`), `sub` = the account id, `sid` = the
+  session id, no `ent`, 900 s, signed in the platform object with `MADAR_AUTH_PRIVATE_JWK`. `verifyPlatformToken` (`server/auth/verify.ts`) refuses a token with
+  any other audience, with an `ent` or with a `client_id`. The company check needs the audience `authenticated`. So neither kind of token works on the routes of
+  the other. `/mcp` sends a platform bearer away before any object work (`isPlatformBearer`).
+- **Routes** (office path only; the Postgres path answers 404). `POST /api/platform/auth/token` (`password` or `refresh_token`; 200 `{ access_token, refresh_token,
+  expires_in: 900, account }`), `POST /api/platform/auth/logout` (204). A refusal is `{ v: 1, error: { code, message, details: { reason } } }` with status 401 for
+  every `unauthenticated` reason (`invalid_credentials`, `session_ended`, `account_off`; `answer.ts`) and 429 with `Retry-After` for a limit.
+- **Calls.** The eight calls `platform.me`, `platform.enterprises.{list,create,update,pause,resume,resendInvite}` and `platform.meter.get` have their contract in
   `src/api/contract/platform.ts` and their handlers in `platform/handlers.ts` (`PLATFORM_HANDLERS`). They run in the Worker, on `POST /api/platform`
-  (`platform/route.ts`), never in an enterprise object. The route checks, in this order: the build, the body size, the browser token (an agent token
-  gets 403 `agent_token`), the owner (`platform/guard.ts`: the object finds the active person with `person`, the platform object knows the pair; any other
-  person gets `not_found`, also for a bad body), then the shape, the name, the input and the handler. The output goes through the contract output, which
-  strips every key it does not name. The Postgres path has no such route. All eight are on `MCP_DENY`.
+  (`platform/route.ts`), never in an enterprise object. The route checks, in this order: the build, the body size, the platform token (a company token, an
+  agent token or no token gets 401), the account (`platform/guard.ts`: it asks the platform object only, and the account must exist and be `active`, else 401,
+  `account_off` at once for a token still valid), then the shape, the name, the input and the handler. The output goes through the contract output, which
+  strips every key it does not name. All eight are on `MCP_DENY`. `platform.me` still answers `owner: true` and `ent: ENT_NONE` (`ent_000`), and the view key
+  `hasOwner` is always false: the contract names them, and the owner list is gone (design D11).
+- **VADO is a normal company** (design D11). There is no owner list: no `isOwner`, no `setOwners`, no mirror in the office object, no `owner_enterprise`
+  refusal. The platform pauses `ent_001` like any other company, with the typed name. `session.get` never sets `platformOwner`. The platform table `owners`
+  and the column `enterprise_use.owners` stay in the schema (a released step never changes) and nothing reads or writes them.
 - Create runs in this order: `platform.create` (row `creating`, address and Admin email reserved), `office.init` (settings, `usr_001`, the invitation),
   `platform.activate`. A failed step leaves the row `creating`; the same call again finishes it. A change of two sides writes the object first and the
-  platform row second (`update` sends the object only the fields that changed). `pause` refuses an enterprise that holds an owner and needs the typed name.
-- The object RPCs of plan C: `init`, `setState`, `setLimits`, `setIdentity`, `setPlatformOwners`, `person`, `reinvite`, `brand`
-  (`lifecycle.ts` holds the work). `writeOwners` (`platform/owners.ts`, the ops route `platform-owners`) writes the master list and the copy in each object.
-- Limits: `facts.ts` (`EnterpriseFacts`, `Deps.enterprise`) holds the id, state, limits and owners in memory. The people limit has two steps. The `prepare` of
+  platform row second (`update` sends the object only the fields that changed). `pause` needs the typed name.
+- The object RPCs of plan C: `init`, `setState`, `setLimits`, `setIdentity`, `reinvite`, `brand` (`lifecycle.ts` holds the work).
+- Limits: `facts.ts` (`EnterpriseFacts`, `Deps.enterprise`) holds the id, state and limits in memory. The people limit has two steps. The `prepare` of
   `users.create` and `users.reactivate` (`server/calls/peopleHooks.ts`) gives the early, calm refusal. The real check is in the write step of
   `runCall` (`assertPeopleWithinLimit`, `server/core/peopleLimit.ts`): after the save and inside the lock, for every write call, it refuses with
   `people_limit` when the call turned more people on than off and the count is above the limit, so an Undo or an Undo story of a turn-off or of a
@@ -95,12 +116,13 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
 
 ## The platform object
 - One Durable Object named `platform` (`PLATFORM_OBJECT`), binding `PLATFORM`, migration `platform-v1`. Tables: `enterprises` (id, address,
-  state, names, limits, first_admin), `emails` (the directory: normalized email to enterprise), `owners`, `status` (one row for each
+  state, names, limits, first_admin), `emails` (the directory: normalized email to enterprise), `owners` (unused since plan F), `platform_accounts` and
+  `platform_sessions` (plan F), `status` (one row for each
   enterprise, from its Cron), `account_day` (the day counts for each (day, enterprise); `meter` replaces the whole day so far), and empty
   copies of `rate_limits`, `auth_users`, `auth_links`, `auth_sessions` (`serverTableSql`).
 - `listed()` and `resolveAddress` leave out an enterprise in state `creating`. `hitAddress` holds the counters of the address (`rate_limits` of the platform object, swept by `sweep`). `reserveEmail` answers `taken` for another enterprise.
   `register` (ops secret only) upserts a row in any state and reserves its emails; a conflict leaves nothing behind.
-- `PLATFORM_SCHEMA_VERSION` 3 (`mail_pool` came in step 3), `PLATFORM_STEPS` for the later versions. A directory read costs 1 row for a hit and 0 for a miss (proof.md,
+- `PLATFORM_SCHEMA_VERSION` 4 (`mail_pool` came in step 3, the platform accounts in step 4), `PLATFORM_STEPS` for the later versions. A directory read costs 1 row for a hit and 0 for a miss (proof.md,
   "Madar enterprises: core spikes S2 and S3").
 
 ## The Cron fan-out
@@ -114,7 +136,9 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
 ## Ops names (`/api/office/<op>`, `server/entries/officeWorker.ts`)
 - Without `?office=` an op is for `ENT_VADO`. `export` and `import` take the old name `office`, a rehearsal name or a listed enterprise id;
   `peek` takes `office` or a listed id; `drop` takes a rehearsal name only. An id that the platform does not list gives 403.
-- `platform-register` (`{ row, emails }`) and `platform-owners` (`{ owners }`) take the ops secret and no `?office=`. The register op empties the
+- `platform-register` (`{ row, emails }`) and `platform-accounts` (`{ action: create | password | off | on, email, name?, password? }`, design D13) take the ops
+  secret and no `?office=`. `platform-accounts` answers `{ ok: true, account }` (never a hash), logs no body and is called only by
+  `scripts/office/platform-account.ts`. The ops route sits on the company address of the copy: the platform site passes only `/api/platform` on. The register op empties the
   listed cache of the isolate, so an import that follows finds the new enterprise at once.
 - The first `import` begin on an object named with an enterprise id makes its identity row. The old name `office` and a rehearsal name make none.
 

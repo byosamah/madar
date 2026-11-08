@@ -206,7 +206,7 @@ export type Deps = {
   /** The mail pool of the account (plan D, Task 2). See MailPoolPort. */
   mailPool?: MailPoolPort;
   /**
-   * The facts of the enterprise of this object (Madar enterprises, plan C): its id, state, limits and platform owners, in memory. Only the
+   * The facts of the enterprise of this object (Madar enterprises, plan C): its id, state and limits, in memory. Only the
    * office object sets it. The Postgres path leaves it out: its hooks and limits then do nothing, and the enterprise is ENT_VADO.
    */
   enterprise?: EnterpriseFacts;

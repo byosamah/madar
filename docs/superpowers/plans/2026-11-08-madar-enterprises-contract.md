@@ -176,3 +176,15 @@ export type CapAnswer = { allowed: boolean; reason?: 'busy' };
 - Plan D: `entOfConfig`, `scopedRef` (mail keys `<ent>:<key>`), `keysOf(ent)`, `enterpriseKeyPrefix`, `guardFilesPort`,
   `googleKeysOf(key, ent)`, the backup file name `madar-office-<copy>-<ent>-<stamp>`.
 - The SQLite steps on main: 14 (checkins), 15 (`enterprise`), 16 (`enterprise_use`). What's new of plan C: 161 and 162.
+
+## Names of plan F (the separate platform, 2026-11-08; the lead, at the merge)
+- Platform account id `pla_NNN` (`isPlatformAccountId`, `server/enterprise/ids.ts`); `ENT_NONE` (`ent_000`) is the `ent` that `platform.me` still answers.
+- Token: audience `madar-platform` (`PLATFORM_AUDIENCE`), `sub` = account id, claim `sid`, no `ent`, 900 s. `signPlatformToken` (`server/auth/own/keys.ts`),
+  `platformTokenChecker`, `verifyPlatformToken` and `isPlatformBearer` (`server/auth/verify.ts`).
+- Routes (office path only): `POST /api/platform/auth/token` (password or refresh token), `POST /api/platform/auth/logout` (204), `POST /api/platform` (the
+  calls, platform token). A refusal is `{ v: 1, error: { code, message, details: { reason } } }`, status 401 for each `unauthenticated` reason (also `account_off`),
+  429 with `Retry-After` for a limit. Ops route `POST /api/office/platform-accounts` (ops secret) and `scripts/office/platform-account.ts`.
+- `PlatformStub` adds `platformSignIn`, `platformRefresh`, `platformSignOut`, `platformAccount`, `platformAccounts`; the three that can refuse return
+  `PlatformOutcome` (`{ ok, value } | { ok: false, error }`). Removed: `isOwner`, `setOwners`, `ownersOf`, `OfficeStub.setPlatformOwners` and `person`, the op
+  `platform-owners`, `scripts/office/platform-owners.ts`, the reason `owner_enterprise`. The platform schema is at version 4.
+- Reasons: `invalid_credentials`, `session_ended`, `account_off`, `too_many` (on the platform sign-in), `weak` (password under 12 characters), `email_taken` (an account).

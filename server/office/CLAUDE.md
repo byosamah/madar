@@ -14,8 +14,8 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
   table `enterprise` (`EXPORT_SKIP`): the platform object holds the master copy of state and limits.
 - Plan C adds the RPCs `init` (the first start: one transaction with the identity row, the settings, `usr_001` and the sign-in row, then the invitation
   once), `setState` (it runs on a paused object; a pause closes every `office` socket with 1012), `setLimits`, `setIdentity` (a left-out field keeps its
-  value), `setPlatformOwners`, `person` (the Madar person behind a sign-in id, or null), `reinvite` (5 a day, `already_accepted` after a password) and `brand`.
-  The other five refuse a paused object. `parts.facts` (`EnterpriseFacts`) loads with the first call that passes the gate.
+  value), `reinvite` (5 a day, `already_accepted` after a password) and `brand`. The owner list and `person` are gone (plan F): the platform has its own accounts.
+  The other three refuse a paused object. `parts.facts` (`EnterpriseFacts`) loads with the first call that passes the gate.
 - A paused object answers the password step with `enterprise_paused` only after a right password; every other sign-in step answers `session_ended`; a paused
   `mailRoute` gives the usual answer and drops the work; `mailWork` does nothing.
 - The share cap: an enterprise but ENT_VADO is refused in `batch` and in a tool call of MCP at its share of the requests, rows read and rows written
@@ -92,7 +92,7 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
   header with `sameSecret` first: `x-madar-export-secret` (`MADAR_EXPORT_SECRET`, the nightly GitHub export) for `export`,
   `x-madar-ops-secret` (`MADAR_OPS_SECRET`, the Mac) for the others. A copy with no secret answers 401. Then the name (no `?office=` means
   `ent_001`): `export` and `import` take `office`, a rehearsal name or a listed enterprise id, `peek` `office` or a listed id, `drop` only a rehearsal
-  name (403 else). The op `enterprises` (the export secret, no `?office=`) answers the ids of the listed enterprises for the nightly backup. `platform-register` and `platform-owners` write the platform object (`server/enterprise/CLAUDE.md`). The body goes on to the object as a
+  name (403 else). The op `enterprises` (the export secret, no `?office=`) answers the ids of the listed enterprises for the nightly backup. `platform-register` and `platform-accounts` write the platform object (`server/enterprise/CLAUDE.md`). The body goes on to the object as a
   stream, with the name in `x-madar-office-name`.
 - The test tools (`replace`, `peek`) need `MADAR_TEST_TOOLS = "on"` and refuse a production copy (`testToolsOn`). Only `[env.test.vars]` of
   `wrangler.server.toml` sets it. The test seed (`scripts/office/seed.ts`) replaces the office through them.
