@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanup, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addGroupConversation } from '../../api/chatState';
 import { chatReadKey } from '../../api/rowKeys';
@@ -189,5 +189,66 @@ describe('the line of unread messages in the other chats (fbk_056, owner 2026-10
     await userEvent.click(await screen.findByRole('button', { name: /^Archived \(1\)/ }));
     await screen.findByRole('heading', { level: 2, name: 'Archived chats' });
     expect(line()).toBeNull();
+  });
+});
+
+/**
+ * A link that opens a chat shows its row (chat, 2026-11-08). The saved kind (`madar.chatKind`) could hide the row of the chat that a bell
+ * notice, a push, an @ link or Search opened, so the list switches to All. It switches once for each chat that a link opens, never after
+ * the person picks a kind with the chat open. Hala (the Admin) has the project chat cnv_001, Faisal's direct chat and the to-do thread of
+ * the clinic project (the comment cmt_901 makes it hers to read).
+ */
+describe('a link that opens a chat shows its row, whatever kind is saved', () => {
+  const TOWER = 'cnv_001';
+
+  it('switches the list to All when the saved kind would hide the chat of the link (a bell notice, a push, a Search hit)', async () => {
+    window.localStorage.setItem('madar.chatKind', 'people');
+    await renderApp(`/inbox/${TOWER}`, withEveryKind);
+    expect(await filterButton()).toHaveAccessibleName('Show chats: All');
+    const row = (await list()).getByRole('link', { name: /Corniche Office Tower/ });
+    expect(row).toHaveAttribute('aria-current', 'page');
+    expect(window.localStorage.getItem('madar.chatKind')).toBe('all');
+  });
+
+  it('switches when a link inside the app opens a chat of another kind, and for a to-do thread too', async () => {
+    window.localStorage.setItem('madar.chatKind', 'projects');
+    const { router } = await renderApp('/inbox', withEveryKind);
+    expect(await filterButton()).toHaveAccessibleName('Show chats: Projects');
+    expect((await list()).queryByRole('link', { name: /Room finish schedule/ })).toBeNull();
+    await act(async () => {
+      await router.navigate('/inbox/tsk_060');
+    });
+    expect(await filterButton()).toHaveAccessibleName('Show chats: All');
+    expect((await list()).getByRole('link', { name: /Room finish schedule/ })).toBeInTheDocument();
+  });
+
+  it('keeps the saved kind when the chat of the link is of that kind', async () => {
+    window.localStorage.setItem('madar.chatKind', 'projects');
+    await renderApp(`/inbox/${TOWER}`, withEveryKind);
+    expect(await filterButton()).toHaveAccessibleName('Show chats: Projects');
+    expect(window.localStorage.getItem('madar.chatKind')).toBe('projects');
+  });
+
+  it('lets the person pick a kind with the chat open: the list does not switch back to All', async () => {
+    window.localStorage.setItem('madar.chatKind', 'projects');
+    await renderApp(`/inbox/${TOWER}`, withEveryKind);
+    await pick('People');
+    expect(await filterButton()).toHaveAccessibleName('Show chats: People');
+    expect((await list()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull();
+    await pick('To-dos');
+    expect(await filterButton()).toHaveAccessibleName('Show chats: To-dos');
+  });
+
+  it('does not switch for a click on a row of the list, which is of the chosen kind', async () => {
+    window.localStorage.setItem('madar.chatKind', 'people');
+    await renderApp('/inbox', withEveryKind);
+    await userEvent.click((await list()).getByRole('link', { name: /Faisal Al-Harbi/ }));
+    expect(await filterButton()).toHaveAccessibleName('Show chats: People');
+  });
+
+  it('does nothing for a link to a chat that is not in the list', async () => {
+    window.localStorage.setItem('madar.chatKind', 'people');
+    await renderApp('/inbox/cnv_404', withEveryKind);
+    expect(await filterButton()).toHaveAccessibleName('Show chats: People');
   });
 });

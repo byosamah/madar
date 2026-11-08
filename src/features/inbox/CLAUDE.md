@@ -44,7 +44,9 @@ in a chat: `src/features/files/CLAUDE.md`. The chat inside Focus mode: `src/feat
 - The Arabic word of the To-dos kind is one word, «المهام» (`chatFilter.todos`), so the four chips fit one row at 390 px. A longer word sends
   the last chip to a second row. `tests/e2e/inboxPhone.spec.ts` measures the row. The same key names the option of the desk menu.
 - The kind menu (`ChatList.tsx`, All, Projects, To-dos, People; a phone has `ChatKindChips`) lasts through `usePersistentChoice`
-  (`madar.chatKind`). Search and "Archived (n)" look only in the chosen kind. A search in the main list looks in every chat. A group matches
+  (`madar.chatKind`). A link that opens a chat (a bell notice, a push, an @ link, Search) switches the list to All when the saved kind would hide
+  the row of that chat: `ChatList` does it once for each chat id, when the row is in the list, so a kind that the person picks later with the chat
+  open stays (the lead's decision, chat 2026-11-08). Search and "Archived (n)" look only in the chosen kind. A search in the main list looks in every chat. A group matches
   by its name. The line "unread messages are in other chats" with "Show all" (`inboxLine.*`) shows only for a kind other than All with no
   search word and no archived list. It has no red and no badge.
 - `chats.archive` writes no event, so the Undo of an archive calls it again with the other value (`archive.ts`, `useArchive`).

@@ -34,6 +34,11 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   - Date lines: "only real messages lift it". A quiet line of a to-do thread (due date, start date, shift, reopening) no longer sets the time or the
     preview of the thread row; only a message does, as the quiet log lines of a group. The lead's rule: a thread with only quiet lines keeps its
     newest line as its time, so it still sorts. The archive test follows the same time.
+  - Kind filter (the lead of the build, no owner words): when a chat opens through a link (a bell notice, a push, an @ link, Search) and the saved
+    kind (`madar.chatKind`) would hide its row, the list switches to All, once for each chat. No new control.
+  - Failed calls on iPhone (the lead of the build, diagnostic only): the PostHog event `madar_call_failed` also records the cause: the HTTP status,
+    the kind (network, timeout, server, refused), whether the browser was offline, and the path (the page forwarder `/api` or direct). No text of a
+    message, no name and no file.
 - Who reviews a to-do (fbk_087, owner, from the report of Faisal about tsk_624): the person who does the work never approves it. Faisal
   made an office to-do, did the work, named Moataz as lead and sent it to review; Madar named the maker (Faisal) as reviewer, so Faisal saw
   "Your review" and Moataz got no notice. The owner's words: "the maker not means he's the leader or the reviewer, the leader or the

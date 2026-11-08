@@ -225,6 +225,21 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   const [query, setQuery] = useState('');
   // The last choice lasts after the Inbox closes, after a reload and for the next visit (owner, 2026-10-23).
   const [kind, setKind] = usePersistentChoice<ChatKind>('madar.chatKind', KINDS, 'all');
+  // A link that opens a chat shows its row (chat, 2026-11-08). When the saved kind would hide the row of the chat that a bell notice, a push, an
+  // @ link or Search opened, the list switches to All. It runs once for each chat id, when the row is in the list: the later choice of a kind
+  // with that chat open stays, and a click on a row of the chosen kind changes nothing. A phone chip and the desk menu are the same choice.
+  const openedFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (selectedId === undefined) {
+      openedFor.current = undefined;
+      return;
+    }
+    if (openedFor.current === selectedId) return;
+    const opened = rows.find((row) => row.id === selectedId);
+    if (opened === undefined) return;
+    openedFor.current = selectedId;
+    if (!inKind(opened, kind)) setKind('all');
+  }, [selectedId, rows, kind, setKind]);
   const kindRows = kind === 'all' ? rows : rows.filter((row) => inKind(row, kind));
   // The archived chats leave the main list. The archived list closes by itself when its last chat moves back (owner, 2026-10-18).
   const [wantArchived, setWantArchived] = useState(false);
