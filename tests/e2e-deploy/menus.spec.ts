@@ -79,16 +79,17 @@ test('header menu reaches every item at 390', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: 'More actions' })).toHaveCount(0);
 });
 
-test('board Move menu on the last Done card reaches every item', async ({ page }) => {
+test('board Move menu on the last card of To do reaches every item', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await goto(page, '/projects/prj_001?tab=tasks');
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('dialog', { name: 'View' }).getByRole('radio', { name: 'Board' }).check();
   await page.keyboard.press('Escape');
-  const done = page.getByRole('region', { name: /^Done: \d+/ });
+  // The Done column holds the last 7 days only (fbk_085), so the sample office may have none. The To do column always has cards.
+  const done = page.getByRole('region', { name: /^To do: \d+/ });
   await expect(done).toBeVisible();
   const cards = done.getByRole('listitem');
-  expect(await cards.count(), 'the Done column has a card in the sample data').toBeGreaterThan(0);
+  expect(await cards.count(), 'the To do column has a card in the sample data').toBeGreaterThan(0);
   const last = cards.last();
   await openMenu(last.getByRole('button', { name: /^Move / }));
   const menu = page.getByRole('menu', { name: /^Move / });
