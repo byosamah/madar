@@ -266,7 +266,7 @@ describe('the consent screen names the company (Madar enterprises, plan C)', () 
 
   it('shows the Arabic name on the Arabic screen', async () => {
     await open({ tools: withCompany(), language: 'ar' });
-    expect(await screen.findByRole('heading', { name: 'هل تسمح لـ Claude Code أن يعمل باسمك في أكمي؟' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'هل تسمح بأن يعمل Claude Code باسمك في أكمي؟' })).toBeInTheDocument();
   });
 
   it('keeps the old title when there is no company name', async () => {
@@ -301,7 +301,7 @@ describe('the consent title keeps the app name in one piece (ent-ui)', () => {
       const { heading, bdi } = await markOf();
       expect(bdi).toHaveTextContent(/^Claude Code$/);
       expect(bdi).toHaveClass('whitespace-nowrap');
-      expect(heading.textContent).toBe(language === 'ar' ? 'هل تسمح لـ Claude Code أن يعمل باسمك في أكمي؟' : 'Allow Claude Code to act for you in Acme Co?');
+      expect(heading.textContent).toBe(language === 'ar' ? 'هل تسمح بأن يعمل Claude Code باسمك في أكمي؟' : 'Allow Claude Code to act for you in Acme Co?');
       unmount();
     }
   });
