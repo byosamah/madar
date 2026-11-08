@@ -45,8 +45,8 @@ async function quietly(remove: Remove, keys: string[]): Promise<void> {
   }
 }
 
-/** true when the final key now holds an accepted object; false when nothing arrived. */
-async function confirmObject(files: FilesPort, o: { staging: string; final: string; field: string; accept: Accept; remove: Remove }): Promise<boolean> {
+/** The size of the accepted object when the final key now holds it; null when nothing arrived. */
+async function confirmObject(files: FilesPort, o: { staging: string; final: string; field: string; accept: Accept; remove: Remove }): Promise<number | null> {
   const done = await files.head(o.final, { timeoutMs: HEAD_TIMEOUT_MS });
   if (done) {
     const refused = o.accept(done);
@@ -55,10 +55,10 @@ async function confirmObject(files: FilesPort, o: { staging: string; final: stri
       throw refused;
     }
     await quietly(o.remove, [o.staging]);
-    return true;
+    return done.size;
   }
   const staged = await files.head(o.staging, { timeoutMs: HEAD_TIMEOUT_MS });
-  if (!staged) return false;
+  if (!staged) return null;
   const refused = o.accept(staged);
   if (refused) {
     await quietly(o.remove, [o.staging]);
@@ -72,7 +72,7 @@ async function confirmObject(files: FilesPort, o: { staging: string; final: stri
     throw wrong;
   }
   await quietly(o.remove, [o.staging]);
-  return true;
+  return copied!.size;
 }
 
 /** The file of an upload: exactly the declared size and stored type, and within the limit of the active store. */
@@ -86,11 +86,11 @@ export async function confirmUpload(
     if (object.size !== o.want.size || baseMimeType(object.mimeType) !== type) return notTheFile(o.field);
     return null;
   };
-  if (!(await confirmObject(files, { ...o, accept }))) throw notArrived(o.field);
+  if ((await confirmObject(files, { ...o, accept })) === null) throw notArrived(o.field);
 }
 
-/** The small picture of an upload: an inline-safe picture of 10 MB or less. None arrived: the version has no thumb. */
-export async function confirmThumb(files: FilesPort, o: { staging: string; final: string; field: string; remove: Remove }): Promise<boolean> {
+/** The small picture of an upload: an inline-safe picture of 10 MB or less. It gives the stored size, or null when none arrived (the version has no thumb). */
+export async function confirmThumb(files: FilesPort, o: { staging: string; final: string; field: string; remove: Remove }): Promise<number | null> {
   const accept: Accept = (object) => (isPictureType(object.mimeType) && object.size >= 1 && object.size <= MAX_SHOT_BYTES ? null : notTheFile(o.field));
   return confirmObject(files, { ...o, accept });
 }

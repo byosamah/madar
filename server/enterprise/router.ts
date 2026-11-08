@@ -90,6 +90,12 @@ export function entRouter(o: {
 export type McpAddress = { address: string | null; rest: string } | 'bad';
 
 /**
+ * True for the path of an MCP tool call: /mcp, also with a last slash. The OAuth routes and the metadata paths under /mcp are not tool
+ * calls. The Worker (account write stop) and the office object (day cap, hold) both use this one test, so they never differ.
+ */
+export const isMcpToolPath = (path: string): boolean => path === '/mcp' || path === '/mcp/';
+
+/**
  * The enterprise address of an MCP path (Madar enterprises, design 5.5). /mcp serves VADOs' Companies. /mcp/<address>/... serves the
  * enterprise of that address; rest is the path with the address taken out, which the MCP app routes. A first segment that starts with a
  * dot (the discovery documents) or equals oauth (the OAuth routes) or oauth-protected-resource (the resource metadata) is a path word of
@@ -104,5 +110,7 @@ export function mcpAddressOf(pathname: string): McpAddress {
   const first = slash < 0 ? tail : tail.slice(0, slash);
   if (first.startsWith('.') || first === 'oauth' || first === 'oauth-protected-resource') return { address: null, rest: pathname };
   if (!isAddressName(first)) return 'bad';
-  return { address: first, rest: `/mcp${slash < 0 ? '' : tail.slice(slash)}` };
+  // The rest has no last slash for the tool path: /mcp/<address>/ gives /mcp, as /mcp/ does.
+  const rest = `/mcp${slash < 0 ? '' : tail.slice(slash)}`;
+  return { address: first, rest: rest === '/mcp/' ? '/mcp' : rest };
 }

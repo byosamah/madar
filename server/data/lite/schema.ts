@@ -48,8 +48,12 @@ import type { SqlHost } from './host';
  *
  * Version 15 (Madar enterprises): the server table enterprise, one row at most: the id, the state and the limits of the enterprise that this
  * object serves. It is an office object table only: Postgres has no such table, and an export leaves it out (EXPORT_SKIP). Its step is in LITE_STEPS.
+ *
+ * Version 16 (Madar enterprises, plan C): the server table enterprise_use, one row: the running total of the file bytes (storage_bytes), and the
+ * platform owners of this enterprise (owners, JSON text). It is derived data and an office object table only, like enterprise. The step counts
+ * the bytes of the files that the office holds. Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 15;
+export const LITE_SCHEMA_VERSION = 16;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -147,6 +151,13 @@ const DAFTRA_INDEXES: readonly LiteIndex[] = [{ table: 'daftra_invoices', name: 
 /** The identity of the enterprise of this object (version 15, Madar enterprises). limits is JSON text: { people, storageBytes }, null for no limit. */
 const ENTERPRISE_SQL = 'create table enterprise (id text primary key, state text not null, limits text not null, created_at text not null)';
 
+/**
+ * The use of the enterprise (version 16): the running total of the bytes of every version of every file, and the platform owners of this
+ * enterprise (the user ids, JSON text). One row, id 1. The total is kept by writeTable and repaired by the daily step "storage" (server/enterprise/storage.ts).
+ */
+const ENTERPRISE_USE_SQL = 'create table enterprise_use (id integer primary key check (id = 1), storage_bytes integer not null default 0, owners text not null default \'[]\')';
+const FILES_BYTES_STEP = "(select coalesce(sum(json_extract(v.value, '$.size')), 0) from files f, json_each(f.doc, '$.versions') v)";
+
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
 const SERVER_SQL: readonly string[] = [
   'create table counters (prefix text primary key, n integer not null check (n >= 0))',
@@ -171,6 +182,7 @@ const SERVER_SQL: readonly string[] = [
   ...DAFTRA_SQL,
   AGENT_CONFIRMS_SQL,
   ENTERPRISE_SQL,
+  ENTERPRISE_USE_SQL,
   // The sign-in rows (Supabase exit, wave 2). id is the auth.users id of Supabase for an imported person, else a new uuid.
   `create table auth_users (id text primary key, user_id text, email text not null, password_hash text, password_set integer not null default 0, email_confirmed integer not null default 0, banned integer not null default 0, created_at text not null default (${NOW}), updated_at text not null default (${NOW}))`,
   `create table auth_links (token_hash text primary key, auth_id text not null, type text not null check (type in ('invite', 'recovery')), expires_at text not null, used_at text, created_at text not null default (${NOW}))`,
@@ -221,6 +233,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 14 adds the table checkins (fbk_088) with the key columns of query.ts and its unique index, and the index events_target_type
  * (target_type, seq) for events.list with a target_type filter, as in liteSchemaSql.
  * Version 15 adds the table enterprise (Madar enterprises), as in liteSchemaSql.
+ * Version 16 adds the table enterprise_use (Madar enterprises, plan C) with its one row: a stepped office starts with the bytes of its files.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -247,6 +260,7 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
     'create index events_target_type on events (target_type, seq)',
   ],
   15: [ENTERPRISE_SQL],
+  16: [ENTERPRISE_USE_SQL, `insert into enterprise_use (id, storage_bytes) values (1, ${FILES_BYTES_STEP})`],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */
@@ -296,6 +310,7 @@ export function liteSchemaSql(): string[] {
     ...eventGuardsSql(),
     'insert into office_meta (id, version, office_seq) values (1, 0, 0)',
     `insert into settings (id, doc) values ('office', '${JSON.stringify(DEFAULT_SETTINGS)}')`,
+    'insert into enterprise_use (id) values (1)',
     `insert into schema_version (id, version) values (1, ${LITE_SCHEMA_VERSION})`,
   ];
 }

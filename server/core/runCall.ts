@@ -14,6 +14,7 @@ import { requestHost } from './after';
 import { AFTER_ANSWER_KINDS, CHAT_WAIT_MS, outboxRowsOf, processOutbox, WAITED_KINDS, writeOutbox, type OutboxRow } from './effects';
 import { digestOf, replay, sqlKeys, type KeyStore, type StoredResult } from './idempotency';
 import { busyOf, logLockHold, takeOfficeLock } from './lock';
+import { assertPeopleWithinLimit } from './peopleLimit';
 import type { Deps, Query } from './ports';
 import { serverCallMap, type CallEntry, type ServerEntry, type SharedEntry } from './serverCallMap';
 import { checkStory, newStoryId, resolveStory, sqlStories, statementStories, type StoryStore } from './story';
@@ -165,7 +166,12 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
   }
 
   function baseOf(deps: Deps, actorId: string, authorityId: string, correlationId: string, now: Date) {
-    return { actorId, authorityId, correlationId, now, persistent: true, wireOutput: true, limits: { maxFileBytes: deps.config.limits.maxFileBytes } };
+    // The enterprise of the object (Madar enterprises): only when its id is known. The Postgres path has no facts.
+    const id = deps.enterprise?.id();
+    return {
+      actorId, authorityId, correlationId, now, persistent: true, wireOutput: true, limits: { maxFileBytes: deps.config.limits.maxFileBytes },
+      ...(id !== undefined ? { enterprise: { id, platformOwner: deps.enterprise!.owners().has(authorityId) } } : {}),
+    };
   }
 
   async function runRead(deps: Deps, req: RunRequest, entry: SharedEntry, parsed: unknown, data: CallData): Promise<RunResult> {
@@ -208,6 +214,30 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       resolveActor(req.batch.office ?? (await data.office()), req.principal);
       preflight = await hooks.preflight(parsed, { actorId, now: deps.clock.now(), deps });
     }
+    // The settle hook (plan C) hears how the write ended, so a preflight that reserved something outside the database can undo it.
+    let outcome: { ok: true; output: unknown; replayed?: boolean } | { ok: false } = { ok: false };
+    const written = { replayed: false };
+    try {
+      const result = await writeAfterPreflight(deps, req, entry, parsed, data, code, preflight, written);
+      if (result.ok) outcome = { ok: true, output: result.output, ...(written.replayed ? { replayed: true } : {}) };
+      return result;
+    } finally {
+      if (hooks?.settle) {
+        try {
+          await hooks.settle(parsed, { actorId, now: deps.clock.now(), deps }, preflight, outcome);
+        } catch (error) {
+          deps.log.warn('The settle step of a call did not finish.', { name: entry.name, error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+    }
+  }
+
+  async function writeAfterPreflight(
+    deps: Deps, req: RunRequest, entry: SharedEntry, parsed: unknown, data: CallData, code: { value?: string } | undefined, preflight: unknown,
+    written: { replayed: boolean },
+  ): Promise<RunResult> {
+    const actorId = req.principal.userId;
+    const hooks = entry.hooks;
     const digest = req.key !== undefined ? await digestOf(entry.name, parsed) : undefined;
     // The hash of the exact input, without the code, for the email code guard. Only a guarded act of an agent needs it.
     const inputHash = code ? await digestOf(entry.name, parsed) : undefined;
@@ -254,6 +284,9 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
         }
       }
       const saved = await t.save(before, state, { story: { storyId: story.storyId, actorId } });
+      // The people limit holds for every call, not only for the ones that name it: an Undo of a turn-off or of a remove turns people on
+      // again. No facts (the Postgres path) or no limit: no check. A failure rolls the whole call back.
+      await assertPeopleWithinLimit(t.q, deps.enterprise?.limits().people ?? null, before, state);
       const rows = await outboxRowsOf(entry.name, output, saved, t.q, now);
       // The ids come back in the order of the rows (writeOutbox), so each id keeps the kind of its row.
       const effects = (await t.outbox(rows)).map((id, i) => ({ id, kind: rows[i].kind }));
@@ -276,6 +309,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     }
     if (!finished) throw await answerStop(deps, data, afterCommit, stopped!);
     const done: Done = finished;
+    written.replayed = done.replayed;
 
     if (done.ref !== undefined && done.result.storyId !== undefined) req.batch.storyRefs.set(done.ref, done.result.storyId);
     if (done.officeChanged) req.batch.office = undefined;

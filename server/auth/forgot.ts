@@ -11,6 +11,7 @@ import { reserve, sendCounted } from '../mail/quota';
 import { entOfConfig, scopedRef } from '../enterprise/scope';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey, hitLimit } from './rateLimit';
+import { mailOptionsOf } from '../enterprise/brand';
 
 /**
  * POST /api/auth/forgot { email } (plan 5.1; task P2). The Forgot screen sends it with no sign-in.
@@ -108,7 +109,7 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
   }
   const mail = renderSigninMail('reset', user.preferences.language, {
     name: personName(user, user.preferences.language), link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery', undefined, deps.config.ent),
-  }, user.gender, { appUrl: deps.config.appUrl });
+  }, user.gender, await mailOptionsOf(deps, user.preferences.language));
   // sendCounted finds the place that this key holds.
   const sent = await sendCounted(deps, 'signin', { to: user.email, ...mail, tag: 'reset', idempotencyKey: key }, { userId: row.id });
   if (sent.status === 'over') {

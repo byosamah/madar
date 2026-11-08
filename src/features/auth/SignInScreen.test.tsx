@@ -55,6 +55,31 @@ describe('the Sign in screen (plan 5.1, client map 7.1)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Your account is turned off. Ask the Admin.');
   });
 
+  it('shows the exact paused sentence after a right password, in English and in Arabic (Madar enterprises)', async () => {
+    const paused = () => fakeAuth({ accounts: [{ ...HALA, paused: true }] });
+    const cases = [
+      ['en', 'Email', 'Password', 'Sign in', 'Madar is paused for your company. Ask your Admin.'],
+      ['ar', 'البريد الإلكتروني', 'كلمة المرور', 'سجّل الدخول', 'توقّف مدار في منشأتك مؤقتاً. تواصل مع مدير النظام لديكم.'],
+    ] as const;
+    for (const [language, email, password, button, line] of cases) {
+      const { unmount } = await renderAuth('/sign-in', { auth: paused(), language });
+      await userEvent.type(await screen.findByLabelText(email), HALA.email);
+      await userEvent.type(screen.getByLabelText(password), HALA.password);
+      await userEvent.click(screen.getByRole('button', { name: button }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(line);
+      unmount();
+    }
+  });
+
+  it('keeps the usual sentence for a wrong password on a paused company: the paused text needs the right password', async () => {
+    const auth = fakeAuth({ accounts: [{ ...HALA, paused: true }] });
+    await renderAuth('/sign-in', { auth });
+    await userEvent.type(await screen.findByLabelText('Email'), HALA.email);
+    await userEvent.type(screen.getByLabelText('Password'), 'not-the-password');
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The email or the password is not right.');
+  });
+
   it('shows one calm line for each reason of a sign-out', async () => {
     const lines = { signed_out: 'You signed out.', expired: 'Your session ended. Sign in again.', account_off: 'Your account is turned off. Ask the Admin.' };
     for (const [reason, line] of Object.entries(lines)) {

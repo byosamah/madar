@@ -19,6 +19,15 @@
  * The prototype build never registers this file.
  */
 
+/**
+ * The name of the enterprise in the fixed line (Madar enterprises, plan C): the page saves { name, nameAr } in the Cache "madar-brand" after
+ * each session.get (src/app/remote/brandCache.ts), and the fixed line reads it. A missing cache, a wrong shape, a throw, or a read that takes
+ * longer than BRAND_WAIT_MS gives the old fixed line. The title stays "Madar". The line of a push with keys is never changed.
+ */
+var BRAND_CACHE = 'madar-brand';
+var BRAND_KEY = '/__brand';
+var BRAND_WAIT_MS = 300;
+
 var TEXT = {
   en: { title: 'Madar', body: 'You have something new in Madar.' },
   ar: { title: 'مدار', body: 'لديك جديد في مدار.' },
@@ -27,6 +36,42 @@ var TEXT = {
 /** The title and the body for a browser language such as "ar-SA" or "en-US". */
 function pushText(language) {
   return String(language || '').toLowerCase().indexOf('ar') === 0 ? TEXT.ar : TEXT.en;
+}
+
+/** The brand in the cache, or null. It never throws and never waits longer than BRAND_WAIT_MS. */
+function readBrand() {
+  var read = new Promise(function (resolve) {
+    try {
+      if (!self.caches) return resolve(null);
+      self.caches
+        .open(BRAND_CACHE)
+        .then(function (cache) {
+          return cache.match(BRAND_KEY);
+        })
+        .then(function (response) {
+          return response ? response.json() : null;
+        })
+        .then(resolve, function () {
+          resolve(null);
+        });
+    } catch (error) {
+      resolve(null);
+    }
+  });
+  var late = new Promise(function (resolve) {
+    setTimeout(function () {
+      resolve(null);
+    }, BRAND_WAIT_MS);
+  });
+  return Promise.race([read, late]);
+}
+
+/** The body of the fixed line with the name of the enterprise, or null when the brand has the wrong shape. */
+function brandedBody(brand, arabic) {
+  if (!brand || typeof brand !== 'object') return null;
+  var name = arabic ? brand.nameAr : brand.name;
+  if (typeof name !== 'string' || name === '' || name.length > 80) return null;
+  return arabic ? 'لديك جديد في ' + name + '.' : 'You have something new in ' + name + '.';
 }
 
 /** The link of a line: a path of this site only ("/inbox/cnv_013"), never a link to another site. */
@@ -81,9 +126,10 @@ self.addEventListener('push', function (event) {
   var line = lineOf(event);
   var arabic = line ? line.arabic : String(language || '').toLowerCase().indexOf('ar') === 0;
   var text = pushText(language);
-  function show() {
+  function show(brand) {
+    var branded = line ? null : brandedBody(brand, arabic);
     return self.registration.showNotification(line ? line.title : text.title, {
-      body: line ? line.body : text.body,
+      body: line ? line.body : branded || text.body,
       // One tag for each chat or item ("madar-chat-cnv_013"): a new message replaces the line of its chat and alerts again. The fixed
       // line keeps one tag, so the phone never shows a pile of the same line.
       tag: line ? line.tag : 'madar-new',
@@ -94,19 +140,25 @@ self.addEventListener('push', function (event) {
       data: { url: line ? line.url : '/' },
     });
   }
-  // WebKit and unknown engines: the line first, with nothing before it that could fail.
+  // The fixed line looks for the name of the enterprise (a push with a line of its own does not).
+  function showWithBrand() {
+    return (line ? Promise.resolve(null) : readBrand()).then(show, function () {
+      return show(null);
+    });
+  }
+  // WebKit and unknown engines: the line first, with nothing before it that could fail. The brand read is short and cannot throw.
   if (!mayStaySilent(self.navigator && self.navigator.userAgent)) {
-    event.waitUntil(show());
+    event.waitUntil(showWithBrand());
     return;
   }
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(
       function (windows) {
-        return somebodyLooks(windows) ? undefined : show();
+        return somebodyLooks(windows) ? undefined : showWithBrand();
       },
       // The list of windows cannot be read: show the line, as before.
       function () {
-        return show();
+        return showWithBrand();
       }
     )
   );

@@ -98,7 +98,8 @@ describe('the enterprise gate in the methods of the office object', () => {
     expect(await c.batch()).toMatchObject({ shape: 'ok-false', error: { code: 'forbidden', details: { reason: 'enterprise_paused' } } });
     for (const name of ['runEffects', 'cron'] as const) expect(await c[name](), name).toMatchObject({ shape: 'thrown', details: { reason: 'enterprise_paused' } });
     expect(await c.mcp()).toMatchObject({ shape: 'value', value: { status: 403 } });
-    expect((await c.signin()) as { shape: string; error: { code: string } }).toMatchObject({ shape: 'ok-false', error: { code: 'not_found' } });
+    // Any step but the password step answers session_ended on a paused object (plan C, Task 7).
+    expect((await c.signin()) as { shape: string; error: { code: string } }).toMatchObject({ shape: 'ok-false', error: { code: 'unauthenticated', details: { reason: 'session_ended' } } });
     expect(await c.mailRoute()).toMatchObject({ shape: 'value', value: { status: 400 } });
     expect(await c.status()).toMatchObject({ shape: 'value', value: { ent: ENT_VADO } });
     expect(await t.parts.health()).toMatchObject({ schema: expect.any(Number) });

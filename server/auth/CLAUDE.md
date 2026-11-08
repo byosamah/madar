@@ -82,6 +82,10 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   Links and renew keys of an office object are tagged (`signinLink(..., ent)`); the browser refresh token is tagged in the answer
   (`browserAnswer`) and the table keeps the sha256 of the bare secret. The forgot and renew routes read the body once: forgot by the email,
   renew by the tag of the key; any other case runs `platform.refuseMail`. An untagged item has no fallback.
+- A paused enterprise (design 5.8): the password step (`own/ops.ts`, `passwordSignIn`) checks the password first. A wrong password or an
+  unknown email gives the usual `invalid_credentials`. A right password gives `pausedSignIn()` (reason `enterprise_paused`) and makes no
+  session. Every other step of a paused object answers `session_ended` (`parts.signin`). A paused `mailRoute` gives the usual answer with no
+  work, so no mail goes out, and a paused `mailWork` does nothing.
 - `own/cleanup.ts` (`cleanupSignin`) deletes the links, OAuth requests and sessions that ended more than a day ago; the Cron of
   the office object runs it in its first run after 00:00 UTC (`server/office/jobs.ts`).
 - The sign-in key of an office copy is the Worker secret `MADAR_AUTH_PRIVATE_JWK`, made by `npx tsx scripts/office/auth-key.ts

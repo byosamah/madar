@@ -24,6 +24,14 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: O
     runEffects: async (input, net) => (seen.effects.push({ ...input, net }), { done: input.ids.length, failed: 0 }),
     health: async () => ((seen.health += 1), { schema: 3, lastJob: null }),
     status: async () => STATUS,
+    init: async () => ({ ok: true, value: { adminUserId: 'usr_001' } }),
+    setState: async () => undefined,
+    setLimits: async () => undefined,
+    setIdentity: async () => undefined,
+    setPlatformOwners: async () => undefined,
+    person: async () => ({ userId: 'usr_001' }),
+    brand: async () => ({ name: 'Madar', nameAr: 'مدار', logo: null }),
+    reinvite: async () => ({ ok: true, value: { sentAt: '2026-10-04T09:00:00.000Z' } }),
     cron: async (input, net) => (seen.cron.push({ ...input, net }), { ok: true, at: input.at, steps: [], closed: 0, day: null, status: STATUS }),
     signin: async (body) => (seen.signins.push(body), { ok: true, value: { echo: body.signin } }),
     mailRoute: async () => ({ status: 200, body: '{"v":1,"ok":true}' }),
@@ -132,7 +140,9 @@ describe('the Cron fan-out and the status report (Madar enterprises)', () => {
       },
     });
     const platform = {
-      listed: o.listed ?? (async () => ['ent_001', 'ent_002']),
+      // The legs find their enterprise in the listed ids (a paused one too); the run starts a leg for each active id only.
+      listed: async () => ['ent_001', 'ent_002', 'ent_003'],
+      activeIds: o.listed ?? (async () => ['ent_001', 'ent_002']),
       resolveAddress: async () => null,
       report: async (input: unknown) => void seen.reports.push(input),
       meter: async (input: unknown) => void seen.meters.push(input),
@@ -215,6 +225,13 @@ describe('the Cron fan-out and the status report (Madar enterprises)', () => {
     expect(seen.sweeps).toHaveLength(1);
   });
 
+  it('starts a leg for each active enterprise only: a paused one (listed, not active) gets no cron call (plan C)', async () => {
+    const { seen, routes } = cronWorld({ listed: async () => ['ent_001'] });
+    await routes.scheduled(AT, {});
+    expect(seen.legs.map((leg) => leg.ent)).toEqual(['ent_001']);
+    expect(seen.cron.map((one) => one.ent)).toEqual(['ent_001']);
+  });
+
   it('logs and returns when the list of enterprises does not load, and starts no leg', async () => {
     const { seen, routes, deps } = cronWorld({ listed: async () => { throw new Error('The platform is down.'); } });
     expect(await routes.scheduled(AT, {})).toBeUndefined();
@@ -224,13 +241,13 @@ describe('the Cron fan-out and the status report (Madar enterprises)', () => {
 
   it('starts no leg when the Worker has no jobs secret, and uses the self transport by default', async () => {
     const plain = officeRoutes({
-      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], sweep: async () => undefined }) as never,
+      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], activeIds: async () => ['ent_001'], sweep: async () => undefined }) as never,
       net: () => recordingNet(), jobsSecret: () => undefined,
     });
     expect(await plain.scheduled(AT, {})).toBeUndefined();
     // With the secret and no binding SELF, the leg fails with the clear error and the run goes on.
     const selfless = officeRoutes({
-      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], sweep: async () => undefined }) as never,
+      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], activeIds: async () => ['ent_001'], sweep: async () => undefined }) as never,
       net: () => recordingNet(), jobsSecret: () => 'jobs-secret',
     });
     const out = await selfless.scheduled(AT, {});
@@ -407,6 +424,29 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
       expect(waits).toHaveLength(1);
       await Promise.all(waits);
       expect(seen.effects.map((e) => [e.ids, e.net])).toEqual([[['9'], net], [['9'], net]]);
+    });
+
+    it('the write stop of the account answers busy for a tool call to every form of the path, and lets the OAuth routes through', async () => {
+      const seen: string[] = [];
+      const stub = {
+        mcp: async (input: OfficeMcpInput) => (seen.push(new URL(input.url).pathname), { status: 200, headers: [] as [string, string][], body: '{}', later: [] as string[] }),
+      } as unknown as OfficeStub;
+      const routes = officeRoutes({
+        deps: fakeDeps(),
+        verifyToken: async () => ({ authUserId: 'auth-1' }),
+        stubFor: () => stub,
+        platform: () => ({ ...PLATFORM, capState: async () => ({ stop: false, writesStop: true }) }) as never,
+        net: () => recordingNet(),
+        jobsSecret: () => 'jobs-secret',
+      });
+      for (const path of ['/mcp/globex', '/mcp/globex/']) {
+        const answer = await mcpPost(routes as never, path, '{"jsonrpc":"2.0","id":1,"method":"tools/call"}');
+        expect([path, answer.status, await answer.text()].join(' ')).toContain('503');
+      }
+      expect(seen).toEqual([]);
+      const oauth = await mcpPost(routes as never, '/mcp/globex/oauth/register', '{}');
+      expect(oauth.status).toBe(200);
+      expect(seen).toEqual(['/mcp/oauth/register']);
     });
 
     it('an unknown address gets the 401 of a missing token with the challenge of that address, and makes no stub', async () => {

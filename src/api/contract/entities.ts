@@ -1289,6 +1289,13 @@ export const Settings = z.object({
   workHours: OfficeWorkHours.optional(),
   /** The folders of the Resources page (fbk_078). Optional, so an office saved before Resources loads. Read it with resourceFoldersFor, never raw. */
   resourceFolders: z.array(ResourceFolder).max(MAX_FOLDERS).optional(),
+  /**
+   * The name and the logo of the enterprise (Madar enterprises, design 5.10). All optional, so an old row parses. The Admin sets them under
+   * office.settings. The header, the mails, the push line and the report read them; a missing name reads as Madar (server/enterprise/brand.ts).
+   */
+  enterpriseName: z.string().trim().min(1).max(80).optional(),
+  enterpriseNameAr: z.string().trim().min(1).max(80).optional(),
+  enterpriseLogo: z.string().max(PICTURE_DATA_MAX).regex(PICTURE_DATA).nullable().optional(),
 });
 export type Settings = z.infer<typeof Settings>;
 

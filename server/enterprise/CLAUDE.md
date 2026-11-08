@@ -16,11 +16,12 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
 - `status.ts`: `enterpriseStatusOf`, the status row of one enterprise (people, invited, last write, the day counts, the names).
 - `router.ts`: `entRouter`, the one place that turns an untrusted id (a tag, an email result, an address) into an object stub. It keeps the
   list of the platform object for 60 s (`LISTED_TTL_MS`) and reads it again for a miss when it is 5 s old (`LISTED_MISS_MS`). The cache
-  lives as long as the isolate (`ListedCache`). `mcpAddressOf` reads `/mcp/<address>/...`.
+  lives as long as the isolate (`ListedCache`). `mcpAddressOf` reads `/mcp/<address>/...` and gives a path with no last slash for the tool path (`/mcp/<address>/` gives `/mcp`). `isMcpToolPath` is the one
+  test of a tool call path (`/mcp` or `/mcp/`): the Worker (account write stop) and the office object (hold and day cap) both use it.
 - `pad.ts`: `padTo`, the minimum answer time of a branch. `mailRoute.ts`: `runMailRoute`, the limits of forgot and renew, shared by the
   office object and the platform object.
 - `fanout.ts`: the Cron fan-out (`runFanout`, `selfTransport`, `CRON_PATH`).
-- `platform/`: the platform object (`schema.ts`, `stub.ts` = `PlatformStub`, `parts.ts` = the work, `object.ts` = the class `Platform`).
+- `platform/`: the platform object (`schema.ts`, `stub.ts` = `PlatformStub`, `parts.ts` = the work, `object.ts` = the class `Platform`), and the platform calls (`enterprises.ts`, `handlers.ts`, `guard.ts`, `route.ts`, `owners.ts`).
 
 ## Rules
 - The enterprise never comes from a header, a query value or a body field that the browser sets. It comes from the signed claim `ent`, a
@@ -41,6 +42,37 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
   field, and the local path never sets it, so the step counts the address itself there. Forgot and renew count the address only for a body
   with a good email or key, as before. Do not move this count into an object: a per-object count tells whether two emails share an enterprise.
 - A limit that comes from a Cloudflare plan is a named constant or a setting, never a bare number in a branch.
+
+## Platform calls (plan C)
+- The eight calls `platform.me`, `platform.enterprises.{list,create,update,pause,resume,resendInvite}` and `platform.meter.get` have their contract in
+  `src/api/contract/platform.ts` and their handlers in `platform/handlers.ts` (`PLATFORM_HANDLERS`). They run in the Worker, on `POST /api/platform`
+  (`platform/route.ts`), never in an enterprise object. The route checks, in this order: the build, the body size, the browser token (an agent token
+  gets 403 `agent_token`), the owner (`platform/guard.ts`: the object finds the active person with `person`, the platform object knows the pair; any other
+  person gets `not_found`, also for a bad body), then the shape, the name, the input and the handler. The output goes through the contract output, which
+  strips every key it does not name. The Postgres path has no such route. All eight are on `MCP_DENY`.
+- Create runs in this order: `platform.create` (row `creating`, address and Admin email reserved), `office.init` (settings, `usr_001`, the invitation),
+  `platform.activate`. A failed step leaves the row `creating`; the same call again finishes it. A change of two sides writes the object first and the
+  platform row second (`update` sends the object only the fields that changed). `pause` refuses an enterprise that holds an owner and needs the typed name.
+- The object RPCs of plan C: `init`, `setState`, `setLimits`, `setIdentity`, `setPlatformOwners`, `person`, `reinvite`, `brand`
+  (`lifecycle.ts` holds the work). `writeOwners` (`platform/owners.ts`, the ops route `platform-owners`) writes the master list and the copy in each object.
+- Limits: `facts.ts` (`EnterpriseFacts`, `Deps.enterprise`) holds the id, state, limits and owners in memory. The people limit has two steps. The `prepare` of
+  `users.create` and `users.reactivate` (`server/calls/peopleHooks.ts`) gives the early, calm refusal. The real check is in the write step of
+  `runCall` (`assertPeopleWithinLimit`, `server/core/peopleLimit.ts`): after the save and inside the lock, for every write call, it refuses with
+  `people_limit` when the call turned more people on than off and the count is above the limit, so an Undo or an Undo story of a turn-off or of a
+  remove cannot go above the limit. A call that adds nobody never fails there. No facts (the Postgres path) means no check. The storage limit has two steps. `assertStorageRoom` in `files.uploadStart` counts the running total in `enterprise_use`, the bytes of
+  the open, unused, unexpired file uploads of the SAME person (`upload_intents` with the actor of the start, not the screenshots of reports) and this file with its small picture. The open uploads of other people do not count at the start, so one person cannot block the starts of the others; the check in the lock stays the real guard. The real check is
+  `assertStorageRoomInLock` in the `prepare` of `files.upload` (`server/calls/files.ts`): inside the lock it counts the running total plus this file and
+  its small picture (`thumbSize`, from the preflight), because many starts at once each pass the first check. The running total (`storage.ts`) counts
+  version sizes only, never the small pictures. The email directory is the preflight and settle of the people hooks (`server/calls/peopleHooks.ts`,
+  `directory.ts`, `NetApi.directoryReserve`). The settle step makes the directory equal to the rows: after the commit it re-reads the rows, and
+  the row of the target counts as a holder. It frees the reserved email when no row holds it, and the old email after a first answer only
+  (`outcome.replayed` is true for a stored answer of an idempotency key). `users.remove` frees the email only when the row is removed now.
+- Plan and cap: `plan.ts` (`planFrom`, `capVerdict`, `accountStop`, `warnings`) reads the Free limits from `MADAR_PLAN_*` and the share from
+  `MADAR_ENTERPRISE_SHARE`. The platform object keeps the day counts (`meter`, `capState`, `meterToday`). The Worker gate `accountGate.ts` refuses every
+  enterprise but ENT_VADO at 90 percent of the account (kept 60 s, fails open); the object refuses the share of its own enterprise in a batch and in a tool
+  call of MCP, never in a sign-in step, forgot or renew. `MADAR_ENTERPRISE_CREATE = "open"` opens create.
+- Name and logo: `brand.ts` (`mailOptionsOf`) gives the mail header; `logoRoute.ts` is `GET /api/enterprise-logo/:ent` (the same 404 for every miss; the logo
+  comes from the object, not from the platform copy).
 
 ## The platform object
 - One Durable Object named `platform` (`PLATFORM_OBJECT`), binding `PLATFORM`, migration `platform-v1`. Tables: `enterprises` (id, address,

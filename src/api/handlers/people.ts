@@ -13,7 +13,7 @@ import { projectViewer } from '../projectView';
 import { nextId } from '../store';
 import { userCard } from '../views';
 import { INTERNAL_PREFIX } from '../../lib/projectCode';
-import { holdsAdminRights } from '../permissions';
+import { can, holdsAdminRights } from '../permissions';
 import { coversLock, officeWorkHoursOf } from '../../lib/quietHours';
 import { assertCan, byName, requireUser } from './shared';
 
@@ -50,6 +50,10 @@ export const sessionGet = defineCall({
     actingFor: UserCard.nullable(), previewUsers: z.array(PreviewUser), persistent: z.boolean(), simulateErrors: z.boolean(),
     /** The real build: the file limit of the active file store, so the screens check before an upload (plan 2b, point 1). */
     limits: z.object({ maxFileBytes: z.number().int().positive() }).optional(),
+    /** The real build (Madar enterprises): the enterprise of the person, with the name and the logo of its Settings. */
+    enterprise: z.object({ id: z.string(), name: z.string(), nameAr: z.string(), logo: z.string().nullable() }).optional(),
+    /** True for a platform owner (the owner list of the platform object). Absent for every other person. */
+    platformOwner: z.literal(true).optional(),
   }),
   readOnly: true,
   prototypeOnly: true,
@@ -74,6 +78,13 @@ export const sessionGet = defineCall({
     return {
       user: ctx.actor, authority: ctx.authority, actingFor, previewUsers, persistent: ctx.persistent, simulateErrors: ctx.state.session.simulateErrors,
       ...(ctx.limits ? { limits: ctx.limits } : {}),
+      ...(ctx.enterprise ? {
+        enterprise: {
+          id: ctx.enterprise.id, name: ctx.state.settings.enterpriseName ?? 'Madar', nameAr: ctx.state.settings.enterpriseNameAr ?? ctx.state.settings.enterpriseName ?? 'مدار',
+          logo: ctx.state.settings.enterpriseLogo ?? null,
+        },
+        ...(ctx.enterprise.platformOwner ? { platformOwner: true as const } : {}),
+      } : {}),
     };
   },
 });
@@ -466,12 +477,30 @@ function settingsOut(settings: Settings): Settings {
   return rest;
 }
 
-export const settingsGet = defineCall({
+/**
+ * The use of the limits of the enterprise (Madar enterprises, design 5.9), for the Admin to read. The numbers come from the server: the
+ * prepared value of settings.get holds the people limit and the file bytes (server/enterprise/storage.ts). The prototype has none.
+ */
+const Usage = z.object({
+  people: z.object({ used: z.number().int().min(0), limit: z.number().int().nullable() }),
+  storage: z.object({ used: z.number().int().min(0), limit: z.number().int().nullable() }),
+});
+export type SettingsPrepared = { peopleLimit: number | null; storageUsed: number; storageLimit: number | null };
+
+export const settingsGet = defineCall<typeof Empty, z.ZodObject<(typeof Settings)['shape'] & { usage: z.ZodOptional<typeof Usage> }>, SettingsPrepared | undefined>({
   input: Empty,
-  output: Settings,
+  output: Settings.extend({ usage: Usage.optional() }),
   readOnly: true,
-  run(_input, ctx) {
-    return settingsOut(ctx.state.settings);
+  run(_input, ctx, prepared) {
+    const out = settingsOut(ctx.state.settings);
+    // Only a person with the office settings right reads the use, and only when the server gave the numbers.
+    if (!prepared || !can(ctx.authority, 'office.settings')) return out;
+    // Invited people are active people. A turned-off, a removed and an agent user do not count.
+    const used = Object.values(ctx.state.users).filter((user) => user.kind === 'human' && user.active && user.removed !== true).length;
+    return {
+      ...out,
+      usage: { people: { used, limit: prepared.peopleLimit }, storage: { used: prepared.storageUsed, limit: prepared.storageLimit } },
+    };
   },
 });
 
@@ -482,6 +511,10 @@ export const settingsUpdate = defineCall({
     workloadLimit: Settings.shape.workloadLimit.optional(),
     staleAfterDays: Settings.shape.staleAfterDays,
     workHours: OfficeWorkHours.optional(),
+    // The name and the logo of the enterprise (Madar enterprises). The limits are not here: only the platform owner changes them.
+    enterpriseName: Settings.shape.enterpriseName,
+    enterpriseNameAr: Settings.shape.enterpriseNameAr,
+    enterpriseLogo: Settings.shape.enterpriseLogo,
   }),
   output: Settings,
   run(input, ctx) {

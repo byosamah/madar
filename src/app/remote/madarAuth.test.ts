@@ -17,6 +17,8 @@ function fakeServer() {
       ? Response.json({ v: 1, error: { code: 'unauthenticated', message: 'This sign-in ended. Sign in again.', details: { reason: 'session_ended' } } }, { status: 401 })
       : body.password === 'wrong'
         ? Response.json({ v: 1, error: { code: 'unauthenticated', message: 'no', details: { reason: 'invalid_credentials' } } }, { status: 401 })
+        : body.password === 'paused'
+          ? Response.json({ v: 1, error: { code: 'unauthenticated', message: 'Madar is paused for your company. Ask your Admin.', details: { reason: 'enterprise_paused' } } }, { status: 401 })
         : Response.json(tokens(String(body.email ?? 'x').startsWith('other') ? 'auth-2' : 'auth-1')),
     '/api/auth/verify': (body) => body.token_hash === 'used'
       ? Response.json({ v: 1, error: { code: 'unauthenticated', message: 'This link ended. Ask for a new one.', details: { reason: 'link_ended' } } }, { status: 401 })
@@ -142,5 +144,13 @@ describe('the Madar sign-in port of the screens (src/app/remote/madarAuth.ts)', 
     events.dispatchEvent(Object.assign(new Event('storage'), { key: SESSION_KEY }));
     expect(changes).toEqual(['person']);
     expect(auth.userId?.()).toBe('auth-2');
+  });
+
+  it('turns the paused answer after a right password into the failure enterprise_paused, and keeps the person signed out (Madar enterprises)', async () => {
+    const auth = await make(fakeServer());
+    const failure = await auth.signIn('hala@madar.test', 'paused').catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AuthFailure);
+    expect((failure as AuthFailure).reason).toBe('enterprise_paused');
+    expect(auth.status()).toBe('signed_out');
   });
 });

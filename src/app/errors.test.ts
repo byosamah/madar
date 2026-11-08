@@ -90,3 +90,35 @@ describe('canRetry', () => {
     expect(canRetry(forbidden())).toBe(false);
   });
 });
+
+describe('the paused and limit texts of Madar enterprises (plan C, Task 22)', () => {
+  const TEXTS: Record<string, [string, string]> = {
+    enterprise_paused: ['Madar is paused for your company. Ask your Admin.', 'توقّف مدار في منشأتك مؤقتاً. تواصل مع مدير النظام لديكم.'],
+    people_limit: ['Your company reached its limit of people. Ask the Madar team to raise it.', 'وصلت منشأتك إلى حد عدد الأشخاص. اطلب من فريق مدار رفع الحد.'],
+    storage_limit: ['Your company has no more room for files. Ask the Madar team to raise the limit.', 'لا توجد مساحة كافية لملفات منشأتك. اطلب من فريق مدار رفع الحد.'],
+    create_closed: ['Creating enterprises is closed now.', 'إنشاء المنشآت مغلق الآن.'],
+    address_taken: ['This address name is taken.', 'اسم العنوان مستخدم.'],
+    owner_enterprise: ['You cannot pause an enterprise that holds a platform owner.', 'لا يمكنك إيقاف منشأة فيها مالك للمنصة.'],
+    name_mismatch: ['The name does not match.', 'الاسم غير مطابق.'],
+    not_finished: ['Finish creating this enterprise first.', 'أكمل إنشاء هذه المنشأة أولاً.'],
+    already_accepted: ['This person accepted the invitation already.', 'هذا الشخص قبل الدعوة بالفعل.'],
+  };
+
+  it('gives the table text in both languages for a forbidden, conflict and invalid refusal with each reason', () => {
+    for (const [index, language] of (['en', 'ar'] as const).entries()) {
+      const i18n = initI18n(language);
+      const t = i18n.t.bind(i18n);
+      for (const [reason, texts] of Object.entries(TEXTS)) {
+        for (const code of ['forbidden', 'conflict', 'invalid_input'] as const) {
+          expect({ language, reason, code, text: errorMessage(new ApiError(code, 'x', { reason }), t) }).toEqual({ language, reason, code, text: texts[index] });
+        }
+      }
+    }
+  });
+
+  it('does not offer a Retry after the paused answer of a sign-in', () => {
+    expect(canRetry(new ApiError('unauthenticated', 'x', { reason: 'enterprise_paused' }))).toBe(false);
+    expect(canRetry(new ApiError('unauthenticated', 'x', { reason: 'session_ended' }))).toBe(true);
+  });
+});
+

@@ -15,6 +15,9 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // The name and the logo of the company (Madar enterprises, plan C): the header, the mails and the push line show them. The first entry is for everyone, the second for the people who hold the switch Office settings. The lead sets the real release day before the test deploy.
+  { id: '2026-11-08-162', day: '2026-11-08', right: 'office.settings', to: '/admin' },
+  { id: '2026-11-08-161', day: '2026-11-08' },
   // Chat fixes (owner report 2026-11-08): helpers and people named with @ have the to-do thread, quiet hours are off unless a person turns them on, a longer swipe keeps the unread mark, a date line no longer lifts a thread. The lead sets the real release day before the test deploy.
   { id: '2026-11-08-160', day: '2026-11-08' },
   // The weekly question: Home asks what you plan on Sunday and what you did on Thursday, and the Week page shows the answers of the team (fbk_088, owner 2026-11-08). The lead sets the real release day before the test deploy.

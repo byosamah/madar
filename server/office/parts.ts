@@ -5,6 +5,7 @@ import { processOutbox } from '../core/effects';
 import { sendReset } from '../auth/forgot';
 import { signingKeysOf, type SigningKeys } from '../auth/own/keys';
 import { liteAuthAdmin } from '../auth/own/liteAdmin';
+import { sessionEnded } from '../auth/own/sessions';
 import { localSigninOffice, runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../auth/own/office';
 import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from '../auth/ownKeys';
 import { renewInvitation } from '../auth/renew';
@@ -28,16 +29,21 @@ import { liteAgentOf } from '../mcp/oauth/agent';
 import { mountOAuth } from '../mcp/oauth/routes';
 import { stateKeyFrom } from '../mcp/reasons';
 import { JOBS_LAST_RUN_SQL } from '../jobs/steps/heartbeat';
-import { capRefusal, DAY_CAP_TTL_MS, dayCapOf } from './cap';
+import { capRefusal, COMPANY_BUSY, DAY_CAP_TTL_MS, dayCapOf } from './cap';
 import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type OfficeBatchInput, type OfficeBatchOutput } from './batch';
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, TICKET_REFUSED, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
+import { brandOfSettings } from '../enterprise/brand';
+import { EnterpriseFacts } from '../enterprise/facts';
 import { EnterpriseGate } from '../enterprise/gate';
+import { planFrom, shareCapOf } from '../enterprise/plan';
+import { isMcpToolPath } from '../enterprise/router';
+import { initEnterprise, reinviteAdmin, writeIdentity, writeLimits, writePlatformOwners, writeState } from '../enterprise/lifecycle';
 import { runMailRoute } from '../enterprise/mailRoute';
-import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
+import { ENT_VADO, isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { enterpriseStatusOf } from '../enterprise/status';
-import type { EnterpriseStatus } from '../enterprise/types';
+import type { EnterpriseInit, EnterpriseLimits, EnterpriseState, EnterpriseStatus } from '../enterprise/types';
 import { officeTyping, socketClosed, stateMessage } from './presence';
 import { importBegin, importFinish, importPart, importStepOf, type ImportStep } from './import';
 import { netPorts, type NetApi } from './net';
@@ -103,6 +109,8 @@ export type OfficeParts = {
   readonly hold: OfficeHold;
   /** The identity of the enterprise of this object (server/enterprise/gate.ts). */
   readonly gate: EnterpriseGate;
+  /** The facts of the enterprise in memory (server/enterprise/facts.ts). */
+  readonly facts: EnterpriseFacts;
   depsFor(net: NetApi): Deps;
   batch(input: OfficeBatchInput, net: NetApi): Promise<OfficeBatchOutput>;
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport>;
@@ -117,6 +125,22 @@ export type OfficeParts = {
   health(): Promise<OfficeHealth>;
   /** The status row of this enterprise (Madar enterprises). A paused object answers it too. */
   status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus>;
+  /** The first start of an enterprise (plan C): its row, its settings, the first Admin and the invitation. A repeat changes nothing. */
+  init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>>;
+  /**
+   * The changes that the platform makes (plan C, Task 6). setState runs on a paused object too, so a resume works. The other four refuse
+   * a paused object. Each one names the id in ent, and the gate checks it first.
+   */
+  setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void>;
+  setLimits(input: { ent: EnterpriseId; limits: EnterpriseLimits }): Promise<void>;
+  setIdentity(input: { ent: EnterpriseId; name?: string; nameAr?: string; logo?: string | null }): Promise<void>;
+  setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
+  /** The Madar person behind a sign-in id, or null for a turned-off, a removed, an agent or an unknown one. */
+  person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
+  /** The name and the logo of this enterprise, for the public logo route of the Worker (plan C, Task 16). */
+  brand(input: { ent: EnterpriseId }): Promise<{ name: string; nameAr: string; logo: string | null }>;
+  /** The invitation of the first Admin again. */
+  reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>>;
   /** One office op of the Worker (exit wave 4): /office/export, /office/import and /office/peek, as JSON in and out. */
   ops(request: Request): Promise<Response>;
   /** The counts of the UTC day of now: the day row and the counts that the meter holds in memory still (exit wave 4). */
@@ -164,10 +188,24 @@ export function officeParts(o: PartsInput): OfficeParts {
   const tickets = new LiveTickets(() => gate.id());
   const hold = new OfficeHold();
   const gate = new EnterpriseGate(db, o.name ? { name: o.name } : {});
+  // The facts of the enterprise (plan C): loaded with the first call, from the row of the gate and enterprise_use.
+  const facts = new EnterpriseFacts();
+  const factsReady = async () => {
+    if (!facts.loaded()) await facts.load(db, gate.current() ?? null);
+  };
+  /** The refusal of the gate for one call (server/enterprise/gate.ts), with the facts loaded for the Deps that follow. */
+  const guard = async (ent: unknown, allow: { allow?: 'paused' } = {}): Promise<RunError | undefined> => {
+    const refused = await gate.refusal(ent, allow);
+    await factsReady();
+    return refused;
+  };
   // The test tools (the peek route; the replace mode of the import, Task 10): MADAR_TEST_TOOLS = "on", never on production.
   const tools = testToolsOn(o.read);
   // The day cap of the test Worker (exit wave 4, server/office/cap.ts): MADAR_DAY_CAP, set for the test Worker only.
   const cap = dayCapOf(o.read('MADAR_DAY_CAP'));
+  // The share of the free day limits of one enterprise except ENT_VADO (plan C, design 5.14): read when first needed, so a bad setting stops
+  // only the call that needs it.
+  let share: ReturnType<typeof shareCapOf> | undefined;
   let dayHeld: { at: number; day: DayRow } | undefined;
   const staleMs = Number(o.read('MADAR_LIVE_STALE_MS') ?? LIVE_STALE_MS);
   const signals = liveSignals({ sockets: o.sockets, log, now: () => clock.now(), staleMs });
@@ -209,12 +247,16 @@ export function officeParts(o: PartsInput): OfficeParts {
       db,
       clock,
       files: ports.files,
+      // The email directory of the platform, through the network port of this call (plan C). The hooks of the people calls use it.
+      directory: ports.directory,
       // MAIL_DRIVER=outbox (the test copy) writes the mail into mail_outbox of the object: no network, so no port.
       mail: values.mail.driver === 'outbox' ? outboxMailPort(db) : ports.mail,
       signal: signals,
       authAdmin,
       // The enterprise of this object, once the gate has its row (every method checks the gate before it makes the deps).
       config: gate.current() ? { ...values.config, ent: gate.id() } : values.config,
+      // The facts of the enterprise: hooks read the limits and the owners from them (plan C).
+      enterprise: facts,
       log,
       pushFetch: ports.pushFetch,
       // Google and Daftra requests leave from the Worker (server/office/net.ts): the object sends them through its network port.
@@ -273,9 +315,17 @@ export function officeParts(o: PartsInput): OfficeParts {
     return dayHeld.day;
   }
 
-  /** The refusal of the day cap for one call, or undefined: always undefined on a copy with no cap. */
-  async function capped(writes: boolean): Promise<RunError | undefined> {
-    return cap ? capRefusal(await capDay(clock.now()), cap, writes) : undefined;
+  /**
+   * The refusal of the day cap for one call, or undefined. The cap of the test Worker (MADAR_DAY_CAP) wins when it is set. Else an enterprise
+   * except ENT_VADO has its share of the free limits, but only for the calls that carry work (a batch, a tool call of MCP): the sign-in steps,
+   * forgot and renew pass `shared: false` and keep working (design 5.14). ENT_VADO is never refused.
+   */
+  async function capped(writes: boolean, shared = false): Promise<RunError | undefined> {
+    if (cap) return capRefusal(await capDay(clock.now()), cap, writes);
+    const ent = facts.id();
+    if (!shared || ent === undefined || ent === ENT_VADO) return undefined;
+    share ??= shareCapOf(planFrom(o.read));
+    return capRefusal(await capDay(clock.now()), share, writes, COMPANY_BUSY);
   }
 
   /**
@@ -291,7 +341,10 @@ export function officeParts(o: PartsInput): OfficeParts {
         await importBegin(db, step.mode);
         // An object that was never made gets its identity row from the first import into an enterprise id. A rehearsal name and the old
         // name "office" make no row, so those objects answer not_found on every other call.
-        if (!(await gate.load()) && isEnterpriseId(name)) await gate.create({ id: name, state: 'active', limits: { people: null, storageBytes: null }, now });
+        if (!(await gate.load()) && isEnterpriseId(name)) {
+          await gate.create({ id: name, state: 'active', limits: { people: null, storageBytes: null }, now });
+          facts.forget();
+        }
       } catch (error) {
         hold.end(id);
         throw error;
@@ -333,13 +386,14 @@ export function officeParts(o: PartsInput): OfficeParts {
     tickets,
     hold,
     gate,
+    facts,
     depsFor,
     async batch(input, net) {
-      const refused = await gate.refusal(input.ent);
+      const refused = await guard(input.ent);
       if (refused) return { ok: false, error: refused };
       meter.request({ calls: input.calls.length, worker: input.worker });
       // An export refuses a batch with a write and serves a read batch; an import refuses every batch.
-      const held = hold.refusal({ now: clock.now(), writes: writesIn(input.calls) }) ?? await capped(writesIn(input.calls));
+      const held = hold.refusal({ now: clock.now(), writes: writesIn(input.calls) }) ?? await capped(writesIn(input.calls), true);
       if (held) return { ok: false, error: held };
       const deps = depsFor(net);
       const out = await runOfficeBatch(deps, input, { run, data: data(deps), principal: o.principal, ledger: ledgers.get(deps)! });
@@ -348,7 +402,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       return { ok: true, body: out.body, later: out.later };
     },
     async runEffects(input, net) {
-      const refused = await gate.refusal(input.ent);
+      const refused = await guard(input.ent);
       if (refused) throw refusalError(refused);
       meter.request({ worker: input.worker });
       // An import writes every table: the outbox rows wait for the Cron. An export lets them run (outbox and mail are drift tables).
@@ -357,7 +411,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       return { done: result.done.length, failed: result.failed.length };
     },
     async cron(input, net) {
-      const refused = await gate.refusal(input.ent);
+      const refused = await guard(input.ent);
       if (refused) throw refusalError(refused);
       meter.request({ worker: input.worker });
       const at = new Date(input.at);
@@ -376,8 +430,11 @@ export function officeParts(o: PartsInput): OfficeParts {
     },
     async signin(body) {
       // A paused object lets the sign-in steps through to the step: plan C decides each step of a paused object (design 5.8).
-      const refused = await gate.refusal(body.ent, { allow: 'paused' });
+      const refused = await guard(body.ent, { allow: 'paused' });
       if (refused) return { ok: false, error: refused };
+      // A paused enterprise (design 5.8): only the password step runs its checks, and it ends with the paused answer after a right password
+      // (server/auth/own/ops.ts). Every other step answers like a session that ended, so no token, link or consent opens a paused object.
+      if (facts.state() === 'paused' && body.signin !== 'auth.password') return { ok: false, error: runErrorOf(sessionEnded()) };
       meter.request();
       // An export lets the sign-in steps run (their rows are drift tables of server/office/ops.ts); an import refuses them. The
       // day cap counts a sign-in step as a read: it stops only over the rows read or the requests.
@@ -394,17 +451,25 @@ export function officeParts(o: PartsInput): OfficeParts {
       return runSigninOp({ db, clock, log, config: values.config, keys, ent: gate.id() }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
     },
     async mailRoute(input, net) {
-      const refused = await gate.refusal(input.ent, { allow: 'paused' });
+      const refused = await guard(input.ent, { allow: 'paused' });
       if (refused) return mailRefusal(refused);
       meter.request();
       // The limits and the links of forgot and renew are drift tables: an export lets them run, an import refuses them.
       const held = hold.refusal({ now: clock.now(), writes: false }) ?? await capped(false);
       if (held) return mailRefusal(held);
-      return runMailRoute(depsFor(net), input);
+      const answer = await runMailRoute(depsFor(net), input);
+      // A paused enterprise gets the usual answer and sends no mail: the value of the work is dropped, so the Worker makes no second call.
+      if (facts.state() === 'paused') {
+        const { work: _work, ...usual } = answer;
+        return usual;
+      }
+      return answer;
     },
     async mailWork(input, net) {
-      const refused = await gate.refusal(input.ent, { allow: 'paused' });
+      const refused = await guard(input.ent, { allow: 'paused' });
       if (refused) throw refusalError(refused);
+      // A paused enterprise sends no mail. The mailRoute of a paused object keeps no work, so this is the second guard.
+      if (facts.state() === 'paused') return;
       meter.request();
       if (hold.refusal({ now: clock.now(), writes: false })) {
         log.warn(input.route === 'forgot' ? 'A reset mail did not go out: an import holds the office.' : 'A renewed invitation did not go out: an import holds the office.');
@@ -419,13 +484,14 @@ export function officeParts(o: PartsInput): OfficeParts {
       }
     },
     async mcp(input, net) {
-      const refused = await gate.refusal(input.ent);
+      const refused = await guard(input.ent);
       if (refused) return mcpRefusal(statusOf(refused), refused.message, refused.details?.reason as string | undefined);
       meter.request({ calls: toolCallsIn(input.body), worker: input.worker });
       // An export lets the OAuth routes under /mcp run (their rows are drift tables); a request of /mcp itself may write, so it waits.
       const path = new URL(input.url).pathname;
-      const writes = path === '/mcp' || path === '/mcp/';
-      const held = hold.refusal({ now: clock.now(), writes }) ?? await capped(writes);
+      const writes = isMcpToolPath(path);
+      // Only a tool call of MCP (the path /mcp) carries work and counts against the share; the OAuth routes under /mcp do not.
+      const held = hold.refusal({ now: clock.now(), writes }) ?? await capped(writes, writes);
       if (held) return mcpRefusal(503, held.message, 'busy');
       const secret = o.read(OWN_AUTH_SECRET);
       let keys: SigningKeys;
@@ -491,6 +557,7 @@ export function officeParts(o: PartsInput): OfficeParts {
     async socket(request) {
       // An object that was never made, and a paused object, take no socket: the same refusal as a ticket that does not open.
       const row = await gate.load();
+      await factsReady();
       if (!row || row.state === 'paused') return errorResponse(TICKET_REFUSED);
       meter.request();
       return acceptLive({ sockets: o.sockets, tickets, office, now: () => clock.now(), ent: () => gate.id() }, request);
@@ -514,11 +581,98 @@ export function officeParts(o: PartsInput): OfficeParts {
       }
     },
     async status(input) {
-      const refused = await gate.refusal(input.ent, { allow: 'paused' });
+      const refused = await guard(input.ent, { allow: 'paused' });
       if (refused) throw refusalError(refused);
       meter.request();
       const now = clock.now();
       return enterpriseStatusOf(db, gate.id(), await office(), await dayCounts(now), now);
+    },
+    async init(input, net) {
+      // An object with a row refuses another id and a paused state. An object with no row takes the id only when its own name agrees
+      // (the Worker made it with idFromName), so a wrong name never makes an enterprise.
+      if (await gate.load()) {
+        const refused = await guard(input.ent);
+        if (refused) return { ok: false, error: refused };
+      } else {
+        const name = o.name?.();
+        if (!isEnterpriseId(input.ent) || (name !== undefined && name !== input.ent)) {
+          return { ok: false, error: runErrorOf(new ApiError('unauthenticated', 'Sign in to continue.')) };
+        }
+      }
+      meter.request();
+      try {
+        const out = await initEnterprise({ db, clock, gate, facts, depsFor: () => depsFor(net) }, input);
+        return { ok: true, value: out };
+      } catch (error) {
+        log.error('The first start of an enterprise failed.', { ent: input.ent, error: error instanceof Error ? error.message : String(error) });
+        return { ok: false, error: runErrorOf(error) };
+      }
+    },
+    async setState(input) {
+      const refused = await guard(input.ent, { allow: 'paused' });
+      if (refused) throw refusalError(refused);
+      meter.request();
+      await writeState({ db, gate, facts }, input.state);
+      // A paused enterprise has no live screen: every socket closes, and a person who comes back meets the paused answer.
+      if (input.state === 'paused') {
+        for (const socket of o.sockets.list('office')) {
+          try {
+            socket.close(1012, 'Paused.');
+          } catch {
+            // The socket is closed already.
+          }
+        }
+      }
+    },
+    async setLimits(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      await writeLimits({ db, gate, facts }, input.limits);
+    },
+    async setIdentity(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      await writeIdentity(db, {
+        ...(input.name !== undefined ? { name: input.name } : {}), ...(input.nameAr !== undefined ? { nameAr: input.nameAr } : {}),
+        ...(input.logo !== undefined ? { logo: input.logo } : {}),
+      });
+    },
+    async setPlatformOwners(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      await writePlatformOwners({ db, facts }, input.userIds);
+    },
+    async person(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      try {
+        const principal = o.principal({ kind: 'browser', authUserId: input.authUserId }, await office());
+        return { userId: principal.userId };
+      } catch {
+        return null;
+      }
+    },
+    async brand(input) {
+      const refused = await guard(input.ent);
+      if (refused) throw refusalError(refused);
+      meter.request();
+      const { name, nameAr, logo } = brandOfSettings((await office()).lists.settings);
+      return { name, nameAr, logo };
+    },
+    async reinvite(input, net) {
+      const refused = await guard(input.ent);
+      if (refused) return { ok: false, error: refused };
+      meter.request();
+      try {
+        return { ok: true, value: await reinviteAdmin({ db, clock, depsFor: () => depsFor(net) }) };
+      } catch (error) {
+        if (!(error instanceof ApiError)) log.error('The invitation of the first Admin did not go out.', { error: error instanceof Error ? error.message : String(error) });
+        return { ok: false, error: runErrorOf(error) };
+      }
     },
     async health() {
       meter.request();

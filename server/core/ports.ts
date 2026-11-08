@@ -1,4 +1,5 @@
 import type { DaftraConfig } from '../daftra/config';
+import type { EnterpriseFacts } from '../enterprise/facts';
 import type { EnterpriseId } from '../enterprise/ids';
 import type { RunCall } from './runCall';
 import type { ServerHost } from './serverHost';
@@ -176,8 +177,24 @@ export interface TypingPort {
   send(people: string[], signal: TypingSignal): Promise<void>;
 }
 
+/**
+ * The email directory of the platform object, bound to the enterprise of the call (Madar enterprises, design 5.4). reserve answers taken
+ * when another enterprise holds the email. Only the office object sets it, through its network port (a call outside a transaction).
+ */
+export interface DirectoryPort {
+  reserve(email: string): Promise<'ok' | 'taken'>;
+  release(email: string): Promise<void>;
+}
+
 export type Deps = {
   db: Db;
+  /**
+   * The facts of the enterprise of this object (Madar enterprises, plan C): its id, state, limits and platform owners, in memory. Only the
+   * office object sets it. The Postgres path leaves it out: its hooks and limits then do nothing, and the enterprise is ENT_VADO.
+   */
+  enterprise?: EnterpriseFacts;
+  /** The email directory (plan C, Task 12). Left out on the Postgres path and in tests without one: the email hooks then do nothing. */
+  directory?: DirectoryPort;
   clock: Clock;
   files: FilesPort;
   mail: MailPort;

@@ -10,6 +10,7 @@ import type { Db, Deps, Mail, Query } from '../core/ports';
 import { isChatItemNotice } from '../push/chatRule';
 import { QUOTA_LIMITS, sendCounted, utcDay, type QuotaKind, type SendCounted } from './quota';
 import { renderMail, type RenderedMail } from './templates';
+import { mailOptionsOf } from '../enterprise/brand';
 
 /**
  * The notice mail (plan 4.12, 5.4; task N2.2).
@@ -200,7 +201,7 @@ export async function sendNoticeMail(payload: Record<string, unknown>, deps: Dep
   // Quiet hours (owner, 2026-10-22, fbk_048): a person in quiet hours gets no mail at send time. The row ends as done, and no mail goes later.
   // The place of the day quota is taken only inside sendCounted, so nothing is reserved yet and nothing needs to go back.
   if (quietFromColumns(preferences.workHours, notice.office, deps.clock.now())) return;
-  const rendered = renderMail('notice', preferences.language, { trigger, link: appLink(deps.config.appUrl, '/notifications') }, { reader: notice.gender ?? undefined }, { appUrl: deps.config.appUrl });
+  const rendered = renderMail('notice', preferences.language, { trigger, link: appLink(deps.config.appUrl, '/notifications') }, { reader: notice.gender ?? undefined }, await mailOptionsOf(deps, preferences.language));
   await sendWarned(deps, 'notice', mailOf(notice.email, rendered, 'notice', `notice-${id}`), notice.user_id);
 }
 
@@ -227,6 +228,6 @@ export async function sendQuotaWarning(payload: Record<string, unknown>, deps: D
   const day = String(payload.day ?? utcDay(deps.clock.now()));
   const [person] = isLite(deps.db) ? await litePerson(deps.db, userId) : await deps.db.statement<PersonRow & { system_role: string | null }>('write', ADMIN_MAIL_SQL, [userId]);
   if (!person || !mailable(person) || person.system_role !== 'admin') return;
-  const rendered = renderMail('quotaWarning', person.preferences.language, { limit: QUOTA_LIMITS.notice, link: appLink(deps.config.appUrl, '/admin') }, { reader: person.gender ?? undefined }, { appUrl: deps.config.appUrl });
+  const rendered = renderMail('quotaWarning', person.preferences.language, { limit: QUOTA_LIMITS.notice, link: appLink(deps.config.appUrl, '/admin') }, { reader: person.gender ?? undefined }, await mailOptionsOf(deps, person.preferences.language));
   await sendCounted(deps, 'warning', mailOf(person.email, rendered, 'quota-warning', `quota-warning-${day}-${userId}`), { userId });
 }

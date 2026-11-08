@@ -1,0 +1,93 @@
+{
+  "errors": {
+    "reasons": {
+      "enterprise_paused": "Madar is paused for your company. Ask your Admin.",
+      "people_limit": "Your company reached its limit of people. Ask the Madar team to raise it.",
+      "storage_limit": "Your company has no more room for files. Ask the Madar team to raise the limit.",
+      "create_closed": "Creating enterprises is closed now.",
+      "address_taken": "This address name is taken.",
+      "owner_enterprise": "You cannot pause an enterprise that holds a platform owner.",
+      "name_mismatch": "The name does not match.",
+      "not_finished": "Finish creating this enterprise first.",
+      "already_accepted": "This person accepted the invitation already."
+    }
+  },
+  "consent": {
+    "titleIn": "Allow {{name}} to act for you in {{company}}?"
+  },
+  "enterprises": {
+    "title": "Madar enterprises",
+    "new": "New enterprise",
+    "state": {
+      "active": "Active",
+      "paused": "Paused",
+      "creating": "Not finished"
+    },
+    "field": {
+      "name": "Name",
+      "nameAr": "Name in Arabic",
+      "address": "Address name",
+      "logo": "Logo",
+      "people": "People limit",
+      "storage": "Storage limit (GB)",
+      "adminName": "First Admin name",
+      "adminEmail": "First Admin email",
+      "adminLanguage": "Language of the invitation",
+      "state": "State"
+    },
+    "language": {
+      "en": "English",
+      "ar": "Arabic"
+    },
+    "create": "Create",
+    "pause": "Pause",
+    "resume": "Resume",
+    "resend": "Send the invitation again",
+    "retry": "Try again",
+    "pauseAsk": "Type the name of the enterprise to pause it.",
+    "created": "The enterprise is ready. The invitation went to {{email}}.",
+    "saved": "Saved.",
+    "paused": "The enterprise is paused.",
+    "resumed": "The enterprise works again.",
+    "sent": "The invitation went out again.",
+    "usage": {
+      "people": "{{active}} active, {{invited}} invited",
+      "storage": "{{used}} GB used",
+      "last": "Last activity: {{when}}",
+      "never": "No activity yet"
+    },
+    "noLimit": "No limit",
+    "limitHint": "Leave empty for no limit.",
+    "addressHint": "Lower case letters, digits and hyphens. It cannot change later.",
+    "admin": "First Admin",
+    "meter": {
+      "title": "Today's use of the free limits",
+      "requests": "Requests",
+      "rowsRead": "Rows read",
+      "rowsWritten": "Rows written",
+      "mails": "Mails",
+      "warn": "{{limit}} is at {{percent}} percent of today's limit.",
+      "stop": "Other companies wait until 03:00 Riyadh. VADOs' Companies keeps working.",
+      "of": "{{used}} of {{limit}}"
+    },
+    "createClosed": "Creating enterprises is closed now.",
+    "logoHint": "A square picture fits best. It must be a WebP, JPEG or PNG picture.",
+    "peopleCount": "{{n}} people",
+    "peopleCount_one": "1 person",
+    "peopleCount_other": "{{count}} people"
+  },
+  "admin": {
+    "enterpriseName": "Company name",
+    "enterpriseNameAr": "Company name in Arabic",
+    "enterpriseLogo": "Company logo",
+    "usage": {
+      "people": "People: {{used}} of {{limit}}",
+      "peopleOnly": "People: {{used}}",
+      "storage": "Storage: {{used}} of {{limit}}",
+      "storageOnly": "Storage: {{used}} GB",
+      "gb": "{{n}} GB",
+      "noLimit": "No limit",
+      "readOnly": "Only the Madar team changes these limits."
+    }
+  }
+}

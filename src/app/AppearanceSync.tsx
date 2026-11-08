@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useCall } from './runtime';
+import { saveBrand } from './remote/brandCache';
 import { useAuth } from '../features/auth/useAuth';
 import { applyAppearance, deviceTheme, ENV_QUERIES, readEnvironment, resolveAppearance, saveDeviceTheme } from './appearance';
 import { applyLanguage, initI18n, withWords } from '../i18n';
@@ -12,8 +13,16 @@ import { applyLanguage, initI18n, withWords } from '../i18n';
 export function AppearanceSync() {
   const auth = useAuth();
   const signedIn = useSyncExternalStore(auth.subscribe, auth.status) === 'signed_in';
-  const prefs = useCall('session.get', {}, { enabled: signedIn }).data?.user.preferences;
+  const session = useCall('session.get', {}, { enabled: signedIn }).data;
+  const prefs = session?.user.preferences;
+  const enterpriseName = session?.enterprise?.name;
+  const enterpriseNameAr = session?.enterprise?.nameAr;
   const [env, setEnv] = useState(() => readEnvironment());
+
+  // The service worker names the enterprise in its fixed push line (Madar enterprises): the page leaves the two names in a Cache for it.
+  useEffect(() => {
+    if (enterpriseName !== undefined && enterpriseNameAr !== undefined) void saveBrand({ name: enterpriseName, nameAr: enterpriseNameAr });
+  }, [enterpriseName, enterpriseNameAr]);
 
   useEffect(() => {
     const lists = ENV_QUERIES.map((query) => window.matchMedia(query));

@@ -32,6 +32,10 @@ The other host stays deployed as the way back. Each area has its own guide: `mcp
   preflight outside the lock, then `set local lock_timeout 5s` and `statement_timeout 10s` (joined with BEGIN in one query, see
   `data/CLAUDE.md`), the office lock, the idempotency check, the story, the loader, `executeParsed`, the diff save, the outbox rows, the
   signals, the commit.
+- The settle hook of a shared write hears the outcome: `{ ok: true, output, replayed? }` or `{ ok: false }`. `replayed` is true for the stored answer of an
+  idempotency key, when this run wrote nothing. A settle step that undoes or finishes outside work must read the rows again and skip a replay.
+- The people limit of an enterprise (`core/peopleLimit.ts`) is checked in the write step of `runCall` after the save, for every write call (the Undo
+  can turn people on again). The hooks of `users.create` and `users.reactivate` only give the early message.
 - The email code guard of agents (`mcp/guard.ts`) sits in the write step of `runCall`, so every route passes it. Flow: `mcp/CLAUDE.md`.
 - After the commit, `processOutbox` runs the effects once. The 15-minute job retries the rest. `core/after.ts` keeps work alive after the
   answer on both hosts: on Supabase within the 150 s of the function, on the Worker through `waitUntil` for about 30 s. A long mail or

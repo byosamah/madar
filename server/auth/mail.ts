@@ -24,7 +24,7 @@ import { mailWords } from '../mail/templates/words';
  */
 
 /** appUrl: the screens (APP_URL of the server config), for the Madar mark in the header, as MailOptions of the N2 templates. */
-export type SigninMailOptions = { appUrl?: string };
+export type SigninMailOptions = { appUrl?: string; /** The enterprise name and logo (server/enterprise/brand.ts). Without it the header says Madar. */ brand?: { name: string; logoUrl?: string } };
 
 export type SigninMailKind = 'invite' | 'reset';
 export type RenderedMail = { subject: string; html: string; text: string };
@@ -127,7 +127,7 @@ export function renderSigninMail(
 
   const text = [title, '', body, '', `${button}: ${data.link}`, '', note].join('\n');
   const html = page(lang, [
-    brandHeader(mailWords(lang)('mail.common.brand'), dir, o.appUrl ? logoAddress(o.appUrl) : undefined),
+    brandHeader(o.brand?.name ?? mailWords(lang)('mail.common.brand'), dir, o.brand?.logoUrl ?? (o.appUrl ? logoAddress(o.appUrl) : undefined)),
     `<h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(title)}</h1>`,
     `<p style="font-size:15px;line-height:1.5;margin:0 0 24px">${escapeHtml(body)}</p>`,
     `<p style="margin:0 0 24px"><a href="${link}" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#1d1d1f;color:#ffffff;text-decoration:none;font-weight:600">${escapeHtml(button)}</a></p>`,

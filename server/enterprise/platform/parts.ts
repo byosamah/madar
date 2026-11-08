@@ -16,6 +16,8 @@ import { isEnterpriseId, normalizeEmail, type EnterpriseId } from '../ids';
 import { runMailRoute } from '../mailRoute';
 import type { DayCounts, EnterpriseRow, EnterpriseStatus } from '../types';
 import { PLATFORM_SCHEMA_VERSION } from './schema';
+import { accountStop, capVerdict, planFrom, type Plan } from '../plan';
+import { activateEnterprise, activeEnterpriseIds, createEnterprise, getEnterprise, listEnterprises, ownersOfEnterprises, setEnterpriseState, updateEnterprise } from './enterprises';
 import type { AddressAnswer, AddressStep, CapAnswer, PlatformStub } from './stub';
 
 /**
@@ -55,6 +57,21 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
   // The config of a Worker (the mail address, the MCP address): the refuse steps read it as the object does.
   const config = serverEnvFrom(o.read, { database: { writeUrl: '', readUrl: '' } }).config;
   const depsForRefuse = { db, clock, log, config } as unknown as Deps;
+
+  // The plan settings (Free limits and the share), read from the settings of the Worker when first needed. A bad value throws an error that names it.
+  let plan: Plan | undefined;
+  const planOf = (): Plan => (plan ??= planFrom(o.read));
+
+  /** The day counts of every enterprise for one UTC day, and their sum: the account. */
+  async function sums(day: string): Promise<{ account: DayCounts; byEnterprise: { ent: EnterpriseId; counts: DayCounts }[] }> {
+    const rows = await db.statement<{ ent: string; requests: number; rows_read: number; rows_written: number; mails: number }>(
+      'read', 'select ent, requests, rows_read, rows_written, mails from account_day where day = ?1 order by ent', [day]);
+    const byEnterprise = rows.map((row) => ({ ent: row.ent, counts: { requests: count(row.requests), rowsRead: count(row.rows_read), rowsWritten: count(row.rows_written), mails: count(row.mails) } }));
+    const account = byEnterprise.reduce<DayCounts>(
+      (sum, one) => ({ requests: sum.requests + one.counts.requests, rowsRead: sum.rowsRead + one.counts.rowsRead, rowsWritten: sum.rowsWritten + one.counts.rowsWritten, mails: sum.mails + one.counts.mails }),
+      { requests: 0, rowsRead: 0, rowsWritten: 0, mails: 0 });
+    return { account, byEnterprise };
+  }
 
   return {
     db,
@@ -120,8 +137,17 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
         'insert into account_day (day, ent, requests, rows_read, rows_written, mails) values (?1, ?2, ?3, ?4, ?5, ?6) '
         + 'on conflict (day, ent) do update set requests = excluded.requests, rows_read = excluded.rows_read, rows_written = excluded.rows_written, mails = excluded.mails',
         [day, ent, count(counts.requests), count(counts.rowsRead), count(counts.rowsWritten), count(counts.mails)]);
-      // Plan C adds the day cap rule here.
-      return { allowed: true };
+      // The day cap rule (plan C, design 5.14): the answer for this enterprise, with the totals of the account for the day.
+      const { account } = await sums(day);
+      return capVerdict({ ent, plan: planOf(), own: counts, account, writes: true });
+    },
+
+    async capState({ day }) {
+      return accountStop(planOf(), (await sums(day)).account);
+    },
+
+    async meterToday({ day }) {
+      return sums(day);
     },
 
     async mailReserve() {
@@ -175,6 +201,15 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
     async health() {
       return { schema: PLATFORM_SCHEMA_VERSION };
     },
+
+    list: () => listEnterprises(db),
+    getEnterprise: async ({ ent }) => getEnterprise(db, entOf(ent)),
+    create: (input) => createEnterprise(db, input, clock.now()),
+    activate: ({ ent }) => activateEnterprise(db, ent),
+    update: ({ ent, patch }) => updateEnterprise(db, ent, patch),
+    setState: ({ ent, state }) => setEnterpriseState(db, ent, state),
+    activeIds: () => activeEnterpriseIds(db),
+    ownersOf: () => ownersOfEnterprises(db),
   };
 }
 

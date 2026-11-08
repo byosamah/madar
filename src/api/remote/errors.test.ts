@@ -24,6 +24,11 @@ describe('errors from the server (client map 2.3)', () => {
       .toMatchObject({ code: 'unauthenticated', details: { reason: 'account_off' } });
   });
 
+  it('maps 403 with the reason enterprise_paused to forbidden, so the screens say the paused sentence and do not sign the person out', () => {
+    const paused = fromStatus(403, { v: 1, error: { code: 'forbidden', message: 'Paused.', details: { reason: 'enterprise_paused' } } }, null);
+    expect(paused).toMatchObject({ code: 'forbidden', details: { reason: 'enterprise_paused' } });
+  });
+
   it('maps 409 to failed with the reason client_outdated', () => {
     expect(fromStatus(409, null, null)).toMatchObject({ code: 'failed', details: { reason: 'client_outdated' } });
   });

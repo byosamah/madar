@@ -1,7 +1,7 @@
 import { DurableObject, type DurableObjectState } from 'cloudflare:workers';
 import type { OfficeSnapshot, Principal } from '../core/types';
 import type { EnterpriseId } from '../enterprise/ids';
-import type { EnterpriseStatus } from '../enterprise/types';
+import type { EnterpriseInit, EnterpriseLimits, EnterpriseState, EnterpriseStatus } from '../enterprise/types';
 import { applyLiteSchema } from '../data/lite/schema';
 import { env, setEnvSource } from '../env';
 import type { OfficeBatchInput, OfficeBatchOutput } from './batch';
@@ -103,6 +103,40 @@ export class Office extends DurableObject<Env> {
   /** The status row of this enterprise (Madar enterprises): the Cron of the Worker sends it to the platform object. */
   status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus> {
     return this.parts.status(input);
+  }
+
+  /** The first start of an enterprise (plan C): the Worker calls it once from platform.enterprises.create. A repeat changes nothing. */
+  init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>> {
+    return this.parts.init(input, net);
+  }
+
+  /** The changes of the platform (plan C): the state, the limits, the name and logo, the platform owners, the person check, the invitation. */
+  setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void> {
+    return this.parts.setState(input);
+  }
+
+  setLimits(input: { ent: EnterpriseId; limits: EnterpriseLimits }): Promise<void> {
+    return this.parts.setLimits(input);
+  }
+
+  setIdentity(input: { ent: EnterpriseId; name?: string; nameAr?: string; logo?: string | null }): Promise<void> {
+    return this.parts.setIdentity(input);
+  }
+
+  setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void> {
+    return this.parts.setPlatformOwners(input);
+  }
+
+  person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null> {
+    return this.parts.person(input);
+  }
+
+  brand(input: { ent: EnterpriseId }): Promise<{ name: string; nameAr: string; logo: string | null }> {
+    return this.parts.brand(input);
+  }
+
+  reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>> {
+    return this.parts.reinvite(input, net);
   }
 
   /** The socket of /api/live, and the office ops of exit wave 4 under /office/ (the Worker checks their secret first). */

@@ -12,6 +12,7 @@ import { entOfConfig, scopedRef } from '../enterprise/scope';
 import { isEmailExists } from './admin';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey } from './rateLimit';
+import { mailOptionsOf } from '../enterprise/brand';
 
 /**
  * The invitation (plan 5.1; effect auth.invite, plan 4.12; task P2). users.create writes the outbox row in its own transaction
@@ -281,7 +282,7 @@ export async function sendInvitation(
     to: user.email,
     ...renderSigninMail('invite', user.preferences.language, {
       name: personName(user, user.preferences.language), link: signinLink(deps.config.appUrl, 'welcome', link.tokenHash, link.type, renew, deps.config.ent),
-    }, user.gender, { appUrl: deps.config.appUrl }),
+    }, user.gender, await mailOptionsOf(deps, user.preferences.language)),
     tag: 'invite',
     idempotencyKey: mailKey(payload.inviteId),
   };

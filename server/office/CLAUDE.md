@@ -12,6 +12,15 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
 - Every input of an object call carries `ent`. `OfficeMcpInput` also carries `mcpUrl`, the address of the request, built by the Worker from its
   own `MCP_URL` (the object refuses one that is not under its own). `depsFor` sets `config.ent` from the gate. The export leaves out the
   table `enterprise` (`EXPORT_SKIP`): the platform object holds the master copy of state and limits.
+- Plan C adds the RPCs `init` (the first start: one transaction with the identity row, the settings, `usr_001` and the sign-in row, then the invitation
+  once), `setState` (it runs on a paused object; a pause closes every `office` socket with 1012), `setLimits`, `setIdentity` (a left-out field keeps its
+  value), `setPlatformOwners`, `person` (the Madar person behind a sign-in id, or null), `reinvite` (5 a day, `already_accepted` after a password) and `brand`.
+  The other five refuse a paused object. `parts.facts` (`EnterpriseFacts`) loads with the first call that passes the gate.
+- A paused object answers the password step with `enterprise_paused` only after a right password; every other sign-in step answers `session_ended`; a paused
+  `mailRoute` gives the usual answer and drops the work; `mailWork` does nothing.
+- The share cap: an enterprise but ENT_VADO is refused in `batch` and in a tool call of MCP at its share of the requests, rows read and rows written
+  (`shareCapOf`, `COMPANY_BUSY`); the cap of the test Worker (`MADAR_DAY_CAP`) wins when set. `net(env, ent)` gives each request a network port with the email
+  directory of that enterprise. The first run of the day also runs the step `storage`.
 - `status()` gives the status row (`EnterpriseStatus`); the Cron report holds it too (`OfficeCronReport.status`).
 - The socket ticket is `<ent>.<64 hex>` (`LiveTickets(ent)`; the map keeps the bare secret). `acceptLive` compares the tag before it takes the
   ticket. The Worker pads every refusal to `TICKET_REFUSE_MIN_MS`.

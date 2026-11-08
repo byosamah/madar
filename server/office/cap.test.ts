@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capRefusal, DAY_CAP_TTL_MS, dayCapOf } from './cap';
+import { capRefusal, COMPANY_BUSY, DAY_CAP_TTL_MS, dayCapOf } from './cap';
 import { httpOf, nodeOffice } from './test/nodeOffice';
 import { ENT_VADO } from '../enterprise/ids';
 
@@ -24,6 +24,12 @@ describe('the day cap of the test Worker (server/office/cap.ts)', () => {
     expect(capRefusal(day({ rows_written: 100 }), cap, true)?.details).toEqual({ reason: 'busy' });
     expect(capRefusal(day({ rows_written: 100 }), cap, false)).toBeUndefined();
     expect(capRefusal(day({ rows_written: 99 }), cap, true)).toBeUndefined();
+  });
+
+  it('refuses with the busy error that the caller gives (the share of an enterprise)', () => {
+    const refused = capRefusal(day({ requests: 5 }), { requests: 5 }, false, COMPANY_BUSY);
+    expect(refused?.message).toBe('Madar is busy for your company today. It works again at 03:00 Riyadh.');
+    expect(refused?.details).toEqual({ reason: 'busy' });
   });
 
   it('refuses every call over the rows read or the requests', () => {
@@ -67,6 +73,17 @@ describe('the day cap of the test Worker (server/office/cap.ts)', () => {
     expect(capped.body).toContain('busy');
     const forgotCapped = await read.route(httpOf('POST', '/api/auth/forgot', { email: 'a@madar.test' }));
     expect(forgotCapped.body).toContain('busy');
+  });
+
+  it('stops a tool call to /mcp/ at the write stop like /mcp, and lets the OAuth routes under it through', async () => {
+    const t = await nodeOffice({ env: { MADAR_DAY_CAP: 'rows_written=10,rows_read=1000000' } });
+    t.raw.exec(`insert into usage_day (day, rows_written) values ('2026-10-04', 10)`);
+    for (const path of ['/mcp', '/mcp/']) {
+      const stopped = await t.route(httpOf('POST', path, { jsonrpc: '2.0', id: 1, method: 'tools/call' }));
+      expect([path, stopped.status, stopped.body.includes('busy')]).toEqual([path, 503, true]);
+    }
+    const oauth = await t.route(httpOf('GET', '/mcp/.well-known/oauth-authorization-server'));
+    expect(oauth.body).not.toContain('busy');
   });
 
   it('reads the day counts again after one minute, so a new day row takes effect', async () => {

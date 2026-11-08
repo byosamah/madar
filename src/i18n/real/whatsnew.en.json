@@ -3,6 +3,14 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-11-08-161": {
+        "title": "Your company name and logo",
+        "body": "Madar now shows the name and logo of your company."
+      },
+      "2026-11-08-162": {
+        "title": "Company name and logo in Office settings",
+        "body": "Office settings now has rows for your company name and logo."
+      },
       "2026-10-23-137": {
         "title": "See who leads each project on the Schedule",
         "body": "The Schedule of the Dashboard now shows the leader of each project on its row. To see only the projects of one leader, press Filter and pick the leader."

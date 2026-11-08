@@ -1,3 +1,4 @@
+import { PLATFORM_CALL_NAMES } from '../../src/api/contract/platform';
 import { readFileSync } from 'node:fs';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
@@ -197,7 +198,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       'google.connect', 'google.connectStart', 'google.disconnect', 'google.status', 'live.ticket', 'meetings.extend', 'meetings.settle', 'payments.linkInvoice',
       'payments.unlinkInvoice', 'projects.delete', 'push.mine', 'push.register', 'push.remove', 'resources.delete', 'resources.list', 'resources.saveFolder', 'resources.updateFile',
       'session.get',
-    ]);
+      // The platform calls of Madar enterprises (plan C): the Worker runs them for a platform owner only.
+      ...PLATFORM_CALL_NAMES,
+    ].sort());
   });
 
   it('puts every call in exactly one of the allowlist, the Admin list, the right list and the deny list', () => {
@@ -211,7 +214,8 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect([...right].filter((name) => deny.has(name))).toEqual([]);
     // Each listed name is a real call; the only tools with no call are madar.readFirst, pictures.get (owner, 2026-10-21), the two bulk tools and the two upload tools (owner, 2026-10-26).
     expect([...NO_CALL_TOOLS].sort()).toEqual(['feedback.sendWithScreenshots', 'files.uploadContent', READ_FIRST, 'pictures.get', 'tasks.createMany', 'tasks.updateMany']);
-    expect([...allow, ...admin, ...right, ...deny].filter((name) => !NO_CALL_TOOLS.has(name) && !callNames.includes(name))).toEqual([]);
+    // The platform calls are no call of the office: they are the one kind of name on the deny list that callNames does not hold.
+    expect([...allow, ...admin, ...right, ...deny].filter((name) => !NO_CALL_TOOLS.has(name) && !callNames.includes(name) && !(PLATFORM_CALL_NAMES as readonly string[]).includes(name))).toEqual([]);
     expect(deny.size).toBe(MCP_DENY.length);
     expect(admin.size).toBe(3);
     expect(right.size).toBe(30);

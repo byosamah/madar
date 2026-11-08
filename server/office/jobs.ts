@@ -1,5 +1,6 @@
 import { cleanupSignin } from '../auth/own/cleanup';
 import type { Deps } from '../core/ports';
+import { STORAGE_STEP } from '../enterprise/storage';
 import { JOB_STEPS, runJob, type JobReport, type JobStep } from '../jobs/run';
 
 /**
@@ -13,7 +14,8 @@ export const SIGNIN_STEP: JobStep = { name: 'signin', run: (deps, at) => deps.db
 export const firstRunOfDay = (at: Date) => at.getUTCHours() === 0 && at.getUTCMinutes() < 15;
 
 export function officeSteps(at: Date): readonly JobStep[] {
-  return firstRunOfDay(at) ? [...JOB_STEPS, SIGNIN_STEP] : JOB_STEPS;
+  // The first run of the day also repairs the running total of the file bytes (plan C, server/enterprise/storage.ts).
+  return firstRunOfDay(at) ? [...JOB_STEPS, SIGNIN_STEP, STORAGE_STEP] : JOB_STEPS;
 }
 
 export function runOfficeJobs(deps: Deps, at: Date): Promise<JobReport> {

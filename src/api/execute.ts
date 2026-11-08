@@ -57,6 +57,8 @@ function withRightsOf(state: State, user: User): Actor {
  */
 export type ExecuteBase = {
   actorId: string; authorityId: string; correlationId: string; now: Date; persistent: boolean; wireOutput?: boolean; limits?: { maxFileBytes: number };
+  /** Madar enterprises: the enterprise of the object that runs the call. Only the office object knows it. */
+  enterprise?: { id: string; platformOwner: boolean };
 };
 
 /** Runs a call on input that already passed its input check. The output is checked inside the change, so a wrong shape rolls it back. */
@@ -66,6 +68,7 @@ export function executeParsed(def: AnyCall, name: string, parsed: unknown, state
     correlationId: base.correlationId,
     stamp: nowStamp(base.now), today: todayISO(base.now), now: base.now, persistent: base.persistent,
     ...(base.limits ? { limits: base.limits } : {}),
+    ...(base.enterprise ? { enterprise: base.enterprise } : {}),
   }, prepared);
   const output = (base.wireOutput ? (def.wire?.output ?? def.output) : def.output).safeParse(result);
   if (!output.success) throw new ApiError('failed', `The call ${name} returned data in the wrong shape.`, { issues: output.error.issues.length });

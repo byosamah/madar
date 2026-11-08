@@ -8,6 +8,8 @@ export type Ctx = {
   state: State; actor: User; authority: User; correlationId: string; stamp: string; today: string; now: Date; persistent: boolean;
   /** The real build: the limits of the active file store (plan 2b, point 1). The prototype has none. */
   limits?: { maxFileBytes: number };
+  /** The real build (Madar enterprises): the id of the enterprise, and whether the authority is a platform owner. The prototype has none. */
+  enterprise?: { id: string; platformOwner: boolean };
 };
 export type PrepareCtx = {
   state: State; persister: Persister; actor: User; now: Date;
@@ -60,4 +62,11 @@ export interface ServerHooks<I = unknown, P = unknown, D = unknown> {
    * A read call takes no lock and has no prepare: runCall passes the preflight value as "prepared".
    */
   prepare?(input: I, ctx: HookCtx<D> & { q: HookQuery }, preflight: unknown): Promise<P>;
+  /**
+   * After the write transaction ended, outside the lock (Madar enterprises, plan C): the call committed (ok, also a replay of an idempotency key)
+   * or it did not (any throw, the guard stop of an agent too). The preflight value comes back, so a hook can undo what its preflight did
+   * (an email reserved in the directory). A throw here is logged and never changes the answer. A read call runs no settle.
+   * replayed is true when the answer comes from the stored result of an idempotency key: this run wrote nothing.
+   */
+  settle?(input: I, ctx: HookCtx<D>, preflight: unknown, outcome: { ok: true; output: unknown; replayed?: boolean } | { ok: false }): Promise<void>;
 }

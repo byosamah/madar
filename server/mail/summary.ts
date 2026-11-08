@@ -12,6 +12,7 @@ import { readLiteOffice } from '../data/lite/office';
 import { USER_MAIL_SQL, appLink, litePerson, mailOf, mailable, sendWarned, type PersonRow } from './notices';
 import { groupOpenTasks, weekEndOf, type OpenTask, type SummaryTasks } from './summaryTasks';
 import { renderMail } from './templates';
+import { mailOptionsOf } from '../enterprise/brand';
 
 /**
  * The morning summary (plan 5.4, 5.5; task N2.2; fbk_021). On a working day at 07:30 Riyadh, the 15-minute job (track N3) sends each
@@ -236,7 +237,7 @@ export async function sendSummary(deps: Deps, userId: string, today: string): Pr
   const rendered = renderMail(
     'summary', person.preferences.language,
     { ...morning.tasks, reviewsWaiting: morning.reviewsWaiting, link: appLink(deps.config.appUrl, '/work') },
-    { reader: person.gender ?? undefined }, { appUrl: deps.config.appUrl },
+    { reader: person.gender ?? undefined }, await mailOptionsOf(deps, person.preferences.language),
   );
   const result = await sendWarned(deps, 'summary', mailOf(person.email, rendered, 'summary', `summary-${today}-${userId}`), userId);
   return result.status;

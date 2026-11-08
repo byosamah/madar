@@ -16,15 +16,16 @@ const read = { i: 0, name: 'tasks.list', input: { scope: 'mine' } };
 describe('the tables of an export (server/office/ops.ts)', () => {
   it('takes every table of the schema but the snapshot, the version row and the enterprise identity', () => {
     const all = liteSchemaSql().flatMap((text) => /^create table (\w+) /.exec(text)?.[1] ?? []);
-    expect([...EXPORT_TABLES].sort()).toEqual(all.filter((t) => t !== 'office_snapshot' && t !== 'schema_version' && t !== 'enterprise').sort());
+    expect([...EXPORT_TABLES].sort()).toEqual(all.filter((t) => t !== 'office_snapshot' && t !== 'schema_version' && t !== 'enterprise' && t !== 'enterprise_use').sort());
   });
 
   it('an export lists no enterprise table', () => {
     expect(EXPORT_TABLES).not.toContain('enterprise');
+    expect(EXPORT_TABLES).not.toContain('enterprise_use');
   });
 
   it('knows the tables whose integer primary key is the rowid', () => {
-    expect(Object.fromEntries(ROWID_ALIAS)).toEqual({ office_meta: 'id', office_snapshot: 'part', outbox: 'id', mail_log: 'id', mail_outbox: 'id', schema_version: 'id' });
+    expect(Object.fromEntries(ROWID_ALIAS)).toEqual({ office_meta: 'id', office_snapshot: 'part', outbox: 'id', mail_log: 'id', mail_outbox: 'id', schema_version: 'id', enterprise_use: 'id' });
   });
 
   it('names only tables of the export as drift tables', () => {

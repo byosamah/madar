@@ -255,3 +255,23 @@ describe('the consent screen for a role without Connect AI assistants (role righ
     expect(await screen.findByRole('alert')).toHaveTextContent('أوقف المدير المساعدين الذكيين لدورك.');
   });
 });
+
+describe('the consent screen names the company (Madar enterprises, plan C)', () => {
+  const withCompany = () => tools({ details: { kind: 'ask', request: { authorizationId: 'auth-1', clientId: 'c1', clientName: 'Claude Code', redirectUri: LOOPBACK, enterprise: { name: 'Acme Co', nameAr: 'أكمي' } } } });
+
+  it('shows "Allow <app> to act for you in <name>?" when the Admin set a name', async () => {
+    await open({ tools: withCompany() });
+    expect(await screen.findByRole('heading', { name: 'Allow Claude Code to act for you in Acme Co?' })).toBeInTheDocument();
+  });
+
+  it('shows the Arabic name on the Arabic screen', async () => {
+    await open({ tools: withCompany(), language: 'ar' });
+    expect(await screen.findByRole('heading', { name: 'هل تسمح لـ Claude Code أن يعمل باسمك في أكمي؟' })).toBeInTheDocument();
+  });
+
+  it('keeps the old title when there is no company name', async () => {
+    await open();
+    expect(await screen.findByRole('heading', { name: 'Connect Claude Code to Madar?' })).toBeInTheDocument();
+  });
+});
+

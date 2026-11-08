@@ -1,5 +1,5 @@
 import { isPushEndpoint } from '../../src/api/contract/push';
-import type { Config, FileStoreKind, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
+import type { Config, DirectoryPort, FileStoreKind, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
 import { DAFTRA_API_PREFIX, DAFTRA_TIMEOUT_MS } from '../daftra/client';
 import { ENT_VADO, type EnterpriseId } from '../enterprise/ids';
 import { guardFilesPort } from '../files/guard';
@@ -38,6 +38,9 @@ export interface NetApi {
   googleFetch(req: NetHttpRequest): Promise<NetAnswer<NetHttpReply>>;
   /** One Daftra GET. The object sends the address only: the Worker adds the key of the account, so the key never crosses to the object. */
   daftraGet(req: { url: string }): Promise<NetAnswer<NetHttpReply>>;
+  /** The email directory of the platform object, for the enterprise of this call (the Worker binds it). A net with no directory answers a failure. */
+  directoryReserve(email: string): Promise<NetAnswer<'ok' | 'taken'>>;
+  directoryRelease(email: string): Promise<NetAnswer<null>>;
 }
 
 /** The fields of an error that a caller on the other side reads. */
@@ -173,7 +176,7 @@ export class NetBudgetSpent extends Error {
 export const NET_IN_TRANSACTION = 'The office object makes no network call inside a transaction: the transaction holds every other request.';
 
 export type NetGuard = { open(): boolean; now(): Date };
-export type NetPorts = { files: FilesPort; mail: MailPort; pushFetch: typeof globalThis.fetch; googleFetch: typeof globalThis.fetch; daftraFetch: typeof globalThis.fetch; used(): number };
+export type NetPorts = { files: FilesPort; mail: MailPort; directory: DirectoryPort; pushFetch: typeof globalThis.fetch; googleFetch: typeof globalThis.fetch; daftraFetch: typeof globalThis.fetch; used(): number };
 
 export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind; maxFileBytes: number; ent?: EnterpriseId }): NetPorts {
   let used = 0;
@@ -224,5 +227,12 @@ export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind;
     const reply = await call(true, () => net.daftraGet({ url: String(input) }));
     return new Response(reply.body === '' ? null : reply.body, { status: reply.status });
   }) as typeof globalThis.fetch;
-  return { files: guarded, mail, pushFetch, googleFetch, daftraFetch, used: () => used };
+  // The email directory (plan C): each call counts in the budget and refuses inside a transaction, like every network call.
+  const directory: DirectoryPort = {
+    reserve: (email) => call(true, () => net.directoryReserve(email)),
+    release: async (email) => {
+      await call(true, () => net.directoryRelease(email));
+    },
+  };
+  return { files: guarded, mail, directory, pushFetch, googleFetch, daftraFetch, used: () => used };
 }

@@ -144,6 +144,14 @@ describe('what a record holds', () => {
     expect(fingerprintOf(session('member', ['a']))).not.toBe(base);
     expect(fingerprintOf({ ...session(), user: { ...session().user, roleId: 'rol_9' } })).not.toBe(base);
   });
+
+  it('changes the fingerprint for another enterprise with the same person (Madar enterprises)', () => {
+    const one = { ...session('member', ['a']), enterprise: { id: 'ent_001' } };
+    const two = { ...session('member', ['a']), enterprise: { id: 'ent_002' } };
+    expect(fingerprintOf(one)).not.toBe(fingerprintOf(two));
+    expect(fingerprintOf(one)).toBe(fingerprintOf({ ...one }));
+    expect(fingerprintOf(session('member', ['a']))).not.toBe(fingerprintOf(one));
+  });
 });
 
 describe('the write', () => {

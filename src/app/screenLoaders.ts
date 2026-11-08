@@ -32,4 +32,5 @@ export const LOADERS = {
   forgot: () => import('../features/auth/ForgotScreen').then((m) => m.ForgotScreen),
   reset: () => import('../features/auth/ResetScreen').then((m) => m.ResetScreen),
   consent: () => import('../features/oauth/ConsentScreen').then((m) => m.ConsentScreen),
+  enterprises: () => import('../features/enterprises/EnterprisesScreen').then((m) => m.EnterprisesScreen),
 } satisfies Record<string, () => Promise<ComponentType>>;

@@ -9,17 +9,21 @@ import { checkBuild, parseBatch, readBody } from '../http/limits';
 import { JOBS_SECRET_HEADER, sameSecret } from '../jobs/app';
 import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSE_MIN_MS, TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
-import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn } from '../office/ops';
+import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn, writesIn } from '../office/ops';
 import { CRON_PATH, runFanout, selfTransport, type FanoutLeg, type FanoutTransport } from '../enterprise/fanout';
 import { utcDay } from '../mail/quota';
 import { firstRunOfDay } from '../office/jobs';
 import { ENT_VADO, isEnterpriseId, untag, type EnterpriseId } from '../enterprise/ids';
 import { OwnersBodyShape, RegisterBodyShape } from '../enterprise/shapes';
+import { accountGate } from '../enterprise/accountGate';
+import { logoResponse } from '../enterprise/logoRoute';
 import { padTo } from '../enterprise/pad';
+import { platformRoute } from '../enterprise/platform/route';
+import { writeOwners } from '../enterprise/platform/owners';
 import type { PlatformStub } from '../enterprise/platform/stub';
-import { entRouter, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
+import { entRouter, isMcpToolPath, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
 import { challengeOf } from '../mcp/metadata';
-import type { EnterpriseStatus } from '../enterprise/types';
+import type { EnterpriseInit, EnterpriseLimits, EnterpriseState, EnterpriseStatus } from '../enterprise/types';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
 import { runInHost } from '../core/after';
@@ -105,6 +109,14 @@ export type OfficeStub = {
   mcp(input: OfficeMcpInput, net: NetApi): Promise<OfficeMcpAnswer>;
   health(): Promise<OfficeHealth>;
   status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus>;
+  init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>>;
+  setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void>;
+  setLimits(input: { ent: EnterpriseId; limits: EnterpriseLimits }): Promise<void>;
+  setIdentity(input: { ent: EnterpriseId; name?: string; nameAr?: string; logo?: string | null }): Promise<void>;
+  setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
+  person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
+  reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>>;
+  brand(input: { ent: EnterpriseId }): Promise<{ name: string; nameAr: string; logo: string | null }>;
   fetch(request: Request): Promise<Response>;
 };
 
@@ -123,8 +135,11 @@ export type OfficeRoutesOptions = {
   stubFor: (env: Env, ent: EnterpriseId) => OfficeStub;
   /** The one platform object. */
   platform: (env: Env) => PlatformStub;
-  /** A new network port for the object of this enterprise. The id comes from the Worker; the file port of the port works inside its key folder. */
-  net: (ent: EnterpriseId) => NetApi;
+  /**
+   * A new network port for the object of one enterprise. The id comes from the Worker, never from the object: the file port works inside
+   * its key folder (plan D), and the port carries the email directory of that enterprise (plan C).
+   */
+  net: (env: Env, ent: EnterpriseId) => NetApi;
   jobsSecret: () => string | undefined;
   /** More routes under /api (the own sign-in, server/entries/officeSignin.ts), as apiApp takes AppOptions.routes. */
   routes?: OfficeRoute[];
@@ -172,6 +187,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   const listedCache = newListedCache();
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const routerOf = (env: Env): EntRouter => entRouter({ stubFor: (ent) => o.stubFor(env, ent), platform: o.platform(env), cache: listedCache });
+  // The account gate (plan C): at 90 percent of a free day limit, every enterprise but ENT_VADO gets the busy answer. batch and mcp only.
+  const accountCap = accountGate<Env>({ platform: o.platform, now: () => o.deps.clock.now() });
   let seen = 0;
   const reported = (): number => {
     const n = seen;
@@ -197,7 +214,9 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       if (!(error instanceof ApiError)) log.error('The batch failed before its calls.', { error: error instanceof Error ? error.message : String(error) });
       return errorResponse(runErrorOf(error));
     }
-    const net = o.net(ent);
+    const stopped = await accountCap(env, ent, writesIn(calls));
+    if (stopped) return errorResponse(stopped);
+    const net = o.net(env, ent);
     const stub = routerOf(env).stub(ent);
     let out: OfficeBatchOutput;
     try {
@@ -247,7 +266,10 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const forward = new URL(request.url);
     forward.pathname = parsed.rest;
     const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
-    const net = o.net(target.ent);
+    // A tool call of MCP (the path /mcp) carries work; the OAuth routes under it do not (design 5.14).
+    const stopped = await accountCap(env, target.ent, isMcpToolPath(parsed.rest));
+    if (stopped) return mcpError(503, stopped.message, 'busy');
+    const net = o.net(env, target.ent);
     let out: OfficeMcpAnswer;
     try {
       out = await target.stub.mcp({ ent: target.ent, mcpUrl, url: forward.toString(), method: request.method, headers, body, worker: reported() }, net);
@@ -330,7 +352,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const { ent, stub } = target;
     seen += 1;
     try {
-      const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net(ent));
+      const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net(env, ent));
       log.info('The office jobs ran.', { ent, ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed });
       await platform.report(report.status);
       await platform.meter({ ent, day: utcDay(at), counts: report.status.day });
@@ -371,7 +393,9 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       } else {
         const parsed = OwnersBodyShape.safeParse(value);
         if (!parsed.success) return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body is { owners: [{ ent, userId }] }.')));
-        await platform.setOwners(parsed.data);
+        // The master list in the platform object, and the copy in each enterprise object (plan C): session.get shows platformOwner from the copy.
+        const router = routerOf(env);
+        await writeOwners({ platform, office: (ent) => router.stub(ent), log }, parsed.data.owners);
       }
       return Response.json({ ok: true });
     } catch (error) {
@@ -468,14 +492,19 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   app.all('/mcp', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.all('/mcp/*', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.get('/api/health', (c) => health(c.req.raw, c.env));
+  // The logo of an enterprise for the mail header: public, the same 404 for every miss (plan C, Task 16).
+  app.get('/api/enterprise-logo/:ent', (c) => logoResponse(routerOf(c.env), c.req.param('ent')));
   app.all(CRON_PATH, (c) => cronLeg(c.req.raw, c.env));
   app.all('/api/internal/probe/fanout', (c) => probe(c.req.raw, c.env, 'fanout'));
   app.all('/api/internal/probe/leg', (c) => probe(c.req.raw, c.env, 'leg'));
   app.post('/api/batch', (c) => batch(c.req.raw, c.env, afterOf(c)));
+  // The platform calls (plan C): the office path only. The route checks the token and the owner before it reads anything else.
+  const platformCall = platformRoute({ deps: o.deps, verifyToken: o.verifyToken, stubFor: o.stubFor, platform: o.platform, net: o.net });
+  app.post('/api/platform', (c) => platformCall(c.req.raw, c.env, afterOf(c)));
   for (const route of o.routes ?? []) {
     app.on(route.method, `/api${route.path}`, (c) => {
       const after = afterOf(c);
-      return route.handler(c.req.raw, { router: routerOf(c.env), platform: o.platform(c.env), net: o.net, ...(after ? { after } : {}) });
+      return route.handler(c.req.raw, { router: routerOf(c.env), platform: o.platform(c.env), net: (ent) => o.net(c.env, ent), ...(after ? { after } : {}) });
     });
   }
   app.notFound(() => errorResponse({ code: 'not_found', message: 'This address does not exist.' }));
@@ -506,7 +535,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       const platform = o.platform(env);
       let ids: EnterpriseId[];
       try {
-        ids = await platform.listed();
+        // Only the active enterprises get a job: a paused one sends no mail and no push (design 5.8).
+        ids = await platform.activeIds();
       } catch (error) {
         log.error('The list of enterprises did not load. The next run tries again.', { error: error instanceof Error ? error.message : String(error) });
         return undefined;

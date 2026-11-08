@@ -2,6 +2,7 @@ import { ApiError } from '../../../../src/api/errors';
 import { emptyState } from '../../../../src/api/store';
 import { consoleLogger } from '../../../core/deps';
 import { officeRoutes, type OfficeStub } from '../../../entries/officeWorker';
+import { directoryOf } from '../../../enterprise/directory';
 import { ENT_VADO, PLATFORM_OBJECT, VADO_ADDRESS } from '../../../enterprise/ids';
 import type { PlatformStub } from '../../../enterprise/platform/stub';
 import { setEnvSource } from '../../../env';
@@ -49,7 +50,7 @@ const routes = officeRoutes({
   stubFor: (env, ent) => stubOf(env as Env, ent),
   platform: (env) => platformOf(env as Env),
   // The two secrets of this test Worker (harness.ts sends them). The ops name an object by its name through stubFor.
-  net: (ent) => new WorkerNet({ ent, files, mail, fetch: portFetch, daftra: OUTSIDE_DAFTRA }),
+  net: (env, ent) => new WorkerNet({ ent, files, mail, fetch: portFetch, daftra: OUTSIDE_DAFTRA, directory: directoryOf(platformOf(env as Env), ent) }),
   jobsSecret: () => 'test-jobs-secret',
   // The Cron legs go straight into the routes of the same isolate (the real Worker calls itself through the binding SELF).
   fanout: (env) => async (leg) => routes.fetch(new Request('https://self.internal/api/internal/cron', { method: 'POST', headers: { 'x-madar-jobs-secret': 'test-jobs-secret' }, body: JSON.stringify(leg) }), env, { waitUntil: () => undefined }),
