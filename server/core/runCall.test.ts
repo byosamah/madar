@@ -5,6 +5,9 @@ import { defineCall, type AnyCall } from '../../src/api/registry';
 import { sharedCalls } from '../../src/api/sharedCalls';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
+import { usageAllowed } from '../../src/lib/enterprise';
+import { EnterpriseFacts } from '../enterprise/facts';
+import { ENT_VADO } from '../enterprise/ids';
 import { nowStamp } from '../../src/lib/dates';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
 import { runInHost } from './after';
@@ -682,4 +685,55 @@ describe('runCall: every call once on the sample office (task C3, done when)', (
     // Every call runs its rule to the end, except the named refusals: the 3 hooks not built yet and a few rules of the office.
     expect(Object.fromEntries(Object.entries(outcomes).filter(([, o]) => o !== 'ok'))).toEqual(EXPECTED_REFUSALS);
   }, 30_000);
+});
+
+describe('runCall: the enterprise in session.get (Madar enterprises, design 5.20)', () => {
+  type Session = { enterprise?: { id: string; name: string; nameAr: string; logo: string | null }; platformOwner?: boolean };
+  const session = async (s: Setup, userId = ADMIN) => okOutput<Session>(await s.call(userId, 'session.get', {}));
+
+  it('on the Postgres path (no facts) gives the enterprise ent_001, so the usage rule of the screens allows usage', async () => {
+    const s = setup();
+    expect(s.deps.enterprise).toBeUndefined();
+    const out = await session(s);
+    expect(out.enterprise?.id).toBe(ENT_VADO);
+    expect(usageAllowed(out.enterprise?.id)).toBe(true);
+    // The sample office sets no name: the header keeps today's look (the product name, no logo).
+    expect(out.enterprise).toEqual({ id: ENT_VADO, name: 'Madar', nameAr: 'مدار', logo: null });
+  });
+
+  it('on the Postgres path gives the name fields that Settings holds, and no platform owner flag for any person', async () => {
+    const s = setup();
+    s.edit((state) => {
+      state.settings.enterpriseName = 'Acme Co';
+      state.settings.enterpriseNameAr = 'أكمي';
+    });
+    for (const userId of [ADMIN, 'usr_003']) {
+      const out = await session(s, userId);
+      expect(out.enterprise).toEqual({ id: ENT_VADO, name: 'Acme Co', nameAr: 'أكمي', logo: null });
+      expect(out).not.toHaveProperty('platformOwner');
+    }
+  });
+
+  it('on the office path gives the id of its own object, and the platform owner flag from its facts', async () => {
+    const s = setup();
+    const facts = new EnterpriseFacts();
+    await facts.load({ statement: async () => [] }, { id: 'ent_002', state: 'active', limits: { people: null, storageBytes: null } });
+    facts.set({ owners: [ADMIN] });
+    s.deps.enterprise = facts;
+    const owner = await session(s);
+    expect(owner.enterprise?.id).toBe('ent_002');
+    expect(usageAllowed(owner.enterprise?.id)).toBe(false);
+    expect(owner.platformOwner).toBe(true);
+    const other = await session(s, 'usr_003');
+    expect(other.enterprise?.id).toBe('ent_002');
+    expect(other).not.toHaveProperty('platformOwner');
+  });
+
+  it('on the office path with no identity row (facts without an id) gives no enterprise, as before', async () => {
+    const s = setup();
+    const facts = new EnterpriseFacts();
+    await facts.load({ statement: async () => [] }, null);
+    s.deps.enterprise = facts;
+    expect(await session(s)).not.toHaveProperty('enterprise');
+  });
 });

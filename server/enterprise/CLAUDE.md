@@ -179,3 +179,4 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
 
 ## Review fixes (plan D, after the review)
 - `mailReserve` refuses a ref that does not start with `<ent>:` of the call (`invalid_input`, no place, no enterprise named in the text). It looks a ref up with the `ent` too, and the insert has no `on conflict`, so a row of another enterprise under the same ref makes the call fail and the mail stops.
+- `session.get` on the Postgres path (no `Deps.enterprise`) gives `enterprise.id` `ENT_VADO` and never `platformOwner` (`baseOf` in `server/core/runCall.ts`, design 5.20). The name fields come from Settings; an absent name stays `Madar`, so the header looks as before. An office object whose facts have no identity row still gives no enterprise. Tests: `server/core/runCall.test.ts`.

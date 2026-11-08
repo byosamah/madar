@@ -15,7 +15,7 @@ The owner sees how the team uses Madar, which errors they hit and replays of the
 - Madar enterprises (design 5.16): usage events and screen replays go to PostHog for VADOs' Companies only (`usageAllowed`, `src/lib/enterprise.ts`;
   `VADO_ENTERPRISE` equals `ENT_VADO`, pinned by a server test). The enterprise id comes from the `session.get` answer (`enterprise.id`, read by
   `personOf` in `index.ts` into `InsightPerson.ent`). The lazy client (`createInsightClient`) starts nothing, not even PostHog, until that answer is in the
-  cache. A session that names no enterprise counts as "not allowed" (the rule fails closed). An answer older than the last sign-out is not taken for the next person.
+  cache. A session that names no enterprise counts as "not allowed" (the rule fails closed). The Postgres path (production and the test copy while `config/server-host.json` says supabase) answers `ent_001`, so VADO usage data and replays go on there. An answer older than the last sign-out is not taken for the next person.
   `posthogOptions` takes a required `usage: () => boolean`. With false, `before_send` drops every record except `$exception`, the recorder stops, and the screen
   watcher (`watchRoutes`) does not start. The call watcher stays on, because it reports the bugs of a call as error records. An `$exception` of another enterprise
   gets `ent` and `personId` and never `personName`. Every record of a person with an enterprise gets the property `ent`. `index.ts` is in the first load: keep the
