@@ -143,7 +143,7 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
 
   it('answers the Google callback with finish, the code and the state, and calls no object', async () => {
     const { deps, seen, routes, net } = setup({ google: true });
-    const { state } = await signState(await googleKeysOf(GOOGLE_KEY), 'usr_001', deps.clock.now());
+    const { state } = await signState(await googleKeysOf(GOOGLE_KEY), 'usr_001', deps.clock.now(), 'ent_001');
     const answer = await routes.fetch(new Request(`https://madar-server.internal/api/google/callback?code=code-SECRET&state=${encodeURIComponent(state)}`), {});
     expect([answer.status, answer.headers.get('location'), answer.headers.get('cache-control'), answer.headers.get('referrer-policy')]).toEqual([
       302, `http://127.0.0.1:5173/settings#google=finish&code=code-SECRET&state=${encodeURIComponent(state)}`, 'no-store', 'no-referrer',
@@ -157,10 +157,23 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     expect(log).not.toContain(state);
   });
 
+  it('finishes a Google state of a listed enterprise, and answers failed for an unlisted one, with no object call and no key made for it', async () => {
+    const callback = async (ent: string) => {
+      const { deps, seen, routes } = setup({ google: true });
+      const { state } = await signState(await googleKeysOf(GOOGLE_KEY, ent), 'usr_001', deps.clock.now(), ent);
+      const answer = await routes.fetch(new Request(`https://madar-server.internal/api/google/callback?code=code-SECRET&state=${encodeURIComponent(state)}`), {});
+      expect(seen.signins).toEqual([]);
+      return answer.headers.get('location');
+    };
+    expect(await callback('ent_002')).toContain('#google=finish&code=code-SECRET');
+    // ent_009 has a true signature of its own keys, but the platform object does not list it.
+    expect(await callback('ent_009')).toBe('http://127.0.0.1:5173/settings#google=failed');
+  });
+
   it('answers old, failed, denied and not_ready with one word, and no object call', async () => {
     const callback = async (o: { google: boolean; query: (state: string) => string; late?: boolean }) => {
       const { deps, seen, routes } = setup({ google: o.google });
-      const { state } = await signState(await googleKeysOf(GOOGLE_KEY), 'usr_001', deps.clock.now());
+      const { state } = await signState(await googleKeysOf(GOOGLE_KEY), 'usr_001', deps.clock.now(), 'ent_001');
       if (o.late) deps.clock.advance(STATE_LIFE_MS + 1000);
       const answer = await routes.fetch(new Request(`https://madar-server.internal/api/google/callback?${o.query(encodeURIComponent(state))}`), {});
       expect(seen.signins).toEqual([]);

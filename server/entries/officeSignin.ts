@@ -2,6 +2,7 @@ import { normalizeEmail, untag, type EnterpriseId } from '../enterprise/ids';
 import { padTo } from '../enterprise/pad';
 import type { EntStub } from '../enterprise/router';
 import type { JSONWebKeySet } from 'jose';
+import { googleCallback, GOOGLE_CALLBACK_PATH } from '../google/callback';
 import { CLIENT_ADDRESS_HEADER, FORGOT_MIN_MS, FORGOT_PATH, ForgotBody, tooMany as forgotTooMany } from '../auth/forgot';
 import type { OpInput, OpOutput, OpResult, SigninOffice, SigninOpName } from '../auth/own/office';
 import { ownApiRoutes } from '../auth/own/routes';
@@ -173,6 +174,11 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
   return routesOf(NO_OFFICE).map((route): OfficeRoute => {
     if (route.method === 'POST' && route.path === FORGOT_PATH) return mailRoute('forgot', route.path, o.minMs?.forgot ?? FORGOT_MIN_MS);
     if (route.method === 'POST' && route.path === RENEW_PATH) return mailRoute('renew', route.path, o.minMs?.renew ?? RENEW_MIN_MS);
+    // The Google callback (Madar enterprises, design 5.17): the state names its enterprise, and the Worker accepts only a listed one. An
+    // unlisted id derives no key. The callback calls no object and reads no database.
+    if (route.method === 'GET' && route.path === GOOGLE_CALLBACK_PATH) {
+      return { method: route.method, path: route.path, handler: (request, call) => googleCallback(request, o.deps, { listed: async (ent) => (await call.router.listedStub(ent)) !== null }) };
+    }
     // The routes of the own steps read no deps: each one sends its step to the office object of the request. The Google callback reads
     // no database and calls no object: it runs here, in the Worker, with the Worker deps (server/google/callback.ts).
     return { method: route.method, path: route.path, handler: (request, call) => routesOf(enterpriseSigninOffice(call)).find(same(route))!.handler(request, o.deps) };

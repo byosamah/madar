@@ -7,6 +7,7 @@ import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
 import { digestOf, replay, sqlKeys, type StoredResult } from '../core/idempotency';
 import { takeOfficeLock } from '../core/lock';
 import type { Deps } from '../core/ports';
+import { entOfConfig } from '../enterprise/scope';
 import type { ServerCall, ServerCallCtx } from '../core/types';
 import { authUrl, exchangeCode, getCalendar, GOOGLE_CONNECT_BUDGET_MS, GOOGLE_CONNECT_CALL_MS, GOOGLE_SCOPE, GoogleError, makeCalendar, revokeToken, type GoogleClient } from '../google/api';
 import { googleOf, type GoogleReady } from '../google/client';
@@ -100,7 +101,7 @@ export const googleStatus: ServerCall<'google.status'> = async (_input, ctx) => 
 export const googleConnectStart: ServerCall<'google.connectStart'> = async (_input, ctx) => {
   const person = personOf(ctx, 'google.connectStart');
   const ready = readyOf(ctx.deps);
-  const { state, challenge } = await signState(await ready.keys(), person.id, ctx.now);
+  const { state, challenge } = await signState(await ready.keys(), person.id, ctx.now, entOfConfig(ctx.deps.config));
   return { output: { url: authUrl(ready.client, { state, challenge, loginHint: person.email }) }, changed: false };
 };
 
@@ -167,7 +168,8 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
   }
 
   const read = await readState(await ready.keys(), input.state, ctx.now);
-  if (!read.ok) throw linkOld();
+  // A state of another enterprise fails the signature already (the keys differ). The compare is the second wall; it answers as an old link.
+  if (!read.ok || read.ent !== entOfConfig(deps.config)) throw linkOld();
   if (read.userId !== actorId) throw forbidden('This Google step belongs to another Madar sign-in.', { action: 'google.connect', reason: 'google_link_person' });
 
   // The calendar that Madar made for this person at an earlier connect. It is read before the code swap, so a failure here uses no code and

@@ -98,7 +98,7 @@ describe('the log', () => {
     // the callback, with the code and the state in the query
     const deps = fakeDeps({ config: { appUrl: 'https://madar.example', google: GOOGLE_CONFIG } });
     deps.clock.set(new Date('2026-10-21T06:00:00Z'));
-    const good = (await signState(await googleKeysOf(GOOGLE_KEY), 'usr_003', deps.clock.now())).state;
+    const good = (await signState(await googleKeysOf(GOOGLE_KEY), 'usr_003', deps.clock.now(), 'ent_001')).state;
     await googleCallback(new Request(`https://madar.example/api/google/callback?code=code-SECRET&state=${good}`), deps);
     const lines = [...t.deps.logs, ...deps.logs];
     expect(lines.length).toBeGreaterThan(0);
