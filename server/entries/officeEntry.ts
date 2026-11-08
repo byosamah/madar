@@ -69,7 +69,7 @@ export function officeEntry() {
       verifyToken: verifyBrowserToken,
       stubFor,
       platform: platformStub,
-      net: () => new WorkerNet({ files: deps.files, mail: deps.mail, ...(deps.config.daftra ? { daftra: deps.config.daftra } : {}) }),
+      net: (ent) => new WorkerNet({ ent, files: deps.files, mail: deps.mail, ...(deps.config.daftra ? { daftra: deps.config.daftra } : {}) }),
       jobsSecret: () => values.jobsSecret,
       exportSecret: () => readEnv('MADAR_EXPORT_SECRET'),
       opsSecret: () => readEnv('MADAR_OPS_SECRET'),

@@ -120,7 +120,6 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
       }
       // The address that the Pages Function wrote (clientAddress on the Workers host).
       const address = request.headers.get(CLIENT_ADDRESS_HEADER)?.trim() || 'unknown';
-      const net = call.net();
       let answer: OfficeMailAnswer;
       let target: EntStub | null = null;
       let sent = body;
@@ -152,7 +151,7 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
           }
           // addressChecked: the address is counted above, in the platform object. It is on the RPC input only, never from the request body.
           answer = target
-            ? await target.stub.mailRoute({ ent: target.ent, route, body: sent, address, addressChecked: true }, net)
+            ? await target.stub.mailRoute({ ent: target.ent, route, body: sent, address, addressChecked: true }, call.net(target.ent))
             : await call.platform.refuseMail({ route, body, address, addressChecked: true });
         }
       } catch (error) {
@@ -160,7 +159,7 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
       }
       if (answer.work !== undefined && target) {
         const { stub, ent } = target;
-        const work = stub.mailWork({ ent, route, value: answer.work }, net).catch((error: unknown) => {
+        const work = stub.mailWork({ ent, route, value: answer.work }, call.net(ent)).catch((error: unknown) => {
           o.deps.log.warn(route === 'forgot' ? 'A reset mail did not go out.' : 'A renewed invitation did not go out.', { error: error instanceof Error ? error.message : String(error) });
         });
         if (call.after) call.after(work);

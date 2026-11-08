@@ -1,5 +1,7 @@
 import { RpcTarget } from 'cloudflare:workers';
 import type { Config, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
+import { ENT_VADO, type EnterpriseId } from '../enterprise/ids';
+import { guardFilesPort } from '../files/guard';
 import { answerOf, daftraRequest, googleRequest, postPush, type NetAnswer, type NetApi, type NetHttpReply, type NetHttpRequest } from './net';
 
 /**
@@ -13,10 +15,15 @@ export class WorkerNet extends RpcTarget implements NetApi {
   readonly #google: ReturnType<typeof googleRequest>;
   readonly #daftra: ReturnType<typeof daftraRequest> | null;
 
-  /** `daftra`: the Daftra accounts of the Worker. The keys stay here. */
-  constructor(o: { files: FilesPort; mail: MailPort; fetch?: typeof globalThis.fetch; daftra?: NonNullable<Config['daftra']> }) {
+  /**
+   * `daftra`: the Daftra accounts of the Worker. The keys stay here.
+   * `ent`: the enterprise of the object that this port serves, from the Worker (the token claim, the tag or the address), never from the
+   * object. The file port works inside the key folder of this enterprise (guardFilesPort). With no `ent` it works inside the folder of
+   * ENT_VADO, so a caller that forgets it is refused for the keys of any other enterprise.
+   */
+  constructor(o: { files: FilesPort; mail: MailPort; fetch?: typeof globalThis.fetch; daftra?: NonNullable<Config['daftra']>; ent?: EnterpriseId }) {
     super();
-    this.#files = o.files;
+    this.#files = guardFilesPort(o.files, o.ent ?? ENT_VADO);
     this.#mail = o.mail;
     const run = o.fetch ?? ((input, init) => fetch(input, init));
     this.#post = postPush(run);

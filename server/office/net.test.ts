@@ -23,6 +23,21 @@ describe('the network port of the office object (server/office/net.ts)', () => {
     expect(net.calls).toEqual(['presignGet files/a', 'head files/a']);
   });
 
+  it('works inside the key folder of its enterprise: it refuses a key of another folder before the Worker and before the budget', async () => {
+    const net = recordingNet();
+    const two = netPorts(net, { guard: closed, kind: 'r2', maxFileBytes: 100, ent: 'ent_002' });
+    await expect(two.files.presignGet('prj-001/fil-001/1/file', { disposition: 'inline', filename: 'a.png', mimeType: 'image/png' })).rejects.toThrow('The file key is not valid.');
+    await expect(two.files.copy('e/ent-002/up/x/file', 'e/ent-003/prj-001/x/file')).rejects.toThrow('The file key is not valid.');
+    await expect(two.files.remove(['e/ent-002/up/x/file', 'prj-001/x/file'])).rejects.toThrow('The file key is not valid.');
+    expect(net.calls).toEqual([]);
+    expect(two.used()).toBe(0);
+    await two.files.head('e/ent-002/prj-001/fil-001/1/file');
+    expect(net.calls).toEqual(['head e/ent-002/prj-001/fil-001/1/file']);
+    // No enterprise given: the folder of ENT_VADO, so the keys of another enterprise never pass.
+    const none = netPorts(recordingNet(), { guard: closed, kind: 'r2', maxFileBytes: 100 });
+    await expect(none.files.head('e/ent-002/prj-001/fil-001/1/file')).rejects.toThrow('The file key is not valid.');
+  });
+
   it('refuses a network call while a transaction is open, before it reaches the Worker', async () => {
     const net = recordingNet();
     const ports = netPorts(net, { guard: { open: () => true, now: () => NOW }, kind: 'r2', maxFileBytes: 100 });

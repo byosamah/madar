@@ -136,10 +136,13 @@ describe('the office parts (server/office/parts.ts)', () => {
   });
 
   it('gives the network call of a file link to the Worker port', async () => {
-    const { net, batch } = await office();
+    // The seed keys are prototype keys (blob_...). The file port refuses a key without the key form (Madar enterprises), as the stores do.
+    const { net, batch } = await office((seed) => {
+      for (const version of seed.files.fil_001.versions) version.blobKey = 'prj-001/fil-001/1/file';
+    });
     const { answer } = ok(await batch('usr_001', [{ name: 'files.link', input: { id: 'fil_001', variant: 'full', disposition: 'inline' } }]));
-    expect(answer.results[0]).toMatchObject({ ok: true, output: { url: 'https://files.test/get/blob_seed_001' } });
-    expect(net.calls).toEqual(['presignGet blob_seed_001']);
+    expect(answer.results[0]).toMatchObject({ ok: true, output: { url: 'https://files.test/get/prj-001/fil-001/1/file' } });
+    expect(net.calls).toEqual(['presignGet prj-001/fil-001/1/file']);
   });
 
   it('adds the counts of the batch to the day row in its write', async () => {

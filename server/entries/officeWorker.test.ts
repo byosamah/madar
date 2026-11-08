@@ -377,7 +377,7 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     const answer = await routes.fetch(new Request('https://madar-server.internal/api/auth/jwks', { headers: { 'x-madar-client-address': '203.0.113.7' } }), {}, { waitUntil: () => undefined });
     expect(answer.status).toBe(200);
     expect(got).toHaveLength(1);
-    expect([got[0].call.router.stub('ent_001'), got[0].call.net(), typeof got[0].call.after, got[0].address]).toEqual([stub, net, 'function', '203.0.113.7']);
+    expect([got[0].call.router.stub('ent_001'), got[0].call.net('ent_001'), typeof got[0].call.after, got[0].address]).toEqual([stub, net, 'function', '203.0.113.7']);
     expect((await get('/auth/jwks')).status).toBe(404);
   });
 

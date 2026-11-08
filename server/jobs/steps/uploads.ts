@@ -2,7 +2,8 @@ import type { Deps } from '../../core/ports';
 import { sqlFor } from '../../data/dialect';
 import { blobKeysInUse } from '../../files/effects';
 import { intentOf } from '../../files/intents';
-import { isObjectKey, isStagingKey } from '../../files/keys';
+import { entOfConfig } from '../../enterprise/scope';
+import { isObjectKey, keysOf } from '../../files/keys';
 
 /**
  * Step 5 of the 15-minute job (plan 5.5; proof.md, Z0a item 6): the leftovers of uploads, through the FilesPort of the active
@@ -53,7 +54,7 @@ const dateOf = (value: unknown): Date => (value instanceof Date ? value : new Da
 
 type Counts = { intents: number; removed: number; deleted: number };
 
-export async function uploads(deps: Pick<Deps, 'db' | 'files'>, at: Date): Promise<Counts> {
+export async function uploads(deps: Pick<Deps, 'db' | 'files' | 'config'>, at: Date): Promise<Counts> {
   const stagingCutoff = new Date(at.getTime() - STAGING_KEEP_MS);
   const total: Counts = { intents: 0, removed: 0, deleted: 0 };
   let after = '';
@@ -70,10 +71,12 @@ export async function uploads(deps: Pick<Deps, 'db' | 'files'>, at: Date): Promi
   return total;
 }
 
-async function uploadsPage(deps: Pick<Deps, 'db' | 'files'>, at: Date, rows: Record<string, unknown>[]): Promise<Counts> {
+async function uploadsPage(deps: Pick<Deps, 'db' | 'files' | 'config'>, at: Date, rows: Record<string, unknown>[]): Promise<Counts> {
   const keepCutoff = new Date(at.getTime() - INTENT_KEEP_MS);
   const intents = rows.map((row) => ({ ...intentOf(row), createdAt: dateOf(row.created_at) }));
 
+  // The staging folder of this enterprise: a key of another folder is never removed here.
+  const { isStagingKey } = keysOf(entOfConfig(deps.config));
   const staging = intents.flatMap((i) => [i.stagingKey, i.stagingKey.replace(/\/file$/, '/thumb')]).filter(isStagingKey);
   const copied = intents
     .filter((i) => i.usedAt === null && i.expiresAt.getTime() <= at.getTime())

@@ -110,7 +110,7 @@ export type OfficeStub = {
  * What a route of the routes option gets for its request: the router that turns an enterprise id into an office object (the only way,
  * server/enterprise/router.ts), the platform object, a new network port, and the work after the answer.
  */
-export type OfficeCall = { router: EntRouter; platform: PlatformStub; net: () => NetApi; after?: After };
+export type OfficeCall = { router: EntRouter; platform: PlatformStub; net: (ent: EnterpriseId) => NetApi; after?: After };
 export type OfficeRoute = { method: 'GET' | 'POST'; path: string; handler: (request: Request, call: OfficeCall) => Promise<Response> };
 
 export type OfficeRoutesOptions = {
@@ -121,7 +121,8 @@ export type OfficeRoutesOptions = {
   stubFor: (env: Env, ent: EnterpriseId) => OfficeStub;
   /** The one platform object. */
   platform: (env: Env) => PlatformStub;
-  net: () => NetApi;
+  /** A new network port for the object of this enterprise. The id comes from the Worker; the file port of the port works inside its key folder. */
+  net: (ent: EnterpriseId) => NetApi;
   jobsSecret: () => string | undefined;
   /** More routes under /api (the own sign-in, server/entries/officeSignin.ts), as apiApp takes AppOptions.routes. */
   routes?: OfficeRoute[];
@@ -194,7 +195,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       if (!(error instanceof ApiError)) log.error('The batch failed before its calls.', { error: error instanceof Error ? error.message : String(error) });
       return errorResponse(runErrorOf(error));
     }
-    const net = o.net();
+    const net = o.net(ent);
     const stub = routerOf(env).stub(ent);
     let out: OfficeBatchOutput;
     try {
@@ -244,7 +245,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const forward = new URL(request.url);
     forward.pathname = parsed.rest;
     const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
-    const net = o.net();
+    const net = o.net(target.ent);
     let out: OfficeMcpAnswer;
     try {
       out = await target.stub.mcp({ ent: target.ent, mcpUrl, url: forward.toString(), method: request.method, headers, body, worker: reported() }, net);
@@ -313,7 +314,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const { ent, stub } = target;
     seen += 1;
     try {
-      const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net());
+      const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net(ent));
       log.info('The office jobs ran.', { ent, ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed });
       await platform.report(report.status);
       await platform.meter({ ent, day: utcDay(at), counts: report.status.day });

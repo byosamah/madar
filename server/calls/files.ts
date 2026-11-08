@@ -6,11 +6,12 @@ import { can, taskResource } from '../../src/api/permissions';
 import type { ServerHooks } from '../../src/api/registry';
 import type { State } from '../../src/api/store';
 import type { Deps } from '../core/ports';
+import { entOfConfig } from '../enterprise/scope';
 import type { BatchScope, Principal, ServerCall } from '../core/types';
 import { confirmThumb, confirmUpload, fileTooLarge } from '../files/confirm';
 import { projectBlobKeys, removeNowOrLater, stashProjectKeys } from '../files/effects';
 import { checkIntent, declaredType, insertIntents, intentExpiry, newUploadId, readIntents, useIntents } from '../files/intents';
-import { chatUploadKey, chatUploadThumbKey, meetingUploadKey, meetingUploadThumbKey, officeUploadKey, officeUploadThumbKey, resourcesUploadKey, resourcesUploadThumbKey, stagingKey, stagingThumbKey, uploadKey, uploadThumbKey } from '../files/keys';
+import { keysOf } from '../files/keys';
 import { isPictureType } from '../files/links';
 import { projectOfTask, readFile, readFiles, readMeeting, readTask } from '../files/records';
 import { assertMayPost, assertMayUploadToChat, assertMayUploadToMeeting, assertMayUploadToResources, assertMayView, assertMayViewChatFile, assertMayViewMeetingFile, assertMayViewOfficeFile, assertMayViewResourceFile, authorityOf, mayViewOfficeTask } from '../files/rights';
@@ -40,6 +41,8 @@ export const filesUploadStart: ServerCall<'files.uploadStart'> = async (input, c
   const { deps, office, now } = ctx;
   const userId = ctx.principal.userId;
   authorityOf((id) => office.lists.users[id], userId);
+  // The keys of this enterprise: every key starts with its folder (server/files/keys.ts).
+  const k = keysOf(entOfConfig(deps.config));
   // The place of the upload: a project, or one office task (owner, 2026-10-06). It names the final key.
   let place: { projectId: string | null; key: (intent: string) => string; thumb: (intent: string) => string };
   if (input.resources === true) {
@@ -47,40 +50,40 @@ export const filesUploadStart: ServerCall<'files.uploadStart'> = async (input, c
     if (input.projectId !== undefined || input.conversationId !== undefined || input.meetingId !== undefined) throw invalid('resources', 'Resources has no project, chat or meeting.', 'file_resource');
     assertMayUploadToResources(office, userId);
     if (input.stageId || input.taskId) throw invalid(input.stageId ? 'stageId' : 'taskId', 'A file of Resources belongs to no stage and no task.', 'file_resource');
-    place = { projectId: null, key: (intent) => resourcesUploadKey(intent), thumb: (intent) => resourcesUploadThumbKey(intent) };
+    place = { projectId: null, key: (intent) => k.resourcesUploadKey(intent), thumb: (intent) => k.resourcesUploadThumbKey(intent) };
   } else if (input.meetingId !== undefined) {
     // A file of a meeting with no project (wave 2): a person who may write its minutes now, and no project, chat, stage or task.
     if (input.projectId !== undefined || input.conversationId !== undefined) throw invalid('meetingId', 'Name the project, the chat or the meeting of the file, only one.', 'file_meeting');
     const meeting = assertMayUploadToMeeting(office, userId, await readMeeting(deps.db, input.meetingId), input.meetingId, now);
     if (input.stageId || input.taskId) throw invalid(input.stageId ? 'stageId' : 'taskId', 'A file of a meeting belongs to no stage and no task. It stays with its meeting.', 'file_meeting');
-    place = { projectId: null, key: (intent) => meetingUploadKey(meeting.id, intent), thumb: (intent) => meetingUploadThumbKey(meeting.id, intent) };
+    place = { projectId: null, key: (intent) => k.meetingUploadKey(meeting.id, intent), thumb: (intent) => k.meetingUploadThumbKey(meeting.id, intent) };
   } else if (input.conversationId !== undefined) {
     // A file of a direct chat or a group (owner, 2026-10-19): a member who may send in that chat, and no project, stage or task.
     if (input.projectId !== undefined) throw invalid('conversationId', 'Name the project, or the chat of the file, not both.', 'file_chat');
     const chat = assertMayUploadToChat(office, userId, input.conversationId);
     if (input.stageId || input.taskId) throw invalid(input.stageId ? 'stageId' : 'taskId', 'A file of a chat belongs to no stage and no task. It stays in its chat.', 'file_chat');
-    place = { projectId: null, key: (intent) => chatUploadKey(chat.id, intent), thumb: (intent) => chatUploadThumbKey(chat.id, intent) };
+    place = { projectId: null, key: (intent) => k.chatUploadKey(chat.id, intent), thumb: (intent) => k.chatUploadThumbKey(chat.id, intent) };
   } else if (input.projectId === undefined) {
     const task = await officeTaskOfUpload(ctx, input.taskId ?? undefined);
     if (input.stageId) throw invalid('stageId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
-    place = { projectId: null, key: (intent) => officeUploadKey(task.id, intent), thumb: (intent) => officeUploadThumbKey(task.id, intent) };
+    place = { projectId: null, key: (intent) => k.officeUploadKey(task.id, intent), thumb: (intent) => k.officeUploadThumbKey(task.id, intent) };
   } else {
     const project = office.lists.projects[input.projectId];
     if (!project) throw notFound('Project', input.projectId);
     assertMayPost(office, userId, project.id);
     if (input.stageId && office.lists.stages[input.stageId]?.projectId !== project.id) throw invalid('stageId', 'This stage is not in the project.');
     if (input.taskId && (await projectOfTask(deps.db, input.taskId)) !== project.id) throw invalid('taskId', 'This task is not in the project.');
-    place = { projectId: project.id, key: (intent) => uploadKey(project.id, intent), thumb: (intent) => uploadThumbKey(project.id, intent) };
+    place = { projectId: project.id, key: (intent) => k.uploadKey(project.id, intent), thumb: (intent) => k.uploadThumbKey(project.id, intent) };
   }
   const limit = fileLimit(deps, input);
   if (input.size > limit) throw fileTooLarge('size', limit);
   if (input.thumb && !isPictureType(input.thumb.mimeType)) throw invalid('thumb', 'The small picture must be a PNG, JPEG, GIF, WebP or AVIF picture.');
 
   const id = newUploadId();
-  const put = await deps.files.presignPut(stagingKey(id), { mimeType: input.mimeType, size: input.size });
-  const thumbPut = input.thumb ? await deps.files.presignPut(stagingThumbKey(id), { mimeType: input.thumb.mimeType, size: input.thumb.size }) : undefined;
+  const put = await deps.files.presignPut(k.stagingKey(id), { mimeType: input.mimeType, size: input.size });
+  const thumbPut = input.thumb ? await deps.files.presignPut(k.stagingThumbKey(id), { mimeType: input.thumb.mimeType, size: input.thumb.size }) : undefined;
   await insertIntents(deps.db, [{
-    id, actorId: userId, projectId: place.projectId, stagingKey: stagingKey(id), key: place.key(id),
+    id, actorId: userId, projectId: place.projectId, stagingKey: k.stagingKey(id), key: place.key(id),
     thumbKey: input.thumb ? place.thumb(id) : null, size: input.size, mimeType: declaredType(input.mimeType),
     expiresAt: intentExpiry(now, deps.files.kind), usedAt: null,
   }]);
@@ -179,13 +182,13 @@ export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
       : meetingId !== undefined ? { projectId: projectId ?? null, meetingId, ...(conversationId !== undefined ? { conversationId } : {}) }
       : conversationId !== undefined ? { projectId: projectId ?? null, conversationId }
       : projectId !== undefined ? { projectId } : { projectId: null, officeTaskId: taskId ?? '' };
-    const intent = checkIntent((await readIntents(deps.db, [uploadId])).get(uploadId), { id: uploadId, actorId, now, field: 'uploadId', ...place, allowUsed: true });
+    const intent = checkIntent((await readIntents(deps.db, [uploadId])).get(uploadId), { id: uploadId, actorId, now, field: 'uploadId', ...place, allowUsed: true, ent: entOfConfig(deps.config) });
     // A used intent: a retry of a call that committed. No store call, because a late second PUT may sit on the staging key; runCall
     // replays the stored answer of the key, and without one prepare refuses with conflict.
     if (intent.usedAt !== null) return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(intent.thumbKey ? { thumbKey: intent.thumbKey } : {}) };
     const remove = (keys: string[]) => removeNowOrLater(deps, keys);
     await confirmUpload(deps.files, { staging: intent.stagingKey, final: intent.key, field: 'uploadId', want: intent, maxBytes: fileLimit(deps, { projectId, conversationId, meetingId, resources }), remove });
-    const thumb = intent.thumbKey !== null && (await confirmThumb(deps.files, { staging: stagingThumbKey(intent.id), final: intent.thumbKey, field: 'uploadId', remove }));
+    const thumb = intent.thumbKey !== null && (await confirmThumb(deps.files, { staging: keysOf(entOfConfig(deps.config)).stagingThumbKey(intent.id), final: intent.thumbKey, field: 'uploadId', remove }));
     return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(thumb && intent.thumbKey ? { thumbKey: intent.thumbKey } : {}) };
   },
   async prepare(input, { actorId, now, q }, preflight): Promise<UploadPrepared> {
