@@ -26,7 +26,10 @@ const MORNING = new Date('2026-10-04T06:00:00Z');
 const EVENING = new Date('2026-10-04T16:00:00Z');
 const STAMP = '2026-10-04T09:00:00.000+03:00';
 
-async function office(at: Date, edit: (seed: State) => void = () => undefined) {
+/** The hours of a person who turned quiet hours on with the range of the office (a person who saved nothing is never quiet, owner 2026-11-08). */
+const QUIET_ON = { quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' };
+
+async function office(at: Date, edit: (seed: State) => void = () => undefined, o: { plain?: boolean } = {}) {
   const lite = await freshLite();
   const seed = await buildSeed('2026-10-04', async () => undefined);
   seed.pushDevices = {
@@ -34,6 +37,8 @@ async function office(at: Date, edit: (seed: State) => void = () => undefined) {
     pdv_902: { id: 'pdv_902', userId: 'usr_002', endpoint: PUSH('bb'), label: 'Laptop', createdAt: STAMP, lastPushAt: null },
     pdv_903: { id: 'pdv_903', userId: 'usr_003', endpoint: PUSH('cc'), label: 'Phone', createdAt: STAMP, lastPushAt: null },
   };
+  // Sara (usr_002) and Faisal (usr_003) turned quiet hours on, unless the test wants people who saved nothing.
+  if (!o.plain) for (const id of ['usr_002', 'usr_003']) setHours(id, QUIET_ON)(seed);
   edit(seed);
   await lite.db.tx('write', (q) => liteWriteState(q, seed));
   const keys = await makeVapidKeys();
@@ -54,7 +59,12 @@ const setHours = (userId: string, workHours: object) => (seed: State) => {
 };
 
 describe('isQuietNow on SQLite', () => {
-  it('is false in the default work hours, true in the evening and all of Friday, and follows the choice of the person', async () => {
+  it('is false for a person who saved nothing, at any hour, also on Friday (owner, 2026-11-08)', async () => {
+    const { deps } = await office(MORNING, () => undefined, { plain: true });
+    for (const at of [MORNING, EVENING, new Date('2026-10-08T20:00:00Z')]) expect(await isQuietNow(deps.db, 'usr_002', at)).toBe(false);
+  });
+
+  it('is false in the work hours, true in the evening and all of Friday for a person who turned quiet hours on, and follows the choice of the person', async () => {
     const { deps } = await office(MORNING, setHours('usr_003', { quiet: false, days: [0], from: '09:00', to: '10:00' }));
     expect(await isQuietNow(deps.db, 'usr_002', MORNING)).toBe(false);
     expect(await isQuietNow(deps.db, 'usr_002', EVENING)).toBe(true);
@@ -63,12 +73,39 @@ describe('isQuietNow on SQLite', () => {
     expect(await isQuietNow(deps.db, 'usr_404', EVENING)).toBe(false);
   });
 
-  it('follows the office default and the lock that the Admin sets', async () => {
+  it('follows the office range and the lock that the Admin sets, for a person who turned quiet hours on', async () => {
     const { deps } = await office(MORNING, (seed) => {
       seed.settings = { ...seed.settings, workHours: { days: [0, 1, 2, 3, 4], from: '09:00', to: '21:00', lock: { on: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '21:00' } } };
     });
     expect(await isQuietNow(deps.db, 'usr_002', EVENING)).toBe(false);
     expect(await isQuietNow(deps.db, 'usr_002', new Date('2026-10-04T18:30:00Z'))).toBe(true);
+  });
+});
+
+describe('sendPushNotify with no saved hours (owner, 2026-11-08)', () => {
+  it('posts at once in the evening and on Friday night to a person who saved nothing, and marks no device held', async () => {
+    for (const at of [EVENING, new Date('2026-10-08T20:00:00Z')]) {
+      const { deps, posted, held } = await office(at, () => undefined, { plain: true });
+      await sendPushNotify({ userId: 'usr_002' }, deps);
+      expect(posted.sort()).toEqual([PUSH('aa'), PUSH('bb')]);
+      expect((await held()).every(([, mark]) => mark === null)).toBe(true);
+    }
+  });
+
+  it('on the fake Postgres: the devices of a person with no hours take the push, and no hold statement runs', async () => {
+    const seen: string[] = [];
+    const mem = memoryMailDb((text) => {
+      seen.push(text);
+      if (text === PUSH_DEVICES_SQL) return [{ endpoint: PUSH('aa'), keys: null, work_hours: null, office: null }];
+      if (text === PUSH_SENT_SQL) return [];
+      return undefined;
+    });
+    const deps = fakeDeps({ db: mem.db, config: { push: { ...(await makeVapidKeys()), subject: 'mailto:madar@vado.sa' } } });
+    deps.runCall = noLineRun;
+    deps.clock.set(EVENING);
+    deps.pushFetch = (async () => new Response(null, { status: 201 })) as typeof fetch;
+    await sendPushNotify({ userId: 'usr_002' }, deps);
+    expect(seen).toEqual([PUSH_DEVICES_SQL, PUSH_SENT_SQL]);
   });
 });
 
@@ -156,7 +193,7 @@ describe('a push.notify row in quiet hours ends as done, and never as a retry', 
     const seen: { text: string; values: unknown[] }[] = [];
     const mem = memoryMailDb((text, values) => {
       seen.push({ text, values });
-      if (text === PUSH_DEVICES_SQL) return [{ endpoint: PUSH('aa'), keys: null, work_hours: null, office: null }];
+      if (text === PUSH_DEVICES_SQL) return [{ endpoint: PUSH('aa'), keys: null, work_hours: QUIET_ON, office: null }];
       if (text === PUSH_HOLD_SQL) return [];
       return undefined;
     });

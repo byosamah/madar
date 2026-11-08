@@ -179,7 +179,7 @@ export const Preferences = z.object({
    * only "Away": no screen shows this field to another person.
    */
   awayByHand: z.boolean().optional(),
-  /** Quiet hours (owner, 2026-10-22). A missing value means the office default with quiet hours on. Read it with workHoursOf (lib/quietHours.ts). */
+  /** Quiet hours (owner, 2026-10-22). A missing value means quiet hours off (owner, 2026-11-08). Read it with workHoursOf (lib/quietHours.ts). */
   workHours: WorkHours.optional(),
 });
 export type Preferences = z.infer<typeof Preferences>;

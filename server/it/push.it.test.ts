@@ -198,7 +198,12 @@ describe('browser push on the local database, as madar_server', () => {
     const [sara] = members;
     await register(sara.id, endpointOf('sara-a'));
     await register(sara.id, endpointOf('sara-b'));
-    // 22:00 in Riyadh on a Sunday: outside the default work hours.
+    // Sara turned quiet hours on with the range of the office (a person who saved nothing is never quiet, owner 2026-11-08).
+    await office.sql(
+      "update users set doc = jsonb_set(doc, '{preferences,workHours}', '{\"quiet\":true,\"days\":[0,1,2,3,4],\"from\":\"08:00\",\"to\":\"17:00\"}'::jsonb) where id = $1",
+      [sara.id],
+    );
+    // 22:00 in Riyadh on a Sunday: outside her work hours.
     deps.clock.set(new Date('2026-10-04T19:00:00Z'));
     try {
       okOf(await call(leader, 'tasks.create', { projectId: project.id, title: 'A task', ownerId: sara.id }));
@@ -216,6 +221,21 @@ describe('browser push on the local database, as madar_server', () => {
       expect(pushedTo()).toEqual([endpointOf('sara-a'), endpointOf('sara-b')]);
       for (const { init } of posted) expect(init.body ?? null).toBeNull();
       expect(await office.sql("select 1 from push_devices where doc ? 'heldAt'")).toEqual([]);
+    } finally {
+      deps.clock.set(NOW);
+    }
+  });
+
+  it('pushes at once at 22:00 on a Sunday to a person who saved no hours, and holds nothing (owner, 2026-11-08)', async () => {
+    const [sara] = members;
+    await register(sara.id, endpointOf('sara-plain'));
+    // The earlier test saved hours for her: take them away, so she is a person who saved nothing.
+    await office.sql("update users set doc = doc #- '{preferences,workHours}' where id = $1", [sara.id]);
+    deps.clock.set(new Date('2026-10-04T19:00:00Z'));
+    try {
+      okOf(await call(leader, 'tasks.create', { projectId: project.id, title: 'A task at night', ownerId: sara.id }));
+      expect(pushedTo()).toContain(endpointOf('sara-plain'));
+      expect(await office.sql("select 1 from push_devices where user_id = $1 and doc ? 'heldAt'", [sara.id])).toEqual([]);
     } finally {
       deps.clock.set(NOW);
     }

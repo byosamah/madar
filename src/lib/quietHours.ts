@@ -6,8 +6,10 @@ import { dayOfWeek, nowStamp } from './dates';
  *
  * - A person has work days and one time range. Outside it Madar is quiet for that person: no push and no email. The bell keeps all.
  * - The office sets the default range, and the lock. While the lock is on, nobody is quiet inside the lock days and hours.
- * - A missing value means the office default with quiet hours on, so a person who never chose is quiet outside Sunday to Thursday,
- *   9 AM to 5 PM.
+ * - A missing value means quiet hours OFF (owner, 2026-11-08: "No quiet hours unless a person turns them on"). A person who never chose gets
+ *   every push at once. The range of the office is the range that a person starts with when the person turns quiet hours on. Until
+ *   2026-11-08 a missing value meant quiet hours on: 9 of 11 people kept that default and their pushes waited outside Sunday to
+ *   Thursday, 8 AM to 5 PM.
  */
 
 /** 0 is Sunday and 6 is Saturday, as dayOfWeek() counts. */
@@ -47,11 +49,11 @@ export function officeWorkHoursOf(settings: SettingsLike): OfficeWorkHours {
   };
 }
 
-/** The effective work hours of a person: the choice of the person, else the office default with quiet hours on. */
+/** The effective work hours of a person: the choice of the person, else the office range with quiet hours off (owner, 2026-11-08). */
 export function workHoursOf(person: PersonLike, settings: SettingsLike): WorkHours {
   if (person?.workHours) return { quiet: person.workHours.quiet, days: [...person.workHours.days], from: person.workHours.from, to: person.workHours.to };
   const office = officeWorkHoursOf(settings);
-  return { quiet: true, days: office.days, from: office.from, to: office.to };
+  return { quiet: false, days: office.days, from: office.from, to: office.to };
 }
 
 /** The Riyadh weekday and the "HH:MM" of a moment. */

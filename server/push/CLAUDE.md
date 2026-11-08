@@ -42,7 +42,7 @@ computer, on Android, and on an iPhone once Madar is on the Home Screen.
 
 ## Quiet hours
 - `isQuiet` (`src/lib/quietHours.ts`, Riyadh time) is the one rule. Outside the work hours of a person there is no push and no email. The bell and
-  the Inbox still collect everything. The office sets the default range and a lock: nobody is quiet inside the lock.
+  the Inbox still collect everything. The office sets the range that a person starts with and a lock: nobody is quiet inside the lock. A person who saved nothing is NOT quiet (owner, 2026-11-08: "No quiet hours unless a person turns them on"); only a saved `workHours` with `quiet: true` holds a push.
 - Both effects (`sendPushNotify`, `sendChatPush`) read the work hours in the same statement as the devices (`PUSH_DEVICES_SQL`, `quietFromColumns`
   in `server/core/quiet.ts`), so quiet hours add no round trip. `sendChatPush` asks after the wait and after the still-new test. A quiet
   person gets no post: the effect marks the devices `heldAt` (`PUSH_HOLD_SQL`; a private field of the device row, so no event, no `chg`, no

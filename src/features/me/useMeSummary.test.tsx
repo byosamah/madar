@@ -28,9 +28,9 @@ const read = async (prepare?: (state: State) => void, language: 'en' | 'ar' = 'e
 };
 
 describe('the lines under the titles of the Me hub', () => {
-  it('names the role and the quiet range of an Admin with the defaults', async () => {
+  it('names the role of an Admin with the defaults, and says Off for quiet hours when nothing is saved (owner, 2026-11-08)', async () => {
     const summary = await read();
-    expect(summary.quiet).toBe('Sunday to Thursday, outside 8:00 AM to 5:00 PM');
+    expect(summary.quiet).toBe('Off');
     expect(summary.role).toBe('Admin');
     expect(summary.reach).toBe('My work, and the rest in the list');
     expect(summary.notices).toBe('In the app');
@@ -43,8 +43,16 @@ describe('the lines under the titles of the Me hub', () => {
     expect(summary.quiet).toBe('Off');
   });
 
+  it('names the quiet range of a person who turned quiet hours on with the range of the office', async () => {
+    const summary = await read((state) => {
+      state.users.usr_001.preferences.workHours = { quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' };
+    });
+    expect(summary.quiet).toBe('Sunday to Thursday, outside 8:00 AM to 5:00 PM');
+  });
+
   it('widens the range to the office lock', async () => {
     const summary = await read((state) => {
+      state.users.usr_001.preferences.workHours = { quiet: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' };
       state.settings.workHours = { days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00', lock: { on: true, days: [6], from: '08:00', to: '18:00' } };
     });
     expect(summary.quiet).toContain('Saturday');

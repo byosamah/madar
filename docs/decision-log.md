@@ -23,6 +23,10 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   - Thread members: "Add helpers and @mentioned people". A person is part of a to-do thread as its lead, the project leader (or the maker of an
     office to-do), a commenter, a helper, or a person named with @ in a message of the thread. The view rule stays. A helper or a named person
     who has read nothing sees every message of the thread as unread (the lead's note: no read mark means all unread).
+  - Quiet hours: "No quiet hours unless a person turns them on". A person with no saved hours is no longer quiet, so a push, an email and a
+    held push no longer wait for Sunday to Thursday, 8:00 to 17:00. A person who saved hours keeps them exactly (Faisal: on, every day 07:00 to
+    23:30; Anas: off). The Admin lock keeps its meaning. This reverses the owner decision of 2026-10-22 (fbk_048) about the default only. The
+    Settings switch shows off for a person with nothing saved, with a hint on what happens when it is on.
 - Who reviews a to-do (fbk_087, owner, from the report of Faisal about tsk_624): the person who does the work never approves it. Faisal
   made an office to-do, did the work, named Moataz as lead and sent it to review; Madar named the maker (Faisal) as reviewer, so Faisal saw
   "Your review" and Moataz got no notice. The owner's words: "the maker not means he's the leader or the reviewer, the leader or the

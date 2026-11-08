@@ -369,7 +369,9 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
 
 ## Quiet hours
 - One pure rule: `isQuiet`, `workHoursOf`, `workStartOn`, `coversLock` in `src/lib/quietHours.ts` (the defaults are
-  `DEFAULT_OFFICE_WORK_HOURS`). `me.updatePreferences` takes `workHours` for the person only (an agent gets `forbidden`), and
+  `DEFAULT_OFFICE_WORK_HOURS`). A person with no saved `workHours` has quiet hours OFF (owner, 2026-11-08; before that the default was on, and 9 of 11 people
+  kept it, so their pushes waited outside Sunday to Thursday, 8 to 5). The office range is only the range that the switch starts with. The morning summary
+  still goes at the start of that range (`workStartOn`). `me.updatePreferences` takes `workHours` for the person only (an agent gets `forbidden`), and
   a range with quiet on must hold the lock (`work_hours_lock`). `settings.update` takes the default range
   (`work_hours_default_lock`). A stored range that no longer holds a moved lock is not changed: `isQuiet` adds the lock at read
   time. An agent may not undo a change of the work hours (`changesEmail` in `history.ts`). Both calls stay on the MCP deny list.

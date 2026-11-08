@@ -62,7 +62,7 @@ Settings (desk) and the same sections on the Me tab (phone), and the Admin secti
   default "Show" never counts in the Filter badge. The list waits for `known` (the session answered or the device has a hint).
 
 ## Quiet hours
-- `QuietHoursSection.tsx` is for every role. One switch "Notify me only in my work hours" (on by default), "My work days", and the two times
+- `QuietHoursSection.tsx` is for every role. One switch "Notify me only in my work hours" (OFF by default since 2026-11-08: a person with nothing saved gets every push; the screen then shows the hint `quietHours.offHint` and no day or time control), "My work days", and the two times
   in the order of the quiet line: "Quiet from" (the end of work, `to`) and "Until" (the start of work, `from`), `WorkRangeFields order="quiet"`
   (`workRange.ts`). `quietSentence` says when Madar is quiet. While the Admin keeps the lock on, the days of the lock are ticked and locked and
   the times cannot cut the lock. Each change saves at once with a toast. A range that the Admin's later lock no longer holds shows widened.
