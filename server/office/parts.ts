@@ -202,7 +202,9 @@ export function officeParts(o: PartsInput): OfficeParts {
   const stateKeyOf = (): Promise<Uint8Array> => (stateKey ??= stateKeyFrom(values.secretKey));
 
   function depsFor(net: NetApi): Deps {
-    const ports = netPorts(net, { guard: { open: () => db.isOpen(), now: () => clock.now() }, kind: values.config.fileStore, maxFileBytes: values.config.limits.maxFileBytes });
+    const ports = netPorts(net, { guard: { open: () => db.isOpen(), now: () => clock.now() }, kind: values.config.fileStore, maxFileBytes: values.config.limits.maxFileBytes,
+      // The second wall of the file keys: this object works inside the key folder of its own enterprise (server/files/guard.ts).
+      ...(gate.current() ? { ent: gate.id() } : {}) });
     const deps: Deps = {
       db,
       clock,
