@@ -25,7 +25,8 @@
   Google `revoking` row goes after one day). `uploads` removes every `up/` upload object older than the life of its link plus a margin
   (`uploads.ts`), used or unused.
 - `daftra` reads Daftra with no lock and sets "Received" through the internal call `payments.daftraPaid`. It returns at once with no Daftra
-  account, and on the office object path. Rules: `server/daftra/CLAUDE.md`.
+  account. On the office object path it runs the same way: its reads go through the network port, and a spent network budget ends the run
+  with the item kept. Rules: `server/daftra/CLAUDE.md`.
 
 ## The meetings step (`steps/meetings.ts`)
 - It settles the meetings that ended. One read (`SETTLE_SQL`, `SETTLE_LITE`, the partial index `meetings_to_settle`) gives a bounded number of
