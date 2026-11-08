@@ -30,8 +30,10 @@ describe('the registries', () => {
     for (const name of SERVER_CALL_NAMES.filter((n) => !built.includes(n))) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
-  it('hold the server hooks of files.upload, feedback.send, feedback.screenshot, payments.linkInvoice and projects.delete, never for an excluded call', async () => {
-    expect(Object.keys(SERVER_HOOKS).sort()).toEqual(['feedback.screenshot', 'feedback.send', 'files.upload', 'payments.linkInvoice', 'projects.delete']);
+  it('hold the server hooks of files.upload, feedback.send, feedback.screenshot, payments.linkInvoice, projects.delete and the people and settings hooks of Madar enterprises, never for an excluded call', async () => {
+    expect(Object.keys(SERVER_HOOKS).sort()).toEqual([
+      'feedback.screenshot', 'feedback.send', 'files.upload', 'payments.linkInvoice', 'projects.delete', 'settings.get', 'users.create', 'users.reactivate', 'users.remove', 'users.update',
+    ]);
     for (const name of Object.keys(SERVER_HOOKS)) expect(SERVER_EXCLUDED as readonly string[]).not.toContain(name);
     // Track F built every hook (server/calls/{files,feedback}.test.ts): each one has its functions.
     expect(Object.fromEntries(Object.entries(SERVER_HOOKS).map(([name, hooks]) => [name, Object.keys(hooks ?? {}).sort()]))).toEqual({
@@ -41,6 +43,12 @@ describe('the registries', () => {
       // The Daftra link reads the invoice from Daftra before the lock (server/calls/daftra.ts).
       'payments.linkInvoice': ['preflight'],
       'projects.delete': ['prepare'],
+      // Madar enterprises (plan C): the email directory, the people limit and the use numbers of the Admin.
+      'settings.get': ['preflight'],
+      'users.create': ['prepare', 'preflight', 'settle'],
+      'users.reactivate': ['prepare'],
+      'users.remove': ['preflight', 'settle'],
+      'users.update': ['preflight', 'settle'],
     });
   });
 

@@ -9,12 +9,13 @@ import { checkBuild, parseBatch, readBody } from '../http/limits';
 import { JOBS_SECRET_HEADER, sameSecret } from '../jobs/app';
 import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSE_MIN_MS, TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
-import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn } from '../office/ops';
+import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn, writesIn } from '../office/ops';
 import { CRON_PATH, runFanout, selfTransport, type FanoutLeg, type FanoutTransport } from '../enterprise/fanout';
 import { utcDay } from '../mail/quota';
 import { firstRunOfDay } from '../office/jobs';
 import { ENT_VADO, isEnterpriseId, untag, type EnterpriseId } from '../enterprise/ids';
 import { OwnersBodyShape, RegisterBodyShape } from '../enterprise/shapes';
+import { accountGate } from '../enterprise/accountGate';
 import { padTo } from '../enterprise/pad';
 import { platformRoute } from '../enterprise/platform/route';
 import { writeOwners } from '../enterprise/platform/owners';
@@ -179,6 +180,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   const listedCache = newListedCache();
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const routerOf = (env: Env): EntRouter => entRouter({ stubFor: (ent) => o.stubFor(env, ent), platform: o.platform(env), cache: listedCache });
+  // The account gate (plan C): at 90 percent of a free day limit, every enterprise but ENT_VADO gets the busy answer. batch and mcp only.
+  const accountCap = accountGate<Env>({ platform: o.platform, now: () => o.deps.clock.now() });
   let seen = 0;
   const reported = (): number => {
     const n = seen;
@@ -204,6 +207,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       if (!(error instanceof ApiError)) log.error('The batch failed before its calls.', { error: error instanceof Error ? error.message : String(error) });
       return errorResponse(runErrorOf(error));
     }
+    const stopped = await accountCap(env, ent, writesIn(calls));
+    if (stopped) return errorResponse(stopped);
     const net = o.net(env, ent);
     const stub = routerOf(env).stub(ent);
     let out: OfficeBatchOutput;
@@ -254,6 +259,9 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const forward = new URL(request.url);
     forward.pathname = parsed.rest;
     const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
+    // A tool call of MCP (the path /mcp) carries work; the OAuth routes under it do not (design 5.14).
+    const stopped = await accountCap(env, target.ent, parsed.rest === '/mcp');
+    if (stopped) return mcpError(503, stopped.message, 'busy');
     const net = o.net(env, target.ent);
     let out: OfficeMcpAnswer;
     try {

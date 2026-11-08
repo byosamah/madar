@@ -53,6 +53,12 @@ export function shareCapOf(plan: Plan): DayCap {
   return { requests: part(plan.limits.requests), rowsRead: part(plan.limits.rowsRead), rowsWritten: part(plan.limits.rowsWritten) };
 }
 
+/** The account at the stop line: stop for requests or rows read, writesStop for rows written (the answer of capState). */
+export function accountStop(plan: Plan, account: DayCounts): { stop: boolean; writesStop: boolean } {
+  const over = (key: 'requests' | 'rowsRead' | 'rowsWritten') => account[key] >= plan.limits[key] * STOP_LINE;
+  return { stop: over('requests') || over('rowsRead'), writesStop: over('rowsWritten') };
+}
+
 /**
  * The answer of the day cap for one enterprise. own: the day counts of this enterprise. account: the counts of all enterprises.
  * writes: the call writes. The mail count has no effect here (the mail pool decides the mails).
@@ -60,8 +66,8 @@ export function shareCapOf(plan: Plan): DayCap {
 export function capVerdict(o: { ent: EnterpriseId; plan: Plan; own: DayCounts; account: DayCounts; writes: boolean }): CapAnswer {
   if (o.ent === ENT_VADO) return { allowed: true };
   const over = (used: number, limit: number) => used >= limit;
-  const stop = (key: 'requests' | 'rowsRead' | 'rowsWritten') => over(o.account[key], o.plan.limits[key] * STOP_LINE);
-  if (stop('requests') || stop('rowsRead') || (o.writes && stop('rowsWritten'))) return { allowed: false, reason: 'busy' };
+  const account = accountStop(o.plan, o.account);
+  if (account.stop || (o.writes && account.writesStop)) return { allowed: false, reason: 'busy' };
   const share = shareCapOf(o.plan);
   if (over(o.own.requests, share.requests!) || over(o.own.rowsRead, share.rowsRead!) || (o.writes && over(o.own.rowsWritten, share.rowsWritten!))) {
     return { allowed: false, reason: 'busy' };

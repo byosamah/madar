@@ -29,16 +29,17 @@ import { liteAgentOf } from '../mcp/oauth/agent';
 import { mountOAuth } from '../mcp/oauth/routes';
 import { stateKeyFrom } from '../mcp/reasons';
 import { JOBS_LAST_RUN_SQL } from '../jobs/steps/heartbeat';
-import { capRefusal, DAY_CAP_TTL_MS, dayCapOf } from './cap';
+import { capRefusal, COMPANY_BUSY, DAY_CAP_TTL_MS, dayCapOf } from './cap';
 import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type OfficeBatchInput, type OfficeBatchOutput } from './batch';
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, TICKET_REFUSED, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
 import { EnterpriseFacts } from '../enterprise/facts';
 import { EnterpriseGate } from '../enterprise/gate';
+import { planFrom, shareCapOf } from '../enterprise/plan';
 import { initEnterprise, reinviteAdmin, writeIdentity, writeLimits, writePlatformOwners, writeState } from '../enterprise/lifecycle';
 import { runMailRoute } from '../enterprise/mailRoute';
-import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
+import { ENT_VADO, isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { enterpriseStatusOf } from '../enterprise/status';
 import type { EnterpriseInit, EnterpriseLimits, EnterpriseState, EnterpriseStatus } from '../enterprise/types';
 import { officeTyping, socketClosed, stateMessage } from './presence';
@@ -198,6 +199,9 @@ export function officeParts(o: PartsInput): OfficeParts {
   const tools = testToolsOn(o.read);
   // The day cap of the test Worker (exit wave 4, server/office/cap.ts): MADAR_DAY_CAP, set for the test Worker only.
   const cap = dayCapOf(o.read('MADAR_DAY_CAP'));
+  // The share of the free day limits of one enterprise except ENT_VADO (plan C, design 5.14): read when first needed, so a bad setting stops
+  // only the call that needs it.
+  let share: ReturnType<typeof shareCapOf> | undefined;
   let dayHeld: { at: number; day: DayRow } | undefined;
   const staleMs = Number(o.read('MADAR_LIVE_STALE_MS') ?? LIVE_STALE_MS);
   const signals = liveSignals({ sockets: o.sockets, log, now: () => clock.now(), staleMs });
@@ -304,9 +308,17 @@ export function officeParts(o: PartsInput): OfficeParts {
     return dayHeld.day;
   }
 
-  /** The refusal of the day cap for one call, or undefined: always undefined on a copy with no cap. */
-  async function capped(writes: boolean): Promise<RunError | undefined> {
-    return cap ? capRefusal(await capDay(clock.now()), cap, writes) : undefined;
+  /**
+   * The refusal of the day cap for one call, or undefined. The cap of the test Worker (MADAR_DAY_CAP) wins when it is set. Else an enterprise
+   * except ENT_VADO has its share of the free limits, but only for the calls that carry work (a batch, a tool call of MCP): the sign-in steps,
+   * forgot and renew pass `shared: false` and keep working (design 5.14). ENT_VADO is never refused.
+   */
+  async function capped(writes: boolean, shared = false): Promise<RunError | undefined> {
+    if (cap) return capRefusal(await capDay(clock.now()), cap, writes);
+    const ent = facts.id();
+    if (!shared || ent === undefined || ent === ENT_VADO) return undefined;
+    share ??= shareCapOf(planFrom(o.read));
+    return capRefusal(await capDay(clock.now()), share, writes, COMPANY_BUSY);
   }
 
   /**
@@ -374,7 +386,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       if (refused) return { ok: false, error: refused };
       meter.request({ calls: input.calls.length, worker: input.worker });
       // An export refuses a batch with a write and serves a read batch; an import refuses every batch.
-      const held = hold.refusal({ now: clock.now(), writes: writesIn(input.calls) }) ?? await capped(writesIn(input.calls));
+      const held = hold.refusal({ now: clock.now(), writes: writesIn(input.calls) }) ?? await capped(writesIn(input.calls), true);
       if (held) return { ok: false, error: held };
       const deps = depsFor(net);
       const out = await runOfficeBatch(deps, input, { run, data: data(deps), principal: o.principal, ledger: ledgers.get(deps)! });
@@ -471,7 +483,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       // An export lets the OAuth routes under /mcp run (their rows are drift tables); a request of /mcp itself may write, so it waits.
       const path = new URL(input.url).pathname;
       const writes = path === '/mcp' || path === '/mcp/';
-      const held = hold.refusal({ now: clock.now(), writes }) ?? await capped(writes);
+      // Only a tool call of MCP (the path /mcp) carries work and counts against the share; the OAuth routes under /mcp do not.
+      const held = hold.refusal({ now: clock.now(), writes }) ?? await capped(writes, writes);
       if (held) return mcpRefusal(503, held.message, 'busy');
       const secret = o.read(OWN_AUTH_SECRET);
       let keys: SigningKeys;

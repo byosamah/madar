@@ -13,6 +13,9 @@ export type DayCap = { rowsRead?: number; rowsWritten?: number; requests?: numbe
 export const DAY_CAP_TTL_MS = 60_000;
 export const DAY_CAP_BUSY = new ApiError('failed', 'The test copy used its share of the free limits of today. It works again at 03:00 Riyadh.', { reason: 'busy' });
 
+/** The refusal of the share of one enterprise (Madar enterprises, plan C): its own share of the free limits is used up for today. */
+export const COMPANY_BUSY = new ApiError('failed', 'Madar is busy for your company today. It works again at 03:00 Riyadh.', { reason: 'busy' });
+
 const KEYS: Readonly<Record<string, keyof DayCap>> = { rows_read: 'rowsRead', rows_written: 'rowsWritten', requests: 'requests' };
 
 /** The cap of MADAR_DAY_CAP ("rows_written=50000,rows_read=2500000,requests=50000"), or null when the var is not set. */
@@ -32,9 +35,9 @@ export function dayCapOf(text: string | undefined): DayCap | null {
 }
 
 /** Over the rows read or the requests, every call waits; over the rows written, only a write waits. */
-export function capRefusal(day: DayRow, cap: DayCap, writes: boolean): RunError | undefined {
+export function capRefusal(day: DayRow, cap: DayCap, writes: boolean, busy: ApiError = DAY_CAP_BUSY): RunError | undefined {
   const over = (used: number, limit: number | undefined) => limit !== undefined && used >= limit;
-  if (over(day.rows_read, cap.rowsRead) || over(day.requests, cap.requests)) return runErrorOf(DAY_CAP_BUSY);
-  if (writes && over(day.rows_written, cap.rowsWritten)) return runErrorOf(DAY_CAP_BUSY);
+  if (over(day.rows_read, cap.rowsRead) || over(day.requests, cap.requests)) return runErrorOf(busy);
+  if (writes && over(day.rows_written, cap.rowsWritten)) return runErrorOf(busy);
   return undefined;
 }

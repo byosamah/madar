@@ -7,6 +7,8 @@ import type { NetApi } from '../../office/net';
 import { testToolsOn } from '../../office/ops';
 import type { EnterpriseId } from '../ids';
 import { codePrefixOf } from '../lifecycle';
+import { utcDay } from '../../mail/quota';
+import { accountStop, planFrom, warnings } from '../plan';
 import type { EnterpriseLimits } from '../types';
 import type { EnterpriseListRow, PlatformStub } from './stub';
 
@@ -176,9 +178,19 @@ async function resendInvite(input: In<'platform.enterprises.resendInvite'>, ctx:
   return valueOf(await ctx.office(input.id).reinvite({ ent: input.id }, ctx.net()));
 }
 
-/** The meter call is built in Task 15 (server/enterprise/platform/meter.ts). Until then it answers that it is not built. */
-async function meterGet(_input: In<'platform.meter.get'>, _ctx: PlatformCtx): Promise<Out<'platform.meter.get'>> {
-  throw new ApiError('failed', 'The meter is not built yet.');
+/** The meter strip of the page (design G8): the use of the account today, the plan limits, the warnings, and the counts of each enterprise. */
+async function meterGet(_input: In<'platform.meter.get'>, ctx: PlatformCtx): Promise<Out<'platform.meter.get'>> {
+  const plan = planFrom(ctx.read);
+  const day = utcDay(ctx.now());
+  const today = await ctx.platform.meterToday({ day });
+  const stop = accountStop(plan, today.account);
+  const rows = await ctx.platform.list();
+  const zero = { requests: 0, rowsRead: 0, rowsWritten: 0, mails: 0 };
+  const counts = new Map(today.byEnterprise.map((one) => [one.ent, one.counts]));
+  return {
+    day, limits: plan.limits, total: today.account, share: plan.share, warn: warnings(plan, today.account), stop: stop.stop || stop.writesStop,
+    enterprises: rows.map((row) => ({ id: row.id, name: row.name, nameAr: row.nameAr, day: counts.get(row.id) ?? zero })),
+  };
 }
 
 export const PLATFORM_HANDLERS: {

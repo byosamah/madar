@@ -36,6 +36,10 @@ export type PlatformStub = {
   report(input: EnterpriseStatus): Promise<void>;
   /** Stores the whole day so far for (ent, day) and replaces the old value, so a repeat adds nothing. */
   meter(input: { ent: EnterpriseId; day: string; counts: DayCounts }): Promise<CapAnswer>;
+  /** The account at the stop line for a UTC day (design 5.14). The Worker keeps the answer for 60 seconds. */
+  capState(input: { day: string }): Promise<{ stop: boolean; writesStop: boolean }>;
+  /** The day counts of the account and of each enterprise, for the meter strip of the platform page. */
+  meterToday(input: { day: string }): Promise<{ account: DayCounts; byEnterprise: { ent: EnterpriseId; counts: DayCounts }[] }>;
   /** Plan D replaces this reserve of the account mail pool. */
   mailReserve(input: { ent: EnterpriseId; kind: 'signin' | 'notice'; day: string }): Promise<'ok' | 'full'>;
   /** Ops secret only. Upserts a row in any state and reserves its emails. */
