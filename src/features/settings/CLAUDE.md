@@ -41,7 +41,9 @@ Settings (desk) and the same sections on the Me tab (phone), and the Admin secti
   their own reports: the notice (switch `feedback_done`) is the only place they see the status.
 - `OfficeSection.tsx` (`office.settings`) holds the Admin block "Work hours": the default range of a person who chose none, and "Keep
   notifications on". A change of the lock widens the default range at once (`widenToLock` in `workRange.ts`, also used by
-  `effectiveWorkHours`), and Save refuses a default that misses the lock.
+  `effectiveWorkHours`), and Save refuses a default that misses the lock. It also holds the company name, the Arabic name and the logo (Madar enterprises:
+  `settings.update` `enterpriseName`, `enterpriseNameAr`, `enterpriseLogo`; the logo uses `features/enterprises/LogoPicker.tsx`) and, when `settings.get` gives
+  `usage`, two read-only lines for the people and the storage against the limits of the enterprise. Only the Madar team changes the limits.
 - A new logo gets a frame step (`LogoFrame.tsx`) and a new profile picture gets `AvatarFrameSheet.tsx`. Both use the shared
   `components/PictureFrame.tsx`. The crop helpers are in `lib/picture.ts` (`PictureCrop`, `cropPlace`, `cropPreview`, `fillCrop`). The avatar
   step starts as the centre square, so a person who presses Save gets what they got before. The welcome step and the Admin forms have no

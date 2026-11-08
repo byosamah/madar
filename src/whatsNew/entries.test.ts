@@ -76,7 +76,7 @@ describe("What's new entries", () => {
   });
 
   it('name a real right and a real address when they have them (chats-14)', () => {
-    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink', 'ai.readChats', 'people.turnOff', 'feedback.manage', 'ai.connect', 'folder.locked'];
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink', 'ai.readChats', 'people.turnOff', 'feedback.manage', 'ai.connect', 'folder.locked', 'office.settings'];
     for (const entry of WHATS_NEW) {
       if (entry.right) expect(rights, entry.id).toContain(entry.right);
       if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
@@ -611,3 +611,34 @@ describe('the Word and Excel preview entry (tsk_495)', () => {
     expect(words(ar, '2026-10-23-141')[1]).toContain('إكسل');
   });
 });
+
+// The name and the logo of the company (Madar enterprises, plan C). The first entry is for everyone. The second is for the people who hold the
+// switch Office settings and opens the Admin page. No platform word goes into What's new.
+describe("the What's new entries of the company name and logo", () => {
+  const words = (tree: Parameters<typeof wordAt>[0], id: string) => ['title', 'body'].map((part) => String(wordAt(tree, ['whatsNew', 'items', id, part])));
+  const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
+
+  it('names the company name and logo for everyone, and the Office settings rows for the holders of the switch', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-11-08-157')).toEqual({ id: '2026-11-08-157', day: '2026-11-08' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-11-08-158')).toEqual({ id: '2026-11-08-158', day: '2026-11-08', right: 'office.settings', to: '/admin' });
+    expect(words(en, '2026-11-08-157')[1]).toBe('Madar now shows the name and logo of your company.');
+    expect(words(ar, '2026-11-08-157')[1]).toBe('يعرض مدار الآن اسم شركتك وشعارها.');
+    expect(words(en, '2026-11-08-158')[1]).toBe('Office settings now has rows for your company name and logo.');
+    expect(words(ar, '2026-11-08-158')[1]).toBe('في إعدادات المكتب الآن خانات لاسم شركتك وشعارها.');
+  });
+
+  it('sits under the usage entry, and has an English and an Arabic title and body with no dash and no platform word', () => {
+    expect(at('2026-11-08-158')).toBe(at('2026-10-23-102') + 1);
+    expect(at('2026-11-08-157')).toBe(at('2026-11-08-158') + 1);
+    for (const id of ['2026-11-08-157', '2026-11-08-158']) {
+      for (const tree of [en, ar]) {
+        for (const text of words(tree, id)) {
+          expect(text.length, id).toBeGreaterThan(10);
+          expect(text, id).not.toMatch(/[\u2013\u2014]/);
+          expect(text, id).not.toMatch(/platform|enterprises|المنصة|منشآت/i);
+        }
+      }
+    }
+  });
+});
+

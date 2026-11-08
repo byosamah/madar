@@ -8,7 +8,7 @@ Folder guides: `contract/CLAUDE.md` (fields and limits), `handlers/CLAUDE.md` (t
 pure handlers, an additive contract, a table for a new collection, a test count that only grows.
 
 ## Files
-- `registry.ts`: `defineCall({ input, output, run, prepare?, readOnly?, prototypeOnly? })`. `execute.ts` runs a call.
+- `registry.ts`: `defineCall({ input, output, run, prepare?, readOnly?, prototypeOnly? })`. `execute.ts` runs a call. `Ctx.enterprise` (`{ id, platformOwner }`) is set only by the office object (`runCall` `baseOf`, from `Deps.enterprise`); `session.get` shows it as `enterprise` and `platformOwner`, and `settings.get` adds `usage` when the server gave the numbers. The platform calls are not shared calls: `contract/platform.ts`.
   `errors.ts`: `ApiError` and its codes.
 - `handlers/*.ts`: one file for each area. `handlers/serverFakes.ts`: the prototype fakes of the server-only calls.
 - `calls.ts` joins the handlers and the fakes. `sharedCalls.ts`: the calls the server runs (all but `SERVER_EXCLUDED`).
