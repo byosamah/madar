@@ -4,7 +4,7 @@ import type { UserCard } from '../api/contract/views';
 import { usePersonName } from '../app/personName';
 import { usePicture } from '../app/pictures';
 import { personLights, screenGlow } from '../lib/glow';
-import { safePicture } from '../lib/picture';
+import { safePicture } from '../lib/safePicture';
 import type { PersonState } from '../app/live/types';
 
 /**

@@ -1,9 +1,9 @@
 import { useLang } from '../app/lang';
 import { useSubCompany } from '../app/subCompanies';
-import { safePicture } from '../lib/picture';
+import { LOGO_PLATE } from '../lib/logoPlate';
+import { safePicture } from '../lib/safePicture';
 
-/** The plate behind a logo picture. It is the same white in the light and in the dark theme. */
-export const LOGO_PLATE = '#FFFFFF';
+export { LOGO_PLATE };
 
 /**
  * The logo of a sub-company in a circle, with the whole picture inside it (fbk_007). With no logo, the first letter of its name

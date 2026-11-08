@@ -2,6 +2,7 @@ import { renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { PlatformApi } from '../../api/contract/platform';
+import type { PlatformErrors } from '../../api/remote/platformClient';
 import { RuntimeProvider, createQueryClient, type Runtime } from '../../app/runtime';
 import { PlatformProvider, usePlatform } from './usePlatform';
 
@@ -25,7 +26,7 @@ describe('usePlatform (the prototype build keeps the real client out of its scri
 
   it('gives the fake of the prototype runtime, also when the runtime names a config', () => {
     // A test and the prototype run with VITE_MADAR_API fake: the code of the real client is not part of this build, so the config is not used.
-    const config = { url: 'https://example.test/api', build: '1', token: async () => 'token' };
+    const config = { url: 'https://example.test/api', build: '1', token: async () => 'token', errors: {} as PlatformErrors };
     const { result } = renderHook(() => usePlatform(), { wrapper: wrap({ api, platform, platformConfig: config }) });
     expect(result.current).toBe(platform);
   });

@@ -8,7 +8,7 @@ import { useToast } from '../../app/toasts';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { TextField } from '../../components/Fields';
-import { safePicture } from '../../lib/picture';
+import { safePicture } from '../../lib/safePicture';
 import { FormError } from '../auth/AuthPage';
 import { AvatarFrameSheet } from './AvatarFrameSheet';
 import { useBare } from './bare';

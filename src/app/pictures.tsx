@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { safePicture } from '../lib/picture';
+import { safePicture } from '../lib/safePicture';
 import { useCall } from './runtime';
 
 /** The profile picture of each person, by id. Empty outside the app frame (tests of one part, the sign-in screens). */

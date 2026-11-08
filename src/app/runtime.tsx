@@ -7,6 +7,7 @@ import type { PlatformApi } from '../api/contract/platform';
 import type { DirectoryHandle } from '../api/fakeDirectory';
 import { canFollow } from '../api/remote/follow';
 import { AttemptKeys } from '../api/remote/keys';
+import type { PlatformErrors } from '../api/remote/platformClient';
 import type { Store } from '../api/store';
 import { addDays, todayISO } from '../lib/dates';
 import type { AuthPort } from './auth';
@@ -34,7 +35,7 @@ export type Runtime = {
    * What the page Madar enterprises needs to call the platform (Madar enterprises): the real build fills it, the prototype leaves it out. It is plain
    * data, so the client code loads with the page and not with the first script.
    */
-  platformConfig?: { url: string; build: string; token: () => Promise<string | null>; fetch?: typeof fetch };
+  platformConfig?: { url: string; build: string; token: () => Promise<string | null>; errors: PlatformErrors; fetch?: typeof fetch };
   /** The prototype: the fake platform calls (src/api/platformFake.ts). The real build leaves it out and uses platformConfig. */
   platform?: PlatformApi;
   /** The prototype: the fake directory of enterprises, for Preview as (src/api/fakeDirectory.ts). */

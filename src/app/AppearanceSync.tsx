@@ -1,6 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useCall } from './runtime';
-import { saveBrand } from './remote/brandCache';
 import { useAuth } from '../features/auth/useAuth';
 import { applyAppearance, deviceTheme, ENV_QUERIES, readEnvironment, resolveAppearance, saveDeviceTheme } from './appearance';
 import { applyLanguage, initI18n, withWords } from '../i18n';
@@ -20,8 +19,9 @@ export function AppearanceSync() {
   const [env, setEnv] = useState(() => readEnvironment());
 
   // The service worker names the enterprise in its fixed push line (Madar enterprises): the page leaves the two names in a Cache for it.
+  // The small writer loads on its own, after the first screen, so the first load does not carry it (check-bundles).
   useEffect(() => {
-    if (enterpriseName !== undefined && enterpriseNameAr !== undefined) void saveBrand({ name: enterpriseName, nameAr: enterpriseNameAr });
+    if (enterpriseName !== undefined && enterpriseNameAr !== undefined) void import('./remote/brandCache').then((cache) => cache.saveBrand({ name: enterpriseName, nameAr: enterpriseNameAr })).catch(() => undefined);
   }, [enterpriseName, enterpriseNameAr]);
 
   useEffect(() => {

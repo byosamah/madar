@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../errors';
+import * as errors from './errors';
 import { createPlatformClient } from './platformClient';
 
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-const make = (fetchImpl: typeof fetch, token: string | null = 'tok') => createPlatformClient({ url: 'https://madar.test/api/', build: '2026.11.8', token: async () => token, fetch: fetchImpl });
+const make = (fetchImpl: typeof fetch, token: string | null = 'tok') => createPlatformClient({ url: 'https://madar.test/api/', build: '2026.11.8', token: async () => token, errors, fetch: fetchImpl });
 
 describe('the platform client', () => {
   it('sends one wire call with the bearer token and the build, and gives the output', async () => {

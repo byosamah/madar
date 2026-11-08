@@ -1,6 +1,6 @@
 import { PLATFORM_CALL_NAMES, type PlatformApi } from '../contract/platform';
 import { ApiError } from '../errors';
-import { fromEntry, fromStatus, noAnswer } from './errors';
+import type * as Errors from './errors';
 import { regionUrl } from './region';
 import type { RunError } from './wire';
 
@@ -10,10 +10,17 @@ import type { RunError } from './wire';
  * not_found for a person who is no platform owner) becomes an ApiError too, so errorMessage and fieldError work as for every other call.
  */
 
+/**
+ * The error makers of the remote API (src/api/remote/errors.ts). The runtime gives them in, because the batch client of the first load uses the same code:
+ * an import here would split that code into a chunk that the first load must start, and the first load has no room for one more file.
+ */
+export type PlatformErrors = Pick<typeof Errors, 'fromEntry' | 'fromStatus' | 'noAnswer'>;
+
 const TIMEOUT_MS = 20_000;
 type Answer = { v?: unknown; error?: unknown; results?: { ok?: boolean; output?: unknown; error?: RunError }[] };
 
-export function createPlatformClient(o: { url: string; build: string; token: () => Promise<string | null>; fetch?: typeof fetch }): PlatformApi {
+export function createPlatformClient(o: { url: string; build: string; token: () => Promise<string | null>; errors: PlatformErrors; fetch?: typeof fetch }): PlatformApi {
+  const { fromEntry, fromStatus, noAnswer } = o.errors;
   const url = regionUrl(`${o.url.replace(/\/+$/, '')}/platform`);
   const doFetch = o.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init));
 
