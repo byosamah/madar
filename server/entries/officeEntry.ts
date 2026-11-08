@@ -1,5 +1,5 @@
 import { OWN_AUTH_SECRET, ownPublicJwks } from '../auth/ownKeys';
-import { verifyBrowserToken } from '../auth/verify';
+import { verifyBrowserToken, verifyPlatformToken } from '../auth/verify';
 import { depsFrom, serverEnvFrom } from '../core/deps';
 import { env as readEnv, setEnvSource } from '../env';
 import { refusingDb } from '../office/refusingDb';
@@ -68,6 +68,7 @@ export function officeEntry() {
     routes = officeRoutes({
       deps,
       verifyToken: verifyBrowserToken,
+      verifyPlatformToken,
       stubFor,
       platform: platformStub,
       // The port works for one enterprise: the file folder (plan D) and the email directory (plan C) of the request.

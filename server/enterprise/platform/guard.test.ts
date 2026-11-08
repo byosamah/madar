@@ -1,33 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { ownerOf } from './guard';
+import { platformCaller } from './guard';
 
-const people: Record<string, { userId: string } | null> = { 'ent_001/a-owner': { userId: 'usr_001' }, 'ent_001/a-admin': { userId: 'usr_002' }, 'ent_001/a-off': null, 'ent_002/a-boss': { userId: 'usr_001' } };
-const office = (ent: string) => ({
-  person: async ({ authUserId }: { authUserId: string }) => {
-    const found = people[`${ent}/${authUserId}`];
-    if (found === undefined) throw new Error('The object has no such person.');
-    return found;
-  },
-});
-const platform = (pairs: [string, string][]) => ({ isOwner: async ({ ent, userId }: { ent: string; userId: string }) => pairs.some(([e, u]) => e === ent && u === userId) });
+const accounts: Record<string, { id: string; name: string; email: string; state: 'active' | 'off' }> = {
+  pla_001: { id: 'pla_001', name: 'Owner', email: 'owner@madar.test', state: 'active' },
+  pla_002: { id: 'pla_002', name: 'Off', email: 'off@madar.test', state: 'off' },
+};
+const platform = { platformAccount: async ({ accountId }: { accountId: string }) => accounts[accountId] ?? null };
+const failure = async (work: Promise<unknown>) => {
+  try {
+    await work;
+  } catch (error) {
+    const e = error as { code: string; message: string; details: Record<string, unknown> };
+    return { code: e.code, message: e.message, reason: e.details?.reason };
+  }
+  throw new Error('The guard did not fail.');
+};
 
-describe('ownerOf', () => {
-  it('passes a platform owner', async () => {
-    expect(await ownerOf({ token: { authUserId: 'a-owner', ent: 'ent_001' }, office, platform: platform([['ent_001', 'usr_001']]) })).toEqual({ ent: 'ent_001', userId: 'usr_001' });
+describe('platformCaller', () => {
+  it('passes an account that is on', async () => {
+    expect(await platformCaller({ token: { accountId: 'pla_001', sessionId: 's-1' }, platform })).toEqual({ accountId: 'pla_001', name: 'Owner', email: 'owner@madar.test' });
   });
 
-  it('gives null for an Admin who is no owner', async () => {
-    expect(await ownerOf({ token: { authUserId: 'a-admin', ent: 'ent_001' }, office, platform: platform([['ent_001', 'usr_001']]) })).toBeNull();
+  it('refuses an account that is off with account_off', async () => {
+    expect(await failure(platformCaller({ token: { accountId: 'pla_002', sessionId: 's-1' }, platform }))).toMatchObject({ code: 'unauthenticated', reason: 'account_off' });
   });
 
-  it('gives null for a person of another enterprise with the same person id', async () => {
-    // usr_001 of ent_002 is not the owner: only the pair (ent_001, usr_001) is.
-    expect(await ownerOf({ token: { authUserId: 'a-boss', ent: 'ent_002' }, office, platform: platform([['ent_001', 'usr_001']]) })).toBeNull();
+  it('refuses an unknown account with the answer of a bad token', async () => {
+    expect(await failure(platformCaller({ token: { accountId: 'pla_099', sessionId: 's-1' }, platform }))).toEqual({ code: 'unauthenticated', message: 'Sign in to continue.', reason: undefined });
   });
 
-  it('gives null for a turned-off or removed owner with a good token (person gives null), and for an object that throws', async () => {
-    const pairs: [string, string][] = [['ent_001', 'usr_001']];
-    expect(await ownerOf({ token: { authUserId: 'a-off', ent: 'ent_001' }, office, platform: platform(pairs) })).toBeNull();
-    expect(await ownerOf({ token: { authUserId: 'nobody', ent: 'ent_001' }, office, platform: platform(pairs) })).toBeNull();
+  it('asks the platform object only: it takes no company object', async () => {
+    // The guard has no company input at all, so a company object cannot be called from it.
+    expect(platformCaller.length).toBe(1);
   });
 });

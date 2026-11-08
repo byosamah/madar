@@ -11,6 +11,11 @@ export const ENT_VADO: EnterpriseId = 'ent_001';
 export const PLATFORM_ACCOUNT_ID = /^pla_\d{3,}$/;
 export const ADDRESS_NAME = /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/;
 export const VADO_ADDRESS = 'vados';
+/**
+ * The enterprise value that stands for "no enterprise". A platform account belongs to no company, but the contract of platform.me still
+ * names an enterprise id (src/api/contract/platform.ts), so the platform gives this one. The platform lists no enterprise with this id.
+ */
+export const ENT_NONE: EnterpriseId = 'ent_000';
 /** The name of the one platform object. */
 export const PLATFORM_OBJECT = 'platform';
 

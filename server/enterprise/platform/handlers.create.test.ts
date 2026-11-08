@@ -49,7 +49,7 @@ async function setup(env: Record<string, string> = { MADAR_ENTERPRISE_CREATE: 'o
     },
   } as unknown as OfficeStub;
   const ctx: PlatformCtx = {
-    ent: 'ent_001', userId: 'usr_001', platform, office: () => office, net: () => recordingNet(), read: (name) => env[name] ?? NODE_OFFICE_ENV[name],
+    accountId: 'pla_001', platform, office: () => office, net: () => recordingNet(), read: (name) => env[name] ?? NODE_OFFICE_ENV[name],
     now: () => new Date(NOW), log: { info() {}, warn() {}, error() {} },
   };
   return { ctx, log, inits, real, invitations: () => invitations, failInit: (on: boolean) => void (failInit = on) };

@@ -5,7 +5,7 @@ import type { Logger } from '../../core/ports';
 import type { OfficeStub } from '../../entries/officeWorker';
 import type { NetApi } from '../../office/net';
 import { testToolsOn } from '../../office/ops';
-import type { EnterpriseId } from '../ids';
+import { ENT_NONE, type EnterpriseId } from '../ids';
 import { codePrefixOf } from '../lifecycle';
 import { utcDay } from '../../mail/quota';
 import { accountStop, planFrom, warnings } from '../plan';
@@ -19,9 +19,8 @@ import type { EnterpriseListRow, PlatformStub } from './stub';
  */
 
 export type PlatformCtx = {
-  /** The caller: a platform owner, an active person of this enterprise. */
-  ent: EnterpriseId;
-  userId: string;
+  /** The caller: an active platform account (plan F). It belongs to no company. */
+  accountId: string;
   platform: PlatformStub;
   office(ent: EnterpriseId): OfficeStub;
   /** The network port of the enterprise that a call works on (never the enterprise of the caller). */
@@ -197,7 +196,7 @@ async function meterGet(_input: In<'platform.meter.get'>, ctx: PlatformCtx): Pro
 export const PLATFORM_HANDLERS: {
   [N in PlatformCallName]: (input: In<N>, ctx: PlatformCtx) => Promise<Out<N>>;
 } = {
-  'platform.me': async (_input, ctx) => ({ owner: true, ent: ctx.ent, createOpen: createOpen(ctx.read) }),
+  'platform.me': async (_input, ctx) => ({ owner: true, ent: ENT_NONE, createOpen: createOpen(ctx.read) }),
   'platform.enterprises.list': async (_input, ctx) => {
     const rows = await ctx.platform.list();
     const owners = await ctx.platform.ownersOf();

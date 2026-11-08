@@ -18,12 +18,14 @@ import { OwnersBodyShape, RegisterBodyShape } from '../enterprise/shapes';
 import { accountGate } from '../enterprise/accountGate';
 import { logoResponse } from '../enterprise/logoRoute';
 import { padTo } from '../enterprise/pad';
+import { platformAuth } from '../enterprise/platform/auth';
 import { platformRoute } from '../enterprise/platform/route';
 import { writeOwners } from '../enterprise/platform/owners';
 import type { PlatformStub } from '../enterprise/platform/stub';
 import { runInEnterprise } from '../enterprise/context';
 import { entRouter, isMcpToolPath, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
 import { challengeOf } from '../mcp/metadata';
+import { isPlatformBearer, type PlatformTokenChecker } from '../auth/verify';
 import type { EnterpriseInit, EnterpriseLimits, EnterpriseState, EnterpriseStatus } from '../enterprise/types';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
@@ -132,6 +134,11 @@ export type OfficeRoutesOptions = {
   deps: Pick<Deps, 'config' | 'clock' | 'log'>;
   /** The token check. ent is the claim of an own-key token; a token with no claim (the Supabase key on an office copy) serves ENT_VADO. */
   verifyToken: (header: string | null) => Promise<{ authUserId: string; ent?: EnterpriseId }>;
+  /**
+   * The check of a platform token (plan F, design D10) for POST /api/platform and the platform sign-out. Default: refuses every token, so a
+   * Worker that forgets it serves no platform call.
+   */
+  verifyPlatformToken?: PlatformTokenChecker;
   /** The office object of an enterprise, by its id (server/entries/officeEntry.ts names it with idFromName). Reach it through the router. */
   stubFor: (env: Env, ent: EnterpriseId) => OfficeStub;
   /** The one platform object. */
@@ -246,6 +253,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
    * and pushes of a tool call run after it, as for a batch.
    */
   async function mcp(request: Request, env: Env, after: After | undefined): Promise<Response> {
+    // A platform token never works on the company MCP address (design D10). It is sent away here, before any address or object work.
+    if (isPlatformBearer(request.headers.get('authorization'))) return mcpUnauthorized(o.deps.config.mcpUrl.replace(/\/+$/, ''), true);
     let body: string | null = null;
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       try {
@@ -514,8 +523,14 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   app.all('/api/internal/probe/leg', (c) => probe(c.req.raw, c.env, 'leg'));
   app.post('/api/batch', (c) => batch(c.req.raw, c.env, afterOf(c)));
   // The platform calls (plan C): the office path only. The route checks the token and the owner before it reads anything else.
-  const platformCall = platformRoute({ deps: o.deps, verifyToken: o.verifyToken, stubFor: o.stubFor, platform: o.platform, net: o.net });
+  // The platform has its own accounts and tokens (plan F, design D8 and D10): its token has the audience madar-platform, and a company token
+  // never works here. The sign-in routes of the platform sit under /api/platform/auth.
+  const verifyPlatform: PlatformTokenChecker = o.verifyPlatformToken ?? (() => Promise.reject(new ApiError('unauthenticated', 'Sign in to continue.')));
+  const platformCall = platformRoute({ deps: o.deps, verifyToken: verifyPlatform, stubFor: o.stubFor, platform: o.platform, net: o.net });
+  const platformSignin = platformAuth({ deps: o.deps, platform: o.platform, verifyToken: verifyPlatform });
   app.post('/api/platform', (c) => platformCall(c.req.raw, c.env, afterOf(c)));
+  app.all('/api/platform/auth/token', (c) => platformSignin.token(c.req.raw, c.env));
+  app.all('/api/platform/auth/logout', (c) => platformSignin.logout(c.req.raw, c.env));
   for (const route of o.routes ?? []) {
     app.on(route.method, `/api${route.path}`, (c) => {
       const after = afterOf(c);

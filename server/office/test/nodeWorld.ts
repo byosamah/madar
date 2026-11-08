@@ -5,7 +5,7 @@ import { buildSeed } from '../../../src/data/seed';
 import { importSigninRows, type SigninExportRow } from '../../auth/own/import';
 import { testPrivateJwk } from '../../auth/own/testKeys';
 import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from '../../auth/ownKeys';
-import { browserTokenChecker, type TokenChecker } from '../../auth/verify';
+import { browserTokenChecker, platformTokenChecker, type PlatformTokenChecker, type TokenChecker } from '../../auth/verify';
 import type { Deps, Logger } from '../../core/ports';
 import { nodeHost } from '../../data/lite/host';
 import { applyLiteSchema } from '../../data/lite/schema';
@@ -176,10 +176,13 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
   const secret = read(OWN_AUTH_SECRET);
   let own: OfficeRoute[] | undefined;
   let verifyToken: TokenChecker = () => Promise.reject(new ApiError('unauthenticated', 'Sign in again.'));
+  let verifyPlatformToken: PlatformTokenChecker = () => Promise.reject(new ApiError('unauthenticated', 'Sign in again.'));
   if (secret !== undefined) {
     try {
-      own = officeSigninRoutes({ jwks: ownPublicJwks(secret), deps: workerDeps, ...(o.minMs ? { minMs: o.minMs } : {}), ...(o.sleep ? { sleep: o.sleep } : {}) });
       verifyToken = browserTokenChecker({ issuer: ownIssuer(workerDeps.config.mcpUrl), jwks: ownKeySet(secret), requireEnt: true });
+      // The signed-in sign-in steps (password, logout, OAuth) use the same token check as the batch route.
+      own = officeSigninRoutes({ jwks: ownPublicJwks(secret), deps: workerDeps, checkToken: verifyToken, ...(o.minMs ? { minMs: o.minMs } : {}), ...(o.sleep ? { sleep: o.sleep } : {}) });
+      verifyPlatformToken = platformTokenChecker({ issuer: ownIssuer(workerDeps.config.mcpUrl), jwks: ownKeySet(secret) });
     } catch (error) {
       log.error('The own sign-in routes are off: the key did not load.', { error: error instanceof Error ? error.message : String(error) });
     }
@@ -187,6 +190,7 @@ export async function nodeWorld(o: NodeWorldOptions = {}) {
   const routes = officeRoutes({
     deps: workerDeps,
     verifyToken,
+    verifyPlatformToken,
     stubFor,
     platform: () => platform,
     net: (_env, ent) => netFor(ent),

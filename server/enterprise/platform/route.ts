@@ -3,19 +3,22 @@ import { ApiError } from '../../../src/api/errors';
 import { nowStamp } from '../../../src/lib/dates';
 import type { Deps } from '../../core/ports';
 import type { OfficeStub } from '../../entries/officeWorker';
-import { errorResponse, runErrorOf } from '../../http/errors';
+import { runErrorOf } from '../../http/errors';
 import { checkBuild, parseBatch, readBody } from '../../http/limits';
 import type { NetApi } from '../../office/net';
-import { isEnterpriseId, type EnterpriseId } from '../ids';
-import { ownerOf } from './guard';
+import type { PlatformTokenChecker } from '../../auth/verify';
+import type { EnterpriseId } from '../ids';
+import { platformErrorResponse } from './answer';
+import { platformCaller } from './guard';
 import { PLATFORM_HANDLERS, type PlatformCtx } from './handlers';
 import type { PlatformStub } from './stub';
 
 /**
- * POST /api/platform (Madar enterprises, design 5.6): one platform call for each request, in the wire form of one entry of /api/batch. The
- * order of the checks: the build, the body size, the browser token (an agent token gets 403 agent_token), the owner check (any person who
- * is no owner gets not_found, the answer of an unknown address), then the shape of the request, the name of the call, its input and the
- * handler. So a stranger learns nothing from the shape of a request. The office path only: the Postgres path has no such route.
+ * POST /api/platform (Madar enterprises, design 5.6 and plan F): one platform call for each request, in the wire form of one entry of
+ * /api/batch. The order of the checks: the build, the body size, the platform token (audience madar-platform: a company token, an agent
+ * token or no token gets 401), the account check (the account must exist and be on, else 401; it calls no company object), then the shape
+ * of the request, the name of the call, its input and the handler. A stranger learns nothing from the shape of a request. The office path
+ * only: the Postgres path has no such route.
  */
 
 type Env = Record<string, unknown>;
@@ -23,7 +26,7 @@ type After = (work: Promise<unknown>) => void;
 
 export type PlatformRouteOptions = {
   deps: Pick<Deps, 'config' | 'clock' | 'log'>;
-  verifyToken: (header: string | null) => Promise<{ authUserId: string; ent?: EnterpriseId }>;
+  verifyToken: PlatformTokenChecker;
   stubFor: (env: Env, ent: EnterpriseId) => OfficeStub;
   platform: (env: Env) => PlatformStub;
   net: (env: Env, ent: EnterpriseId) => NetApi;
@@ -45,11 +48,7 @@ export function platformRoute(o: PlatformRouteOptions): (request: Request, env: 
       const text = await readBody(request);
       const token = await o.verifyToken(request.headers.get('Authorization'));
       const platform = o.platform(env);
-      // A token with no claim is the Postgres way back: it serves ENT_VADO only and holds no platform power.
-      const owner = token.ent !== undefined && isEnterpriseId(token.ent)
-        ? await ownerOf({ token: { authUserId: token.authUserId, ent: token.ent }, office: (ent) => o.stubFor(env, ent), platform, log })
-        : null;
-      if (!owner) throw notFound();
+      const caller = await platformCaller({ token, platform });
       const { request: batch } = parseBatch(text);
       if (batch.calls.length !== 1) throw new ApiError('invalid_input', 'A platform request holds one call.', { reason: 'bad_request' });
       const call = batch.calls[0];
@@ -61,7 +60,7 @@ export function platformRoute(o: PlatformRouteOptions): (request: Request, env: 
         throw new ApiError('invalid_input', 'The input of this call is not right.', { fields: [...new Set(parsed.error.issues.map((issue) => issue.path.join('.')))] });
       }
       const ctx: PlatformCtx = {
-        ent: owner.ent, userId: owner.userId, platform, office: (ent) => o.stubFor(env, ent), net: (ent) => o.net(env, ent), read: readerOf(env),
+        accountId: caller.accountId, platform, office: (ent) => o.stubFor(env, ent), net: (ent) => o.net(env, ent), read: readerOf(env),
         now: () => o.deps.clock.now(), log,
       };
       let output: unknown;
@@ -80,7 +79,7 @@ export function platformRoute(o: PlatformRouteOptions): (request: Request, env: 
       return Response.json({ v: 1, serverTime: nowStamp(o.deps.clock.now()), results: [{ i: call.i, ok: true, output: checked.data }] });
     } catch (error) {
       if (!(error instanceof ApiError)) log.error('The platform route failed before its call.', { error: error instanceof Error ? error.message : String(error) });
-      return errorResponse(runErrorOf(error));
+      return platformErrorResponse(runErrorOf(error));
     }
   };
 }

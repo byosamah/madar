@@ -65,7 +65,7 @@ describe('the meter of the platform object', () => {
 describe('platform.meter.get', () => {
   async function ctxOf() {
     const { parts } = await platform();
-    const ctx = { ent: 'ent_001', userId: 'usr_001', platform: parts, office: () => ({}) as never, net: () => ({}) as never, read: (name: string) => NODE_OFFICE_ENV[name], now: () => new Date(`${DAY}T08:00:00Z`), log: { info() {}, warn() {}, error() {} } } as PlatformCtx;
+    const ctx = { accountId: 'pla_001', platform: parts, office: () => ({}) as never, net: () => ({}) as never, read: (name: string) => NODE_OFFICE_ENV[name], now: () => new Date(`${DAY}T08:00:00Z`), log: { info() {}, warn() {}, error() {} } } as PlatformCtx;
     return { parts, ctx };
   }
 

@@ -1,8 +1,8 @@
-import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
+import { createRemoteJWKSet, decodeJwt, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import { ApiError } from '../../src/api/errors';
-import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
+import { isEnterpriseId, isPlatformAccountId, type EnterpriseId } from '../enterprise/ids';
 import { env, requireEnv } from '../env';
-import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from './ownKeys';
+import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks, PLATFORM_AUDIENCE } from './ownKeys';
 
 /**
  * The browser token check of the api function (plan 5.1; plan section 2, change 6; proof.md Z0a items 1 and 2).
@@ -80,6 +80,66 @@ export function browserTokenChecker(o: TokenCheckOptions): TokenChecker {
     if (o.requireEnt === true && claim === undefined) throw signIn();
     return { authUserId: payload.sub, ...(sessionId === undefined ? {} : { sessionId }), ...(claim === undefined ? {} : { ent: claim }) };
   };
+}
+
+/**
+ * The token check of the platform routes (Madar enterprises, plan F, design D10). The audience is madar-platform, so a company token
+ * (audience authenticated) and an agent token (audience the MCP address) never pass. A platform token has no ent claim: a token with one is
+ * refused too. sub must be a platform account id and sid a session id. Every refusal is the same 401 "Sign in to continue.".
+ */
+export type PlatformTokenChecker = (header: string | null) => Promise<{ accountId: string; sessionId: string }>;
+
+export function platformTokenChecker(o: { issuer: string; jwks: JWTVerifyGetKey }): PlatformTokenChecker {
+  return async (header) => {
+    const match = header === null ? null : BEARER.exec(header.trim());
+    if (!match) throw signIn();
+    let payload: JWTPayload;
+    try {
+      ({ payload } = await jwtVerify(match[1], o.jwks, { issuer: o.issuer, audience: PLATFORM_AUDIENCE, algorithms: ['ES256'], clockTolerance: CLOCK_TOLERANCE_S }));
+    } catch (error) {
+      if (error instanceof errors.JWTExpired) throw signIn('token_expired');
+      if (error instanceof errors.JOSEError && TOKEN_REFUSALS.has(error.code)) throw signIn();
+      throw new Error(`The sign-in check did not run: ${error instanceof errors.JOSEError ? error.code : error instanceof Error ? error.message : String(error)}`);
+    }
+    if (payload.ent !== undefined || hasClientId(payload)) throw signIn();
+    if (!isPlatformAccountId(payload.sub) || typeof payload.sid !== 'string' || payload.sid === '') throw signIn();
+    return { accountId: payload.sub, sessionId: payload.sid };
+  };
+}
+
+const platformCheckers = new Map<string, PlatformTokenChecker>();
+
+/** The platform token check of the Worker: the own key MADAR_AUTH_PRIVATE_JWK. No key: every token is refused with the 401 of a bad token. */
+export function verifyPlatformToken(header: string | null): ReturnType<PlatformTokenChecker> {
+  try {
+    const own = env(OWN_AUTH_SECRET);
+    if (own === undefined) return Promise.reject(signIn());
+    const issuer = ownIssuer(requireEnv('MCP_URL'));
+    const id = `${issuer}|${String(ownPublicJwks(own).keys[0].kid)}`;
+    let checker = platformCheckers.get(id);
+    if (!checker) {
+      checker = platformTokenChecker({ issuer, jwks: ownKeySet(own) });
+      platformCheckers.set(id, checker);
+    }
+    return checker(header);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+}
+
+/**
+ * True when the bearer token names the platform audience. It reads the claims without a signature check, and only to REFUSE a request early:
+ * the MCP route sends a platform token away before it makes any company object. A false answer sends the request on to the real check.
+ */
+export function isPlatformBearer(header: string | null): boolean {
+  const match = header === null ? null : BEARER.exec(header.trim());
+  if (!match) return false;
+  try {
+    const aud = decodeJwt(match[1]).aud;
+    return aud === PLATFORM_AUDIENCE || (Array.isArray(aud) && aud.includes(PLATFORM_AUDIENCE));
+  } catch {
+    return false;
+  }
 }
 
 /** The issuer of the tokens of a project: ${SUPABASE_URL}/auth/v1. */

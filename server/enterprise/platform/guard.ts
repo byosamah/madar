@@ -1,29 +1,19 @@
-import type { Logger } from '../../core/ports';
-import type { OfficeStub } from '../../entries/officeWorker';
-import type { EnterpriseId } from '../ids';
+import { ApiError } from '../../../src/api/errors';
+import { accountOff } from '../../auth/own/ops';
 import type { PlatformStub } from './stub';
 
 /**
- * The owner check of the platform calls (Madar enterprises, design 5.6 and decision D4). A platform owner is an ACTIVE person of an
- * enterprise whose pair (enterprise id, person id) is in the owner list of the platform object. Every platform call checks both, so a
- * turned-off or removed owner loses the page at once, also with a token that is still valid. The token proves the enterprise and the sign-in;
- * the object finds the person; the platform object knows the pair.
+ * The guard of the platform calls (Madar enterprises, plan F, design D10). The token proves who signed in: a platform account id and a
+ * session. The platform object says whether that account still exists and is on. Every call checks it, so an account that the Mac script
+ * turned off loses the page at once, also with a token that is still valid. The guard calls no company object.
  */
-export async function ownerOf(o: {
-  token: { authUserId: string; ent: EnterpriseId };
-  office(ent: EnterpriseId): Pick<OfficeStub, 'person'>;
-  platform: Pick<PlatformStub, 'isOwner'>;
-  log?: Logger;
-}): Promise<{ ent: EnterpriseId; userId: string } | null> {
-  const { ent, authUserId } = o.token;
-  let person: { userId: string } | null;
-  try {
-    person = await o.office(ent).person({ ent, authUserId });
-  } catch (error) {
-    // A paused object, an object that was never made or a failure: the caller is no owner for this call. The answer stays not_found.
-    o.log?.warn('The owner check could not read the person.', { ent, error: error instanceof Error ? error.message : String(error) });
-    return null;
-  }
-  if (person === null) return null;
-  return (await o.platform.isOwner({ ent, userId: person.userId })) ? { ent, userId: person.userId } : null;
+export async function platformCaller(o: {
+  token: { accountId: string; sessionId: string };
+  platform: Pick<PlatformStub, 'platformAccount'>;
+}): Promise<{ accountId: string; name: string; email: string }> {
+  const account = await o.platform.platformAccount({ accountId: o.token.accountId });
+  // An account that does not exist gets the answer of a bad token, so the answer tells nothing about the accounts.
+  if (account === null) throw new ApiError('unauthenticated', 'Sign in to continue.');
+  if (account.state !== 'active') throw accountOff();
+  return { accountId: account.id, name: account.name, email: account.email };
 }

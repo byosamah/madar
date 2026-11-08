@@ -47,7 +47,7 @@ async function setup() {
   } as unknown as OfficeStub;
   const nets: string[] = [];
   const ctx: PlatformCtx = {
-    ent: 'ent_001', userId: 'usr_001', platform, office: () => office, net: (ent) => (nets.push(ent), recordingNet()), read: (name) => (name === 'MADAR_ENTERPRISE_CREATE' ? 'open' : NODE_OFFICE_ENV[name]),
+    accountId: 'pla_001', platform, office: () => office, net: (ent) => (nets.push(ent), recordingNet()), read: (name) => (name === 'MADAR_ENTERPRISE_CREATE' ? 'open' : NODE_OFFICE_ENV[name]),
     now: () => new Date(NOW), log: { info() {}, warn() {}, error() {} },
   };
   const run = <N extends (typeof PLATFORM_CALL_NAMES)[number]>(name: N, input: Parameters<(typeof PLATFORM_HANDLERS)[N]>[0]) =>
@@ -58,9 +58,9 @@ async function setup() {
 }
 
 describe('platform.me and platform.enterprises.list', () => {
-  it('me gives owner true, the enterprise of the caller and whether create is open', async () => {
+  it('me gives owner true, no enterprise (ent_000) and whether create is open', async () => {
     const t = await setup();
-    expect(await t.run('platform.me', {})).toEqual({ owner: true, ent: 'ent_001', createOpen: true });
+    expect(await t.run('platform.me', {})).toEqual({ owner: true, ent: 'ent_000', createOpen: true });
   });
 
   it('list gives one valid view for each row, with hasOwner, the paused state and the first Admin', async () => {
