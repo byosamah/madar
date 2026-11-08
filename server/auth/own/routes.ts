@@ -6,6 +6,7 @@ import { ROUTES, type RouteDef } from '../../http/routes';
 import { APPROVE_PATH, withApproveRoute } from '../../mcp/approval';
 import { clientAddress } from '../forgot';
 import { verifyBrowserToken, type TokenChecker } from '../verify';
+import type { EnterpriseId } from '../../enterprise/ids';
 import type { OpResult, SigninOffice } from './office';
 
 /**
@@ -36,12 +37,12 @@ const text = (value: unknown): string => (typeof value === 'string' ? value : ''
 const idOf = (request: Request): string => decodeURIComponent(/\/oauth\/authorizations\/([^/]+)/.exec(new URL(request.url).pathname)?.[1] ?? '');
 
 /** A route for a signed-in person: the browser token check first (an agent token gets 403 agent_token), then the work. */
-export function signedIn(check: TokenChecker, work: (request: Request, who: { authId: string; sessionId: string }) => Promise<Response>) {
+export function signedIn(check: TokenChecker, work: (request: Request, who: { authId: string; sessionId: string; ent?: EnterpriseId }) => Promise<Response>) {
   return async (request: Request): Promise<Response> => {
     try {
-      const { authUserId, sessionId } = await check(request.headers.get('Authorization'));
+      const { authUserId, sessionId, ent } = await check(request.headers.get('Authorization'));
       if (sessionId === undefined) throw new ApiError('unauthenticated', 'Sign in to continue.', { reason: 'session_ended' });
-      return await work(request, { authId: authUserId, sessionId });
+      return await work(request, { authId: authUserId, sessionId, ...(ent ? { ent } : {}) });
     } catch (error) {
       return errorResponse(runErrorOf(error), NO_STORE);
     }
@@ -70,36 +71,38 @@ export function ownAuthRoutes(office: SigninOffice, o: OwnRouteOptions): RouteDe
     {
       method: 'POST', path: '/auth/password', handler: signedIn(check, async (request, who) => {
         const body = await jsonOf(request);
-        return answer(await office.run('auth.setPassword', { ...who, password: text(body.password), ...(typeof body.current === 'string' ? { current: body.current } : {}) }));
+        const { ent, ...person } = who;
+        return answer(await office.run('auth.setPassword', { ...person, password: text(body.password), ...(typeof body.current === 'string' ? { current: body.current } : {}) }, ent));
       }),
     },
     {
       method: 'POST', path: '/auth/logout', handler: signedIn(check, async (request, who) => {
         const body = await jsonOf(request);
-        return answer(await office.run('auth.logout', { ...who, scope: body.scope === 'others' ? 'others' : 'local' }));
+        const { ent, ...person } = who;
+        return answer(await office.run('auth.logout', { ...person, scope: body.scope === 'others' ? 'others' : 'local' }, ent));
       }),
     },
     { method: 'GET', path: '/auth/jwks', handler: async () => Response.json(o.jwks, { headers: { 'Cache-Control': 'public, max-age=600' } }) },
     {
-      method: 'GET', path: '/oauth/authorizations/:id', handler: signedIn(check, async (request, who) => answer(await office.run('oauth.details', { authId: who.authId, id: idOf(request) }))),
+      method: 'GET', path: '/oauth/authorizations/:id', handler: signedIn(check, async (request, who) => answer(await office.run('oauth.details', { authId: who.authId, id: idOf(request) }, who.ent))),
     },
     {
       method: 'POST', path: '/oauth/authorizations/:id/consent', handler: signedIn(check, async (request, who) => {
         const body = await jsonOf(request);
-        return answer(await office.run('oauth.consent', { authId: who.authId, id: idOf(request), action: body.action === 'approve' ? 'approve' : 'deny' }));
+        return answer(await office.run('oauth.consent', { authId: who.authId, id: idOf(request), action: body.action === 'approve' ? 'approve' : 'deny' }, who.ent));
       }),
     },
     {
       method: 'POST', path: APPROVE_PATH, handler: signedIn(check, async (request, who) => {
         const body = await jsonOf(request);
-        return answer(await office.run('oauth.approve', { authId: who.authId, id: text(body.authorizationId) }));
+        return answer(await office.run('oauth.approve', { authId: who.authId, id: text(body.authorizationId) }, who.ent));
       }),
     },
-    { method: 'POST', path: '/oauth/grants', handler: signedIn(check, async (_request, who) => answer(await office.run('oauth.grants', { authId: who.authId }))) },
+    { method: 'POST', path: '/oauth/grants', handler: signedIn(check, async (_request, who) => answer(await office.run('oauth.grants', { authId: who.authId }, who.ent))) },
     {
       method: 'POST', path: '/oauth/grants/revoke', handler: signedIn(check, async (request, who) => {
         const body = await jsonOf(request);
-        return answer(await office.run('oauth.revoke', { authId: who.authId, clientId: text(body.client_id) }));
+        return answer(await office.run('oauth.revoke', { authId: who.authId, clientId: text(body.client_id) }, who.ent));
       }),
     },
   ];

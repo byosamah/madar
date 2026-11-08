@@ -1,3 +1,4 @@
+import { tagged, type EnterpriseId } from '../enterprise/ids';
 import type { Gender, Language } from '../../src/api/contract/entities';
 import ar from '../../src/i18n/real/p.ar.json';
 import en from '../../src/i18n/real/p.en.json';
@@ -59,11 +60,16 @@ export function escapeHtml(text: string): string {
 
 /**
  * The link of a sign-in mail. The screen sends "type" to verifyOtp, so it must be the type of the link that Auth made.
+ * ent: the enterprise of the object that made the link (Madar enterprises): it tags the token and the renew key.
  * renew: the renew key of an invitation (server/auth/invite.ts, security fix 7), which the Welcome screen sends when the link
  * is out of date.
  */
-export function signinLink(appUrl: string, screen: 'welcome' | 'reset', tokenHash: string, type: 'invite' | 'recovery', renew?: string): string {
-  const query = new URLSearchParams({ token_hash: tokenHash, type, ...(renew ? { renew } : {}) });
+export function signinLink(appUrl: string, screen: 'welcome' | 'reset', tokenHash: string, type: 'invite' | 'recovery', renew?: string, ent?: EnterpriseId): string {
+  // Madar enterprises: with ent, the token and the renew key carry the enterprise as a tag (<ent>.<secret>), so the Worker finds the object
+  // from the link. Without ent (the Postgres path) the link is as before.
+  const query = new URLSearchParams({
+    token_hash: ent ? tagged(ent, tokenHash) : tokenHash, type, ...(renew ? { renew: ent ? tagged(ent, renew) : renew } : {}),
+  });
   return `${appUrl.replace(/\/+$/, '')}/${screen}?${query.toString()}`;
 }
 

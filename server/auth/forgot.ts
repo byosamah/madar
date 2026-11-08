@@ -102,7 +102,7 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
     return 'none';
   }
   const mail = renderSigninMail('reset', user.preferences.language, {
-    name: personName(user, user.preferences.language), link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery'),
+    name: personName(user, user.preferences.language), link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery', undefined, deps.config.ent),
   }, user.gender, { appUrl: deps.config.appUrl });
   // sendCounted finds the place that this key holds.
   const sent = await sendCounted(deps, 'signin', { to: user.email, ...mail, tag: 'reset', idempotencyKey: key }, { userId: row.id });

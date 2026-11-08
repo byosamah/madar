@@ -23,7 +23,7 @@ import { EffectLedger, type OfficeBatchInput } from './batch';
 import { officeParts } from './parts';
 import { principalOfWho } from './who';
 import { fakeSockets, openFor, recordingNet } from './test/fakes';
-import { ENT_VADO } from '../enterprise/ids';
+import { ENT_VADO, untag } from '../enterprise/ids';
 
 const TODAY = '2026-10-04';
 const NOW = '2026-10-04T06:00:00.000Z';
@@ -369,7 +369,8 @@ describe('the forgot and renew routes in the office object (Office.mailRoute, Of
     const { parts, raw, batch } = await office(undefined, { net });
     ok(await batch('usr_001', [{ name: 'users.create', input: { name: 'New Person', email: 'new.person@madar.test', systemRole: 'member', discipline: 'Architect' } }]));
     const href = /href="([^"]+)"/.exec(mails[0].html)![1].replace(/&amp;/g, '&');
-    const key = new URL(href).searchParams.get('renew')!;
+    // The link of an office object carries the enterprise as a tag; the Worker strips it, so the object gets the bare key.
+    const key = untag(new URL(href).searchParams.get('renew')!)!.secret;
     const out = await parts.mailRoute({ ent: ENT_VADO, route: 'renew', body: JSON.stringify({ key }), address: ADDRESS }, net);
     expect([out.status, out.work]).toEqual([200, key]);
     await parts.mailWork({ ent: ENT_VADO, route: 'renew', value: key }, net);

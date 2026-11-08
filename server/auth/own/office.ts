@@ -1,4 +1,5 @@
 import { ApiError } from '../../../src/api/errors';
+import type { EnterpriseId } from '../../enterprise/ids';
 import { runErrorOf } from '../../http/errors';
 import {
   answerConsent, approveClient, authorizationDetails, exchangeToken, listGrants, registerClient, revokeGrant, startAuthorization,
@@ -48,7 +49,11 @@ export async function runSigninOp<N extends SigninOpName>(deps: SigninDeps, name
 
 /** The way of the Worker routes to the steps. Wave 3 gives one that calls the office object; tests and local runs use this one. */
 export interface SigninOffice {
-  run<N extends SigninOpName>(name: N, input: OpInput<N>): Promise<OpResult<OpOutput<N>>>;
+  /**
+   * ent: the enterprise from the signed token claim, for a step of a signed-in person. The first steps (password, refresh, verify) find
+   * the enterprise themselves, from the email or the tag; the local office inside the object ignores ent.
+   */
+  run<N extends SigninOpName>(name: N, input: OpInput<N>, ent?: EnterpriseId): Promise<OpResult<OpOutput<N>>>;
 }
 
 export function localSigninOffice(deps: SigninDeps): SigninOffice {

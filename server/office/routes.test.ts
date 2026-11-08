@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { WireResponse } from '../../src/api/remote/wire';
-import { importSigninRows } from '../auth/own/import';
 import { hashPassword } from '../auth/own/password';
 import { ownIssuer } from '../auth/ownKeys';
 import { httpOf, nodeOffice } from './test/nodeOffice';
-import { ENT_VADO } from '../enterprise/ids';
+import { ENT_VADO, untag } from '../enterprise/ids';
+import { linkValueOfMail } from '../auth/own/testOffice';
 
 /**
  * The /api and /mcp routes of the office path in node (exit wave 4, Task 1 under the ruling of the main session): each request
@@ -24,7 +24,7 @@ async function signedOffice(at?: string) {
   const t = await nodeOffice(at ? { at } : {});
   const { email } = t.raw.prepare("select json_extract(doc, '$.email') as email from users where id = 'usr_001'").get() as { email: string };
   const hash = await hashPassword(PASSWORD);
-  await t.parts.db.tx('write', (q) => importSigninRows(q, [{ id: AUTH_ID, email, password_hash: hash, email_confirmed: true, banned: false, password_set: true, user_id: 'usr_001' }], t.clock.now()));
+  await t.signins([{ id: AUTH_ID, email, password_hash: hash, email_confirmed: true, banned: false, password_set: true, user_id: 'usr_001' }]);
   return { ...t, email };
 }
 
@@ -65,6 +65,33 @@ describe('the routes of the office path, from the Worker into the object (server
     expect(Date.now() - started).toBeGreaterThanOrEqual(1_400);
     const mails = await t.parts.db.statement<{ tag: string; to_email: string }>('read', 'select tag, to_email from mail_outbox');
     expect(mails).toEqual([{ tag: 'reset', to_email: t.email }]);
+  });
+
+  it('a sign-in, a refresh and a link open run end to end through the Worker with tagged tokens', async () => {
+    const t = await signedOffice(new Date().toISOString());
+    const post = async (path: string, body: unknown) => {
+      const answer = await t.route(httpOf('POST', path, body));
+      return { status: answer.status, body: JSON.parse(answer.body) as Record<string, any> };
+    };
+    const first = await post('/api/auth/token', { grant_type: 'password', email: t.email, password: PASSWORD });
+    expect(first.status).toBe(200);
+    expect(untag(first.body.refresh_token)).toMatchObject({ ent: ENT_VADO });
+    const refreshed = await post('/api/auth/token', { grant_type: 'refresh_token', refresh_token: first.body.refresh_token });
+    expect(refreshed.status).toBe(200);
+    expect(untag(refreshed.body.refresh_token)).toMatchObject({ ent: ENT_VADO });
+    // The bare secret has no tag: no fallback, the answer of an unknown token.
+    const bare = await post('/api/auth/token', { grant_type: 'refresh_token', refresh_token: untag(refreshed.body.refresh_token)!.secret });
+    const unknown = await post('/api/auth/token', { grant_type: 'refresh_token', refresh_token: 'ent_001.nothing-here' });
+    expect([bare.status, bare.body]).toEqual([unknown.status, unknown.body]);
+    expect(bare.status).toBe(401);
+    // A link: the reset mail holds a tagged token, and the verify route opens it.
+    await t.route(httpOf('POST', '/api/auth/forgot', { email: t.email }));
+    const [mail] = await t.parts.db.statement<{ mail: { html: string } }>('read', "select mail from mail_outbox where tag = 'reset'");
+    const link = linkValueOfMail(mail.mail.html, 'token_hash');
+    expect(untag(link)).toMatchObject({ ent: ENT_VADO });
+    const stripped = await post('/api/auth/verify', { token_hash: untag(link)!.secret, type: 'recovery' });
+    expect(stripped).toMatchObject({ status: 401, body: { error: { details: { reason: 'link_ended' } } } });
+    expect((await post('/api/auth/verify', { token_hash: link, type: 'recovery' })).status).toBe(200);
   });
 
   it('answers POST /mcp with no token with 401 and the challenge of the own server', async () => {
