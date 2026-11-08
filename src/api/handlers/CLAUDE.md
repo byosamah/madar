@@ -133,10 +133,28 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   maker. `notify`, `adminCopies` and the notice rules attach the rights of the person first (`ensureRights`).
 - Office tasks count in the lists of a person, `overdueTasks`, the workload, `inReview` and the gaps of `dashboard.get` only
   with no people filter. They never count in a project number.
-- **Review.** It applies only when the maker is not the lead. `reviewersOfTask` (`notify.ts`) gives the maker, or the Admins
-  when the maker left. For a project, `reviewersOf` gives the active leader only while the leader holds `task.review.lead`
-  (`canReview`); else the active Admins review. The Dashboard `inReview`, the `review_for_me` filter and the morning summary
-  (`SUMMARY_COUNTS_SQL`, the leaders who review as `$3`) follow the same rule.
+- **Review (fbk_087, owner 2026-11-08).** The person who does the work never approves it. The work side of a to-do is its lead and
+  its helpers. `Task.reviewSentBy` (the person behind an agent, never the agent) is written by `changeStatus` when the status becomes
+  `in_review` and set to null when it leaves; `reviewersAfterSend(state, task, senderId)` (`notify.ts`) is THE rule: a sender who is
+  not the lead sends it to the lead; the lead of a project to-do sends it to the project leader; the lead of an office to-do sends it to
+  the maker; a lead who is the project leader or the maker means no review. A lead, leader or maker who left is replaced by the active
+  Admins except the sender. The reviewer needs no switch (also a Member). `reviewersOfTask` reads the stored sender while the to-do is
+  in review, and keeps the OLD rule when there is none (a to-do sent before 2026-11-08, such as tsk_624, until it is sent again): a
+  project to-do goes to `reviewersOf` (the active leader while the leader holds `task.review.lead`, else the Admins), an office to-do
+  to the maker, else the Admins. `tickLandsInReview` (one answer for the call `landingStatus` and the view flag
+  `viewerCan.sendToReview`): a tick by a person outside the work side who holds the review right lands on Done; any other tick lands in
+  review when `reviewersAfterSend` names someone, else on Done. `mayReviewTask` is the gate of Approve, Send back, `viewerCan.review` and
+  `canApprove` of the bell: the sender never, the named reviewer yes, a holder of `task.review` (project) or `task.officeAll` (office) as
+  a backup without notice or "Your review" card. An office to-do still needs no review when its maker leads it (`review_by_maker`).
+  The Dashboard `inReview`, `review_for_me`, `workOf`, the notice `review_requested` and the morning summary follow
+  `reviewersOfTask`; the SQL twin is `SUMMARY_COUNTS_SQL` (`reviewerSql`; a test of `server/it/email.it.test.ts` compares both). A change
+  of this rule changes the SQL, `mayReviewTask`, `tickLandsInReview`, the words (`office.needsReviewHint`, `taskSheet.needsReviewHint`)
+  and the MCP text in one commit.
+- **Helpers send to review (fbk_087).** A helper with `task.work` (`mayHelperWork`, `taskGates.ts`) moves an open to-do that needs review
+  to `in_review` (`tasks.move` or `tasks.complete`) and does nothing else (`helperMaySend` in `tasks.ts`; Done, other statuses and fields
+  stay closed). `viewerCan.sendToReview` is true when a tick by the viewer lands in review: the button says "Send to review", and a helper
+  gets the press (`SendBlock`, `nextStep`). Undo of a send by a helper and of an approval by the reviewer passes (`isOwnSend`, `isOwnChange`
+  in `history.ts`).
 - **Makers.** The person who adds a project task (`principalOf(createdBy)`, so the task of an agent belongs to its person)
   holds the leader's rights on it while on the team. `taskResource` names `makerId` for a project task too. The gates are in
   `taskGates.ts` and `meetingGates.ts`; `tasks.update` asks one gate for each field (read the code). A person who may change

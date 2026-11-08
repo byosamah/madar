@@ -27,13 +27,20 @@ export function isTaskMaker(actor: Actor, resource: Resource): boolean {
 }
 
 /**
+ * A helper with the switch task.work (fbk_087, owner 2026-11-08): on an office to-do, or on a project to-do as the Admin, the leader or
+ * a team member. The helper ticks checklist items, and sends the to-do to review when it needs review (tasks.ts adds that test).
+ */
+export function mayHelperWork(actor: Actor, resource: Resource): boolean {
+  if (!actor.active || !(resource.helperIds ?? []).includes(actor.id) || !holdsRight(actor, 'task.work')) return false;
+  return resource.office === true || actor.systemRole === 'admin' || resource.projectRole === 'leader' || resource.projectRole === 'team';
+}
+
+/**
  * Ticking a checklist item (task.work). The lead and the maker tick with the switch. A helper ticks with the switch too, beside the
  * lead. A person who may change any to-do ticks.
  */
 export function mayTickChecklist(actor: Actor, resource: Resource): boolean {
-  if (mayChangeTask(actor, 'work', resource)) return true;
-  if (!actor.active || !(resource.helperIds ?? []).includes(actor.id) || !holdsRight(actor, 'task.work')) return false;
-  return resource.office === true || actor.systemRole === 'admin' || resource.projectRole === 'leader' || resource.projectRole === 'team';
+  return mayChangeTask(actor, 'work', resource) || mayHelperWork(actor, resource);
 }
 
 /** Naming the lead or the helpers of an existing to-do (task.assign): a person who may change any to-do, or the maker with the switch. */

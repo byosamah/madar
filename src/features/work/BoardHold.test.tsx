@@ -96,7 +96,7 @@ describe('press and hold on a Board card', () => {
     const card = cardOf('Toilet details');
     layout(card);
     await drop(card, [600, 100], [860, 100]);
-    expect(await screen.findByText('This to-do waits for the leader to approve it.')).toBeInTheDocument();
+    expect(await screen.findByText('This to-do waits for its reviewer to approve it.')).toBeInTheDocument();
   });
 
   // The project To-dos tab shares the board, and it lists a to-do that has no lead. The leader of the project may lift it.

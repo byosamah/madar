@@ -25,9 +25,12 @@ those three fields: a template reads only the fields of its data type.
   three groups: Past due, Today and This week. The groups follow the Work screen (`weekEndOf` has the same week rule as
   `workGroupOf`; a test pins both). A group keeps the shared order of the screens (a placed task first, then the date).
 - The mail shows at most 8 lines in all, the past due first, then "and N more tasks" and one button "Open Madar". It adds the
-  count of the reviews that wait for the person, including those of office tasks that the person made. A project review waits for
-  its leader only while the leader holds `task.review.lead`; else it waits for the Admins (`SUMMARY_REVIEWERS_SQL` and
-  `summaryReviewers` give the reviewing leaders as `$3` of `SUMMARY_COUNTS_SQL`).
+  count of the reviews that wait for the person, including those of office tasks that the person made. Who reviews follows
+  the stored sender of the to-do (fbk_087, owner 2026-11-08; `reviewerSql` in `summary.ts`, the SQL twin of `reviewersOfTask`): a
+  sender who is not the lead sends it to the lead; the lead of a project to-do sends it to the project leader; the lead of an office
+  to-do sends it to the maker; the sender is never a reviewer; the Admins take the place of a person who left. A to-do in review with no
+  stored sender keeps the old rule: a project review waits for its leader only while the leader holds `task.review.lead`; else it waits
+  for the Admins (`SUMMARY_REVIEWERS_SQL` and `summaryReviewers` give the reviewing leaders as `$3` of `SUMMARY_COUNTS_SQL`).
 - No signed link, no file, no tracking pixel and no picture but the Madar mark of the header.
 
 ## Hidden projects

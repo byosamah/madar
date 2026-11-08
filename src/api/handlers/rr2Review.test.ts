@@ -58,7 +58,10 @@ describe('reviewersOf and reviewersOfTask', () => {
 });
 
 describe('the lists follow the reviewers', () => {
-  it('sends the review notice to the leader while the leader reviews, and to the Admin when not', async () => {
+  // fbk_087 (owner 2026-11-08): the lead sends it, so the project leader is the named reviewer. The named reviewer needs no switch, so
+  // a leader without task.review.lead still gets the notice. The Admin takes the place only when the project has no active leader. A
+  // to-do in review with no stored sender keeps the old rule (the tests below).
+  it('sends the review notice to the leader, also when the leader lacks the switch', async () => {
     const on = world();
     on.as('usr_003');
     await on.api.call('tasks.complete', { id: 'tsk_001' });
@@ -66,7 +69,7 @@ describe('the lists follow the reviewers', () => {
     const closed = world(off('task.review.lead'));
     closed.as('usr_003');
     expect((await closed.api.call('tasks.complete', { id: 'tsk_001' })).result).toBe('in_review');
-    expect(Object.values(closed.store.state.notifications).filter((n) => n.trigger === 'review_requested').map((n) => n.userId)).toEqual(['usr_001']);
+    expect(Object.values(closed.store.state.notifications).filter((n) => n.trigger === 'review_requested').map((n) => n.userId)).toEqual(['usr_002']);
   });
 
   it('puts the task in review_for_me of the Admin and not of the leader, when the leader lacks the switch', async () => {

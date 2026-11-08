@@ -11,7 +11,8 @@ import { ensureRights } from './rights';
 import { eventForViewer, eventHiddenByLock, fileHiddenByLock, foldersFor } from './folderLock';
 import { resourceFileHidden } from './resourceLock';
 import { mayWriteMinutes } from './meetingGates';
-import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
+import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayHelperWork, mayTickChecklist } from './taskGates';
+import { mayReviewTask, tickLandsInReview } from './notify';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
 import { lineKindOf } from '../lib/commentLine';
 import { diffDays } from '../lib/dates';
@@ -481,7 +482,8 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       edit: mayDetails && mayDates && mayWork,
       editAll: mayAssignTask(viewer, r),
       complete: mayWork && task.status !== 'done',
-      review: can(viewer, 'task.review', r) && task.status === 'in_review',
+      // The named reviewer approves with no switch, a holder of the review right is the backup, and the sender never approves (fbk_087).
+      review: mayReviewTask(state, viewer, task),
       setNeedsReview: can(viewer, 'task.review', r),
       // A lead who took the task themselves does not delete it (security review 2026-10-20).
       delete: mayDeleteTask(viewer, r) && (can(viewer, 'task.any', r) || isTaskMaker(viewer, r) || !leadTookTask(state, task, taskEvents)),
@@ -501,6 +503,10 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       work: mayWork,
       comment: can(viewer, 'comment.create', r),
       upload: can(viewer, 'file.upload', r),
+      // A tick by the viewer lands In review (fbk_087), so the button says "Send to review". For a helper it also shows the control that
+      // sends the to-do to review. Only a true value is sent, so an answer for any other person stays as before.
+      ...((task.status === 'todo' || task.status === 'in_progress') && task.ownerId !== null && (mayWork || mayHelperWork(viewer, r)) && tickLandsInReview(state, viewer, task)
+        ? { sendToReview: true } : {}),
     },
     history,
   };

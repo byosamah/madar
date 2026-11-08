@@ -200,7 +200,8 @@ describe('the output of the read views stays the same (pins)', () => {
 
   it('tasks.get for every to-do', () => {
     const answers = people.map((id) => Object.keys(office.tasks).map((taskId) => runCall(office, id, 'tasks.get', { id: taskId })));
-    expect(digest(answers)).toBe('a7f0bd1d2ac1ffd0');
+    // fbk_087 (2026-11-08): the new flag viewerCan.sendToReview (true in 37 of the 1,440 answers) is the only change. Before: a7f0bd1d2ac1ffd0.
+    expect(digest(answers)).toBe('12c69a388794d7a1');
   });
 
   it('projects.get for every project', () => {

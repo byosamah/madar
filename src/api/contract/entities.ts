@@ -625,6 +625,13 @@ export const Task = z.object({
    * missing: no place yet, so the task sits under the placed ones (owner, 2026-10-07, `lib/arrange.ts`).
    */
   rank: z.number().nullable().optional(),
+  /**
+   * The person who sent the to-do to review (fbk_087, owner 2026-11-08): the person behind an agent, never the agent. It is written when
+   * the status becomes in_review and set to null when the status leaves it, so a value that Undo restores is never an absent key. It
+   * names the reviewer (notify.ts, reviewersAfterSend), and the sender never approves. Missing or null in review: an old to-do, which
+   * keeps the old reviewer rule until it is sent again.
+   */
+  reviewSentBy: UserId.nullable().optional(),
 });
 export type Task = z.infer<typeof Task>;
 

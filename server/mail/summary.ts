@@ -24,10 +24,12 @@ import { renderMail } from './templates';
  *
  * The open tasks follow the screens: a task is open (to do or in progress), in an active project or an office task, and the person
  * leads it or helps with it (the rule of the due reminders, src/api/notify.ts). A review waits for the person when the task
- * is in review in an active project (the review list of tasks.list keeps only active projects) and the person reviews its project:
- * the active leader who holds the right to review (task.review.lead), or every active Admin when the project has no such leader (reviewersOf). An office task in review waits for its maker
- * (the person, or the person of the agent that made it), or for every active Admin when the maker left (reviewersOfTask; owner,
- * 2026-10-06).
+ * is in review in an active project (the review list of tasks.list keeps only active projects, but an office to-do has no project) and
+ * the person reviews it. Who reviews is the rule of reviewersOfTask (src/api/notify.ts; fbk_087, owner 2026-11-08): the stored sender
+ * of the to-do decides. A sender who is not the lead sends it to the lead. The lead of a project to-do sends it to the project leader,
+ * and the lead of an office to-do sends it to the maker. The active Admins take the place of a person who left, and the sender never
+ * reviews. A to-do in review with no stored sender keeps the old rule: the active leader who holds task.review.lead, or every active
+ * Admin, for a project to-do (reviewersOf), and the maker, or every active Admin when the maker left, for an office to-do.
  */
 
 /**
@@ -40,13 +42,32 @@ export const viewSql = (all: number, hidden: number): string => `($${hidden}::bo
     or p.doc->'access'->'viewerIds' ? $1
     or ($${all}::boolean and coalesce((p.doc->'access'->>'hidden')::boolean, false) = false))`;
 
+/** True in SQL when the person $1 is an active Admin. */
+const IS_ADMIN_SQL = "exists (select 1 from users a where a.id = $1 and a.active and a.doc->>'systemRole' = 'admin')";
+
+/** The person who sent the to-do to review, as the task document stores it (Task.reviewSentBy; null for a to-do sent before it was stored). */
+const SENDER_SQL = "t.doc->>'reviewSentBy'";
+
+/**
+ * The lead, the leader and the maker, each joined as an active user, give the SQL form of reviewersOfTask (src/api/notify.ts), line for
+ * line (fbk_087): no stored sender keeps the old rule; a sender who is not the lead sends it to the lead; the lead who sends it sends it
+ * to `named` (the project leader, or the maker). A reviewer who left, or is missing, is replaced by the Admins, and the sender is never
+ * a reviewer. `old` is the old rule, `named` the joined row of the person who reviews when the lead sends.
+ */
+const reviewerSql = (old: string, named: string): string => `case
+        when ${SENDER_SQL} is null then (${old})
+        when t.owner_id is distinct from ${SENDER_SQL} then (case when ld.id is not null then ld.id = $1 else (${IS_ADMIN_SQL} and $1 <> ${SENDER_SQL}) end)
+        else (case when ${named}.id is not null then (${named}.id <> ${SENDER_SQL} and ${named}.id = $1) else (${IS_ADMIN_SQL} and $1 <> ${SENDER_SQL}) end)
+      end`;
+
 /**
  * $1 the person, $2 the day "YYYY-MM-DD", $3 the active people who hold the right to review the projects they lead (task.review.lead
- * or more, role rights version 2): a leader outside the list is no reviewer, so the Admins review that project, as for a project with
- * no leader (summaryReviewers). $4 the person holds "See every project", $5 the person holds "See hidden projects" (summaryViews).
+ * or more, role rights version 2): a leader outside the list is no reviewer under the old rule, so the Admins review that project, as for a
+ * project with no leader (summaryReviewers). $4 the person holds "See every project", $5 the person holds "See hidden projects" (summaryViews).
  * The review of a project to-do counts only when the person also views the project (viewSql), as the SQLite form does (liteVisible).
  * Today the reviewer always views it: the leader leads it, and the Admin holds every right. The view rule stays in the statement, so
  * a change of those two facts never counts the to-do of a hidden project. A review of an office to-do has no project.
+ * The reviewer follows the rule of fbk_087 (reviewerSql): the stored sender decides, and a to-do with no stored sender keeps the old rule.
  */
 export const SUMMARY_COUNTS_SQL = `select
   (select count(*)::integer from tasks t left join projects p on p.id = t.project_id
@@ -54,15 +75,16 @@ export const SUMMARY_COUNTS_SQL = `select
       and (t.owner_id = $1 or t.doc->'helperIds' ? $1)) as due_today,
   (select count(*)::integer from tasks t join projects p on p.id = t.project_id
     left join users l on l.id = p.leader_id and l.active and l.id = any($3::text[])
+    left join users pl on pl.id = p.leader_id and pl.active
+    left join users ld on ld.id = t.owner_id and ld.active
     where p.status = 'active' and ${viewSql(4, 5)} and t.status = 'in_review'
-      and case when l.id is not null then l.id = $1
-        else exists (select 1 from users a where a.id = $1 and a.active and a.doc->>'systemRole' = 'admin') end)
+      and ${reviewerSql(`case when l.id is not null then l.id = $1 else ${IS_ADMIN_SQL} end`, 'pl')})
   + (select count(*)::integer from tasks t
     left join users c on c.id = t.doc->>'createdBy'
     left join users m on m.id = (case when c.kind = 'agent' and c.owner_id is not null then c.owner_id else t.doc->>'createdBy' end) and m.active
+    left join users ld on ld.id = t.owner_id and ld.active
     where t.project_id is null and t.status = 'in_review'
-      and case when m.id is not null then m.id = $1
-        else exists (select 1 from users a where a.id = $1 and a.active and a.doc->>'systemRole' = 'admin') end) as reviews_waiting`;
+      and ${reviewerSql(`case when m.id is not null then m.id = $1 else ${IS_ADMIN_SQL} end`, 'm')}) as reviews_waiting`;
 
 /** The active humans with their role, and the roles of the office settings (the same value in each row): they give who may review as a leader. */
 export const SUMMARY_REVIEWERS_SQL = `select u.id, u.doc->>'systemRole' as system_role, u.doc->>'roleId' as role_id,

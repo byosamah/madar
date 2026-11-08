@@ -3,7 +3,7 @@ import {
   type User,
 } from './contract/entities';
 import { copyForAdmins } from './adminCopies';
-import { can, canReview, mayViewMeeting, mayViewProject, mayViewTask, principalOf, type Actor } from './permissions';
+import { can, canReview, holdsRight, mayViewMeeting, mayViewProject, mayViewTask, principalOf, taskResource, type Actor } from './permissions';
 import { ensureRights, withRights } from './rights';
 import { projectOfTarget } from './targetProject';
 import { nextId, type State } from './store';
@@ -176,15 +176,76 @@ export function reviewersOf(state: State, projectId: string): string[] {
   return activeAdminIds(state);
 }
 
+/** Every active Admin except one person. The person who sent a to-do to review is never its reviewer (fbk_087). */
+const adminsExcept = (state: Pick<State, 'users'>, except: string): string[] => activeAdminIds(state).filter((id) => id !== except);
+
 /**
- * The reviewers of one task. A project task: the reviewers of its project. An office task: its maker, or every active Admin when
- * the maker left the office (owner, 2026-10-06).
+ * THE rule: who reviews a to-do that the person `senderId` sent to review (fbk_087, owner 2026-11-08). The lead and the helpers are the
+ * work side of the to-do. The person who does the work never approves it.
+ * - The sender is not the lead (a helper, the maker, or anyone else who may send): the lead reviews.
+ * - The sender is the lead of a project to-do: the project leader reviews. Nobody reviews when the lead is the project leader.
+ * - The sender is the lead of an office to-do: the maker reviews. Nobody reviews when the lead is the maker.
+ * A lead, a project leader or a maker who left the office is replaced by the active Admins, except the sender. An empty answer means
+ * that nobody else can check the to-do, so it needs no review. Nobody is a reviewer only because they are an Admin, or (on a project
+ * to-do) only because they made it. `senderId` is a person: use the person behind an agent. The SQL form of the morning summary
+ * (server/mail/summary.ts) gives the same answer.
  */
-export function reviewersOfTask(state: State, task: Pick<Task, 'projectId' | 'createdBy'>): string[] {
+export function reviewersAfterSend(state: State, task: Pick<Task, 'projectId' | 'createdBy' | 'ownerId'>, senderId: string): string[] {
+  const leadId = task.ownerId;
+  if (leadId !== senderId) return leadId !== null && state.users[leadId]?.active ? [leadId] : adminsExcept(state, senderId);
+  if (task.projectId !== null) {
+    const leaderId = activeLeaderOf(state, task.projectId);
+    if (leaderId === null) return adminsExcept(state, senderId);
+    return leaderId === senderId ? [] : [leaderId];
+  }
+  const maker = principalOf(state, task.createdBy);
+  if (!state.users[maker]?.active) return adminsExcept(state, senderId);
+  return maker === senderId ? [] : [maker];
+}
+
+/**
+ * The reviewers of one task. A to-do in review that has a stored sender follows reviewersAfterSend. Any other to-do keeps the old rule
+ * (a to-do that went to review before the sender was stored keeps it until it is sent again): a project task goes to the reviewers of its
+ * project, and an office task goes to its maker, or to every active Admin when the maker left the office (owner, 2026-10-06).
+ */
+export function reviewersOfTask(state: State, task: Pick<Task, 'projectId' | 'createdBy'> & Partial<Pick<Task, 'ownerId' | 'status' | 'reviewSentBy'>>): string[] {
+  if (task.status === 'in_review' && task.reviewSentBy) return reviewersAfterSend(state, { projectId: task.projectId, createdBy: task.createdBy, ownerId: task.ownerId ?? null }, task.reviewSentBy);
   if (task.projectId !== null) return reviewersOf(state, task.projectId);
   const maker = principalOf(state, task.createdBy);
   if (state.users[maker]?.active) return [maker];
   return activeAdminIds(state);
+}
+
+/**
+ * Where a tick or a Done by `viewer` lands (fbk_087, owner 2026-11-08): true for In review, false for Done. The call (tasks.complete,
+ * tasks.move) and the flag of the view (viewerCan.sendToReview) both read this one answer, so a button never says "Mark done" for a tick
+ * that goes to review.
+ * - No review need (an office to-do that its maker leads needs none): Done.
+ * - A to-do in review: Done only for a person who may approve it (mayReviewTask), never for the sender.
+ * - A person who is not on the work side (lead and helpers) and holds the review right (the project leader, the Admin, on an office
+ *   to-do the maker or a holder of task.officeAll): Done, an approval as before.
+ * - Any other person: the reviewer is worked out as if this person sent it (reviewersAfterSend). Nobody to review: Done.
+ */
+export function tickLandsInReview(state: State, viewer: Actor, task: Pick<Task, 'projectId' | 'createdBy' | 'ownerId' | 'helperIds' | 'status' | 'reviewSentBy' | 'needsReview'>): boolean {
+  if (!task.needsReview || (task.projectId === null && task.ownerId === principalOf(state, task.createdBy))) return false;
+  if (task.status === 'in_review') return !mayReviewTask(state, viewer, task);
+  const worksOnIt = task.ownerId === viewer.id || (task.helperIds ?? []).includes(viewer.id);
+  if (!worksOnIt && can(viewer, 'task.review', taskResource(state, task, viewer.id))) return false;
+  return reviewersAfterSend(state, task, viewer.id).length > 0;
+}
+
+/**
+ * True when the person may approve or send back the to-do that waits for review (fbk_087, rules 2 and 4). `viewer` is the person, with
+ * the rights attached. The sender never may. The named reviewer may, with no switch. A holder of the review right of the project may as
+ * a backup, and on an office to-do a holder of task.officeAll. A to-do with no stored sender keeps the old gate (the review right).
+ */
+export function mayReviewTask(state: State, viewer: Actor, task: Pick<Task, 'projectId' | 'createdBy' | 'ownerId' | 'helperIds' | 'status' | 'reviewSentBy'>): boolean {
+  if (task.status !== 'in_review') return false;
+  const resource = taskResource(state, task, viewer.id);
+  if (!task.reviewSentBy) return can(viewer, 'task.review', resource);
+  if (viewer.id === task.reviewSentBy) return false;
+  if (reviewersOfTask(state, task).includes(viewer.id)) return true;
+  return task.projectId === null ? holdsRight(viewer, 'task.officeAll') : can(viewer, 'task.review', resource);
 }
 
 export function projectPeople(state: State, projectId: string): string[] {

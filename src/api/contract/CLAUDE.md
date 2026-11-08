@@ -13,7 +13,7 @@ The rules of all parts (additive contract, a table for a new collection) are in 
 - A rule over two input fields: chain `.refine(fn, { path, message })` on the `z.object` of `defineCall`. zod 4 keeps a
   `ZodObject`, so the MCP inputSchema still builds, and `invalidInput` lists each path in `details.fields` (`reports.office`).
 - A value that Undo must restore holds an empty value, never an absent key (JSON loses an absent key). Example:
-  `Project.shape` is an empty text before the first set.
+  `Project.shape` is an empty text before the first set. `Task.reviewSentBy` is null outside review (the handler writes the key as null before it writes the sender).
 - A field that the contract no longer uses stays in the shape, so old rows parse: `Task.meetingId`, `Meeting.minutesTaskId`,
   `Meeting.minutesById`, and `MeetingDetail.minutesBy` and `minutesTask` (always null). Nothing sets them. The inputs of
   `meetings.create` and `meetings.update` lost `minutesById`: zod strips the key, so an old tab or agent still works.

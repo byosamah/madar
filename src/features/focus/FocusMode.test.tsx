@@ -30,7 +30,7 @@ describe('Focus mode', () => {
     const { store } = await renderApp('/projects/prj_001?tab=tasks&focus=tsk_012', as('usr_005'));
     const focus = await screen.findByRole('dialog', { name: 'Focus' });
     await userEvent.click(within(focus).getByRole('button', { name: 'Done' }));
-    expect(await screen.findByText('Sent to review. The leader checks it next.')).toBeInTheDocument();
+    expect(await screen.findByText('Sent to review. Another person checks it next.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_012.status).toBe('in_review');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Focus' })).toBeNull(), { timeout: 2000 });
     expect(window.location.hash).not.toContain('task=');

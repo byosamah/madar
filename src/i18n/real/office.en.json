@@ -6,15 +6,15 @@
     "private": "Only you, its lead, its helpers and the Admin see this to-do.",
     "sheetNote": "Office to-do. Only its people and the Admin see it.",
     "readOnly": "You can view this to-do. Only its lead and the person who made it can change it.",
-    "helpersHint": "Helpers tick checklist items and comment. Only the lead finishes the to-do.",
-    "needsReviewHint": "The person who made the to-do checks it before it is done."
+    "helpersHint": "Helpers tick checklist items, comment and send the to-do to review. Only the lead finishes it.",
+    "needsReviewHint": "When a helper or the maker sends it, the lead checks it. When the lead sends it, the maker checks it."
   },
   "errors": {
     "reasons": {
       "not_a_person": "Only a person can lead or help on a to-do. An agent acts for its person.",
       "office_no_stage": "An office to-do belongs to no project, so it has no stage.",
       "office_no_prerequisites": "An office to-do does not wait for other to-dos.",
-      "review_by_maker": "The person who made this to-do reviews it. A to-do that this person leads needs no review.",
+      "review_by_maker": "A to-do that its maker leads needs no review.",
       "file_office_task": "A file of an office to-do stays on its to-do.",
       "office_needs_task": "Choose the project or the office to-do of this file."
     }

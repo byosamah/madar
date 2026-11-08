@@ -7,7 +7,7 @@ import { mayChangeOf, nextStep } from './nextStep';
 type Can = TaskDetail['viewerCan'];
 const NO_RIGHT: Can = {
   edit: false, editAll: false, complete: false, review: false, delete: false, setNeedsReview: false, contribute: false, newVersion: false,
-  saveTemplate: false, take: false, help: false, editDetails: false, editDates: false, work: false, comment: false, upload: false,
+  saveTemplate: false, take: false, help: false, editDetails: false, editDates: false, work: false, comment: false, upload: false, sendToReview: false,
 };
 
 /** A to-do with a lead, in progress, that the viewer may move. Each test changes only what it checks. */
@@ -21,7 +21,7 @@ function detail(task: Partial<Task> = {}, extra: { canMove?: boolean; waiting?: 
   } as unknown as TaskDetail;
   return { data, can };
 }
-const run = (built: { data: TaskDetail; can: Can }, makerId = 'usr_002') => nextStep(built.data, built.can, makerId);
+const run = (built: { data: TaskDetail; can: Can }) => nextStep(built.data, built.can);
 
 describe('mayChangeOf', () => {
   it('is true for one change right and false for none', () => {
@@ -60,14 +60,20 @@ describe('nextStep', () => {
     expect(run(detail({ status: 'done' }, { canMove: false, can: { newVersion: true, help: true } }))?.kind).toBe('new_version');
   });
 
-  it('says Send to review only when the call lands in review', () => {
-    expect(run(detail({ needsReview: true }))?.completeWord).toBe('sendToReview');
+  // fbk_087 (owner 2026-11-08): the server decides where the tick lands and sends it as viewerCan.sendToReview.
+  it('says Send to review only when the server says the tick lands in review', () => {
+    expect(run(detail({ needsReview: true }, { can: { sendToReview: true } }))?.completeWord).toBe('sendToReview');
     expect(run(detail({ needsReview: true }, { can: { setNeedsReview: true } }))?.completeWord).toBe('markDone');
     expect(run(detail({ needsReview: false }))?.completeWord).toBe('markDone');
-    // an office to-do led by its maker needs no review
-    expect(run(detail({ projectId: null, stageId: null, needsReview: true, ownerId: 'usr_004' }), 'usr_004')?.completeWord).toBe('markDone');
-    // an office to-do led by another person lands in review
-    expect(run(detail({ projectId: null, stageId: null, needsReview: true, ownerId: 'usr_003' }), 'usr_004')?.completeWord).toBe('sendToReview');
+    // An Admin who leads a to-do that another person made: the tick goes to review although the Admin may change the review need.
+    expect(run(detail({ projectId: null, stageId: null, needsReview: true }, { can: { setNeedsReview: true, sendToReview: true } }))?.completeWord).toBe('sendToReview');
+  });
+
+  it('gives a helper the press that sends the to-do to review, and nothing when the to-do waits', () => {
+    const helper = detail({ status: 'in_progress', needsReview: true }, { canMove: false, can: { sendToReview: true, contribute: true } });
+    expect(run(helper)).toEqual({ kind: 'complete', completeWord: 'sendToReview' });
+    expect(run(detail({ status: 'in_progress', needsReview: true }, { canMove: false, waiting: true, can: { sendToReview: true } }))?.kind).toBe('none');
+    expect(run(detail({ status: 'in_progress', needsReview: false }, { canMove: false, can: { contribute: true } }))?.kind).toBe('none');
   });
 
   it('gives complete only for To do or In progress, with a lead, with canMove and nothing to wait for', () => {

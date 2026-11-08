@@ -13,7 +13,7 @@ import { BusyWeekNote } from './BusyWeekNote';
 import { DateNotes, TaskNeeds } from './TaskNeeds';
 import { Checklist, Fact, History, TaskFiles } from './TaskParts';
 import { ConversationView, sectionOptions } from './Conversation';
-import { JoinBlock, ReviewBlock, TakeBlock, type StepLook } from './StepBlocks';
+import { JoinBlock, ReviewBlock, SendBlock, TakeBlock, type StepLook } from './StepBlocks';
 import { TaskHelpers } from './TaskHelpers';
 import { DescriptionField, FooterActions, readOnlyDates } from './TaskPanelParts';
 import { TaskTiming } from './TaskTiming';
@@ -57,6 +57,7 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
             {!mayChange && !viewerCan.take && (viewerCan.help ? <JoinBlock panel={panel} look={LOOK} /> : <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t(detail ? 'taskSheet.readOnly' : 'office.readOnly')}</p>)}
             {viewerCan.take && <TakeBlock panel={panel} look={LOOK} />}
             {viewerCan.review && <ReviewBlock panel={panel} look={LOOK} />}
+            {!data.canMove && viewerCan.sendToReview === true && <SendBlock panel={panel} look={LOOK} />}
             {canDetails ? (
               <TextField
                 id="task-title"

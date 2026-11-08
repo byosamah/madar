@@ -73,9 +73,52 @@ describe('office tasks on the Tasks page', () => {
       withOfficeTask(state);
     });
     const sheet = await screen.findByRole('dialog', { name: 'Renew the trade licence' }, { timeout: 10_000 });
-    expect(within(sheet).getByText('Helpers tick checklist items and comment. Only the lead finishes the to-do.')).toBeInTheDocument();
+    expect(within(sheet).getByText('Helpers tick checklist items, comment and send the to-do to review. Only the lead finishes it.')).toBeInTheDocument();
     expect(within(sheet).queryByText(/joins it/)).toBeNull();
-    expect(within(sheet).getByText('The person who made the to-do checks it before it is done.')).toBeInTheDocument();
+    expect(within(sheet).getByText('When a helper or the maker sends it, the lead checks it. When the lead sends it, the maker checks it.')).toBeInTheDocument();
+  });
+
+  // fbk_087 (owner 2026-11-08): a helper sends the to-do to review, and the lead checks it. The lead sees "Your review" and Approve.
+  it('shows a helper the control that sends the to-do to review, and sends it', async () => {
+    const { store } = await renderApp('/work?task=tsk_900', (state) => {
+      as('usr_006')(state);
+      withOfficeTask(state, { helperIds: ['usr_006'], status: 'in_progress' });
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Renew the trade licence' }, { timeout: 10_000 });
+    expect(within(sheet).getByText('Send the to-do to review when your part is done. Then the lead checks it.')).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Send to review' }));
+    await waitFor(() => expect(store.state.tasks.tsk_900.status).toBe('in_review'));
+    expect(store.state.tasks.tsk_900.reviewSentBy).toBe('usr_006');
+    expect(Object.values(store.state.notifications).some((n) => n.userId === 'usr_005' && n.trigger === 'review_requested' && n.targetId === 'tsk_900')).toBe(true);
+  });
+
+  it('shows the control to no helper when the to-do needs no review, and to no one who is not a helper', async () => {
+    await renderApp('/work?task=tsk_900', (state) => {
+      as('usr_006')(state);
+      withOfficeTask(state, { helperIds: ['usr_006'], status: 'in_progress', needsReview: false });
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Renew the trade licence' }, { timeout: 10_000 });
+    await within(sheet).findByText('Office to-do. Only its people and the Admin see it.');
+    expect(within(sheet).queryByRole('button', { name: 'Send to review' })).toBeNull();
+  });
+
+  it('gives the lead Approve for a to-do that its maker sent, and the sender nothing to approve', async () => {
+    await renderApp('/work?task=tsk_900', (state) => {
+      as('usr_005')(state);
+      withOfficeTask(state, { helperIds: ['usr_006'], status: 'in_review', reviewSentBy: 'usr_006' });
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Renew the trade licence' }, { timeout: 10_000 });
+    expect(await within(sheet).findByRole('button', { name: 'Approve' })).toBeInTheDocument();
+  });
+
+  it('shows the sender no Approve button on the to-do that the sender sent', async () => {
+    await renderApp('/work?task=tsk_900', (state) => {
+      as('usr_006')(state);
+      withOfficeTask(state, { helperIds: ['usr_006'], status: 'in_review', reviewSentBy: 'usr_006' });
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Renew the trade licence' }, { timeout: 10_000 });
+    await within(sheet).findByText('Office to-do. Only its people and the Admin see it.');
+    expect(within(sheet).queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
   it('shows no review switch when the maker leads the task', async () => {
@@ -84,7 +127,7 @@ describe('office tasks on the Tasks page', () => {
       withOfficeTask(state, { ownerId: 'usr_004', needsReview: false });
     });
     const sheet = await screen.findByRole('dialog', { name: 'Renew the trade licence' }, { timeout: 10_000 });
-    await within(sheet).findByText('Helpers tick checklist items and comment. Only the lead finishes the to-do.');
+    await within(sheet).findByText('Helpers tick checklist items, comment and send the to-do to review. Only the lead finishes it.');
     expect(within(sheet).queryByRole('switch', { name: /review/i })).toBeNull();
   });
 

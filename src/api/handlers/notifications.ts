@@ -6,9 +6,9 @@ import { forbidden, invalid, notFound } from '../errors';
 import { canSeeConversation } from '../chatState';
 import { savePreferences } from '../events';
 import { noticeProjectHidden } from '../hiddenNotice';
-import { feedbackNoticeHidden } from '../notify';
+import { feedbackNoticeHidden, mayReviewTask } from '../notify';
 import type { State } from '../store';
-import { can, mayViewMeeting, mayViewTask, taskResource } from '../permissions';
+import { can, mayViewMeeting, mayViewTask } from '../permissions';
 import { cardOf } from '../views';
 import { projectTile } from '../../lib/projectRef';
 import { meetingLink } from '../../lib/meetings';
@@ -169,8 +169,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     if (task) link = n.messageId?.startsWith('cmt_') ? chatLink(task.id, n.messageId) : taskLink(task.projectId, task.id);
     // A reminder saved before it kept its day names the due day of the task.
     if (n.trigger === 'due_tomorrow') dueDate = n.dueDate ?? (text(copy?.dueDate) || null);
-    canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
-      && can(viewer, 'task.review', taskResource(state, task, viewer.id));
+    canApprove = n.trigger === 'review_requested' && task !== undefined && mayReviewTask(state, viewer, task);
   } else if (n.targetType === 'update') {
     const update = state.updates[n.targetId];
     const copy: Copy | null = update ?? deletedCopy(state, 'update', n.targetId);

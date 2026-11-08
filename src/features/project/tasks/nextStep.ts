@@ -11,25 +11,24 @@ export function mayChangeOf(viewerCan: TaskDetail['viewerCan']): boolean {
 }
 
 /**
- * The word of the complete button. The server decides where the call lands (`landingStatus` in `src/api/handlers/tasks.ts`): a to-do
- * that needs review lands in review, unless it is an office to-do led by its maker, or the viewer holds the review right.
- * The view gives the last test as `viewerCan.setNeedsReview`.
+ * The word of the complete button. The server decides where the call lands (`tickLandsInReview` in `src/api/notify.ts`) and gives its
+ * answer for the viewer as `viewerCan.sendToReview` (fbk_087): true when the tick goes to review, so the button says Send to review.
  */
-function completeWordOf(data: TaskDetail, makerId: string): 'markDone' | 'sendToReview' {
-  const { task, viewerCan } = data;
-  const needs = task.needsReview && !(task.projectId === null && task.ownerId === makerId);
-  return needs && !viewerCan.setNeedsReview ? 'sendToReview' : 'markDone';
+function completeWordOf(viewerCan: TaskDetail['viewerCan']): 'markDone' | 'sendToReview' {
+  return viewerCan.sendToReview === true ? 'sendToReview' : 'markDone';
 }
 
 /** One answer for the question "what is my next step on this to-do?". It returns null when the slot stays empty. */
-export function nextStep(data: TaskDetail, viewerCan: TaskDetail['viewerCan'], makerId: string): NextStep | null {
+export function nextStep(data: TaskDetail, viewerCan: TaskDetail['viewerCan']): NextStep | null {
   const { task } = data;
   const waiting = isWaiting(data);
   const mayChange = mayChangeOf(viewerCan);
   if (viewerCan.review) return { kind: 'review' };
   if (viewerCan.take) return { kind: 'take' };
+  // A helper has no tick of the work, only the press that sends the to-do to review (fbk_087). It never lands on Done.
+  if (!data.canMove && viewerCan.sendToReview === true && !waiting) return { kind: 'complete', completeWord: 'sendToReview' };
   if ((task.status === 'todo' || task.status === 'in_progress') && data.canMove && task.ownerId !== null && !waiting) {
-    return { kind: 'complete', completeWord: completeWordOf(data, makerId) };
+    return { kind: 'complete', completeWord: completeWordOf(viewerCan) };
   }
   if (waiting && data.canMove) return { kind: 'waiting' };
   if (task.ownerId === null && data.canMove) return { kind: 'needs_lead' };

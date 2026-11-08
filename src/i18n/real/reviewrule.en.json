@@ -1,0 +1,13 @@
+{
+  "taskSheet": {
+    "sendHint": "Send the to-do to review when your part is done. Then the lead checks it."
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-08-156": {
+        "title": "Who checks your to-do",
+        "body": "The lead of a to-do now checks the work of its helpers. When the lead sends it, the project leader checks it. On an office to-do, the maker checks it. Helpers can send a to-do to review."
+      }
+    }
+  }
+}

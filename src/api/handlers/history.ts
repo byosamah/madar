@@ -197,6 +197,18 @@ function isTickOnly(event: Event): boolean {
     && onlyTicks(before as ChecklistItem[], after as ChecklistItem[]);
 }
 
+/**
+ * True when the event is this person's own send of a to-do to review (fbk_087): made for them, from an open status to In review, with no
+ * other change than the completion mark and the sender. A helper takes that back with the switch task.work, as the helper made it.
+ */
+function isOwnSend(ctx: Ctx, event: Event): boolean {
+  const before = fieldsOf(event.before);
+  const after = fieldsOf(event.after);
+  if (event.actingForId !== ctx.authority.id || after.status !== 'in_review') return false;
+  if (before.status !== 'todo' && before.status !== 'in_progress') return false;
+  return Object.keys({ ...before, ...after }).every((key) => key === 'status' || key === 'completedAt' || key === 'reviewSentBy');
+}
+
 /** The rights on a project task for an Undo of its change: the live task, or the last copy of a deleted one. */
 function projectTaskOf(ctx: Ctx, event: Event, projectRole: Resource['projectRole']): Resource {
   const task = ctx.state.tasks[event.targetId] ?? lastTaskCopy(ctx.state, event.targetId);
@@ -205,7 +217,7 @@ function projectTaskOf(ctx: Ctx, event: Event, projectRole: Resource['projectRol
 
 /** The fields of a to-do that belong to the date switch, and to the work switch (role rights version 2). The rest belong to the details switch. */
 const DATE_FIELDS = ['startDate', 'dueDate', 'schedule', 'durationDays', 'dateNotes'];
-const WORK_FIELDS = ['status', 'completedAt', 'rank', 'version', 'versions'];
+const WORK_FIELDS = ['status', 'completedAt', 'rank', 'version', 'versions', 'reviewSentBy'];
 
 /**
  * True when the event is a change of the caller (or of the caller's own agent): the event names the caller as the person it acted for.
@@ -268,7 +280,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
         if (can(ctx.authority, 'task.any', { ...base })) return;
         return need('task.deleteOwn');
       }
-      if (event.verb === 'task.approved') return need('task.review');
+      // The reviewer who approved may take the approval back: the named reviewer holds no switch (fbk_087). Any other person needs the review right.
+      if (event.verb === 'task.approved') return isOwnChange(ctx, event) ? undefined : need('task.review');
       // The person who took a task with no lead may give it back (owner, 2026-10-05). Any other change of lead keeps the rule below.
       if (isOwnTake(ctx, event)) return need('task.take');
       // The person who joined a task as a helper, or left it, may take that back (fbk_035).
@@ -283,6 +296,11 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (after.length > 0 && after.every((field) => ANY_TASK_FIELDS.includes(field))) return;
       // A helper may take back a tick. Any other checklist change (an item added, removed, renamed or moved) follows the rule of the lead.
       if (isTickOnly(event)) {
+        if (!mayTickChecklist(ctx.authority, people)) throw forbidden('You cannot do this.', { action: 'task.work' });
+        return;
+      }
+      // A helper takes back the send to review that the helper made (fbk_087).
+      if (isOwnSend(ctx, event)) {
         if (!mayTickChecklist(ctx.authority, people)) throw forbidden('You cannot do this.', { action: 'task.work' });
         return;
       }

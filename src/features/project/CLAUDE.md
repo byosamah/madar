@@ -100,12 +100,12 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   life of the page. One press on a name changes the task at once with an Undo toast. A row without the right keeps an empty box of the "+"
   size, so the avatars line up. The desk list is a `Popover` with `fit` (`popoverPlace`).
 - The task panel on a phone: `TaskBody` in `TaskSheet.tsx` draws `PhoneBody`, and on a desk `DeskBody`. Both read `useTaskPanel.ts`, which
-  holds all state and actions, and both draw the same shared parts: the Review, Take and Join blocks (`StepBlocks.tsx`), the description,
+  holds all state and actions, and both draw the same shared parts: the Review, Take, Join and Send blocks (`StepBlocks.tsx`; the Send block is the desk press of a helper, fbk_087), the description,
   the read-only dates and the footer buttons (`TaskPanelParts.tsx`), the two views and the comment thread (`Conversation.tsx`). The lead and
   status choices and the lead change come from `useLeadChoices.ts` through `useTaskPanel` (`statusOptions`, `ownerOptions`, `changeLead`);
   the lazy `TaskPeopleList.tsx` reads the same hook. `useLeadChoices.ts` imports no vaul and no dnd-kit, so the panel stays out of the vaul chunk. The move and the finish of a to-do, with their toast words, are
   `useMoveTask` and `useCompleteTask` (`useTaskMoves.ts`): the panel, the board and the row use them. The title and the description each take a
-  new saved value on their own, and a field with unsaved typing keeps it (`TaskSheetTyping.test.tsx`). `nextStep(data, viewerCan, makerId)` in `nextStep.ts` picks one next step; `NextStepSlot.tsx` draws it. The
+  new saved value on their own, and a field with unsaved typing keeps it (`TaskSheetTyping.test.tsx`). `nextStep(data, viewerCan)` in `nextStep.ts` picks one next step (the word of the complete button is `viewerCan.sendToReview`, the answer of the server); `NextStepSlot.tsx` draws it. The
   file name differs in case from `nextStep.ts` on purpose, because macOS resolves `./NextStep` to the `.ts` file. At most one main button;
   in the Conversation view it is secondary (`demote`).
 - The "Needs first" field (`TaskNeeds`) reads `viewerCan.editPrerequisites` (`canNeeds` of `useTaskPanel`), not `editAll`. The flag and the call

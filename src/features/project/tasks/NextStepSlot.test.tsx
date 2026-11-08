@@ -60,7 +60,7 @@ describe('NextStep', () => {
 
   it('tells the lead that the leader approves a to-do in review', async () => {
     await open('tsk_010', setupTask('tsk_010', 'usr_005'));
-    expect(await screen.findByText('This to-do waits for the leader to approve it.')).toBeInTheDocument();
+    expect(await screen.findByText('This to-do waits for its reviewer to approve it.')).toBeInTheDocument();
     expect(within(screen.getByTestId('host')).queryByRole('button')).toBeNull();
   });
 
@@ -78,18 +78,33 @@ describe('NextStep', () => {
     expect(mains()).toHaveLength(0);
   });
 
+  // fbk_087 (owner 2026-11-08): a helper sends a to-do that needs review. These two to-dos need no review, so the helper has only the line.
   it('draws the read only line of a project and of an office to-do', async () => {
     const view = await open('tsk_011', (state) => {
       setupTask('tsk_011', 'usr_005')(state);
       state.tasks.tsk_011.helperIds = ['usr_005'];
+      state.tasks.tsk_011.needsReview = false;
     });
     expect(await screen.findByText(/^You can view this to-do\. Only its lead and the project leader/)).toBeInTheDocument();
     view.unmount();
     await open('tsk_900', (state) => {
       state.session.currentUserId = 'usr_006';
-      addOfficeTask(state, { helperIds: ['usr_006'] });
+      addOfficeTask(state, { helperIds: ['usr_006'], needsReview: false });
     });
     expect(await screen.findByText(/^You can view this to-do\. Only its lead and the person who made it/)).toBeInTheDocument();
+  });
+
+  it('draws Send to review for a helper on a to-do that needs review, and the press sends it', async () => {
+    const view = await open('tsk_900', (state) => {
+      state.session.currentUserId = 'usr_006';
+      addOfficeTask(state, { helperIds: ['usr_006'], needsReview: true, status: 'in_progress' });
+    });
+    const button = await screen.findByRole('button', { name: 'Send to review' });
+    expect(button).toHaveClass('signature');
+    expect(mains()).toHaveLength(1);
+    await userEvent.click(button);
+    await waitFor(() => expect(view.store.state.tasks.tsk_900.status).toBe('in_review'));
+    expect(view.store.state.tasks.tsk_900.reviewSentBy).toBe('usr_006');
   });
 
   it('keeps the focus rule of Send back with a note', async () => {

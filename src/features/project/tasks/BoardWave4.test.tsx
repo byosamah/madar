@@ -112,7 +112,7 @@ describe('a refused board drop', () => {
     } finally {
       measure.mockRestore();
     }
-    expect(await screen.findByText('This to-do waits for the leader to approve it.')).toBeInTheDocument();
+    expect(await screen.findByText('This to-do waits for its reviewer to approve it.')).toBeInTheDocument();
     expect(screen.queryByText('This to-do is in review. Use Send back and write a note for the lead.')).toBeNull();
   });
 
