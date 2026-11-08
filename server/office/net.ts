@@ -1,7 +1,8 @@
 import { isPushEndpoint } from '../../src/api/contract/push';
-import type { Config, DirectoryPort, FileStoreKind, FilesPort, Mail, MailPort, PresignedPut } from '../core/ports';
+import type { Config, DirectoryPort, FileStoreKind, FilesPort, Mail, MailPoolPort, MailPort, PresignedPut } from '../core/ports';
+import type { PoolKind } from '../enterprise/platform/mailPool';
 import { DAFTRA_API_PREFIX, DAFTRA_TIMEOUT_MS } from '../daftra/client';
-import { ENT_VADO, type EnterpriseId } from '../enterprise/ids';
+import type { EnterpriseId } from '../enterprise/ids';
 import { guardFilesPort } from '../files/guard';
 import { readOnlyFetch } from '../daftra/readOnly';
 import { GOOGLE_CONNECT_CALL_MS } from '../google/api';
@@ -41,6 +42,11 @@ export interface NetApi {
   /** The email directory of the platform object, for the enterprise of this call (the Worker binds it). A net with no directory answers a failure. */
   directoryReserve(email: string): Promise<NetAnswer<'ok' | 'taken'>>;
   directoryRelease(email: string): Promise<NetAnswer<null>>;
+  /**
+   * One place in the mail pool of the account, for the enterprise of this call (the Worker binds it and sends its own id, never one from
+   * the object). A net with no platform answers a failure, so the mail stops (fail closed).
+   */
+  mailReserve(kind: PoolKind, day: string, ref: string): Promise<NetAnswer<'ok' | 'full'>>;
 }
 
 /** The fields of an error that a caller on the other side reads. */
@@ -176,9 +182,9 @@ export class NetBudgetSpent extends Error {
 export const NET_IN_TRANSACTION = 'The office object makes no network call inside a transaction: the transaction holds every other request.';
 
 export type NetGuard = { open(): boolean; now(): Date };
-export type NetPorts = { files: FilesPort; mail: MailPort; directory: DirectoryPort; pushFetch: typeof globalThis.fetch; googleFetch: typeof globalThis.fetch; daftraFetch: typeof globalThis.fetch; used(): number };
+export type NetPorts = { files: FilesPort; mail: MailPort; directory: DirectoryPort; mailPool: MailPoolPort; pushFetch: typeof globalThis.fetch; googleFetch: typeof globalThis.fetch; daftraFetch: typeof globalThis.fetch; used(): number };
 
-export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind; maxFileBytes: number; ent?: EnterpriseId }): NetPorts {
+export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind; maxFileBytes: number; ent: EnterpriseId }): NetPorts {
   let used = 0;
   async function call<T>(counts: boolean, work: () => Promise<NetAnswer<T>>): Promise<T> {
     if (o.guard.open()) throw new Error(NET_IN_TRANSACTION);
@@ -205,9 +211,9 @@ export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind;
     },
   };
   const mail: MailPort = { send: (one) => call(true, () => net.sendMail(one)) };
-  // The second wall of the file keys (Madar enterprises, design 5.11): the Worker holds the first. No enterprise given means ENT_VADO, so a
-  // caller that forgets it is refused for the keys of any other enterprise and never gets through to them.
-  const guarded = guardFilesPort(files, o.ent ?? ENT_VADO);
+  // The second wall of the file keys (Madar enterprises, design 5.11): the Worker holds the first. The enterprise is a required input.
+  // There is no default: a caller that forgets it fails here, and is never treated as ENT_VADO.
+  const guarded = guardFilesPort(files, o.ent);
   // sendPush (server/push/send.ts) signs the VAPID token in the object and gives this fetch the POST: the Worker only posts.
   const pushFetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const headers = Object.fromEntries(new Headers(init?.headers).entries());
@@ -234,5 +240,8 @@ export function netPorts(net: NetApi, o: { guard: NetGuard; kind: FileStoreKind;
       await call(true, () => net.directoryRelease(email));
     },
   };
-  return { files: guarded, mail, directory, pushFetch, googleFetch, daftraFetch, used: () => used };
+  // The mail pool (plan D): a call to the platform object through the Worker. It is no outside call, so it does not count in NET_BUDGET.
+  // It still refuses inside a transaction, like every network call.
+  const mailPool: MailPoolPort = { reserve: (kind, day, ref) => call(false, () => net.mailReserve(kind, day, ref)) };
+  return { files: guarded, mail, directory, mailPool, pushFetch, googleFetch, daftraFetch, used: () => used };
 }

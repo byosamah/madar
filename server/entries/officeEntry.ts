@@ -73,7 +73,7 @@ export function officeEntry() {
       // The port works for one enterprise: the file folder (plan D) and the email directory (plan C) of the request.
       net: (env, ent) => new WorkerNet({
         ent, files: deps.files, mail: deps.mail, ...(deps.config.daftra ? { daftra: deps.config.daftra } : {}),
-        directory: directoryOf(platformStub(env), ent),
+        directory: directoryOf(platformStub(env), ent), platform: platformStub(env),
       }),
       jobsSecret: () => values.jobsSecret,
       exportSecret: () => readEnv('MADAR_EXPORT_SECRET'),

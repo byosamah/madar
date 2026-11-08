@@ -3,6 +3,7 @@ import { ApiError } from '../../src/api/errors';
 import { executeParsed, resolveAuthority } from '../../src/api/execute';
 import type { State } from '../../src/api/store';
 import { readOffice, readOfficeWithCounters } from '../data/officeCache';
+import { ENT_VADO } from '../enterprise/ids';
 import { beforeOf } from '../data/loaders/build';
 import { loadFor, sqlSource, type Source } from '../data/loaders/index';
 import { save, type SaveOptions, type SaveResult } from '../data/save';
@@ -166,11 +167,14 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
   }
 
   function baseOf(deps: Deps, actorId: string, authorityId: string, correlationId: string, now: Date) {
-    // The enterprise of the object (Madar enterprises): only when its id is known. The Postgres path has no facts.
-    const id = deps.enterprise?.id();
+    // The enterprise of the object (Madar enterprises): the office path gives it only when the id is known. The Postgres path has no facts
+    // and serves VADOs' Companies only (design 5.20), so it gives ENT_VADO and never a platform owner. Else the usage rule of the screens
+    // (usageAllowed) would stop the usage data and the replays of VADO on a copy that still runs the Postgres path.
+    const facts = deps.enterprise;
+    const enterprise = facts === undefined ? { id: ENT_VADO, platformOwner: false } : facts.id() === undefined ? undefined : { id: facts.id()!, platformOwner: facts.owners().has(authorityId) };
     return {
       actorId, authorityId, correlationId, now, persistent: true, wireOutput: true, limits: { maxFileBytes: deps.config.limits.maxFileBytes },
-      ...(id !== undefined ? { enterprise: { id, platformOwner: deps.enterprise!.owners().has(authorityId) } } : {}),
+      ...(enterprise !== undefined ? { enterprise } : {}),
     };
   }
 

@@ -123,9 +123,15 @@ describe('the owners, the meter and the status', () => {
     expect(raw.prepare('select count(*) as n from status').get()).toEqual({ n: 1 });
   });
 
-  it('mailReserve says ok until plan D', async () => {
-    const { parts } = await platform();
-    expect(await parts.mailReserve({ ent: 'ent_001', kind: 'signin', day: '2026-11-08' })).toBe('ok');
+  it('mailReserve keeps the places of the account with the Free limit, and stores a repeat of a ref once', async () => {
+    const { parts, raw } = await platform();
+    expect(await parts.mailReserve({ ent: 'ent_001', kind: 'signin', day: '2026-11-08', ref: 'ent_001:invite:inv_1' })).toBe('ok');
+    expect(await parts.mailReserve({ ent: 'ent_001', kind: 'signin', day: '2026-11-08', ref: 'ent_001:invite:inv_1' })).toBe('ok');
+    expect(raw.prepare('select count(*) as n from mail_pool').get()).toEqual({ n: 1 });
+    // The share of ent_002 is 10 percent of 90 notice places: 9.
+    for (let i = 1; i <= 9; i += 1) expect(await parts.mailReserve({ ent: 'ent_002', kind: 'notice', day: '2026-11-08', ref: `ent_002:n${i}` })).toBe('ok');
+    expect(await parts.mailReserve({ ent: 'ent_002', kind: 'notice', day: '2026-11-08', ref: 'ent_002:n10' })).toBe('full');
+    await expect(parts.mailReserve({ ent: 'ent_002', kind: 'notice', day: 'today', ref: 'x' })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 });
 
@@ -243,7 +249,7 @@ describe('the cleanup and the schema', () => {
   it('keeps empty copies of the four sign-in tables and no table of an office', async () => {
     const { raw } = await platform();
     const tables = (raw.prepare("select name from sqlite_master where type = 'table' order by name").all() as { name: string }[]).map((r) => r.name);
-    expect(tables).toEqual(['account_day', 'auth_links', 'auth_sessions', 'auth_users', 'emails', 'enterprises', 'owners', 'rate_limits', 'schema_version', 'status']);
+    expect(tables).toEqual(['account_day', 'auth_links', 'auth_sessions', 'auth_users', 'emails', 'enterprises', 'mail_pool', 'owners', 'rate_limits', 'schema_version', 'status']);
   });
 
   it('health names the schema', async () => {

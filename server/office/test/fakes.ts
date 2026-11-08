@@ -79,6 +79,7 @@ export function recordingNet(over: Partial<NetApi> = {}): NetApi & { calls: stri
     daftraGet: (req) => (calls.push(`daftra GET ${req.url}`), ok({ status: 404, body: '{}' })),
     directoryReserve: (email) => (calls.push(`directory reserve ${email}`), ok('ok' as const)),
     directoryRelease: (email) => (calls.push(`directory release ${email}`), ok(null)),
+    mailReserve: (kind, day, ref) => (calls.push(`mailReserve ${kind} ${day} ${ref}`), ok('ok' as const)),
     ...over,
   };
 }

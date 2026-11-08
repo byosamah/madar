@@ -6,6 +6,9 @@ Spec: `docs/superpowers/specs/2026-10-26-daftra-link-design.md`. Facts of the Da
 "Daftra study on the Mazj account". Release record: proof.md, section "Deploy".
 
 ## One account for each sub-company
+- The Daftra accounts belong to VADOs' Companies (`ENT_VADO`) only. For any other enterprise `daftraOf` returns `undefined` and `daftraAccountsOf` returns `[]`, so the link is
+  off: `daftra.status` answers `ready: false` and the job step skips with `no_config`. Only `client.ts` (the gate) and `entries/officeEntry.ts` (it hands the pairs
+  to `WorkerNet`, which sends no request for another enterprise) may read `config.daftra` (`enterprise.test.ts` scans `server/`).
 - Each sub-company has its own Daftra account and its own key. The account name is the English name of the sub-company in capitals, only A to Z
   and 0 to 9 (`account.ts`: `accountNameOf`, `accountOfProject`; pattern `DAFTRA_ACCOUNT_PATTERN` in `src/api/contract/limits.ts`). "MAZJ" is
   `MAZJ`, "Vado" is `VADO`. A project with no sub-company, or a sub-company with no account in this copy, has no Daftra account

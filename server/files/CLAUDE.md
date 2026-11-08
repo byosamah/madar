@@ -62,6 +62,10 @@ needs MinIO (`server/it/minio.ts`; CI starts it in `ci-stack.yml`).
   rule (`assertMayViewResourceFile`): a file in a locked folder is a missing file for a person without `folder.locked`. Test: `server/calls/resourceFiles.test.ts`.
 - Object keys hold only `[a-z0-9/-]` (`keys.ts`), so a key never leaves its folder. Each upload is a folder with `file`
   and, for a picture, `thumb`.
+- Madar enterprises: every key of an enterprise except `ENT_VADO` starts with `e/<ent>/` (`ent_002` gives `e/ent-002/`). `ENT_VADO` keeps its keys with no prefix.
+  A call takes its key functions from `keysOf(entOfConfig(deps.config))`, and `checkIntent` takes `o.ent`. `guardFilesPort(port, ent)` (`guard.ts`) refuses a
+  key of another folder on every method with the text `The file key is not valid.` The Worker (`WorkerNet`) and the object (`netPorts`) both hold the guard.
+  The enterprise is a required input with no default, and a missing id throws `ENT_REQUIRED`. Tests: `enterpriseKeys.test.ts`. Detail: `server/enterprise/CLAUDE.md`.
 - A file has one owner, and the owner picks the key folder and the intent rule. The preflight takes an intent only for the
   owner that the call names (`checkIntent`):
   - an office task: `office/<task>/<intent>/`, `officeTaskId`;

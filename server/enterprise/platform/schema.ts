@@ -1,5 +1,6 @@
 import type { SqlHost } from '../../data/lite/host';
 import { serverTableSql } from '../../data/lite/schema';
+import { MAIL_POOL_SCHEMA } from './mailPool';
 
 /**
  * The schema of the platform object (Madar enterprises, design 5.1). It follows the pattern of applyLiteSchema: a new object gets the
@@ -11,8 +12,10 @@ import { serverTableSql } from '../../data/lite/schema';
  *
  * Version 2 (plan C): the column logo of enterprises (picture data, null for none), for the list of the platform page. The step is in
  * PLATFORM_STEPS.
+ *
+ * Version 3 (plan D): the table mail_pool, the places of the mail quota of the whole account (mailPool.ts).
  */
-export const PLATFORM_SCHEMA_VERSION = 2;
+export const PLATFORM_SCHEMA_VERSION = 3;
 
 /** The server tables that the platform object copies empty, for the refuse steps. */
 export const PLATFORM_COPIED_TABLES: readonly string[] = ['rate_limits', 'auth_users', 'auth_links', 'auth_sessions'];
@@ -23,12 +26,14 @@ const PLATFORM_SQL: readonly string[] = [
   'create table owners (ent text not null, user_id text not null, primary key (ent, user_id))',
   'create table status (ent text primary key, doc text not null, at text not null)',
   'create table account_day (day text not null, ent text not null, requests integer not null default 0, rows_read integer not null default 0, rows_written integer not null default 0, mails integer not null default 0, primary key (day, ent))',
+  MAIL_POOL_SCHEMA,
   'create table schema_version (id integer primary key check (id = 1), version integer not null)',
 ];
 
 /** The steps of an older object. The key is the version that the step makes. Version 1 is the first schema. */
 export const PLATFORM_STEPS: Readonly<Record<number, readonly string[]>> = {
   2: ['alter table enterprises add column logo text'],
+  3: [MAIL_POOL_SCHEMA],
 };
 
 export function platformSchemaSql(): string[] {

@@ -33,7 +33,7 @@ describe('the platform object on local workerd', () => {
     expect(await live.platform('resolveEmail', { email: 'hana@globex.test' })).toEqual({ ent: 'ent_002' });
     expect(await live.platform('resolveAddress', { address: 'globex' })).toEqual({ ent: 'ent_002' });
     expect(await live.platform('isOwner', { ent: 'ent_002', userId: 'usr_001' })).toBe(true);
-    expect(await live.platform('health')).toEqual({ schema: 2 });
+    expect(await live.platform('health')).toEqual({ schema: 3 });
   });
 
   it('refuses an unknown email like a wrong password, with real crypto', async () => {

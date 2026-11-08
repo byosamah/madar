@@ -38,8 +38,8 @@ export function readsPrepared(entry: { hooks?: unknown; def: { run: (...args: ne
   return entry.hooks !== undefined && entry.def.run.length > 2;
 }
 
-/** Output fields that differ on the server on purpose: session.get returns the limits of the active file store. */
-const OUTPUT_IGNORES: Partial<Record<string, readonly string[]>> = { 'session.get': ['limits'] };
+/** Output fields that differ on the server on purpose: session.get returns the limits of the active file store and the enterprise of the object. */
+const OUTPUT_IGNORES: Partial<Record<string, readonly string[]>> = { 'session.get': ['limits', 'enterprise'] };
 const BLOB_FIELDS = new Set(['blobKey', 'thumbKey']);
 
 /** JSON with sorted keys, without undefined, with blob keys replaced. */

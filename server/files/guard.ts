@@ -1,9 +1,11 @@
 import type { FilesPort } from '../core/ports';
-import type { EnterpriseId } from '../enterprise/ids';
+import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { keyBelongsTo } from './keys';
 
 /** The one text of every refusal. It names no key and no enterprise. */
 export const FILE_KEY_REFUSED = 'The file key is not valid.';
+/** The refusal to make a file port with no enterprise. */
+export const ENT_REQUIRED = 'A file port needs the id of its enterprise.';
 
 /** Throws unless the key has the key form and belongs to the enterprise. */
 export function assertKeyOf(ent: EnterpriseId, key: string): void {
@@ -17,6 +19,9 @@ export function assertKeyOf(ent: EnterpriseId, key: string): void {
  * the office object wraps its network port the same way: two walls.
  */
 export function guardFilesPort(port: FilesPort, ent: EnterpriseId): FilesPort {
+  // The enterprise is a required input with no default. A caller that forgets it (a JS caller, or a cast) fails here and never gets a port
+  // that works for ENT_VADO by chance.
+  if (!isEnterpriseId(ent)) throw new Error(ENT_REQUIRED);
   return {
     kind: port.kind,
     maxFileBytes: port.maxFileBytes,

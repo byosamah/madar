@@ -10,6 +10,10 @@ part is in `src/api/CLAUDE.md`. The four calls are on the MCP deny list: an agen
 - `Config.google`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MADAR_GOOGLE_KEY`. All three or none (`keys.ts`): with some, the server
   refuses to start and names the absent ones.
 - The scope is only `calendar.app.created` (`GOOGLE_SCOPE`): Madar makes its own calendar and writes only there.
+- Madar enterprises: the keys belong to one enterprise. `googleKeysOf(key, ent)` keeps the old HKDF texts for `ENT_VADO` and adds `:<ent>` for any other
+  enterprise, with a key cache of 64 entries at most. The signed state carries the claim `ent` (`signState`, `readState`, `entOfState`). The callback reads the
+  claim, accepts it only for a listed enterprise, and derives the keys of that enterprise. Every failure is the word `failed`. `google.connect` refuses a state of
+  another enterprise with the word of an old state. Tests: `enterprise.test.ts`.
 - `GET /google/callback` has no sign-in, reads no database and writes nothing. It checks the signed state and answers 302 to
   `<APP_URL>/settings#google=<word>` with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. On the office path the route runs
   in the Worker as it is, with the Worker values: it checks the signed state and calls no object (`entries/officeSignin.ts`). It answers

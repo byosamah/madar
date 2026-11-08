@@ -3,8 +3,11 @@
  * the error page and the sheets can call it with no import cycle (insight design, section 6). `index.ts` re-exports it.
  */
 
-/** The person of an error record: the Madar person id and the English display name. Actions never carry it. */
-export type InsightPerson = { id: string; name: string };
+/**
+ * The person of an error record: the Madar person id and the English display name. Actions never carry it. `ent` is the id of the
+ * enterprise of the session (null while the session does not name one): the usage rule of `src/lib/enterprise.ts` reads it.
+ */
+export type InsightPerson = { id: string; name: string; ent: string | null };
 
 /** The main sheets that the owner counts (insight design, section 4). */
 export type SheetName = 'newProject' | 'newTask' | 'newOfficeTask' | 'payment' | 'meeting' | 'trackerLog' | 'feedback';

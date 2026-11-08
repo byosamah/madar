@@ -3,8 +3,9 @@ import { ApiError } from '../../src/api/errors';
 import { ENT_VADO } from '../enterprise/ids';
 import { OFFICE_NAME_HEADER } from './ops';
 import type { OfficeParts } from './parts';
-import { httpOf, nodeOffice } from './test/nodeOffice';
+import { httpOf, NODE_TODAY, nodeOffice } from './test/nodeOffice';
 import { recordingNet } from './test/fakes';
+import { nodeWorld } from './test/nodeWorld';
 
 /**
  * The gate of the enterprise in every method of the office object (Madar enterprises, plan B Task 6). The object refuses a call that
@@ -113,6 +114,24 @@ describe('the enterprise gate in the methods of the office object', () => {
     expect(Object.keys(out.day).sort()).toEqual(['mails', 'requests', 'rowsRead', 'rowsWritten']);
     expect(out.day.requests).toBeGreaterThanOrEqual(1);
     expect(typeof out.lastWriteAt === 'string' || out.lastWriteAt === null).toBe(true);
+  });
+
+  it('every log line of an object carries the ent of its own row', async () => {
+    const t = await nodeWorld({ ents: [ENT_VADO, OTHER], env: { MADAR_AUTH_PRIVATE_JWK: '' } });
+    for (const ent of [ENT_VADO, OTHER]) {
+      const parts = t.ents.get(ent)!.parts;
+      await parts.signin({ ent, signin: 'auth.password', input: { email: 'x@madar.test', password: 'a good password', address: '203.0.113.7' } });
+    }
+    const keyLines = t.lines.filter((line) => line.includes('MADAR_AUTH_PRIVATE_JWK'));
+    expect(keyLines).toHaveLength(2);
+    expect(keyLines[0]).toContain('"ent":"ent_001"');
+    expect(keyLines[1]).toContain('"ent":"ent_002"');
+  });
+
+  it('status counts the mails of the day as Resend does: sent kinds only, not the refusal mark', async () => {
+    const t = await nodeOffice();
+    t.raw.exec(`insert into mail_log (utc_day, kind, user_id, ref) values ('${NODE_TODAY}', 'notice', null, 'ent_001:a'), ('${NODE_TODAY}', 'signin', null, 'ent_001:b'), ('${NODE_TODAY}', 'refused', null, 'quota-refused'), ('2026-01-01', 'notice', null, 'ent_001:old')`);
+    expect((await t.parts.status({ ent: ENT_VADO })).day.mails).toBe(2);
   });
 
   it('status names the enterprise name of the settings when they exist, and counts an invited person', async () => {

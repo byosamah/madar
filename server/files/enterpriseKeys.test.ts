@@ -7,7 +7,7 @@ import { snapshotOf } from '../data/officeCache';
 import { ENT_VADO } from '../enterprise/ids';
 import { fakeDeps } from '../test/fakes/deps';
 import { fakeFilesDb } from './fakeFilesDb';
-import { assertKeyOf, FILE_KEY_REFUSED, guardFilesPort } from './guard';
+import { assertKeyOf, ENT_REQUIRED, FILE_KEY_REFUSED, guardFilesPort } from './guard';
 import { checkIntent, type Intent } from './intents';
 import { enterpriseKeyPrefix, isObjectKey, keyBelongsTo, keysOf, uploadKey } from './keys';
 
@@ -99,6 +99,14 @@ describe('guardFilesPort', () => {
     await guarded.remove([MINE, 'e/ent-002/up/x/file']);
     expect(calls).toHaveLength(5);
     expect(guarded.kind).toBe('r2');
+  });
+
+  it('cannot be made with no enterprise: there is no default folder', () => {
+    const { port } = recordingPort();
+    // @ts-expect-error ent is a required argument
+    const noArgument = () => guardFilesPort(port);
+    expect(noArgument).toThrow(ENT_REQUIRED);
+    for (const bad of [undefined, null, '', 'vado', 'ent_1', 'ENT_001']) expect(() => guardFilesPort(port, bad as unknown as string)).toThrow(ENT_REQUIRED);
   });
 
   it('refuses a key of another enterprise on presignPut, presignGet, head, copy and remove', async () => {

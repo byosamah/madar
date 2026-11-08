@@ -1,6 +1,7 @@
 import type { DaftraConfig } from '../daftra/config';
 import type { EnterpriseFacts } from '../enterprise/facts';
 import type { EnterpriseId } from '../enterprise/ids';
+import type { PoolKind } from '../enterprise/platform/mailPool';
 import type { RunCall } from './runCall';
 import type { ServerHost } from './serverHost';
 import type { TypingSignal } from '../../src/api/remote/wire';
@@ -122,6 +123,11 @@ export type Config = {
    * and entOfConfig (plan D) reads a missing value as ENT_VADO.
    */
   ent?: EnterpriseId;
+  /**
+   * The mails a UTC day that the account may send (the MADAR_PLAN_MAILS setting; Resend Free is 100). The mail quota (server/mail/limits.ts)
+   * takes its 90 percent and its last two places from it. Left out means 100.
+   */
+  mailDayLimit?: number;
   /** The key of pg_advisory_xact_lock for the office. In tests, one key for each worker schema. */
   lockKey: number;
   appUrl: string;
@@ -186,8 +192,19 @@ export interface DirectoryPort {
   release(email: string): Promise<void>;
 }
 
+/**
+ * The mail pool of the account (Madar enterprises, design 5.12): one count of the mails of all enterprises. reserve takes a place for
+ * one mail by its scoped ref. A retry of the same ref takes the same place once. Only the office object sets it, through its network
+ * port. Left out on the Postgres path and with the outbox mail driver: the local quota then decides alone.
+ */
+export interface MailPoolPort {
+  reserve(kind: PoolKind, day: string, ref: string): Promise<'ok' | 'full'>;
+}
+
 export type Deps = {
   db: Db;
+  /** The mail pool of the account (plan D, Task 2). See MailPoolPort. */
+  mailPool?: MailPoolPort;
   /**
    * The facts of the enterprise of this object (Madar enterprises, plan C): its id, state, limits and platform owners, in memory. Only the
    * office object sets it. The Postgres path leaves it out: its hooks and limits then do nothing, and the enterprise is ENT_VADO.

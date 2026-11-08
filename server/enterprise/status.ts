@@ -1,6 +1,6 @@
 import type { OfficeSnapshot } from '../core/types';
 import type { LiteDb } from '../data/lite/db';
-import { utcDay } from '../mail/quota';
+import { sentToday } from '../mail/quota';
 import type { DayRow } from '../office/parts';
 import type { EnterpriseId } from './ids';
 import type { DayCounts, EnterpriseStatus } from './types';
@@ -18,7 +18,6 @@ function peopleOf(office: OfficeSnapshot): number {
 
 const INVITED_SQL = 'select count(*) as n from auth_users where password_set = 0 and banned = 0 and user_id is not null';
 const LAST_WRITE_SQL = 'select created_at from events order by created_at desc limit 1';
-const MAILS_SQL = 'select count(*) as n from mail_log where utc_day = ?1';
 
 function textOf(settings: unknown, key: string): string {
   const value = (settings as Record<string, unknown> | undefined)?.[key];
@@ -29,8 +28,9 @@ function textOf(settings: unknown, key: string): string {
 export async function enterpriseStatusOf(db: LiteDb, ent: EnterpriseId, office: OfficeSnapshot, day: DayRow, now: Date): Promise<EnterpriseStatus> {
   const [invited] = await db.statement<{ n: number }>('read', INVITED_SQL);
   const [last] = await db.statement<{ created_at: string }>('read', LAST_WRITE_SQL);
-  const [mails] = await db.statement<{ n: number }>('read', MAILS_SQL, [utcDay(now)]);
-  const counts: DayCounts = { requests: day.requests, rowsRead: day.rows_read, rowsWritten: day.rows_written, mails: Number(mails?.n ?? 0) };
+  // The mails of the day as Resend counts them (the refusal mark is no mail).
+  const mails = await db.tx('read', (q) => sentToday(q, { now }));
+  const counts: DayCounts = { requests: day.requests, rowsRead: day.rows_read, rowsWritten: day.rows_written, mails };
   return {
     ent,
     people: peopleOf(office),

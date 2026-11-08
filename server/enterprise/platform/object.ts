@@ -73,7 +73,7 @@ export class Platform extends DurableObject<Env> implements PlatformStub {
     return this.parts.meterToday(input);
   }
 
-  mailReserve(input: { ent: EnterpriseId; kind: 'signin' | 'notice'; day: string }) {
+  mailReserve(input: { ent: EnterpriseId; kind: 'signin' | 'notice'; day: string; ref: string }) {
     return this.parts.mailReserve(input);
   }
 

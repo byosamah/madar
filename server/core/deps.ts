@@ -23,6 +23,7 @@ import { resendMailPort } from '../mail/resend';
 import { realtimeSender } from '../signal/realtime';
 import { realtimeTyping } from '../signal/typing';
 import { insightEnv } from '../../src/lib/insightEnv';
+import { currentEnterprise, entLogger } from '../enterprise/context';
 import { insightLogger } from './insight';
 import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type LogFields, type Logger } from './ports';
 
@@ -234,14 +235,17 @@ export function consoleLogger(): Logger {
  */
 export function loggerOf(config: Config): Logger {
   const log = consoleLogger();
-  if (!config.posthogKey) return log;
+  // Every line carries the enterprise of the running request (the Worker routes set the scope), or of the config. The Postgres path has
+  // neither, so its lines keep today's form. The wrap is outside the PostHog sender, so a posted record also gets the id.
+  const withEnt = (base: Logger): Logger => entLogger(base, () => currentEnterprise() ?? config.ent);
+  if (!config.posthogKey) return withEnt(log);
   let host = '';
   try {
     host = new URL(config.appUrl).host;
   } catch {
     // An APP_URL that does not parse counts as a test host.
   }
-  return insightLogger(log, { key: config.posthogKey, env: insightEnv(host) });
+  return withEnt(insightLogger(log, { key: config.posthogKey, env: insightEnv(host) }));
 }
 
 export function buildDeps(read: ReadEnv = env): Deps {

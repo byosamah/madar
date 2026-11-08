@@ -37,7 +37,8 @@ import { DAY_ROW_LITE, OfficeMeter } from './meter';
 import { brandOfSettings } from '../enterprise/brand';
 import { EnterpriseFacts } from '../enterprise/facts';
 import { EnterpriseGate } from '../enterprise/gate';
-import { planFrom, shareCapOf } from '../enterprise/plan';
+import { entLogger } from '../enterprise/context';
+import { FREE_LIMITS, planFrom, shareCapOf } from '../enterprise/plan';
 import { isMcpToolPath } from '../enterprise/router';
 import { initEnterprise, reinviteAdmin, writeIdentity, writeLimits, writePlatformOwners, writeState } from '../enterprise/lifecycle';
 import { runMailRoute } from '../enterprise/mailRoute';
@@ -183,7 +184,8 @@ export function officeParts(o: PartsInput): OfficeParts {
   const values = serverEnvFrom(o.read, { database: { writeUrl: '', readUrl: '' } });
   const db = liteDb(o.host);
   const clock = o.clock ?? { now: () => new Date() };
-  const log = o.log ?? consoleLogger();
+  // Every line of the object carries its enterprise, from the identity row (design 5.16). Before the gate has a row, a line has no ent.
+  const log = entLogger(o.log ?? consoleLogger(), () => gate.current()?.id);
   const meter = new OfficeMeter(o.host);
   const tickets = new LiveTickets(() => gate.id());
   const hold = new OfficeHold();
@@ -207,6 +209,18 @@ export function officeParts(o: PartsInput): OfficeParts {
   // only the call that needs it.
   let share: ReturnType<typeof shareCapOf> | undefined;
   let dayHeld: { at: number; day: DayRow } | undefined;
+  // The mails a UTC day of the account (MADAR_PLAN_MAILS), read once. A bad setting must not stop every call: the platform object, which
+  // decides the places of the pool, then fails its own call and no mail goes out (design 5.12), so the local count may use the Free value.
+  let mailLimit: number | undefined;
+  const mailDayLimit = (): number => {
+    if (mailLimit !== undefined) return mailLimit;
+    try {
+      mailLimit = planFrom(o.read).limits.mails;
+    } catch {
+      mailLimit = FREE_LIMITS.mails;
+    }
+    return mailLimit;
+  };
   const staleMs = Number(o.read('MADAR_LIVE_STALE_MS') ?? LIVE_STALE_MS);
   const signals = liveSignals({ sockets: o.sockets, log, now: () => clock.now(), staleMs });
   const ledgers = new WeakMap<Deps, EffectLedger>();
@@ -241,8 +255,9 @@ export function officeParts(o: PartsInput): OfficeParts {
 
   function depsFor(net: NetApi): Deps {
     const ports = netPorts(net, { guard: { open: () => db.isOpen(), now: () => clock.now() }, kind: values.config.fileStore, maxFileBytes: values.config.limits.maxFileBytes,
-      // The second wall of the file keys: this object works inside the key folder of its own enterprise (server/files/guard.ts).
-      ...(gate.current() ? { ent: gate.id() } : {}) });
+      // The second wall of the file keys: this object works inside the key folder of its own enterprise (server/files/guard.ts). An object
+      // with no identity row (the old name "office" and a rehearsal name) is VADOs' Companies, as entOfConfig reads a config with no ent.
+      ent: gate.current() ? gate.id() : ENT_VADO });
     const deps: Deps = {
       db,
       clock,
@@ -251,10 +266,12 @@ export function officeParts(o: PartsInput): OfficeParts {
       directory: ports.directory,
       // MAIL_DRIVER=outbox (the test copy) writes the mail into mail_outbox of the object: no network, so no port.
       mail: values.mail.driver === 'outbox' ? outboxMailPort(db) : ports.mail,
+      // The mail pool of the account (plan D): the outbox driver sends no real mail, so it takes no place.
+      mailPool: values.mail.driver === 'outbox' ? undefined : ports.mailPool,
       signal: signals,
       authAdmin,
       // The enterprise of this object, once the gate has its row (every method checks the gate before it makes the deps).
-      config: gate.current() ? { ...values.config, ent: gate.id() } : values.config,
+      config: gate.current() ? { ...values.config, ent: gate.id(), mailDayLimit: mailDayLimit() } : { ...values.config, mailDayLimit: mailDayLimit() },
       // The facts of the enterprise: hooks read the limits and the owners from them (plan C).
       enterprise: facts,
       log,

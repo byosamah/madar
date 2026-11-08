@@ -121,18 +121,30 @@ describe('startInsight', () => {
     insight.startInsight({ queryClient, auth: a.auth, router: fakeRouter('/').router });
     await flush();
     expect(factory).toHaveBeenCalledTimes(1);
-    expect(factory.mock.calls[0]![0].person()).toEqual({ id: 'usr_a', name: 'Alice' });
+    expect(factory.mock.calls[0]![0].person()).toEqual({ id: 'usr_a', name: 'Alice', ent: null });
 
     a.set('signed_out');
     expect(stopMock).toHaveBeenCalledTimes(1);
     insight.reportError(new Error('after stop'), 'route');
     expect(exceptionMock).not.toHaveBeenCalled();
 
-    queryClient.setQueryData(['api', 'session.get', {}], { user: { id: 'usr_b', name: 'Bob', systemRole: 'member' } });
+    queryClient.setQueryData(['api', 'session.get', {}], { user: { id: 'usr_b', name: 'Bob', systemRole: 'member' }, enterprise: { id: 'ent_002' } });
     a.set('signed_in');
     await flush();
     expect(factory).toHaveBeenCalledTimes(2);
-    expect(factory.mock.calls[1]![0].person()).toEqual({ id: 'usr_b', name: 'Bob' });
+    expect(factory.mock.calls[1]![0].person()).toEqual({ id: 'usr_b', name: 'Bob', ent: 'ent_002' });
+  });
+
+  it('reads the enterprise id of the session, and null for an answer that names none or a bad id', async () => {
+    const insight = await load();
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['api', 'session.get', {}], { user: { id: 'usr_a', name: 'Alice' }, enterprise: { id: 'ent_001', name: 'X', nameAr: 'X', logo: null }, platformOwner: true });
+    insight.startInsight({ queryClient, auth: fakeAuth('signed_in').auth, router: fakeRouter('/').router });
+    await flush();
+    const person = factory.mock.calls[0]![0].person as () => unknown;
+    expect(person()).toEqual({ id: 'usr_a', name: 'Alice', ent: 'ent_001' });
+    queryClient.setQueryData(['api', 'session.get', {}], { user: { id: 'usr_a', name: 'Alice' }, enterprise: { id: 7 } });
+    expect(person()).toEqual({ id: 'usr_a', name: 'Alice', ent: null });
   });
 
   it('gives no person while the session has not come, or has no name', async () => {

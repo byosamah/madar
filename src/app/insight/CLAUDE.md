@@ -12,7 +12,15 @@ The owner sees how the team uses Madar, which errors they hit and replays of the
   an address behind the gate (`screensAt(path, true).gated`). A sign-out stops it (`stop()`); the next sign-in starts it for the new person
   (`init` runs once). A failed import stays quiet and never reloads the page. `check-bundles.ts` fails when `$snapshot_data` reaches the
   first load, or `$snapshot_data` or `relay.madar.vado.sa` reaches the prototype.
-- Names (owner, 2026-10-25 and 2026-10-28): only an `$exception` record carries `personId` and `personName` (added in `before_send`). An
+- Madar enterprises (design 5.16): usage events and screen replays go to PostHog for VADOs' Companies only (`usageAllowed`, `src/lib/enterprise.ts`;
+  `VADO_ENTERPRISE` equals `ENT_VADO`, pinned by a server test). The enterprise id comes from the `session.get` answer (`enterprise.id`, read by
+  `personOf` in `index.ts` into `InsightPerson.ent`). The lazy client (`createInsightClient`) starts nothing, not even PostHog, until that answer is in the
+  cache. A session that names no enterprise counts as "not allowed" (the rule fails closed). The Postgres path (production and the test copy while `config/server-host.json` says supabase) answers `ent_001`, so VADO usage data and replays go on there. An answer older than the last sign-out is not taken for the next person.
+  `posthogOptions` takes a required `usage: () => boolean`. With false, `before_send` drops every record except `$exception`, the recorder stops, and the screen
+  watcher (`watchRoutes`) does not start. The call watcher stays on, because it reports the bugs of a call as error records. An `$exception` of another enterprise
+  gets `ent` and `personId` and never `personName`. Every record of a person with an enterprise gets the property `ent`. `index.ts` is in the first load: keep the
+  rule in `client.ts`. The server side: `server/enterprise/CLAUDE.md`, "Logs and PostHog".
+- Names (owner, 2026-10-25 and 2026-10-28): only an `$exception` record carries `personId` and `personName` (added in `before_send`; `personName` only when usage is allowed). An
   action carries none: screen views, clicks, slow steps, refusals, failed calls (`madar_call_failed`) and sheets. `eventFields.test.ts`
   pins the fields of every event that `src/app/insight/` captures; a new event needs its line there.
 - `madar_call_failed` carries the call name and the cause (chat, 2026-11-08; the failed calls happen only on iPhone): `status` (the HTTP status,

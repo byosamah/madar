@@ -100,7 +100,7 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
   copies of `rate_limits`, `auth_users`, `auth_links`, `auth_sessions` (`serverTableSql`).
 - `listed()` and `resolveAddress` leave out an enterprise in state `creating`. `hitAddress` holds the counters of the address (`rate_limits` of the platform object, swept by `sweep`). `reserveEmail` answers `taken` for another enterprise.
   `register` (ops secret only) upserts a row in any state and reserves its emails; a conflict leaves nothing behind.
-- `PLATFORM_SCHEMA_VERSION` 1, `PLATFORM_STEPS` for later versions. A directory read costs 1 row for a hit and 0 for a miss (proof.md,
+- `PLATFORM_SCHEMA_VERSION` 3 (`mail_pool` came in step 3), `PLATFORM_STEPS` for the later versions. A directory read costs 1 row for a hit and 0 for a miss (proof.md,
   "Madar enterprises: core spikes S2 and S3").
 
 ## The Cron fan-out
@@ -122,3 +122,80 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
 - `server/office/test/nodeWorld.ts` makes a platform object and one office object for each id on node:sqlite, with `route()` through the real
   Worker routes and a `created` spy on `stubFor`. `server/office/enterpriseLeaks.test.ts` and `.wd.test.ts` are the leak tests of two enterprises
   with the same record ids. `scripts/office/enterprise.ts` makes the fake second enterprise (`ent_002`) for the local stack.
+
+## Mail (plan D)
+- A mail key and a `mail_log` ref start with the enterprise id. `scopedRef(ent, key)` (`scope.ts`) gives `<ent>:<key>`. A caller passes the plain key
+  (`notice-ntf_001`), and `sendCounted` and `reservePlace` (`server/mail/quota.ts`) add the prefix. Resend keeps one key space for the whole account,
+  and a record id such as `usr_001` repeats in each enterprise, so a bare key would make Resend drop the second mail. `entOfConfig(config)` reads
+  `Config.ent` and gives `ENT_VADO` when it is absent (the Postgres path).
+- One pool counts the mails of all enterprises for the UTC day: the table `mail_pool` of the platform object (schema version 3, `platform/mailPool.ts`,
+  `PlatformStub.mailReserve({ ent, kind, day, ref })`). One ref holds one place, so a retry of the same mail takes its place once. A `signin` place is
+  full at the limit minus 2 (98). A `notice` place is full at 90 percent of the limit (90). An enterprise except `ENT_VADO` also holds at most
+  `max(1, floor(share * 90))` notice places a day (9 with the share 0.1). `ENT_VADO` is never held back by the share. The limit is `PLAN_LIMITS.mails`
+  (`MADAR_PLAN_MAILS`, 100). A call writes only when it adds a place, and it deletes the rows older than 2 days.
+- The kinds: `notice` and `summary` are `notice` places. `signin` and `warning` are `signin` places (`POOL_KIND` in `quota.ts`).
+- The office object reaches the pool through `NetApi.mailReserve` (`Deps.mailPool`, `NetPorts.mailPool`). `WorkerNet` sends the `ent` of the Worker and never one
+  from the object. The call is no outside call, so it does not count in `NET_BUDGET`. It still refuses inside a transaction, so the pool call always
+  goes before the transaction (`poolPlace`, `reservePlace`). A pool that does not answer (no platform in `WorkerNet`, an error) stops the mail, and the
+  outbox row waits. A full pool acts like a full local day: no mail, no local row, the same first refusal mark and Admin warning path.
+- The Postgres path and the `outbox` mail driver have no `mailPool`. The local quota decides alone there.
+- A pool place that a mail never used stays until midnight UTC: a skipped invitation, and a renewal that the person limit refuses after the pool call.
+  This is accepted. The count is one place for each skipped row.
+- `Config.mailDayLimit` is the total of the account (`planFrom(read).limits.mails`, set in `depsFor`). `quotaLimitsOf(total)` (`server/mail/limits.ts`) gives
+  the local limits. A bad `MADAR_PLAN_MAILS` falls back to 100 in the local count. The platform object then fails its own pool call, so no mail goes out.
+- `status().day.mails` is `sentToday` (the sent kinds only, never the refusal mark).
+- Tests: `platform/mailPool.test.ts`, `server/mail/pool.test.ts`, `server/mail/scopedRefs.test.ts`, `server/office/workerNet.test.ts`, `server/office/net.test.ts`.
+
+## Files (plan D)
+- A key of an enterprise except `ENT_VADO` starts with `e/<ent>/`: `ent_002` gives `e/ent-002/` (a key allows no underscore). `ENT_VADO` keeps its keys with no
+  prefix, and no key of `ENT_VADO` starts with `e/`. `keysOf(ent)`, `enterpriseKeyPrefix(ent)` and `keyBelongsTo(ent, key)` are in `server/files/keys.ts`. The
+  module functions of `keys.ts` equal `keysOf(ENT_VADO)`. A call takes `keysOf(entOfConfig(deps.config))`.
+- `guardFilesPort(port, ent)` (`server/files/guard.ts`) checks every key before it calls the store: `copy` checks both keys, `remove` checks all keys before it
+  removes one. A refusal says only `The file key is not valid.` It names no key and no enterprise.
+- Two walls hold it: `WorkerNet` (the Worker, with the `ent` of the request) and `netPorts` (the object, with its own `ent`).
+- The enterprise is a required input with no default in `WorkerNet`, `netPorts` and `guardFilesPort`. A missing or malformed id throws
+  `ENT_REQUIRED` when the port is made, so a caller that forgets it never gets a port for `ENT_VADO`. An object with no identity row (the old name `office`
+  and a rehearsal name) passes `ENT_VADO` on purpose, in `depsFor` (`server/office/parts.ts`), as `entOfConfig` reads a config with no `ent`.
+- Tests: `server/files/enterpriseKeys.test.ts`, `server/office/net.test.ts`, `server/office/workerNet.test.ts`.
+
+## Google (plan D)
+- The keys of one enterprise are `googleKeysOf(key, ent)` (`server/google/keys.ts`). `ENT_VADO` keeps the HKDF info texts `madar-google-seal` and
+  `madar-google-state`, so the sealed tokens of the move still open. Any other enterprise uses `madar-google-seal:<ent>` and `madar-google-state:<ent>`. A token or
+  a state of one enterprise does not open with the keys of another. The key cache holds at most 64 entries (`GOOGLE_KEY_CACHE_MAX`) and drops all of them when it is full.
+- The signed state carries the claim `ent`. `readState` answers `bad` for a state with no valid `ent`. `entOfState(state)` reads the claim of an unchecked state.
+- `google.connect` refuses a state whose `ent` differs from the `ent` of the deps, with the word of an old state (`google_link_old`).
+- The callback (`server/google/callback.ts`) reads the claim with `entOfState`, accepts an id only when it has the id form and is in the list of the Worker (`listed`),
+  derives the keys of that enterprise, and checks the signature. Every failure is the word `failed`, and an unlisted id derives no key.
+- Tests: `server/google/enterprise.test.ts`.
+
+## Daftra (plan D)
+- The Daftra accounts belong to `ENT_VADO` only. `daftraOf` returns `undefined` and `daftraAccountsOf` returns `[]` for any other enterprise
+  (`server/daftra/client.ts`), so `daftra.status` answers `ready: false` and the job step answers `skipped: no_config`. `WorkerNet` sends no Daftra
+  request for another enterprise. Only `client.ts` (the gate) and `entries/officeEntry.ts` may read `config.daftra`: `server/daftra/enterprise.test.ts` fails when a
+  new file reads it.
+
+## Logs and PostHog (plan D)
+- Every log line has the field `ent` when the enterprise is known. `server/enterprise/context.ts`: `runInEnterprise(ent, work)` sets the scope of one request
+  (AsyncLocalStorage), `currentEnterprise()` reads it, and `entLogger(log, getter)` adds `{ ent }` to each line, unless the line sets its own `ent`.
+- `loggerOf(config)` (`server/core/deps.ts`) uses `currentEnterprise() ?? config.ent`, outside the PostHog sender, so a posted record also gets the id. The
+  Worker routes `batch`, `mcp`, the Cron leg and the socket run inside `runInEnterprise` as soon as the enterprise is known. The office object adds `ent` from
+  its identity row (`parts.ts`). A line from the Postgres path has no `ent`.
+- `insightLogger` (`server/core/insight.ts`) posts `distinct_id` as `<ent>:<personId>` (`<ent>:madar-server` with no person) and the property `ent`. It sends
+  only a real enterprise id.
+- Screen usage events and replays go to PostHog for `ENT_VADO` only (`usageAllowed`, `src/lib/enterprise.ts`; a server test pins `VADO_ENTERPRISE` to `ENT_VADO`).
+  Another enterprise, or a session that names none, sends `$exception` records only, with `ent` and the person id and with no name. See `src/app/insight/CLAUDE.md`.
+- Tests: `server/enterprise/context.test.ts`, `server/core/insight.test.ts`, `server/entries/officeWorker.test.ts`, `server/office/enterprise.test.ts`.
+
+## Backups (plan D)
+- One encrypted file for each enterprise: `madar-office-<copy>-<ent>-<stamp>.tar.gz.age`. The old name without an enterprise stays valid.
+- The Worker op `enterprises` (the export secret) answers the ids of `platform.listed()`. `scripts/backup/officeEnterprises.ts` prints them. `export` takes
+  `?office=<ent>` for a listed id only.
+- `.github/workflows/office-backup.yml` lists the ids, reads the age of each enterprise, exports each one (two tries), uploads each file as its own release and
+  fails at the end when one enterprise has no backup tonight, so the others still get theirs.
+- The export names the id of the object in the manifest (`ent`). `officeRestoreCheck` fails the step `enterprise` when the name and the manifest differ.
+- Limits and minutes: `docs/superpowers/real-build/proof.md`, "Madar enterprises: backups".
+- Tests: `scripts/backup/*.test.ts`, `server/entries/officeWorker.test.ts`.
+
+## Review fixes (plan D, after the review)
+- `mailReserve` refuses a ref that does not start with `<ent>:` of the call (`invalid_input`, no place, no enterprise named in the text). It looks a ref up with the `ent` too, and the insert has no `on conflict`, so a row of another enterprise under the same ref makes the call fail and the mail stops.
+- `session.get` on the Postgres path (no `Deps.enterprise`) gives `enterprise.id` `ENT_VADO` and never `platformOwner` (`baseOf` in `server/core/runCall.ts`, design 5.20). The name fields come from Settings; an absent name stays `Madar`, so the header looks as before. An office object whose facts have no identity row still gives no enterprise. Tests: `server/core/runCall.test.ts`.

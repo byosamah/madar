@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { posthogOptions } from './client';
 
-const options = (person: () => { id: string; name: string } | null = () => ({ id: 'usr_1', name: 'Alice' })) =>
-  posthogOptions({ env: 'test', build: '2026.10.25', person });
+const options = (person: () => { id: string; name: string; ent: string | null } | null = () => ({ id: 'usr_1', name: 'Alice', ent: 'ent_001' }), usage: () => boolean = () => true) =>
+  posthogOptions({ env: 'test', build: '2026.10.25', person, usage });
 
 const result = (event: string, properties: Record<string, unknown> = {}) => ({ uuid: 'u', event, properties });
 
@@ -57,7 +57,7 @@ describe('posthogOptions', () => {
 
   it('adds the person to an $exception record only', () => {
     const send = beforeSend();
-    expect(send(result('$exception', { $exception_message: 'x' }))?.properties).toMatchObject({ personId: 'usr_1', personName: 'Alice' });
+    expect(send(result('$exception', { $exception_message: 'x' }))?.properties).toMatchObject({ personId: 'usr_1', personName: 'Alice', ent: 'ent_001' });
     for (const event of ['$pageview', '$autocapture', 'madar_refused', '$snapshot', '$web_vitals']) {
       const properties = send(result(event))?.properties ?? {};
       expect(properties, event).not.toHaveProperty('personId');
@@ -88,7 +88,7 @@ describe('posthogOptions', () => {
 
   it('drops every record while the client is stopped', () => {
     let active = true;
-    const send = beforeSend(posthogOptions({ env: 'test', build: '1', person: () => null, active: () => active }));
+    const send = beforeSend(posthogOptions({ env: 'test', build: '1', person: () => null, active: () => active, usage: () => true }));
     expect(send(result('$pageview'))).not.toBeNull();
     active = false;
     expect(send(result('$pageview'))).toBeNull();
@@ -98,5 +98,50 @@ describe('posthogOptions', () => {
     const out = beforeSend(options(() => { throw new Error('boom'); }))(result('$exception'));
     expect(out).not.toBeNull();
     expect(out?.properties).not.toHaveProperty('personId');
+  });
+});
+
+describe('usage data for VADOs Companies only (Madar enterprises, design 5.16)', () => {
+  const other = () => ({ id: 'usr_1', name: 'Alice', ent: 'ent_002' });
+
+  it('usage false drops a page view, a click, a madar_ event, a web vital and a $snapshot', () => {
+    const send = beforeSend(options(other, () => false));
+    for (const event of ['$pageview', '$autocapture', '$pageleave', 'madar_refused', 'madar_slow_request', 'madar_sheet', 'madar_call_failed', '$web_vitals', '$snapshot', '$identify', 'some_new_event']) {
+      expect(send(result(event)), event).toBeNull();
+    }
+  });
+
+  it('usage false keeps an $exception, adds ent and the person id, and adds no name', () => {
+    const send = beforeSend(options(other, () => false));
+    const out = send(result('$exception', { $exception_message: 'x' }));
+    expect(out?.properties).toMatchObject({ ent: 'ent_002', personId: 'usr_1', env: 'test' });
+    expect(out?.properties).not.toHaveProperty('personName');
+    expect(JSON.stringify(out)).not.toContain('Alice');
+  });
+
+  it('usage false still scrubs and still drops the harmless warning', () => {
+    const send = beforeSend(options(other, () => false));
+    expect(send(result('$exception', { $exception_list: [{ type: 'Error', value: 'ResizeObserver loop limit exceeded' }] }))).toBeNull();
+    expect(send(result('$exception', { $current_url: 'https://madar.vado.sa/search?q=secret' }))?.properties).toMatchObject({ $current_url: 'https://madar.vado.sa/search' });
+  });
+
+  it('usage true keeps the old records and adds ent', () => {
+    const send = beforeSend(options(() => ({ id: 'usr_1', name: 'Alice', ent: 'ent_001' }), () => true));
+    expect(send(result('$pageview'))?.properties).toMatchObject({ env: 'test', ent: 'ent_001' });
+    expect(send(result('$snapshot'))).not.toBeNull();
+    expect(send(result('$exception'))?.properties).toMatchObject({ personId: 'usr_1', personName: 'Alice', ent: 'ent_001' });
+  });
+
+  it('reads the rule again for each record, so a change of person changes the rule', () => {
+    let usage = true;
+    const send = beforeSend(options(other, () => usage));
+    expect(send(result('$pageview'))).not.toBeNull();
+    usage = false;
+    expect(send(result('$pageview'))).toBeNull();
+  });
+
+  it('adds no ent when the person has none', () => {
+    const send = beforeSend(options(() => ({ id: 'usr_1', name: 'Alice', ent: null }), () => false));
+    expect(send(result('$exception'))?.properties).not.toHaveProperty('ent');
   });
 });

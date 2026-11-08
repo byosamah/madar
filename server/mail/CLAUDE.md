@@ -35,6 +35,13 @@ Commands: `npx vitest run server/mail` runs the unit tests. The snapshot tests a
 - A full day throws `QuotaFull`: the row waits until the next UTC midnight.
 - `release()` gives back the place of a row that never made a link.
 - The mail reserve takes only the mail lock, in its own transaction. Lock order: the office lock, then the mail lock.
+- The limits come from the total of the day: `quotaLimitsOf(total)` (`limits.ts`; notice and summary at 90 percent, sign-in and warning at total minus 2).
+  `QUOTA_LIMITS` is `quotaLimitsOf(100)`. `Config.mailDayLimit` changes the total (the setting `MADAR_PLAN_MAILS`, set by the office object).
+- Madar enterprises: a key and a `mail_log` ref start with the enterprise id (`ent_001:notice-ntf_001`, `scopedRef`, `server/enterprise/scope.ts`). A caller passes
+  the plain key, and `sendCounted`, `reservePlace` and `poolPlace` add the prefix. One pool counts the mails of the whole account in the platform object
+  (`server/enterprise/CLAUDE.md`, "Mail"). `poolPlace` asks it before the local transaction. A full pool is a full day for the caller. A pool that
+  throws stops the mail. The pool refuses a ref that does not start with `<ent>:` of the call (an error, no place), and it looks a ref up with the enterprise too. With no `Deps.mailPool` (the Postgres path, the outbox driver) it answers ok.
+- A place in the pool that a mail never used stays until the next UTC midnight: a skipped invitation keeps its place, and so does a renewal that a person limit refuses.
 - On SQLite (the office object) the quota has no mail lock, because the object runs one request at a time: one count and one
   insert in the caller's transaction, with the UTC day from the caller's clock (the `_LITE` constants in `quota.ts`). A mail of
   the office object goes through the network port of the Worker; with `MAIL_DRIVER=outbox` it goes into `mail_outbox` of the
