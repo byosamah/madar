@@ -1454,3 +1454,28 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
   "Cloudflare TLS Issuing ECC CA 4") came minutes later. `proxy-get` still says "issuing" (PostHog issue 48399): trust a live HTTPS check.
 - [x] Release of the proxy: test copy, then production by Claude (the owner's choice "proxy to production after"). Done 2026-11-08:
   production at 80b8968e. Record: proof.md.
+
+## Open reports fbk_081 to 089 (owner: "list the bugs and requested features and study them", then "fix the bugs first", 2026-11-08)
+Study: 4 read-only Sonnet agents (cause, what exists, options). Branch `rb/review-rule` holds `rb/bugs-1108` and the review rule.
+- [x] fbk_081 (owner): a reaction under a message moved the sender's picture down. The reaction row and the "Not sent" row now sit outside the
+  row of the face and the bubble (`MessageBubble.tsx`). Measured in Chromium, EN and AR, 390 and 1280 px: face bottom = bubble bottom, 0 px.
+- [x] fbk_082 (owner): the view toggle on the desk Home is a 32 px disc with a 44 px press area and a title (`ProjectViewToggle` size `quiet`).
+  The phone keeps 44 px. DESIGN.md has the rule.
+- [x] fbk_086 (Faisal): not a security bug. Every read checks the person; both R2 buckets have no public address and no custom domain
+  (wrangler `-J eu`). The reply went to Faisal (msg_345, owner OK). Fix of the one fault: `compareIds` (`src/lib/stageFlow.ts`) orders
+  tsk_999 before tsk_1000 in the Open space map and `compareTasks`. The JS sorts that match a SQL order stay as they are.
+- [x] fbk_087 (Faisal, tsk_624): the person who does the work never approves it (owner rule and words in `docs/decision-log.md`,
+  2026-11-08). The lead reviews when a helper or the maker sends; the project leader (project) or the maker (office) reviews when the lead
+  sends; helpers may send to review; the named reviewer needs no switch. `Task.reviewSentBy`, `reviewersAfterSend` (`src/api/notify.ts`),
+  the morning summary SQL. Security review fixes: Undo of an own approval asks `mayReviewTask`; a lead change during review keeps the sender out.
+- [x] Gates: typecheck; npm test 12,975 passed (`deploy.test.ts` timed out under load, 53 of 53 alone); the three builds; test:it 368;
+  test:mcp (conformance 5 of 32, 27 expected); test:office 40. test:db and test:lite found the Dashboard loader without `reviewSentBy`
+  (fixed: `DASHBOARD_TASK_FIELDS`; then 104 and 76 rule tests passed). The smoke found the old toast words in two browser tests (fixed).
+- [ ] tsk_624 itself keeps the old rule until it is sent again (no stored sender). Moataz can approve it now.
+- [ ] A hand move to In review by a person who needs no review (for example the project leader who leads the to-do) still waits with no
+  named reviewer; only a backup can approve it. Decide: refuse the move, or keep it.
+- [ ] The first load holds 971,290 B of 972,000 B (710 B left) and 295,724 B of 296,000 B in gzip (276 B left). The next first-load change
+  must make room first.
+- [ ] Not started (owner reports): fbk_083 (Home Today cuts text), fbk_084 (the header of a continuous project), fbk_085 (a board in the
+  project To-dos tab), fbk_088 (a Sunday plan and Thursday done question, a report for Moataz), fbk_089 (vacation mode). Study in the
+  session of 2026-11-08 (options with file:line).
