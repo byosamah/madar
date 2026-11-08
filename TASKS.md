@@ -1456,6 +1456,7 @@ order; builders run on Sonnet 5.5. Each track merges into `rb/enterprises`; the 
 - [ ] Wave 1: plan A (track `ent-a`: Google Calendar and Daftra on the office path, the satellite own key)
 - [ ] Wave 1: plan B (track `ent-b`: ids, the `ent` claim, the object identity, the platform object, routing, tags, MCP address, Cron fan-out)
 - [ ] Lead step S1: the Cron fan-out probe on the deployed test Worker (plan B)
+- [ ] Security fix on `rb/ent-b` before its merge (review of 2026-11-08, MEDIUM): the per-address limit of forgot, renew, password sign-in and link open is counted in the enterprise object for a known email and in the platform object for an unknown one, so a 429 tells whether an email exists, and each enterprise gives its own 10 an hour. Fix test first: one address limit in the platform object for every step before a token, counted before the target is chosen; the object skips its own address limit for those calls; the per-email and per-key limits stay where they are. Test: the same address gets the same 429 at the same count for a known and an unknown email.
 - [ ] Merge A, then B, into `rb/enterprises`
 - [ ] Wave 2: plan C (track `ent-c`: platform calls and page, create, pause, limits, name and logo, meter and day cap)
 - [ ] Wave 3: plan D (track `ent-d`: mail pool, file prefix, logs and PostHog, backups, prototype, What's new, MCP words, sweep, guides)
