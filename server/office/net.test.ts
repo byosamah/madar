@@ -4,6 +4,8 @@ import { MailSendError } from '../mail/resend';
 import { PushSendError, sendPush } from '../push/send';
 import { makeVapidKeys } from '../push/vapid';
 import { NET_BUDGET, NET_HTTP_MAX_CHARS, NET_IN_TRANSACTION, NetBudgetSpent, answerOf, daftraRequest, failureOf, googleRequest, isGoogleApiUrl, netPorts, postPush, type NetAnswer } from './net';
+import { ENT_VADO } from '../enterprise/ids';
+import { ENT_REQUIRED } from '../files/guard';
 import { recordingNet } from './test/fakes';
 
 const NOW = new Date('2026-10-04T06:00:00Z');
@@ -16,7 +18,7 @@ const closed = { open: () => false, now: () => NOW };
 describe('the network port of the office object (server/office/net.ts)', () => {
   it('answers a file call through the port, and counts only a call that is a real network call', async () => {
     const net = recordingNet();
-    const ports = netPorts(net, { guard: closed, kind: 'r2', maxFileBytes: 100 });
+    const ports = netPorts(net, { guard: closed, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO });
     expect(await ports.files.presignGet('files/a', { disposition: 'inline', filename: 'a.png', mimeType: 'image/png' })).toEqual({ url: 'https://files.test/get/files/a', expiresAt: '2099-01-01T00:00:00.000Z' });
     expect(await ports.files.head('files/a')).toEqual({ size: 10, mimeType: 'image/png' });
     expect([ports.files.kind, ports.files.maxFileBytes, ports.used()]).toEqual(['r2', 100, 1]);
@@ -33,20 +35,30 @@ describe('the network port of the office object (server/office/net.ts)', () => {
     expect(two.used()).toBe(0);
     await two.files.head('e/ent-002/prj-001/fil-001/1/file');
     expect(net.calls).toEqual(['head e/ent-002/prj-001/fil-001/1/file']);
-    // No enterprise given: the folder of ENT_VADO, so the keys of another enterprise never pass.
-    const none = netPorts(recordingNet(), { guard: closed, kind: 'r2', maxFileBytes: 100 });
-    await expect(none.files.head('e/ent-002/prj-001/fil-001/1/file')).rejects.toThrow('The file key is not valid.');
+    // ENT_VADO has the folder with no prefix, so the keys of another enterprise never pass.
+    const vado = netPorts(recordingNet(), { guard: closed, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO });
+    await expect(vado.files.head('e/ent-002/prj-001/fil-001/1/file')).rejects.toThrow('The file key is not valid.');
+  });
+
+  it('cannot be made with no enterprise: the id is required, with no default', () => {
+    // The type refuses a call with no ent (the directive fails the type check if the call becomes valid).
+    // @ts-expect-error ent is a required option of netPorts
+    const noOption = () => netPorts(recordingNet(), { guard: closed, kind: 'r2', maxFileBytes: 100 });
+    // A JS caller or a cast gets a thrown error at run time, not a port that works for ENT_VADO.
+    expect(noOption).toThrow(ENT_REQUIRED);
+    expect(() => netPorts(recordingNet(), { guard: closed, kind: 'r2', maxFileBytes: 100, ent: undefined as unknown as string })).toThrow(ENT_REQUIRED);
+    expect(() => netPorts(recordingNet(), { guard: closed, kind: 'r2', maxFileBytes: 100, ent: 'vado' })).toThrow(ENT_REQUIRED);
   });
 
   it('refuses a network call while a transaction is open, before it reaches the Worker', async () => {
     const net = recordingNet();
-    const ports = netPorts(net, { guard: { open: () => true, now: () => NOW }, kind: 'r2', maxFileBytes: 100 });
+    const ports = netPorts(net, { guard: { open: () => true, now: () => NOW }, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO });
     await expect(ports.mail.send(MAIL)).rejects.toThrow(NET_IN_TRANSACTION);
     expect(net.calls).toEqual([]);
   });
 
   it('stops at the budget with an error that names a time to try again', async () => {
-    const ports = netPorts(recordingNet(), { guard: closed, kind: 'r2', maxFileBytes: 100 });
+    const ports = netPorts(recordingNet(), { guard: closed, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO });
     for (let i = 0; i < NET_BUDGET; i += 1) await ports.mail.send(MAIL);
     const error = await ports.mail.send(MAIL).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(NetBudgetSpent);
@@ -56,7 +68,7 @@ describe('the network port of the office object (server/office/net.ts)', () => {
   it('gives back the error class that the caller reads, with its fields', async () => {
     const refused = new MailSendError('Resend refused the mail.', { status: 403, code: 'validation_error', retryable: false });
     const net = recordingNet({ sendMail: () => Promise.resolve({ ok: false, failure: failureOf(refused) }) });
-    const error = await netPorts(net, { guard: closed, kind: 'r2', maxFileBytes: 100 }).mail.send(MAIL).catch((e: unknown) => e);
+    const error = await netPorts(net, { guard: closed, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO }).mail.send(MAIL).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(MailSendError);
     expect({ ...(error as MailSendError).toJSON() }).toEqual(refused.toJSON());
   });
@@ -71,11 +83,11 @@ describe('the network port of the office object (server/office/net.ts)', () => {
     const keys = await makeVapidKeys();
     const config = { ...keys, subject: 'mailto:madar@vado.sa' };
     const net = recordingNet();
-    const { pushFetch } = netPorts(net, { guard: closed, kind: 'r2', maxFileBytes: 100 });
+    const { pushFetch } = netPorts(net, { guard: closed, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO });
     expect(await sendPush(config, PUSH, { fetch: pushFetch, now: () => NOW })).toBe('sent');
-    const gone = netPorts(recordingNet({ pushPost: () => ok({ status: 410 }) }), { guard: closed, kind: 'r2', maxFileBytes: 100 });
+    const gone = netPorts(recordingNet({ pushPost: () => ok({ status: 410 }) }), { guard: closed, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO });
     expect(await sendPush(config, PUSH, { fetch: gone.pushFetch, now: () => NOW })).toBe('gone');
-    const late = netPorts(recordingNet({ pushPost: () => Promise.resolve({ ok: false, failure: { name: 'TimeoutError', message: 'timed out' } }) }), { guard: closed, kind: 'r2', maxFileBytes: 100 });
+    const late = netPorts(recordingNet({ pushPost: () => Promise.resolve({ ok: false, failure: { name: 'TimeoutError', message: 'timed out' } }) }), { guard: closed, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO });
     await expect(sendPush(config, PUSH, { fetch: late.pushFetch, now: () => NOW })).rejects.toThrow('The push to fcm.googleapis.com timed out.');
     expect(net.calls).toEqual([`push ${PUSH}`]);
   });
@@ -201,7 +213,7 @@ describe('a failure of the Worker request', () => {
 });
 
 describe('the Google and Daftra fetch of the office object (netPorts)', () => {
-  const portsOf = (net: ReturnType<typeof recordingNet>, guard = closed) => netPorts(net, { guard, kind: 'r2', maxFileBytes: 100 });
+  const portsOf = (net: ReturnType<typeof recordingNet>, guard = closed) => netPorts(net, { guard, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO });
 
   it('gives a Response with a null body for an empty answer', async () => {
     const net = recordingNet({ googleFetch: () => ok({ status: 204, body: '' }) });

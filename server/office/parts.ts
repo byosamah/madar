@@ -241,8 +241,9 @@ export function officeParts(o: PartsInput): OfficeParts {
 
   function depsFor(net: NetApi): Deps {
     const ports = netPorts(net, { guard: { open: () => db.isOpen(), now: () => clock.now() }, kind: values.config.fileStore, maxFileBytes: values.config.limits.maxFileBytes,
-      // The second wall of the file keys: this object works inside the key folder of its own enterprise (server/files/guard.ts).
-      ...(gate.current() ? { ent: gate.id() } : {}) });
+      // The second wall of the file keys: this object works inside the key folder of its own enterprise (server/files/guard.ts). An object
+      // with no identity row (the old name "office" and a rehearsal name) is VADOs' Companies, as entOfConfig reads a config with no ent.
+      ent: gate.current() ? gate.id() : ENT_VADO });
     const deps: Deps = {
       db,
       clock,

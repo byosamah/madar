@@ -19,19 +19,19 @@ export class WorkerNet extends RpcTarget implements NetApi {
   /**
    * `daftra`: the Daftra accounts of the Worker. The keys stay here.
    * `ent`: the enterprise of the object that this port serves, from the Worker (the token claim, the tag or the address), never from the
-   * object. The file port works inside the key folder of this enterprise (guardFilesPort). With no `ent` it works inside the folder of
-   * ENT_VADO, so a caller that forgets it is refused for the keys of any other enterprise.
+   * object. It is required and has no default. The file port works inside the key folder of this enterprise (guardFilesPort), and a
+   * missing or malformed id throws when the port is made.
    * `directory`: the email directory bound to the enterprise of this request (plan C).
    */
-  constructor(o: { files: FilesPort; mail: MailPort; fetch?: typeof globalThis.fetch; daftra?: NonNullable<Config['daftra']>; ent?: EnterpriseId; directory?: DirectoryPort }) {
+  constructor(o: { files: FilesPort; mail: MailPort; fetch?: typeof globalThis.fetch; daftra?: NonNullable<Config['daftra']>; ent: EnterpriseId; directory?: DirectoryPort }) {
     super();
-    this.#files = guardFilesPort(o.files, o.ent ?? ENT_VADO);
+    this.#files = guardFilesPort(o.files, o.ent);
     this.#mail = o.mail;
     const run = o.fetch ?? ((input, init) => fetch(input, init));
     this.#post = postPush(run);
     this.#google = googleRequest(run);
     // The Daftra accounts belong to VADOs' Companies (design D6): the Worker sends no Daftra request for any other enterprise.
-    this.#daftra = o.daftra && (o.ent ?? ENT_VADO) === ENT_VADO ? daftraRequest(o.daftra, run) : null;
+    this.#daftra = o.daftra && o.ent === ENT_VADO ? daftraRequest(o.daftra, run) : null;
     this.#directory = o.directory ?? null;
   }
 
