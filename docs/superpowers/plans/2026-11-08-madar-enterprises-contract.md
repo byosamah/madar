@@ -159,3 +159,20 @@ export type CapAnswer = { allowed: boolean; reason?: 'busy' };
   The stop line for all others: 90% of the account. `ENT_VADO` is never refused by the cap.
 - `MADAR_ENTERPRISE_CREATE = "open"` opens `platform.enterprises.create` in production (closed by default; plan E opens it after
   the 14-day way-back window).
+
+## Names added by plans C and D (the lead, at the merge of 2026-11-08)
+- `PlatformStub` (plan C): `list`, `getEnterprise`, `create`, `activate`, `update`, `setState`, `activeIds`, `ownersOf`,
+  `capState`, `meterToday`; (plan B fix) `hitAddress({ step, address })`. The platform schema is at version 2 (column `logo`).
+- `OfficeStub` (plan C): `init`, `setState`, `setLimits`, `setIdentity`, `setPlatformOwners`, `person`, `reinvite`, `brand`.
+- `Deps.enterprise` (the facts) and `Deps.directory` (`DirectoryPort`); `NetApi.directoryReserve` and `directoryRelease`;
+  `ServerHooks.settle` with `outcome.replayed`; `Runtime.platformConfig`.
+- The network port: `net(env, ent)` in the Worker routes, `OfficeCall.net(ent)`, and `PlatformCtx.net(ent)` for the enterprise
+  that a platform call works on (never the caller's). `WorkerNet` options `ent` (the file folder, plan D) and `directory`.
+- Env names: `MADAR_PLAN_REQUESTS`, `MADAR_PLAN_ROWS_READ`, `MADAR_PLAN_ROWS_WRITTEN`, `MADAR_PLAN_MAILS`,
+  `MADAR_ENTERPRISE_SHARE`, `MADAR_ENTERPRISE_CREATE`.
+- Routes: `POST /api/platform`, `GET /api/enterprise-logo/:ent`, `POST /api/office/enterprises` (export secret, plan D).
+- Reasons: `enterprise_paused`, `people_limit`, `storage_limit`, `email_taken`, `create_closed`, `address_taken`,
+  `owner_enterprise`, `name_mismatch`, `not_finished`, `already_accepted`.
+- Plan D: `entOfConfig`, `scopedRef` (mail keys `<ent>:<key>`), `keysOf(ent)`, `enterpriseKeyPrefix`, `guardFilesPort`,
+  `googleKeysOf(key, ent)`, the backup file name `madar-office-<copy>-<ent>-<stamp>`.
+- The SQLite steps on main: 14 (checkins), 15 (`enterprise`), 16 (`enterprise_use`). What's new of plan C: 161 and 162.
