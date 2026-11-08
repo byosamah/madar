@@ -13,7 +13,7 @@ in a node script with `devices['iPhone 15']` too. Both configs run Desktop Chrom
   `Input.dispatchTouchEvent`).
 - The sample office follows the real date. An assertion on Home or on due dates must hold on any day: the Home panel is
   "Today" or "Coming up" (`acceptance.spec.ts`).
-- Prototype data for screenshots: edit IndexedDB `madar`, store `data`, key `state`, then reload (for example a due date 157 days
+- Prototype data for screenshots: edit IndexedDB `madar`, store `data`, key `state:ent_001`, then reload (for example a due date 157 days
   back). A Playwright clock does not age tasks: the start moves the sample dates to the new today. For the memory line, set
   `state.version = 999` and reload; a blocked `indexedDB` did not bring it. A script in the scratchpad imports Playwright by its
   absolute path in the worktree.

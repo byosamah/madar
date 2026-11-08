@@ -29,6 +29,11 @@ screens are in `src/CLAUDE.md`. The remote sign-in, realtime and storage ports a
   `AppearanceSync.tsx`, else light. The sample office keeps System.
 
 ## Boot and first load
+- The prototype `bootstrap` opens the store of one fake enterprise (`persister.ent`; the choice of Preview as is `madar.fakeEnterprise` in
+  localStorage, read by `fakeEnterprise.ts`). It puts `platform` (the fake `platform.*` calls) and `directory` (the fake directory) in the runtime.
+  `PreviewAs.tsx` first picks the fake enterprise (a change stores the id, turns the owner view off and reloads the page), then the person.
+  VADOs' Companies has one more choice, "Platform owner": it sets `madar.fakePlatform` and previews as `usr_001`, so the person menu shows the
+  platform page. Any person choice turns the mode off. The real build draws none of this. A store in memory pairs with a directory in memory.
 - `main.tsx` loads only one bootstrap. Its first import is `zodConfig.ts` (zod runs jitless, so the CSP holds). It imports nothing from zod: it
   sets `jitless` on the one object zod keeps on `globalThis.__zod_globalConfig`. Never import from `zod` there. The second import is
   `i18n/firstWords.ts`.

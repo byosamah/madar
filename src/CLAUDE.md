@@ -117,7 +117,7 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
 
 ## Before you call a screen change done
 - A change to a picture, a ring or a people stack: check it with a real photo, not initials. Put a photo in the saved office:
-  `users[id].avatarUrl` = a JPEG data address under 24,000 characters (IndexedDB `madar`, store `data`, key `state`), then reload.
+  `users[id].avatarUrl` = a JPEG data address under 24,000 characters (IndexedDB `madar`, store `data`, key `state:ent_001`), then reload.
 - Chrome slows the timers of a hidden tab. The tab that claude-in-chrome opens is hidden (`document.hidden` is true), and then
   `connectChanges` marks the lists old and never loads them again: a saved change does not show until a reload. In that tab run
   `Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })` and dispatch `visibilitychange` first.
@@ -131,7 +131,7 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
 - Shots from a branch worktree: `npx vite build --outDir test-results/proto-<x>`, then `python3 -m http.server <port> --bind 127.0.0.1` there
   (sandbox off). A new port keeps its own saved office: run `indexedDB.deleteDatabase('madar')` and reload first.
 - To set the prototype person, language or theme, or add a sample record, without clicks: edit the saved office (IndexedDB `madar`, store
-  `data`, key `state`: `session.currentUserId`, `users[id].preferences.language` and `.theme`), then reload.
+  `data`, key `state:ent_001`: `session.currentUserId`, `users[id].preferences.language` and `.theme`), then reload.
 - Prototype data with no clicks in the 390 px frame: attach a file with `input.files = dataTransfer.files` and a `change` event. Pick a mention
   with Enter (a synthetic click picks nothing). Set the box to '' before '@' (a stored draft can hold the same text, and React then sees no
   change). For a download control, wrap `URL.createObjectURL` and `HTMLAnchorElement.prototype.click` in the page to keep the Blob and its
