@@ -14,3 +14,14 @@ export const SIGNIN_PER_ADDRESS = 30;
 export const VERIFY_PER_ADDRESS = 20;
 /** OAuth client registrations for one address in one hour: each one writes rows of the Free day limit. */
 export const REGISTER_PER_ADDRESS = 10;
+
+/**
+ * The limit of one network address in a step that runs before a token (Madar enterprises). The step itself counts it on the local path.
+ * On the office path the Worker counts it once, in the platform object, before it chooses the enterprise, and passes addressChecked to the
+ * step. So one address has one count, whatever the enterprise of the email or of the tag. forgot and renew keep their own limits in
+ * forgot.ts and renew.ts.
+ */
+export const ADDRESS_LIMITS = {
+  'auth.password': { prefix: 'signin:ip', limit: { limit: SIGNIN_PER_ADDRESS, windowMs: SIGNIN_WINDOW_MS } },
+  'auth.verify': { prefix: 'verify:ip', limit: { limit: VERIFY_PER_ADDRESS, windowMs: HOUR_MS } },
+} as const;

@@ -2,14 +2,15 @@ import { normalizeEmail, untag, type EnterpriseId } from '../enterprise/ids';
 import { padTo } from '../enterprise/pad';
 import type { EntStub } from '../enterprise/router';
 import type { JSONWebKeySet } from 'jose';
-import { CLIENT_ADDRESS_HEADER, FORGOT_MIN_MS, FORGOT_PATH, ForgotBody } from '../auth/forgot';
+import { CLIENT_ADDRESS_HEADER, FORGOT_MIN_MS, FORGOT_PATH, ForgotBody, tooMany as forgotTooMany } from '../auth/forgot';
 import type { OpInput, OpOutput, OpResult, SigninOffice, SigninOpName } from '../auth/own/office';
 import { ownApiRoutes } from '../auth/own/routes';
 import { GOOGLE_CALLBACK_PATH, callbackRedirect } from '../google/callback';
-import { RENEW_MIN_MS, RENEW_PATH, RenewBody } from '../auth/renew';
+import { RENEW_MIN_MS, RENEW_PATH, RenewBody, tooMany as renewTooMany } from '../auth/renew';
+import { tooMany as signinTooMany } from '../auth/own/sessions';
 import type { TokenChecker } from '../auth/verify';
 import type { Deps } from '../core/ports';
-import { errorResponse } from '../http/errors';
+import { errorResponse, runErrorOf } from '../http/errors';
 import { readBody } from '../http/limits';
 import type { RouteDef } from '../http/routes';
 import type { OfficeMailAnswer, OfficeMailRoute } from '../office/parts';
@@ -32,6 +33,9 @@ const REFUSABLE: Readonly<Record<string, 'auth.password' | 'auth.verify' | 'auth
  * The SigninOffice of one request on the Worker (Madar enterprises, design 5.2). The first steps find the enterprise themselves:
  * - auth.password: the enterprise of the normalized email, from the directory of the platform object.
  * - auth.refresh and auth.verify: the tag of the refresh token or the link token (<ent>.<secret>). The object gets the bare secret.
+ * The limit of the network address of auth.password and auth.verify is counted once, in the platform object, before the enterprise is
+ * chosen (platform.hitAddress), so one address has one count whatever the enterprise of the email or of the tag. The object and the refuse
+ * step get addressChecked and count the limits of the email only.
  * An unknown email, an untagged text, a malformed tag and an unlisted enterprise all go to platform.refuseSignin with the text as it
  * came: the real step runs on empty tables, so the answer and the time match a wrong credential, and no object is made.
  * Every other step belongs to a signed-in person: it goes to the enterprise of the signed token claim.
@@ -39,21 +43,37 @@ const REFUSABLE: Readonly<Record<string, 'auth.password' | 'auth.verify' | 'auth
 export function enterpriseSigninOffice(call: Pick<OfficeCall, 'router' | 'platform'>): SigninOffice {
   const refuse = <N extends SigninOpName>(name: N, input: OpInput<N>) =>
     call.platform.refuseSignin({ signin: REFUSABLE[name], input }) as Promise<OpResult<OpOutput<N>>>;
+  /** The one count of the address of a first step. null: under the limit. Else the answer of the step over its limit. */
+  const hitAddress = async <N extends 'auth.password' | 'auth.verify'>(name: N, address: string): Promise<OpResult<OpOutput<N>> | null> => {
+    const hit = await call.platform.hitAddress({ step: name, address });
+    return hit.ok ? null : ({ ok: false, error: runErrorOf(signinTooMany(hit.retryAfterMs)) } as OpResult<OpOutput<N>>);
+  };
   return {
     async run<N extends SigninOpName>(name: N, input: OpInput<N>, ent?: EnterpriseId): Promise<OpResult<OpOutput<N>>> {
       if (name === 'auth.password') {
         const given = input as OpInput<'auth.password'>;
+        // Before the directory read: the count does not depend on the email, so it says nothing about it.
+        const over = await hitAddress(name, given.address);
+        if (over) return over as OpResult<OpOutput<N>>;
+        const checked = { ...given, addressChecked: true } as OpInput<N>;
         const found = await call.platform.resolveEmail({ email: normalizeEmail(given.email) });
         const target = found ? await call.router.listedStub(found.ent) : null;
-        if (!target) return refuse(name, input);
-        return target.stub.signin({ ent: target.ent, signin: name, input }) as Promise<OpResult<OpOutput<N>>>;
+        if (!target) return refuse(name, checked);
+        return target.stub.signin({ ent: target.ent, signin: name, input: checked }) as Promise<OpResult<OpOutput<N>>>;
       }
       if (name === 'auth.refresh' || name === 'auth.verify') {
+        // The refresh token has no limit of the address. The link open has one, counted before the tag is read.
+        let checked = input;
+        if (name === 'auth.verify') {
+          const over = await hitAddress(name, (input as OpInput<'auth.verify'>).address);
+          if (over) return over as OpResult<OpOutput<N>>;
+          checked = { ...(input as OpInput<'auth.verify'>), addressChecked: true } as OpInput<N>;
+        }
         const text = name === 'auth.refresh' ? (input as OpInput<'auth.refresh'>).refreshToken : (input as OpInput<'auth.verify'>).token;
         const tag = untag(text);
         const target = tag ? await call.router.listedStub(tag.ent) : null;
-        if (!tag || !target) return refuse(name, input);
-        const bare = name === 'auth.refresh' ? { ...input, refreshToken: tag.secret } : { ...input, token: tag.secret };
+        if (!tag || !target) return refuse(name, checked);
+        const bare = name === 'auth.refresh' ? { ...checked, refreshToken: tag.secret } : { ...checked, token: tag.secret };
         return target.stub.signin({ ent: target.ent, signin: name, input: bare }) as Promise<OpResult<OpOutput<N>>>;
       }
       // A step of a signed-in person: the signed claim names the enterprise. A token with no claim never gets here on the own key.
@@ -111,20 +131,30 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
         } catch {
           parsed = undefined;
         }
-        if (route === 'forgot') {
-          const good = ForgotBody.safeParse(parsed);
-          const found = good.success ? await call.platform.resolveEmail({ email: normalizeEmail(good.data.email) }) : null;
-          target = found ? await call.router.listedStub(found.ent) : null;
+        const forgotBody = route === 'forgot' ? ForgotBody.safeParse(parsed) : null;
+        const renewBody = route === 'renew' ? RenewBody.safeParse(parsed) : null;
+        // The count of the address comes first, before the enterprise is chosen, and only for a body that the route counts (a good email or
+        // key, as in createForgotRoute and createRenewRoute). A body that does not parse counts nothing and gets the 400 of the refuse step.
+        const hit = (forgotBody ?? renewBody)!.success ? await call.platform.hitAddress({ step: route, address }) : null;
+        if (hit && !hit.ok) {
+          // Over the limit: the same answer for every email and key. No enterprise is chosen and no work follows.
+          const over = route === 'forgot' ? forgotTooMany(hit.retryAfterMs) : renewTooMany(hit.retryAfterMs);
+          answer = { status: over.status, body: await over.text() };
         } else {
-          const good = RenewBody.safeParse(parsed);
-          const tag = good.success ? untag(good.data.key) : null;
-          target = tag ? await call.router.listedStub(tag.ent) : null;
-          // The object keeps the sha256 of the bare key: it gets the bare key.
-          if (tag && target) sent = JSON.stringify({ key: tag.secret });
+          if (forgotBody) {
+            const found = forgotBody.success ? await call.platform.resolveEmail({ email: normalizeEmail(forgotBody.data.email) }) : null;
+            target = found ? await call.router.listedStub(found.ent) : null;
+          } else if (renewBody) {
+            const tag = renewBody.success ? untag(renewBody.data.key) : null;
+            target = tag ? await call.router.listedStub(tag.ent) : null;
+            // The object keeps the sha256 of the bare key: it gets the bare key.
+            if (tag && target) sent = JSON.stringify({ key: tag.secret });
+          }
+          // addressChecked: the address is counted above, in the platform object. It is on the RPC input only, never from the request body.
+          answer = target
+            ? await target.stub.mailRoute({ ent: target.ent, route, body: sent, address, addressChecked: true }, net)
+            : await call.platform.refuseMail({ route, body, address, addressChecked: true });
         }
-        answer = target
-          ? await target.stub.mailRoute({ ent: target.ent, route, body: sent, address }, net)
-          : await call.platform.refuseMail({ route, body, address });
       } catch (error) {
         return errorResponse(officeErrorOf(error, o.deps.log));
       }

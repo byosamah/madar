@@ -129,6 +129,37 @@ describe('the owners, the meter and the status', () => {
   });
 });
 
+describe('hitAddress counts the network address of the steps before a token', () => {
+  const LIMITS = { 'auth.password': 30, 'auth.verify': 20, forgot: 10, renew: 10 } as const;
+
+  it('allows the limit of each step, then answers the time left in the window, and keeps one counter for each step and each address', async () => {
+    const { parts } = await platform();
+    for (const [step, limit] of Object.entries(LIMITS) as [keyof typeof LIMITS, number][]) {
+      for (let i = 1; i <= limit; i += 1) expect(await parts.hitAddress({ step, address: ADDRESS }), `${step} ${i}`).toEqual({ ok: true });
+      const over = await parts.hitAddress({ step, address: ADDRESS });
+      expect(over, step).toMatchObject({ ok: false });
+      expect((over as { retryAfterMs: number }).retryAfterMs, step).toBeGreaterThan(0);
+      // Another address is not stopped.
+      expect(await parts.hitAddress({ step, address: '203.0.113.99' }), step).toEqual({ ok: true });
+    }
+  });
+
+  it('refuses a step that has no address limit', async () => {
+    const { parts } = await platform();
+    await expect(parts.hitAddress({ step: 'auth.refresh' as never, address: ADDRESS })).rejects.toThrow();
+  });
+
+  it('is the only count: the refuse steps with addressChecked count the email and the key, not the address', async () => {
+    const { parts, raw } = await platform();
+    await parts.refuseSignin({ signin: 'auth.password', input: { email: 'a@b.test', password: 'x', address: ADDRESS, addressChecked: true } });
+    await parts.refuseSignin({ signin: 'auth.verify', input: { token: 'tok', type: 'invite', address: ADDRESS, addressChecked: true } });
+    await parts.refuseMail({ route: 'forgot', body: '{"email":"a@b.test"}', address: ADDRESS, addressChecked: true });
+    await parts.refuseMail({ route: 'renew', body: '{"key":"k"}', address: ADDRESS, addressChecked: true });
+    const keys = (raw.prepare('select key from rate_limits').all() as { key: string }[]).map((one) => one.key.split(':').slice(0, 2).join(':'));
+    expect(keys.sort()).toEqual(['forgot:email', 'renew:key', 'signin:email']);
+  });
+});
+
 describe('the refuse steps give the answer of the object', () => {
   const inputs = (i: number) => ({ email: 'ghost@globex.test', password: 'a wrong password', address: `203.0.113.${i}` });
 

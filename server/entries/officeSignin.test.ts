@@ -13,11 +13,11 @@ const ADDRESS = '203.0.113.7';
 const EMAILS: Record<string, string> = { 'hala@madar.test': 'ent_001', 'sara@globex.test': 'ent_002' };
 const INVALID = { ok: false as const, error: { code: 'unauthenticated' as const, message: 'The email or the password is not right.', details: { reason: 'invalid_credentials' } } };
 
-function setup(o: { mail?: OfficeMailAnswer; checkToken?: TokenChecker } = {}) {
+function setup(o: { mail?: OfficeMailAnswer; checkToken?: TokenChecker; overAddress?: boolean } = {}) {
   const deps = fakeDeps();
   const seen = {
     signins: [] as (OfficeSigninInput & { object: string })[], mailRoutes: [] as OfficeMailInput[], mailWorks: [] as OfficeMailWork[], sleeps: [] as number[],
-    created: [] as string[], resolved: [] as string[], refused: [] as { signin: string; input: unknown }[], refusedMail: [] as { route: string; body: string; address: string }[],
+    created: [] as string[], resolved: [] as string[], hits: [] as { step: string; address: string; order: number }[], order: 0, refused: [] as { signin: string; input: unknown }[], refusedMail: [] as { route: string; body: string; address: string; addressChecked?: boolean }[],
   };
   const stubOf = (object: string) => ({
     signin: async (body: OfficeSigninInput) => (
@@ -29,10 +29,13 @@ function setup(o: { mail?: OfficeMailAnswer; checkToken?: TokenChecker } = {}) {
   } as unknown as OfficeStub);
   const platform = {
     resolveEmail: async ({ email }: { email: string }) => (seen.resolved.push(email), EMAILS[email] ? { ent: EMAILS[email] } : null),
+    hitAddress: async ({ step, address }: { step: string; address: string }) => (
+      seen.hits.push({ step, address, order: seen.order += 1 }), o.overAddress ? { ok: false as const, retryAfterMs: 61_000 } : { ok: true as const }
+    ),
     listed: async () => ['ent_001', 'ent_002'],
     resolveAddress: async () => null,
     refuseSignin: async (input: { signin: string; input: unknown }) => (seen.refused.push(input), INVALID),
-    refuseMail: async (input: { route: string; body: string; address: string }) => (seen.refusedMail.push(input), { status: 200, body: '{"v":1,"ok":true}' }),
+    refuseMail: async (input: { route: string; body: string; address: string; addressChecked?: boolean }) => (seen.refusedMail.push(input), { status: 200, body: '{"v":1,"ok":true}' }),
   };
   const net = recordingNet();
   const routes = officeRoutes({
@@ -58,7 +61,7 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     const { seen, post } = setup();
     const answer = await post('/auth/token', password('hala@madar.test'));
     expect([answer.status, answer.headers.get('cache-control'), await answer.json()]).toEqual([200, 'no-store', { access_token: 't', step: 'auth.password' }]);
-    expect(seen.signins).toEqual([{ object: 'ent_001', ent: 'ent_001', signin: 'auth.password', input: { email: 'hala@madar.test', password: 'a good password', address: ADDRESS } }]);
+    expect(seen.signins).toEqual([{ object: 'ent_001', ent: 'ent_001', signin: 'auth.password', input: { email: 'hala@madar.test', password: 'a good password', address: ADDRESS, addressChecked: true } }]);
     await post('/auth/token', password('sara@globex.test'));
     expect(seen.signins.at(-1)).toMatchObject({ object: 'ent_002', ent: 'ent_002' });
   });
@@ -75,7 +78,7 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     const unknown = await post('/auth/token', password('nobody@nowhere.test'));
     expect(seen.created).toEqual([]);
     expect(seen.signins).toEqual([]);
-    expect(seen.refused).toEqual([{ signin: 'auth.password', input: { email: 'nobody@nowhere.test', password: 'a good password', address: ADDRESS } }]);
+    expect(seen.refused).toEqual([{ signin: 'auth.password', input: { email: 'nobody@nowhere.test', password: 'a good password', address: ADDRESS, addressChecked: true } }]);
     const wrong = await post('/auth/token', password('hala@madar.test', 'a wrong password'));
     expect([unknown.status, await unknown.text()]).toEqual([wrong.status, await wrong.text()]);
     expect(unknown.status).toBe(401);
@@ -101,7 +104,7 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
   it('does the same for auth.verify: a tagged link reaches its object with the bare token, every other text is refused', async () => {
     const { seen, post } = setup();
     await post('/auth/verify', { token_hash: 'ent_002.tok-123', type: 'invite' });
-    expect(seen.signins).toEqual([{ object: 'ent_002', ent: 'ent_002', signin: 'auth.verify', input: { token: 'tok-123', type: 'invite', address: ADDRESS } }]);
+    expect(seen.signins).toEqual([{ object: 'ent_002', ent: 'ent_002', signin: 'auth.verify', input: { token: 'tok-123', type: 'invite', address: ADDRESS, addressChecked: true } }]);
     for (const token_hash of ['tok-123', 'ent_009.tok', 'ent_001.a.b', `ent_001.${'a'.repeat(5000)}`]) await post('/auth/verify', { token_hash, type: 'invite' });
     expect(seen.refused.map((one) => one.signin)).toEqual(['auth.verify', 'auth.verify', 'auth.verify', 'auth.verify']);
     expect(seen.created).toEqual(['ent_002']);
@@ -151,7 +154,7 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     const waits: Promise<unknown>[] = [];
     const answer = await post('/auth/forgot', { email: 'hala@madar.test' }, { waitUntil: (work) => waits.push(work) });
     expect([answer.status, await answer.json()]).toEqual([200, { v: 1, ok: true }]);
-    expect(seen.mailRoutes).toEqual([{ ent: 'ent_001', route: 'forgot', body: JSON.stringify({ email: 'hala@madar.test' }), address: ADDRESS }]);
+    expect(seen.mailRoutes).toEqual([{ ent: 'ent_001', route: 'forgot', body: JSON.stringify({ email: 'hala@madar.test' }), address: ADDRESS, addressChecked: true }]);
     expect(seen.sleeps).toHaveLength(1);
     expect(seen.sleeps[0]).toBeGreaterThan(1400);
     expect(waits).toHaveLength(1);
@@ -167,7 +170,7 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     expect([unknown.status, await unknown.text()]).toEqual([known.status, await known.text()]);
     expect(seen.mailRoutes).toHaveLength(1);
     expect(seen.mailRoutes[0]).toMatchObject({ ent: 'ent_001', route: 'forgot' });
-    expect(seen.refusedMail).toEqual([{ route: 'forgot', body: JSON.stringify({ email: 'nobody@nowhere.test' }), address: ADDRESS }]);
+    expect(seen.refusedMail).toEqual([{ route: 'forgot', body: JSON.stringify({ email: 'nobody@nowhere.test' }), address: ADDRESS, addressChecked: true }]);
     expect(seen.mailWorks).toHaveLength(1);
     expect(seen.created).toEqual(['ent_001']);
     expect(seen.sleeps).toHaveLength(2);
@@ -188,7 +191,7 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
   it('sends a renew key tagged ent_002 to ent_002 with the bare key, and any other key to refuseMail', async () => {
     const { seen, post } = setup();
     await post('/auth/renew-invite', { key: 'ent_002.the-key-1' });
-    expect(seen.mailRoutes).toEqual([{ ent: 'ent_002', route: 'renew', body: JSON.stringify({ key: 'the-key-1' }), address: ADDRESS }]);
+    expect(seen.mailRoutes).toEqual([{ ent: 'ent_002', route: 'renew', body: JSON.stringify({ key: 'the-key-1' }), address: ADDRESS, addressChecked: true }]);
     expect(seen.mailWorks).toEqual([{ ent: 'ent_002', route: 'renew', value: 'value-1' }]);
     const bad = ['the-key-1', 'ent_009.k', 'ENT_001.k', 'ent_001.a.b', `ent_001.${'k'.repeat(5000)}`];
     for (const key of bad) await post('/auth/renew-invite', { key });
@@ -204,5 +207,76 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     expect([answer.status, await answer.text()]).toEqual([409, refused]);
     expect(seen.mailRoutes[0].route).toBe('renew');
     expect(seen.mailWorks).toEqual([]);
+  });
+
+  it('counts the address in the platform object once, before the directory read or the tag read, for the four first steps', async () => {
+    const { seen, post } = setup();
+    await post('/auth/token', password('hala@madar.test'));
+    await post('/auth/token', password('nobody@nowhere.test'));
+    await post('/auth/verify', { token_hash: 'ent_002.tok-123', type: 'invite' });
+    await post('/auth/verify', { token_hash: 'untagged', type: 'invite' });
+    await post('/auth/forgot', { email: 'hala@madar.test' });
+    await post('/auth/forgot', { email: 'nobody@nowhere.test' });
+    await post('/auth/renew-invite', { key: 'ent_001.k' });
+    await post('/auth/renew-invite', { key: 'untagged' });
+    expect(seen.hits.map((one) => [one.step, one.address])).toEqual([
+      ['auth.password', ADDRESS], ['auth.password', ADDRESS], ['auth.verify', ADDRESS], ['auth.verify', ADDRESS],
+      ['forgot', ADDRESS], ['forgot', ADDRESS], ['renew', ADDRESS], ['renew', ADDRESS],
+    ]);
+    // The refresh token and a body that does not parse count no address.
+    await post('/auth/token', { grant_type: 'refresh_token', refresh_token: 'ent_002.abc' });
+    await post('/auth/forgot', { email: 'nope' });
+    expect(seen.hits).toHaveLength(8);
+  });
+
+  it('gives the object and the refuse step addressChecked, so neither counts the address again', async () => {
+    const { seen, post } = setup();
+    await post('/auth/token', password('hala@madar.test'));
+    await post('/auth/token', password('nobody@nowhere.test'));
+    await post('/auth/verify', { token_hash: 'ent_002.tok-123', type: 'invite' });
+    await post('/auth/verify', { token_hash: 'untagged', type: 'invite' });
+    await post('/auth/forgot', { email: 'hala@madar.test' });
+    await post('/auth/forgot', { email: 'nobody@nowhere.test' });
+    expect([...seen.signins.map((one) => one.input), ...seen.refused.map((one) => one.input)]).toSatisfy((inputs: { addressChecked?: boolean }[]) => inputs.length === 4 && inputs.every((one) => one.addressChecked === true));
+    expect(seen.mailRoutes.every((one) => one.addressChecked === true)).toBe(true);
+    expect(seen.refusedMail.every((one) => one.addressChecked === true)).toBe(true);
+  });
+
+  it('answers a request over the address limit with the too-many answer, makes no object and runs no mail work, for a known and an unknown email', async () => {
+    const { seen, post } = setup({ overAddress: true });
+    const answers = [];
+    for (const email of ['hala@madar.test', 'sara@globex.test', 'nobody@nowhere.test']) {
+      const one = await post('/auth/token', password(email));
+      answers.push([one.status, await one.text(), one.headers.get('retry-after')]);
+    }
+    expect(answers[0][0]).toBe(429);
+    expect(answers[0][2]).toBe('61');
+    expect(answers[1]).toEqual(answers[0]);
+    expect(answers[2]).toEqual(answers[0]);
+    const mail = [];
+    for (const email of ['hala@madar.test', 'sara@globex.test', 'nobody@nowhere.test']) {
+      const one = await post('/auth/forgot', { email });
+      mail.push([one.status, await one.text()]);
+    }
+    expect(mail[0][0]).toBe(429);
+    expect(mail[1]).toEqual(mail[0]);
+    expect(mail[2]).toEqual(mail[0]);
+    const link = await post('/auth/verify', { token_hash: 'ent_002.tok-123', type: 'invite' });
+    expect(link.status).toBe(429);
+    expect(seen.created).toEqual([]);
+    expect(seen.resolved).toEqual([]);
+    expect(seen.signins).toEqual([]);
+    expect(seen.refused).toEqual([]);
+    expect(seen.mailRoutes).toEqual([]);
+    expect(seen.refusedMail).toEqual([]);
+    expect(seen.mailWorks).toEqual([]);
+  });
+
+  it('pads the too-many answer of forgot and renew to the same minimum time as the other answers', async () => {
+    const { seen, post } = setup({ overAddress: true });
+    await post('/auth/forgot', { email: 'hala@madar.test' });
+    await post('/auth/renew-invite', { key: 'ent_001.k' });
+    expect(seen.sleeps).toHaveLength(2);
+    for (const wait of seen.sleeps) expect(wait).toBeGreaterThan(1400);
   });
 });

@@ -34,6 +34,12 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
 - Unknown input runs the real step on empty tables: `platform.refuseSignin` (password, verify, refresh) and `platform.refuseMail` (forgot,
   renew) use the sign-in tables of the platform object, which stay empty. So the answer, the limit counting and the time match a wrong
   credential, and no office object is made. Every branch of forgot, renew and the socket ends at the same minimum time (`padTo`).
+- The limit of one network address in a step before a token (password sign-in, link open, forgot, renew) is counted once, in the platform
+  object (`platform.hitAddress`), in the Worker route and before the enterprise is chosen. So one address stops at the same request for a
+  known email of any enterprise and for an unknown email. The Worker then passes `addressChecked: true` on the object call and on the refuse
+  call, and they count the limit of the email or of the key only. The flag is on the RPC input only: no route builds an input from a request
+  field, and the local path never sets it, so the step counts the address itself there. Forgot and renew count the address only for a body
+  with a good email or key, as before. Do not move this count into an object: a per-object count tells whether two emails share an enterprise.
 - A limit that comes from a Cloudflare plan is a named constant or a setting, never a bare number in a branch.
 
 ## The platform object
@@ -41,7 +47,7 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
   state, names, limits, first_admin), `emails` (the directory: normalized email to enterprise), `owners`, `status` (one row for each
   enterprise, from its Cron), `account_day` (the day counts for each (day, enterprise); `meter` replaces the whole day so far), and empty
   copies of `rate_limits`, `auth_users`, `auth_links`, `auth_sessions` (`serverTableSql`).
-- `listed()` and `resolveAddress` leave out an enterprise in state `creating`. `reserveEmail` answers `taken` for another enterprise.
+- `listed()` and `resolveAddress` leave out an enterprise in state `creating`. `hitAddress` holds the counters of the address (`rate_limits` of the platform object, swept by `sweep`). `reserveEmail` answers `taken` for another enterprise.
   `register` (ops secret only) upserts a row in any state and reserves its emails; a conflict leaves nothing behind.
 - `PLATFORM_SCHEMA_VERSION` 1, `PLATFORM_STEPS` for later versions. A directory read costs 1 row for a hit and 0 for a miss (proof.md,
   "Madar enterprises: core spikes S2 and S3").

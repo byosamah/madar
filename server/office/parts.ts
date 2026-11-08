@@ -68,7 +68,7 @@ export type OfficeSigninInput = { ent: EnterpriseId; signin: string; input: unkn
  * Worker, so the answer takes the same time for a known and an unknown email (server/office/signinRoutes.ts).
  */
 export type OfficeMailRoute = 'forgot' | 'renew';
-export type OfficeMailInput = { ent: EnterpriseId; route: OfficeMailRoute; body: string; address: string };
+export type OfficeMailInput = { ent: EnterpriseId; route: OfficeMailRoute; body: string; address: string; addressChecked?: boolean };
 export type OfficeMailAnswer = { status: number; body: string; work?: string };
 export type OfficeMailWork = { ent: EnterpriseId; route: OfficeMailRoute; value: string };
 /**

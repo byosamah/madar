@@ -60,6 +60,8 @@ export const FORGOT_EMAIL_PER_WINDOW = 3;
 /** No longer than the life of a reset link (otp_expiry, in config.toml and in each hosted project): see the comment above. */
 export const FORGOT_EMAIL_WINDOW_MS = HOUR_MS;
 export const FORGOT_IP_PER_HOUR = 10;
+/** The limit of one network address. On the office path the Worker counts it once in the platform object (skipAddress below). */
+export const FORGOT_ADDRESS_LIMIT = { prefix: 'forgot:ip', limit: FORGOT_IP_PER_HOUR, windowMs: HOUR_MS } as const;
 export const FORGOT_MIN_MS = 1500;
 /** The address of the route under the page api. */
 export const FORGOT_PATH = '/auth/forgot';
@@ -116,7 +118,7 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
 }
 
 /** Over the limit of the network address. */
-function tooMany(retryAfterMs: number): Response {
+export function tooMany(retryAfterMs: number): Response {
   return errorResponse({ code: 'conflict', message: 'Too many tries. Wait a few minutes, then try again.', details: { reason: 'too_many_resets', retryAfterMs } });
 }
 
@@ -133,7 +135,11 @@ function tooManyForEmail(retryAfterMs: number): Response {
  * work: the mail work after the limits, in place of sendReset. The office path (exit waves 2 and 3) passes one that keeps the value:
  * the object answers at once, and the Worker runs the work in a second object call after the answer (server/office/signinRoutes.ts).
  */
-export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost; work?: (value: string, deps: Deps) => Promise<unknown> } = {}) {
+export function createForgotRoute(o: {
+  minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost; work?: (value: string, deps: Deps) => Promise<unknown>;
+  /** The Worker of the office path counted the address already, in the platform object: this route counts the email only. */
+  skipAddress?: boolean;
+} = {}) {
   const work = o.work ?? ((value: string, deps: Deps) => sendReset(value, deps));
   const minMs = o.minMs ?? FORGOT_MIN_MS;
   const hostOf = o.host ?? requestHost;
@@ -154,8 +160,11 @@ export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => P
     const { after } = hostOf();
     const q: Query = statementQuery(deps.db, 'write');
     const now = deps.clock.now();
-    const byAddress = await hitLimit(q, { key: await hashedKey('forgot:ip', clientAddress(request)), limit: FORGOT_IP_PER_HOUR, windowMs: HOUR_MS, now });
-    if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
+    if (o.skipAddress !== true) {
+      const { prefix, ...window } = FORGOT_ADDRESS_LIMIT;
+      const byAddress = await hitLimit(q, { key: await hashedKey(prefix, clientAddress(request)), ...window, now });
+      if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
+    }
     const byEmail = await hitLimit(q, { key: await hashedKey('forgot:email', email), limit: FORGOT_EMAIL_PER_WINDOW, windowMs: FORGOT_EMAIL_WINDOW_MS, now });
     if (!byEmail.ok) return tooManyForEmail(byEmail.retryAfterMs);
 

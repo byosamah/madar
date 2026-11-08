@@ -4,7 +4,7 @@ import { readLiteOffice } from '../../data/lite/office';
 import { principalOf } from '../principal';
 import { hashedKey } from '../rateLimit';
 import { randomToken, sha256Hex } from './crypto';
-import { HOUR_MS, SIGNIN_PER_ADDRESS, SIGNIN_PER_EMAIL, SIGNIN_WINDOW_MS, VERIFY_PER_ADDRESS } from './limits';
+import { ADDRESS_LIMITS, SIGNIN_PER_EMAIL, SIGNIN_WINDOW_MS } from './limits';
 import { LINK_LIFE_MS } from './liteAdmin';
 import { hashPassword, PASSWORD_MIN, verifyPassword } from './password';
 import {
@@ -33,10 +33,12 @@ const liteOf = (deps: SigninDeps) => deps.db as LiteDb;
  * POST /api/auth/token { grant_type: 'password' }. A wrong password, an unknown email and a row with no password give one answer,
  * in about the same time (one PBKDF2 each). A ban or a turn-off shows only after the right password.
  */
-export async function passwordSignIn(deps: SigninDeps, input: { email: string; password: string; address: string }): Promise<TokenAnswer> {
+export async function passwordSignIn(deps: SigninDeps, input: { email: string; password: string; address: string; addressChecked?: boolean }): Promise<TokenAnswer> {
   const email = input.email.trim().toLowerCase();
+  // addressChecked: the Worker of the office path already counted the address in the platform object (ADDRESS_LIMITS), before it chose the
+  // enterprise. Only that Worker sets it, on the object call: no route builds this input from a request field.
   await countLimits(deps, [
-    { key: await hashedKey('signin:ip', input.address), limit: SIGNIN_PER_ADDRESS, windowMs: SIGNIN_WINDOW_MS },
+    ...(input.addressChecked === true ? [] : [{ key: await hashedKey(ADDRESS_LIMITS['auth.password'].prefix, input.address), ...ADDRESS_LIMITS['auth.password'].limit }]),
     { key: await hashedKey('signin:email', email), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },
   ]);
   const [found] = await deps.db.statement<AuthUserRow>('read', AUTH_USER_BY_EMAIL, [email]);
@@ -89,8 +91,11 @@ export function linkEnded(): ApiError {
  * link session that may set a password for 1 hour with no current password (as the otp session of Supabase did). A link of a
  * turned-off or banned person ends nothing and opens nothing.
  */
-export async function verifySignInLink(deps: SigninDeps, input: { token: string; type: 'invite' | 'recovery'; address: string }): Promise<TokenAnswer> {
-  await countLimits(deps, [{ key: await hashedKey('verify:ip', input.address), limit: VERIFY_PER_ADDRESS, windowMs: HOUR_MS }]);
+export async function verifySignInLink(deps: SigninDeps, input: { token: string; type: 'invite' | 'recovery'; address: string; addressChecked?: boolean }): Promise<TokenAnswer> {
+  // addressChecked: see passwordSignIn.
+  if (input.addressChecked !== true) {
+    await countLimits(deps, [{ key: await hashedKey(ADDRESS_LIMITS['auth.verify'].prefix, input.address), ...ADDRESS_LIMITS['auth.verify'].limit }]);
+  }
   const hash = await sha256Hex(input.token);
   const refresh = randomToken();
   const refreshHash = await sha256Hex(refresh);

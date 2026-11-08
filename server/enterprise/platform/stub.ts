@@ -6,6 +6,10 @@ import type { DayCounts, EnterpriseRow, EnterpriseStatus } from '../types';
 /** The answer of the day cap (design 5.14). Plan C fills the rule; plan B always allows. */
 export type CapAnswer = { allowed: boolean; reason?: 'busy' };
 
+/** The steps that run before a token and choose the enterprise by an email or a tag. Each one has a limit for the network address. */
+export type AddressStep = 'auth.password' | 'auth.verify' | 'forgot' | 'renew';
+export type AddressAnswer = { ok: true } | { ok: false; retryAfterMs: number };
+
 /**
  * The RPC methods of the platform object that the Worker calls (Madar enterprises, design 5.1). The first group is the contract; plan C
  * adds list, create, update, setState, resendInvite and meterToday. The platform object holds no record of an enterprise.
@@ -28,6 +32,12 @@ export type PlatformStub = {
   mailReserve(input: { ent: EnterpriseId; kind: 'signin' | 'notice'; day: string }): Promise<'ok' | 'full'>;
   /** Ops secret only. Upserts a row in any state and reserves its emails. */
   register(input: { row: EnterpriseRow; emails: string[] }): Promise<void>;
+  /**
+   * Counts one hit of the network address for a step, before the Worker chooses the enterprise (design 5.2). It is the only count of the
+   * address for these steps: the enterprise objects and the refuse steps get addressChecked and skip their own. The limits of the email
+   * and of the key stay in the object of the enterprise.
+   */
+  hitAddress(input: { step: AddressStep; address: string }): Promise<AddressAnswer>;
   /** Unknown input: runs the real sign-in step on empty tables, so the answer and the time match a wrong credential. */
   refuseSignin(input: { signin: 'auth.password' | 'auth.verify' | 'auth.refresh'; input: unknown }): Promise<OpResult<unknown>>;
   refuseMail(input: Omit<OfficeMailInput, 'ent'>): Promise<OfficeMailAnswer>;

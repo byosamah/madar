@@ -64,6 +64,14 @@ describe('the HTTP routes of the own sign-in (server/auth/own/routes.ts)', () =>
     expect((await send('/auth/token', { body: { grant_type: 'password', email: 'p99@madar.test', password: 'x' }, address: '192.0.2.51' })).status).toBe(401);
   });
 
+  it('ignores a request field named addressChecked: the address is still counted, for the password and for the link open', async () => {
+    const { send } = await setup();
+    for (let i = 0; i < 30; i += 1) await send('/auth/token', { body: { grant_type: 'password', email: `p${i}@madar.test`, password: 'x', addressChecked: true }, address: '192.0.2.60' });
+    expect((await send('/auth/token', { body: { grant_type: 'password', email: 'p99@madar.test', password: 'x', addressChecked: true }, address: '192.0.2.60' })).status).toBe(429);
+    for (let i = 0; i < 20; i += 1) await send('/auth/verify', { body: { token_hash: `t${i}`, type: 'invite', addressChecked: true }, address: '192.0.2.61' });
+    expect((await send('/auth/verify', { body: { token_hash: 'last', type: 'invite', addressChecked: true }, address: '192.0.2.61' })).status).toBe(429);
+  });
+
   it('opens a link once, and refuses a used link and a wrong type', async () => {
     const { t, email, send } = await setup();
     const link = await t.deps.authAdmin.generateLink('recovery', email);

@@ -1,4 +1,9 @@
 import { ApiError } from '../../../src/api/errors';
+import { FORGOT_ADDRESS_LIMIT } from '../../auth/forgot';
+import { ADDRESS_LIMITS } from '../../auth/own/limits';
+import { hashedKey, hitLimit } from '../../auth/rateLimit';
+import { RENEW_ADDRESS_LIMIT } from '../../auth/renew';
+import { statementQuery } from '../../data/dialect';
 import { runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../../auth/own/office';
 import type { SigningKeys } from '../../auth/own/keys';
 import { consoleLogger, serverEnvFrom, type ReadEnv } from '../../core/deps';
@@ -11,7 +16,7 @@ import { isEnterpriseId, normalizeEmail, type EnterpriseId } from '../ids';
 import { runMailRoute } from '../mailRoute';
 import type { DayCounts, EnterpriseRow, EnterpriseStatus } from '../types';
 import { PLATFORM_SCHEMA_VERSION } from './schema';
-import type { CapAnswer, PlatformStub } from './stub';
+import type { AddressAnswer, AddressStep, CapAnswer, PlatformStub } from './stub';
 
 /**
  * The work of the platform object (Madar enterprises, plan B Task 7), apart from workerd: object.ts gives it the host of ctx.storage, and
@@ -32,6 +37,14 @@ function entOf(value: unknown): EnterpriseId {
   if (!isEnterpriseId(value)) throw new ApiError('invalid_input', 'This is not an enterprise id.');
   return value;
 }
+
+/** The limit of the network address of each step: the same prefix, number and window that the step itself uses on the local path. */
+const ADDRESS_STEP_LIMITS: Readonly<Record<AddressStep, { prefix: string; limit: number; windowMs: number }>> = {
+  'auth.password': { prefix: ADDRESS_LIMITS['auth.password'].prefix, ...ADDRESS_LIMITS['auth.password'].limit },
+  'auth.verify': { prefix: ADDRESS_LIMITS['auth.verify'].prefix, ...ADDRESS_LIMITS['auth.verify'].limit },
+  forgot: FORGOT_ADDRESS_LIMIT,
+  renew: RENEW_ADDRESS_LIMIT,
+};
 
 const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0);
 
@@ -134,6 +147,14 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
           [row.id, row.address, row.state, row.name, row.nameAr, JSON.stringify(row.limits), row.createdAt, JSON.stringify(row.firstAdmin)]);
         for (const key of keys) await q('insert into emails (email, ent) values (?1, ?2) on conflict (email) do nothing', [key, row.id]);
       });
+    },
+
+    async hitAddress({ step, address }): Promise<AddressAnswer> {
+      const one = ADDRESS_STEP_LIMITS[step];
+      if (!one || typeof address !== 'string') throw new ApiError('invalid_input', 'This is not a step with an address limit.');
+      const { prefix, ...window } = one;
+      const hit = await hitLimit(statementQuery(db, 'write'), { key: await hashedKey(prefix, address), ...window, now: clock.now() });
+      return hit.ok ? { ok: true } : { ok: false, retryAfterMs: hit.retryAfterMs };
     },
 
     async refuseSignin({ signin, input }): Promise<OpResult<unknown>> {

@@ -65,6 +65,9 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   session that may set a password once with no current password. An agent token never sets a password (403 `agent_token`).
 - Limits are in `own/limits.ts` (sign-ins for one email and for one address, link opens, OAuth registrations). The address is
   `clientAddress` (`forgot.ts`).
+  On the office path the limit of the address for `auth.password`, `auth.verify`, forgot and renew is counted once, in the platform object
+  (`platform.hitAddress`), before the enterprise is chosen. The step gets `addressChecked` and counts the email or the key only. The local
+  path has no flag and counts both. Details: `server/enterprise/CLAUDE.md`.
 - `liteAuthAdmin` is the Auth admin port over these rows, so `invite.ts`, `effects.ts`, `forgot.ts`, `renew.ts` and
   `users.invites` keep their logic; each text of theirs has a `_LITE` twin (`server/data/CLAUDE.md`, "The SQLite path").
 - Steps run through `SigninOffice` (`own/office.ts`). On the office path, `enterpriseSigninOffice` (`server/entries/officeSignin.ts`)

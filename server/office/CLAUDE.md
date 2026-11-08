@@ -53,7 +53,7 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
 ## Sign-in and /mcp
 - The object deps take `liteAuthAdmin`, so the invite and auth effects run in the object and only their mail goes through the Worker. With
   `MADAR_AUTH_PRIVATE_JWK`, `officeEntry` mounts the routes of `ownApiRoutes` under `/api` (`entries/officeSignin.ts`): each step is one
-  call of `Office.signin`. The forgot and renew routes run their limits in `Office.mailRoute` and their mail after the answer in
+  call of `Office.signin`. The forgot and renew routes run the limits of the email and of the key in `Office.mailRoute` (the Worker counts the address in the platform object before, `addressChecked`) and their mail after the answer in
   `Office.mailWork`. The Worker pads the answer to a minimum time. A copy with the key also needs `MCP_URL`: it is the issuer of the own tokens.
 - `/mcp`: the Worker hands each request to `Office.mcp` in one call. The object runs the MCP app there (`server/mcp/oauth/CLAUDE.md`). Each
   tool call runs on the batch path (`runOfficeEntries`, the who kind `agent` of `who.ts`). With no key, `/mcp` answers 503.

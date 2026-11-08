@@ -105,9 +105,9 @@ describe('the routes of the office path, from the Worker into the object (server
     const unknown = await tries('nobody@nowhere.test', '203.0.113.22');
     expect(known.map((one) => one.status)).toEqual([200, 200, 200, 429, 429]);
     expect(unknown).toEqual(known);
-    // The platform object counted the unknown email, and the object of ENT_VADO counted the known one.
-    expect(t.world.platformRaw.prepare('select count(*) as n from rate_limits').get()).toEqual({ n: 2 });
-    expect(t.raw.prepare('select count(*) as n from rate_limits').get()).toEqual({ n: 2 });
+    // The platform object counted both addresses and the unknown email. The object of ENT_VADO counted the known email only.
+    expect(t.world.platformRaw.prepare('select count(*) as n from rate_limits').get()).toEqual({ n: 3 });
+    expect(t.raw.prepare('select count(*) as n from rate_limits').get()).toEqual({ n: 1 });
   });
 
   it('answers a key that no row holds the same for an untagged key, an unlisted tag and a tag of the object', async () => {

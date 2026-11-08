@@ -42,4 +42,11 @@ describe('the platform object on local workerd', () => {
     });
     expect(answer).toMatchObject({ ok: false, error: { details: { reason: 'invalid_credentials' } } });
   });
+
+  it('hitAddress counts the address over RPC and keeps the count after an evict', async () => {
+    for (let i = 0; i < 10; i += 1) expect(await live.platform('hitAddress', { step: 'forgot', address: '203.0.113.44' })).toEqual({ ok: true });
+    await live.evictPlatform();
+    expect(await live.platform('hitAddress', { step: 'forgot', address: '203.0.113.44' })).toMatchObject({ ok: false });
+    expect(await live.platform('hitAddress', { step: 'renew', address: '203.0.113.44' })).toEqual({ ok: true });
+  });
 });

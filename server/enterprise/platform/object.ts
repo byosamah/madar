@@ -73,6 +73,10 @@ export class Platform extends DurableObject<Env> implements PlatformStub {
     return this.parts.register(input);
   }
 
+  hitAddress(input: Parameters<PlatformStub['hitAddress']>[0]) {
+    return this.parts.hitAddress(input);
+  }
+
   refuseSignin(input: Parameters<PlatformStub['refuseSignin']>[0]) {
     return this.parts.refuseSignin(input);
   }
