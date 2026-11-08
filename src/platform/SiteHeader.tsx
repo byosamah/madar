@@ -12,14 +12,15 @@ export function SiteHeader({ onSignOut }: { onSignOut?: () => void }) {
   const { t } = useTranslation();
   return (
     <header className="flex items-center justify-between gap-2 pb-6">
-      <p data-madar-brand="" className="flex min-w-0 items-center gap-2.5 text-headline text-ink">
+      {/* On a phone the brand is a little smaller, so the whole name fits next to the three controls at 390 px. */}
+      <p data-madar-brand="" className="flex min-w-0 items-center gap-2 text-headline text-ink max-sm:text-subheadline max-sm:font-bold sm:gap-2.5">
         <MadarMark size={28} />
         <bdi className="min-w-0 truncate whitespace-nowrap">{t('enterprises.title')}</bdi>
       </p>
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className="flex shrink-0 items-center">
         <ThemeSwitch />
         <LanguageSwitch />
-        {onSignOut && <Button className="ms-1.5 px-4 sm:px-5" onClick={onSignOut}>{t('platformSite.signOut')}</Button>}
+        {onSignOut && <Button className="max-sm:px-3 sm:ms-2" onClick={onSignOut}>{t('platformSite.signOut')}</Button>}
       </div>
     </header>
   );

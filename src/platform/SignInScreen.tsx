@@ -41,25 +41,29 @@ export function SignInScreen({ site, notice }: { site: PlatformSite; notice: Sit
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col px-4 pb-10 pt-[max(1rem,env(safe-area-inset-top))] text-ink sm:pt-16">
+    <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pb-10 pt-[max(1rem,env(safe-area-inset-top))] text-ink sm:pt-8">
       <SiteHeader />
-      <ScreenTitle title={t('platformSite.signIn.title')} />
-      <div className="panel flex flex-col gap-4 p-5">
-        {notice && <p role="status" className="text-subheadline text-ink-2">{t(notice === 'off' ? 'platformSite.signIn.off' : 'platformSite.signIn.ended')}</p>}
-        <form
-          noValidate
-          className="flex flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <TextField id="platform-email" type="email" dir="ltr" autoComplete="username" label={t('platformSite.signIn.email')} value={email} disabled={pending} onChange={(event) => setEmail(event.target.value)} />
-          <TextField id="platform-password" type="password" dir="ltr" autoComplete="current-password" label={t('platformSite.signIn.password')} value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
-          <FormError text={error} />
-          <Button type="submit" variant="primary" className="w-full" disabled={pending || !email.trim() || !password}>{t('platformSite.signIn.submit')}</Button>
-        </form>
+      <div className="mx-auto flex w-full max-w-sm flex-col sm:pt-8">
+        <ScreenTitle title={t('platformSite.signIn.title')} />
+        <div className="panel flex flex-col gap-4 p-5">
+          {notice && <p role="status" className="text-subheadline text-ink-2">{t(notice === 'off' ? 'platformSite.signIn.off' : 'platformSite.signIn.ended')}</p>}
+          <form
+            noValidate
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit();
+            }}
+          >
+            <TextField id="platform-email" type="email" dir="ltr" autoComplete="username" label={t('platformSite.signIn.email')} value={email} disabled={pending} onChange={(event) => setEmail(event.target.value)} />
+            <TextField id="platform-password" type="password" dir="ltr" autoComplete="current-password" label={t('platformSite.signIn.password')} value={password} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
+            <FormError text={error} />
+            <Button type="submit" variant="primary" className="w-full" disabled={pending || !email.trim() || !password}>{t('platformSite.signIn.submit')}</Button>
+          </form>
+        </div>
       </div>
     </main>
   );
 }
+
+  
