@@ -90,6 +90,9 @@ WORKER_REGION = "workers-eu-central-1"
 # The test tools of the office object (exit wave 4): the replace mode of the import (the seed) and the peek route of the deploy
 # suite, both behind MADAR_OPS_SECRET. Never on production: server/office/ops.ts refuses them on a production copy anyway.
 MADAR_TEST_TOOLS = "on"
+# How the Cron sends one leg for each enterprise (server/enterprise/fanout.ts): "self" (the binding SELF) or "api" (the public API address).
+# The default of the code is "self". The lead sets this var from the result of the spike S1 (proof.md, "S1: Cron fan-out").
+MADAR_CRON_TRANSPORT = "self"
 # The day cap of the test copy (owner decision 6, form A: the same account as production): 50% of each Free day limit, so a heavy
 # test day cannot stop production. It acts only on the office path (config/server-host.json test: office).
 MADAR_DAY_CAP = "rows_written=50000,rows_read=2500000,requests=50000"

@@ -47,6 +47,8 @@ const routes = officeRoutes({
   // The two secrets of this test Worker (harness.ts sends them). The ops name an object by its name through stubFor.
   net: () => new WorkerNet({ files, mail, fetch: pushFetch }),
   jobsSecret: () => 'test-jobs-secret',
+  // The Cron legs go straight into the routes of the same isolate (the real Worker calls itself through the binding SELF).
+  fanout: (env) => async (leg) => routes.fetch(new Request('https://self.internal/api/internal/cron', { method: 'POST', headers: { 'x-madar-jobs-secret': 'test-jobs-secret' }, body: JSON.stringify(leg) }), env, { waitUntil: () => undefined }),
   exportSecret: () => 'test-export-secret',
   opsSecret: () => 'test-ops-secret',
 });

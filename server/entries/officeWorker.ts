@@ -10,7 +10,9 @@ import { JOBS_SECRET_HEADER, sameSecret } from '../jobs/app';
 import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSE_MIN_MS, TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
 import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn } from '../office/ops';
-import { runFanout, selfTransport } from '../enterprise/fanout';
+import { CRON_PATH, runFanout, selfTransport, type FanoutLeg, type FanoutTransport } from '../enterprise/fanout';
+import { utcDay } from '../mail/quota';
+import { firstRunOfDay } from '../office/jobs';
 import { ENT_VADO, isEnterpriseId, untag, type EnterpriseId } from '../enterprise/ids';
 import { OwnersBodyShape, RegisterBodyShape } from '../enterprise/shapes';
 import { padTo } from '../enterprise/pad';
@@ -123,6 +125,8 @@ export type OfficeRoutesOptions = {
   jobsSecret: () => string | undefined;
   /** More routes under /api (the own sign-in, server/entries/officeSignin.ts), as apiApp takes AppOptions.routes. */
   routes?: OfficeRoute[];
+  /** The transport of the Cron legs. Default: selfTransport (the binding SELF, or the public API address when MADAR_CRON_TRANSPORT is api). */
+  fanout?: (env: Env) => FanoutTransport;
   /** The timer of the minimum answer time of a refused ticket. Default: setTimeout. A test records the waits here. */
   sleep?: (ms: number) => Promise<void>;
   /** MADAR_EXPORT_SECRET: the nightly export of GitHub. */
@@ -286,6 +290,47 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   }
 
   /**
+   * One Cron leg (Madar enterprises): the job of one enterprise in its object, then its status and its meter to the platform object. A
+   * leg that throws (a paused object) still sends the status, which a paused object answers. The jobs secret opens the route.
+   */
+  async function cronLeg(request: Request, env: Env): Promise<Response> {
+    const secret = o.jobsSecret();
+    const given = request.headers.get(JOBS_SECRET_HEADER);
+    if (request.method !== 'POST' || !secret || given === null || !(await sameSecret(given, secret))) {
+      return errorResponse({ code: 'unauthenticated', message: 'The job secret is not right.' });
+    }
+    let body: { ent?: unknown; at?: unknown } = {};
+    try {
+      body = JSON.parse(await readBody(request)) as typeof body;
+    } catch {
+      return errorResponse({ code: 'invalid_input', message: 'A Cron leg needs { ent, at }.' });
+    }
+    const at = typeof body.at === 'string' ? new Date(body.at) : new Date(Number.NaN);
+    if (Number.isNaN(at.getTime())) return errorResponse({ code: 'invalid_input', message: 'A Cron leg needs { ent, at }.' });
+    const target = await routerOf(env).listedStub(body.ent);
+    if (!target) return errorResponse({ code: 'not_found', message: 'This address does not exist.' });
+    const platform = o.platform(env);
+    const { ent, stub } = target;
+    seen += 1;
+    try {
+      const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net());
+      log.info('The office jobs ran.', { ent, ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed });
+      await platform.report(report.status);
+      await platform.meter({ ent, day: utcDay(at), counts: report.status.day });
+      return Response.json({ ok: report.ok });
+    } catch (error) {
+      log.error('The office jobs did not run. The next run tries again.', { ent, error: error instanceof Error ? error.message : String(error) });
+      // A paused object refuses the jobs but answers its status, so the platform page still shows it.
+      try {
+        await platform.report(await stub.status({ ent }));
+      } catch (again) {
+        log.warn('The status of an enterprise did not load.', { ent, error: again instanceof Error ? again.message : String(again) });
+      }
+      return errorResponse({ code: 'failed', message: 'Something went wrong. Try again.' });
+    }
+  }
+
+  /**
    * The two ops of the platform object (Madar enterprises, with the ops secret): platform-register writes one enterprise row and its emails
    * (an upsert, any state), and platform-owners replaces the list of the platform owners. The body is checked with zod first.
    */
@@ -406,6 +451,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   app.all('/mcp', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.all('/mcp/*', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.get('/api/health', (c) => health(c.req.raw, c.env));
+  app.all(CRON_PATH, (c) => cronLeg(c.req.raw, c.env));
   app.all('/api/internal/probe/fanout', (c) => probe(c.req.raw, c.env, 'fanout'));
   app.all('/api/internal/probe/leg', (c) => probe(c.req.raw, c.env, 'leg'));
   app.post('/api/batch', (c) => batch(c.req.raw, c.env, afterOf(c)));
@@ -433,17 +479,39 @@ export function officeRoutes(o: OfficeRoutesOptions) {
         app.fetch(request, env, ctx as Parameters<typeof app.fetch>[2]));
     },
 
-    /** One Cron run: the whole job in one office object call. The report goes to the log, where wave 5 reads the day meters. */
-    async scheduled(at: Date, env: Env): Promise<OfficeCronReport | undefined> {
+    /**
+     * One Cron run (Madar enterprises, design 5.13): read the list of enterprises, then send one leg for each through the transport. A leg is
+     * one Worker call (cronLeg), so the job of each enterprise has its own budget of outside calls. The first run after 00:00 UTC also
+     * sweeps the rate limits of the platform object. The log line names ids and counts only.
+     */
+    async scheduled(at: Date, env: Env): Promise<{ legs: FanoutLeg[] } | undefined> {
       seen += 1;
+      const platform = o.platform(env);
+      let ids: EnterpriseId[];
       try {
-        const report = await routerOf(env).stub(ENT_VADO).cron({ ent: ENT_VADO, at: at.toISOString(), worker: reported() }, o.net());
-        log.info('The office jobs ran.', { ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed, day: report.day });
-        return report;
+        ids = await platform.listed();
       } catch (error) {
-        log.error('The office jobs did not run. The next run tries again.', { error: error instanceof Error ? error.message : String(error) });
+        log.error('The list of enterprises did not load. The next run tries again.', { error: error instanceof Error ? error.message : String(error) });
         return undefined;
       }
+      if (firstRunOfDay(at)) {
+        await platform.sweep({ at: at.toISOString() }).catch((error: unknown) => {
+          log.warn('The platform cleanup did not run.', { error: error instanceof Error ? error.message : String(error) });
+        });
+      }
+      const secret = o.jobsSecret();
+      let transport: FanoutTransport;
+      try {
+        if (o.fanout) transport = o.fanout(env);
+        else if (secret) transport = selfTransport(env, { kind: env.MADAR_CRON_TRANSPORT === 'api' ? 'api' : 'self', secret, apiUrl: o.deps.config.apiUrl });
+        else throw new Error('JOBS_SECRET is not set: the Cron legs need it.');
+      } catch (error) {
+        log.error('The Cron legs cannot start.', { error: error instanceof Error ? error.message : String(error) });
+        return undefined;
+      }
+      const out = await runFanout({ ids, at, transport, log });
+      log.info('The Cron legs ran.', { count: out.legs.length, failed: out.legs.filter((leg) => !leg.ok).map((leg) => leg.ent), ms: out.legs.map((leg) => leg.ms) });
+      return out;
     },
   };
 }

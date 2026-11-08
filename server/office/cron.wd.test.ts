@@ -40,6 +40,25 @@ describe('the Cron of the office object on local workerd', () => {
     }, { timeout: 10_000 });
   });
 
+  it('two enterprises run the 15-minute job each in its own object, report to the platform, and keep their day rows apart', async () => {
+    await live.fresh(await seedOf());
+    await live.seedEnterprise('ent_002', await seedOf(), 'globex');
+    // Three calls in ent_001 only.
+    for (let i = 0; i < 3; i += 1) await live.batch('usr_001', [{ name: 'tasks.update', input: { id: 'tsk_001', patch: { title: `Title ${i}` } } }]);
+    expect((await cron(AT)).outcome).toBe('ok');
+    for (const ent of ['ent_001', 'ent_002']) {
+      await vi.waitFor(async () => expect(await live.rows("select done_at from job_runs where key = 'heartbeat'", [], { ent })).toEqual([{ done_at: AT.toISOString() }]), { timeout: 10_000 });
+    }
+    const calls = async (ent: string) => (await live.rows<{ n: number | null }>('select sum(calls) as n from usage_day', [], { ent }))[0].n;
+    expect(Number(await calls('ent_001'))).toBe(3);
+    expect(Number(await calls('ent_002') ?? 0)).toBe(0);
+    // The platform object holds one status row and one day row for each enterprise.
+    const statuses = await live.platform<{ ent: string }[]>('peek', 'select ent from status order by ent');
+    expect(statuses.map((row) => row.ent)).toEqual(['ent_001', 'ent_002']);
+    const days = await live.platform<{ ent: string; day: string; requests: number }[]>('peek', 'select ent, day, requests from account_day order by ent');
+    expect(days.map((row) => [row.ent, row.day])).toEqual([['ent_001', '2026-10-04'], ['ent_002', '2026-10-04']]);
+  });
+
   it('settles a meeting that ended with the normal call of the object, and makes the Tracker line once (fbk_022, wave 2)', async () => {
     const seed = await seedOf();
     seed.meetings = {

@@ -112,6 +112,132 @@ describe('the enterprise of a request (Madar enterprises)', () => {
   });
 });
 
+describe('the Cron fan-out and the status report (Madar enterprises)', () => {
+  const AT = new Date('2026-10-04T05:00:00Z');
+  const CRON_URL = 'https://madar-server.internal/api/internal/cron';
+  const status = (ent: string) => ({ ...STATUS, ent, people: ent === 'ent_002' ? 7 : 3 });
+
+  function cronWorld(o: { listed?: () => Promise<string[]>; cronFails?: string[]; secret?: string | undefined; statusFails?: string[] } = {}) {
+    const seen = { cron: [] as { ent: string; at: string; worker: number }[], reports: [] as unknown[], meters: [] as unknown[], sweeps: [] as string[], statuses: [] as string[], legs: [] as { ent: string; at: string }[] };
+    const objectOf = (name: string) => ({
+      cron: async (input: { ent: string; at: string; worker: number }) => {
+        seen.cron.push({ ent: input.ent, at: input.at, worker: input.worker });
+        if (o.cronFails?.includes(name)) throw new ApiError('forbidden', 'Madar is paused for this company.', { reason: 'enterprise_paused' });
+        return { ok: true, at: input.at, steps: [], closed: 0, day: null, status: status(name) };
+      },
+      status: async ({ ent }: { ent: string }) => {
+        seen.statuses.push(ent);
+        if (o.statusFails?.includes(name)) throw new Error('The object is gone.');
+        return status(name);
+      },
+    });
+    const platform = {
+      listed: o.listed ?? (async () => ['ent_001', 'ent_002']),
+      resolveAddress: async () => null,
+      report: async (input: unknown) => void seen.reports.push(input),
+      meter: async (input: unknown) => void seen.meters.push(input),
+      sweep: async ({ at }: { at: string }) => void seen.sweeps.push(at),
+    };
+    const deps = fakeDeps();
+    const routes = officeRoutes({
+      deps,
+      verifyToken: async () => ({ authUserId: 'x' }),
+      stubFor: (_env, ent) => objectOf(ent) as never,
+      platform: () => platform as never,
+      net: () => recordingNet(),
+      jobsSecret: () => ('secret' in o ? o.secret : 'jobs-secret'),
+      // The legs go straight into the routes of the same isolate, as the binding SELF does between two invocations.
+      fanout: () => async (leg) => (seen.legs.push(leg), routes.fetch(new Request(CRON_URL, { method: 'POST', headers: { 'x-madar-jobs-secret': 'jobs-secret' }, body: JSON.stringify(leg) }), {})),
+    });
+    return { seen, routes, deps };
+  }
+
+  it('scheduled lists the enterprises and sends one leg for each id, in order', async () => {
+    const { seen, routes } = cronWorld();
+    const out = await routes.scheduled(AT, {});
+    expect(out?.legs.map((leg) => [leg.ent, leg.ok])).toEqual([['ent_001', true], ['ent_002', true]]);
+    expect(seen.legs.map((leg) => leg.ent)).toEqual(['ent_001', 'ent_002']);
+    expect(seen.cron.map((one) => one.ent)).toEqual(['ent_001', 'ent_002']);
+  });
+
+  it('a first leg that fails does not stop the second', async () => {
+    const { seen, routes } = cronWorld({ cronFails: ['ent_001'] });
+    const out = await routes.scheduled(AT, {});
+    expect(out?.legs.map((leg) => [leg.ent, leg.ok])).toEqual([['ent_001', false], ['ent_002', true]]);
+    expect(seen.cron.map((one) => one.ent)).toEqual(['ent_001', 'ent_002']);
+  });
+
+  it('a leg reports the status and the meter of its enterprise to the platform', async () => {
+    const { seen, routes } = cronWorld();
+    await routes.scheduled(AT, {});
+    expect(seen.reports).toEqual([status('ent_001'), status('ent_002')]);
+    expect(seen.meters).toEqual([
+      { ent: 'ent_001', day: '2026-10-04', counts: STATUS.day }, { ent: 'ent_002', day: '2026-10-04', counts: STATUS.day },
+    ]);
+  });
+
+  it('a paused enterprise (cron throws) still reports its status, and no meter', async () => {
+    const { seen, routes } = cronWorld({ cronFails: ['ent_002'] });
+    await routes.scheduled(AT, {});
+    expect(seen.statuses).toEqual(['ent_002']);
+    expect(seen.reports).toEqual([status('ent_001'), status('ent_002')]);
+    expect(seen.meters.map((one) => (one as { ent: string }).ent)).toEqual(['ent_001']);
+  });
+
+  it('a leg whose object answers neither the jobs nor the status is a failed leg and logs the id and no secret', async () => {
+    const { seen, routes, deps } = cronWorld({ cronFails: ['ent_001'], statusFails: ['ent_001'] });
+    const out = await routes.scheduled(AT, {});
+    expect(out?.legs.map((leg) => leg.ok)).toEqual([false, true]);
+    expect(seen.reports).toEqual([status('ent_002')]);
+    const text = JSON.stringify(deps.logs);
+    expect(text).toContain('ent_001');
+    expect(text).not.toContain('jobs-secret');
+  });
+
+  it('the cron route gives 401 without the jobs secret and 404 for an unlisted id, and runs no job', async () => {
+    const { seen, routes } = cronWorld();
+    const send = (body: unknown, headers: Record<string, string> = {}) => routes.fetch(new Request(CRON_URL, { method: 'POST', headers, body: JSON.stringify(body) }), {});
+    expect((await send({ ent: 'ent_001', at: AT.toISOString() })).status).toBe(401);
+    expect((await send({ ent: 'ent_001', at: AT.toISOString() }, { 'x-madar-jobs-secret': 'wrong' })).status).toBe(401);
+    expect((await routes.fetch(new Request(CRON_URL, { headers: { 'x-madar-jobs-secret': 'jobs-secret' } }), {})).status).toBe(401);
+    const ok = { 'x-madar-jobs-secret': 'jobs-secret' };
+    expect((await send({ ent: 'ent_009', at: AT.toISOString() }, ok)).status).toBe(404);
+    expect((await send({ ent: 'ENT_001', at: AT.toISOString() }, ok)).status).toBe(404);
+    expect((await send({ ent: 'ent_001', at: 'later' }, ok)).status).toBe(400);
+    expect(seen.cron).toEqual([]);
+  });
+
+  it('the first run after 00:00 UTC calls sweep once; the run at 06:15 does not', async () => {
+    const { seen, routes } = cronWorld();
+    await routes.scheduled(new Date('2026-10-05T00:05:00Z'), {});
+    expect(seen.sweeps).toEqual(['2026-10-05T00:05:00.000Z']);
+    await routes.scheduled(new Date('2026-10-05T06:15:00Z'), {});
+    expect(seen.sweeps).toHaveLength(1);
+  });
+
+  it('logs and returns when the list of enterprises does not load, and starts no leg', async () => {
+    const { seen, routes, deps } = cronWorld({ listed: async () => { throw new Error('The platform is down.'); } });
+    expect(await routes.scheduled(AT, {})).toBeUndefined();
+    expect(seen.legs).toEqual([]);
+    expect(deps.logs.some((line) => line.level === 'error' && line.message.includes('did not load'))).toBe(true);
+  });
+
+  it('starts no leg when the Worker has no jobs secret, and uses the self transport by default', async () => {
+    const plain = officeRoutes({
+      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], sweep: async () => undefined }) as never,
+      net: () => recordingNet(), jobsSecret: () => undefined,
+    });
+    expect(await plain.scheduled(AT, {})).toBeUndefined();
+    // With the secret and no binding SELF, the leg fails with the clear error and the run goes on.
+    const selfless = officeRoutes({
+      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], sweep: async () => undefined }) as never,
+      net: () => recordingNet(), jobsSecret: () => 'jobs-secret',
+    });
+    const out = await selfless.scheduled(AT, {});
+    expect(out?.legs).toEqual([{ ent: 'ent_001', ok: false, ms: expect.any(Number), status: null }]);
+  });
+});
+
 describe('the probe routes of spike S1', () => {
   const TOOLS = { MADAR_TEST_TOOLS: 'on', APP_URL: 'http://127.0.0.1:5173', SUPABASE_URL: 'http://127.0.0.1:54321' };
   const send = (env: Record<string, unknown>, path: string, headers: Record<string, string> = {}) =>
@@ -240,14 +366,6 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     const checked = await get('/api/health', { 'x-madar-jobs-secret': 'jobs-secret' });
     expect(((await checked.json()) as { office: unknown }).office).toEqual({ schema: 3, lastJob: null });
     expect(seen.health).toBe(1);
-  });
-
-  it('gives a Cron run to the office object with the requests it saw, and the network port', async () => {
-    const { seen, routes, get, net } = setup();
-    await get('/api/nothing');
-    const at = new Date('2026-10-04T05:00:00Z');
-    expect(await routes.scheduled(at, {})).toMatchObject({ ok: true });
-    expect(seen.cron).toEqual([{ ent: 'ent_001', at: at.toISOString(), worker: 2, net }]);
   });
 
   it('mounts each route of the routes option under /api, with the office object, the network port and the after of its request', async () => {

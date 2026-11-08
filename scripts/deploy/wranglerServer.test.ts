@@ -48,7 +48,7 @@ describe('wrangler.server.toml', () => {
       });
 
       it('holds the public vars SUPABASE_URL of its own project and a region label that starts no MCP hop, the test tools and the day cap on the test Worker only, and nothing else', () => {
-        const office = copy === 'test' ? ['MADAR_DAY_CAP', 'MADAR_TEST_TOOLS'] : [];
+        const office = copy === 'test' ? ['MADAR_CRON_TRANSPORT', 'MADAR_DAY_CAP', 'MADAR_TEST_TOOLS'] : [];
         expect(Object.keys(env.vars).sort()).toEqual([...office, 'SUPABASE_URL', 'WORKER_REGION']);
         expect(env.vars.SUPABASE_URL).toBe(COPY_HOSTS[copy].supabaseUrl);
         expect(env.vars.WORKER_REGION).toBe('workers-eu-central-1');
@@ -123,6 +123,12 @@ describe('the office object in wrangler.server.toml (exit wave 3)', () => {
       expect(read(env).vars.MADAR_TEST_TOOLS).toBeUndefined();
       expect(read(env).vars.MADAR_DAY_CAP).toBeUndefined();
     }
+  });
+
+  it('sends the Cron legs through the binding SELF on the test Worker (spike S1), and sets the transport on no other env', () => {
+    expect(read('test').vars.MADAR_CRON_TRANSPORT).toBe('self');
+    expect(read('test').services).toEqual([{ binding: 'SELF', service: 'madar-server-test' }]);
+    for (const env of [undefined, 'production'] as const) expect(read(env).vars.MADAR_CRON_TRANSPORT).toBeUndefined();
   });
 
   it('runs the 15-minute Cron on local runs and on the test Worker, and none on production', () => {
