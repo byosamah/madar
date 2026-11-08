@@ -1,6 +1,7 @@
 import type { OpResult } from '../../auth/own/office';
 import type { OfficeMailAnswer, OfficeMailInput } from '../../office/parts';
 import type { EnterpriseId } from '../ids';
+import type { PlatformAccountsInput, PlatformAccountView, PlatformTokenAnswer } from './accounts';
 import type { DayCounts, EnterpriseLimits, EnterpriseRow, EnterpriseStatus } from '../types';
 
 /** The answer of the day cap (design 5.14). Plan C fills the rule; plan B always allows. */
@@ -69,4 +70,14 @@ export type PlatformStub = {
   /** The ids in state active: the Cron fan-out reads this list, so a paused enterprise gets no job. */
   activeIds(): Promise<EnterpriseId[]>;
   ownersOf(): Promise<{ ent: EnterpriseId; userId: string }[]>;
+  /**
+   * The accounts of the platform (plan F, design D8). They belong to no company. A wrong password and an unknown email give one answer.
+   * The tokens have the audience madar-platform and no ent.
+   */
+  platformSignIn(input: { email: string; password: string; address: string }): Promise<PlatformTokenAnswer>;
+  platformRefresh(input: { refreshToken: string }): Promise<PlatformTokenAnswer>;
+  platformSignOut(input: { sessionId: string }): Promise<void>;
+  platformAccount(input: { accountId: string }): Promise<PlatformAccountView | null>;
+  /** Ops secret only (design D13): create, set a new password, turn off or on. */
+  platformAccounts(input: PlatformAccountsInput): Promise<PlatformAccountView>;
 };

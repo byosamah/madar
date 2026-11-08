@@ -249,7 +249,7 @@ describe('the cleanup and the schema', () => {
   it('keeps empty copies of the four sign-in tables and no table of an office', async () => {
     const { raw } = await platform();
     const tables = (raw.prepare("select name from sqlite_master where type = 'table' order by name").all() as { name: string }[]).map((r) => r.name);
-    expect(tables).toEqual(['account_day', 'auth_links', 'auth_sessions', 'auth_users', 'emails', 'enterprises', 'mail_pool', 'owners', 'rate_limits', 'schema_version', 'status']);
+    expect(tables).toEqual(['account_day', 'auth_links', 'auth_sessions', 'auth_users', 'emails', 'enterprises', 'mail_pool', 'owners', 'platform_accounts', 'platform_sessions', 'rate_limits', 'schema_version', 'status']);
   });
 
   it('health names the schema', async () => {

@@ -14,11 +14,22 @@ import { MAIL_POOL_SCHEMA } from './mailPool';
  * PLATFORM_STEPS.
  *
  * Version 3 (plan D): the table mail_pool, the places of the mail quota of the whole account (mailPool.ts).
+ *
+ * Version 4 (plan F, design D8): the tables platform_accounts and platform_sessions, the sign-in of the people of the platform. They belong
+ * to no company. The table owners of version 1 stays (a released step never changes) and nothing reads or writes it any more (design D11).
  */
-export const PLATFORM_SCHEMA_VERSION = 3;
+export const PLATFORM_SCHEMA_VERSION = 4;
 
 /** The server tables that the platform object copies empty, for the refuse steps. */
 export const PLATFORM_COPIED_TABLES: readonly string[] = ['rate_limits', 'auth_users', 'auth_links', 'auth_sessions'];
+
+/** The platform accounts and their sessions (version 4). The refresh hash is the sha256 of the secret; prev_hash and used_at serve the reuse window. */
+const ACCOUNT_SQL: readonly string[] = [
+  'create table platform_accounts (id text primary key, email text not null unique, name text not null, password_hash text not null, state text not null, created_at text not null)',
+  'create table platform_sessions (id text primary key, account_id text not null, refresh_hash text not null unique, prev_hash text, used_at text, ends_at text not null, created_at text not null)',
+  'create index platform_sessions_prev on platform_sessions (prev_hash) where prev_hash is not null',
+  'create index platform_sessions_account on platform_sessions (account_id)',
+];
 
 const PLATFORM_SQL: readonly string[] = [
   'create table enterprises (id text primary key, address text not null unique, state text not null, name text not null, name_ar text not null, limits text not null, created_at text not null, first_admin text not null, logo text)',
@@ -27,6 +38,7 @@ const PLATFORM_SQL: readonly string[] = [
   'create table status (ent text primary key, doc text not null, at text not null)',
   'create table account_day (day text not null, ent text not null, requests integer not null default 0, rows_read integer not null default 0, rows_written integer not null default 0, mails integer not null default 0, primary key (day, ent))',
   MAIL_POOL_SCHEMA,
+  ...ACCOUNT_SQL,
   'create table schema_version (id integer primary key check (id = 1), version integer not null)',
 ];
 
@@ -34,6 +46,7 @@ const PLATFORM_SQL: readonly string[] = [
 export const PLATFORM_STEPS: Readonly<Record<number, readonly string[]>> = {
   2: ['alter table enterprises add column logo text'],
   3: [MAIL_POOL_SCHEMA],
+  4: ACCOUNT_SQL,
 };
 
 export function platformSchemaSql(): string[] {

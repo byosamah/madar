@@ -5,7 +5,8 @@ import { hashedKey, hitLimit } from '../../auth/rateLimit';
 import { RENEW_ADDRESS_LIMIT } from '../../auth/renew';
 import { statementQuery } from '../../data/dialect';
 import { runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../../auth/own/office';
-import type { SigningKeys } from '../../auth/own/keys';
+import { signingKeysOf, type SigningKeys } from '../../auth/own/keys';
+import { OWN_AUTH_SECRET } from '../../auth/ownKeys';
 import { consoleLogger, serverEnvFrom, type ReadEnv } from '../../core/deps';
 import type { Clock, Deps, Logger } from '../../core/ports';
 import { liteDb, type LiteDb } from '../../data/lite/db';
@@ -20,6 +21,7 @@ import { PLATFORM_SCHEMA_VERSION } from './schema';
 import { accountStop, capVerdict, planFrom, type Plan } from '../plan';
 import { activateEnterprise, activeEnterpriseIds, createEnterprise, getEnterprise, listEnterprises, ownersOfEnterprises, setEnterpriseState, updateEnterprise } from './enterprises';
 import type { AddressAnswer, AddressStep, CapAnswer, PlatformStub } from './stub';
+import { platformAccount, platformAccounts, platformRefresh, platformSignIn, platformSignOut, type AccountDeps } from './accounts';
 
 /**
  * The work of the platform object (Madar enterprises, plan B Task 7), apart from workerd: object.ts gives it the host of ctx.storage, and
@@ -62,6 +64,22 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
   // The plan settings (Free limits and the share), read from the settings of the Worker when first needed. A bad value throws an error that names it.
   let plan: Plan | undefined;
   const planOf = (): Plan => (plan ??= planFrom(o.read));
+
+  // The keys of the platform tokens, imported once for each value of the secret. They sign after the hash work, outside a transaction.
+  let held: { text: string; keys: Promise<SigningKeys> } | undefined;
+  const keysOf = (): Promise<SigningKeys> => {
+    const text = o.read(OWN_AUTH_SECRET);
+    if (text === undefined || text === '') return Promise.reject(new Error(`${OWN_AUTH_SECRET} is not set: the platform cannot sign a token.`));
+    if (held?.text !== text) {
+      const keys = signingKeysOf(text, config.mcpUrl);
+      held = { text, keys };
+      keys.catch(() => {
+        if (held?.keys === keys) held = undefined;
+      });
+    }
+    return held.keys;
+  };
+  const accountDeps: AccountDeps = { db, clock, keys: keysOf };
 
   /** The day counts of every enterprise for one UTC day, and their sum: the account. */
   async function sums(day: string): Promise<{ account: DayCounts; byEnterprise: { ent: EnterpriseId; counts: DayCounts }[] }> {
@@ -203,6 +221,12 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
     async health() {
       return { schema: PLATFORM_SCHEMA_VERSION };
     },
+
+    platformSignIn: (input) => platformSignIn(accountDeps, input),
+    platformRefresh: (input) => platformRefresh(accountDeps, input),
+    platformSignOut: (input) => platformSignOut(accountDeps, input),
+    platformAccount: (input) => platformAccount(accountDeps, input),
+    platformAccounts: (input) => platformAccounts(accountDeps, input),
 
     list: () => listEnterprises(db),
     getEnterprise: async ({ ent }) => getEnterprise(db, entOf(ent)),

@@ -1,6 +1,6 @@
 import { importJWK, SignJWT, type JWK } from 'jose';
 import type { EnterpriseId } from '../../enterprise/ids';
-import { ACCESS_TTL_S, ownIssuer, ownPublicJwks } from '../ownKeys';
+import { ACCESS_TTL_S, ownIssuer, ownPublicJwks, PLATFORM_AUDIENCE } from '../ownKeys';
 
 /**
  * The sign side of the own tokens (Supabase exit, wave 2). The office object signs (ES256 under 1 ms, wave 0), outside a
@@ -37,4 +37,20 @@ export function signBrowserToken(keys: SigningKeys, o: { authId: string; session
 
 export function signAgentToken(keys: SigningKeys, o: { authId: string; sessionId: string; clientId: string; now: Date; ent: EnterpriseId }): Promise<string> {
   return base(keys, { session_id: o.sessionId, client_id: o.clientId, ent: o.ent }, o, keys.mcpUrl);
+}
+
+/**
+ * The token of a platform account (Madar enterprises, design D10): audience madar-platform, sub = the account id, sid = the session id,
+ * and no ent. The company routes refuse it by its audience; the platform routes refuse a company token by its audience.
+ */
+export function signPlatformToken(keys: SigningKeys, o: { accountId: string; sessionId: string; now: Date }): Promise<string> {
+  const iat = Math.floor(o.now.getTime() / 1000);
+  return new SignJWT({ sid: o.sessionId })
+    .setProtectedHeader({ alg: 'ES256', kid: keys.kid, typ: 'JWT' })
+    .setIssuer(keys.issuer)
+    .setAudience(PLATFORM_AUDIENCE)
+    .setSubject(o.accountId)
+    .setIssuedAt(iat)
+    .setExpirationTime(iat + ACCESS_TTL_S)
+    .sign(keys.key);
 }

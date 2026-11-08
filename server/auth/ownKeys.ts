@@ -8,6 +8,11 @@ import { createLocalJWKSet, type JSONWebKeySet, type JWK, type JWTVerifyGetKey }
  */
 
 export const OWN_AUTH_SECRET = 'MADAR_AUTH_PRIVATE_JWK';
+/**
+ * The audience of a platform token (Madar enterprises, design D10). A company token has the audience "authenticated" and the claim ent;
+ * a platform token has this audience and no ent. So neither works on the routes of the other.
+ */
+export const PLATFORM_AUDIENCE = 'madar-platform';
 /** 15 minutes (owner rule 2026-10-06, Z7). */
 export const ACCESS_TTL_S = 900;
 

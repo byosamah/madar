@@ -132,4 +132,24 @@ export class Platform extends DurableObject<Env> implements PlatformStub {
   ownersOf() {
     return this.parts.ownersOf();
   }
+
+  platformSignIn(input: Parameters<PlatformStub['platformSignIn']>[0]) {
+    return this.parts.platformSignIn(input);
+  }
+
+  platformRefresh(input: Parameters<PlatformStub['platformRefresh']>[0]) {
+    return this.parts.platformRefresh(input);
+  }
+
+  platformSignOut(input: Parameters<PlatformStub['platformSignOut']>[0]) {
+    return this.parts.platformSignOut(input);
+  }
+
+  platformAccount(input: Parameters<PlatformStub['platformAccount']>[0]) {
+    return this.parts.platformAccount(input);
+  }
+
+  platformAccounts(input: Parameters<PlatformStub['platformAccounts']>[0]) {
+    return this.parts.platformAccounts(input);
+  }
 }

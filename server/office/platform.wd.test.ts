@@ -33,7 +33,7 @@ describe('the platform object on local workerd', () => {
     expect(await live.platform('resolveEmail', { email: 'hana@globex.test' })).toEqual({ ent: 'ent_002' });
     expect(await live.platform('resolveAddress', { address: 'globex' })).toEqual({ ent: 'ent_002' });
     expect(await live.platform('isOwner', { ent: 'ent_002', userId: 'usr_001' })).toBe(true);
-    expect(await live.platform('health')).toEqual({ schema: 3 });
+    expect(await live.platform('health')).toEqual({ schema: 4 });
   });
 
   it('refuses an unknown email like a wrong password, with real crypto', async () => {
@@ -48,5 +48,18 @@ describe('the platform object on local workerd', () => {
     await live.evictPlatform();
     expect(await live.platform('hitAddress', { step: 'forgot', address: '203.0.113.44' })).toMatchObject({ ok: false });
     expect(await live.platform('hitAddress', { step: 'renew', address: '203.0.113.44' })).toEqual({ ok: true });
+  });
+
+  it('platform accounts: create, sign in with real PBKDF2, rotate a refresh token after an evict, and sign out', async () => {
+    const made = await live.platform<{ id: string }>('platformAccounts', { action: 'create', email: 'owner@madar.test', name: 'The Owner', password: 'a good long password' });
+    expect(made.id).toMatch(/^pla_\d{3,}$/);
+    const signed = await live.platform<{ access_token: string; refresh_token: string; expires_in: number }>('platformSignIn', { email: 'owner@madar.test', password: 'a good long password', address: '203.0.113.50' });
+    expect(signed.expires_in).toBe(900);
+    await live.evictPlatform();
+    const again = await live.platform<{ access_token: string; refresh_token: string }>('platformRefresh', { refreshToken: signed.refresh_token });
+    expect(again.refresh_token).not.toBe(signed.refresh_token);
+    const sid = JSON.parse(atob(again.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sid as string;
+    await live.platform('platformSignOut', { sessionId: sid });
+    expect(await live.platform('platformAccount', { accountId: made.id })).toMatchObject({ state: 'active', email: 'owner@madar.test' });
   });
 });

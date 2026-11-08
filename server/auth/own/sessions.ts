@@ -29,7 +29,7 @@ export function tooMany(retryAfterMs: number): ApiError {
 }
 
 /** Counts one hit of each key in one transaction; the first key over its limit refuses the step. The keys are hashed before. */
-export async function countLimits(deps: SigninDeps, keys: { key: string; limit: number; windowMs: number }[]): Promise<void> {
+export async function countLimits(deps: Pick<SigninDeps, 'db' | 'clock'>, keys: { key: string; limit: number; windowMs: number }[]): Promise<void> {
   const now = deps.clock.now();
   const over = await deps.db.tx('write', async (q) => {
     for (const one of keys) {

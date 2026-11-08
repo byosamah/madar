@@ -7,6 +7,8 @@ export type EnterpriseId = string; // form ^ent_\d{3,}$
 export const ENTERPRISE_ID = /^ent_\d{3,}$/;
 /** VADOs' Companies, the office of today. */
 export const ENT_VADO: EnterpriseId = 'ent_001';
+/** A platform account (Madar enterprises, design D8): it belongs to no company. */
+export const PLATFORM_ACCOUNT_ID = /^pla_\d{3,}$/;
 export const ADDRESS_NAME = /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/;
 export const VADO_ADDRESS = 'vados';
 /** The name of the one platform object. */
@@ -25,6 +27,10 @@ const TAG_MAX = 320;
 
 export function isEnterpriseId(value: unknown): value is EnterpriseId {
   return typeof value === 'string' && ENTERPRISE_ID.test(value);
+}
+
+export function isPlatformAccountId(value: unknown): value is string {
+  return typeof value === 'string' && PLATFORM_ACCOUNT_ID.test(value);
 }
 
 export function isAddressName(value: unknown): value is string {

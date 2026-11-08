@@ -140,8 +140,10 @@ describe('schema version 2', () => {
     await applyPlatformSchema(host);
     raw.exec('alter table enterprises drop column logo');
     raw.exec('drop table mail_pool');
+    raw.exec('drop table platform_sessions');
+    raw.exec('drop table platform_accounts');
     raw.exec('update schema_version set version = 1');
-    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [2, 3] });
+    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [2, 3, 4] });
     expect((raw.prepare('select name from pragma_table_info(?)').all('enterprises') as { name: string }[]).map((r) => r.name)).toContain('logo');
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
   });
@@ -153,9 +155,28 @@ describe('schema version 3', () => {
     const host = nodeHost(raw);
     await applyPlatformSchema(host);
     raw.exec('drop table mail_pool');
+    raw.exec('drop table platform_sessions');
+    raw.exec('drop table platform_accounts');
     raw.exec('update schema_version set version = 2');
-    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [3] });
+    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [3, 4] });
     expect((raw.prepare('select name from pragma_table_info(?)').all('mail_pool') as { name: string }[]).map((r) => r.name)).toEqual(['day', 'ref', 'kind', 'ent']);
+    expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
+  });
+});
+
+describe('schema version 4', () => {
+  it('steps a version 3 platform object to the platform accounts and their sessions, and keeps the old rows', async () => {
+    const raw = new DatabaseSync(':memory:');
+    const host = nodeHost(raw);
+    await applyPlatformSchema(host);
+    raw.exec("insert into emails (email, ent) values ('a@x.test', 'ent_001')");
+    raw.exec('drop table platform_sessions');
+    raw.exec('drop table platform_accounts');
+    raw.exec('update schema_version set version = 3');
+    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [4] });
+    expect((raw.prepare('select name from pragma_table_info(?)').all('platform_accounts') as { name: string }[]).map((r) => r.name)).toEqual(['id', 'email', 'name', 'password_hash', 'state', 'created_at']);
+    expect((raw.prepare('select name from pragma_table_info(?)').all('platform_sessions') as { name: string }[]).map((r) => r.name)).toEqual(['id', 'account_id', 'refresh_hash', 'prev_hash', 'used_at', 'ends_at', 'created_at']);
+    expect(raw.prepare('select email from emails').get()).toEqual({ email: 'a@x.test' });
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
   });
 });
