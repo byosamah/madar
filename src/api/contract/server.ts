@@ -19,7 +19,11 @@ export const SERVER_CALL_NAMES = [
 export type ServerCallName = (typeof SERVER_CALL_NAMES)[number];
 
 /** The reasons the server gives in details.reason. The screens have a text for each one (errors.reasons.<reason>). */
-export const SERVER_REASONS = ['account_off', 'client_outdated', 'busy', 'story_not_yours', 'key_reused', 'too_many_overviews'] as const;
+export const SERVER_REASONS = [
+  'account_off', 'client_outdated', 'busy', 'story_not_yours', 'key_reused', 'too_many_overviews',
+  // Madar enterprises (plan C): the pause, the limits and the platform refusals.
+  'enterprise_paused', 'people_limit', 'storage_limit', 'create_closed', 'address_taken', 'owner_enterprise', 'name_mismatch', 'not_finished', 'already_accepted',
+] as const;
 export type ServerReason = (typeof SERVER_REASONS)[number];
 
 /** A signed upload link lives 10 minutes (plan 5.2). */
