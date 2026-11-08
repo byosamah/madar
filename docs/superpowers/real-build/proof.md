@@ -3327,3 +3327,21 @@ step `enterprise` when the id in the file name is not the id in the manifest. A 
 
 Lead step 2 fills the table: run `office-backup.yml` by hand with two enterprises, read the minutes of the run and the release count. This is a
 GitHub write and needs the owner's OK.
+
+## Madar enterprises: the test copy on its office objects (plan E, step L1, 2026-11-08)
+- Owner OK (2026-11-08): the deploys of the test copy, the Google and Daftra secrets of the test Worker, the switch; the owner is the only
+  tester. The auto mode check refused the secret write of Claude (Secret-Store Writes), so the owner ran both `all.sh test` runs with `!`.
+- First `all.sh test` with the word supabase (main c37190b3): the Worker got the bindings OFFICE, PLATFORM and SELF and
+  `MADAR_CRON_TRANSPORT = "self"`; secrets.ts kept MADAR_AUTH_PRIVATE_JWK and removed five names that the file no longer holds
+  (API_URL, RESEND_API_KEY, MCP_FORWARD_REGION, MADAR_LOCK_KEY, AUTH_ISSUER).
+- Seed: `scripts/office/seed.ts --to https://preview.madar-46r.pages.dev` filled `ent_001` ("VADOs' Companies"): 916 records in 22 parts,
+  72 sample files to madar-files-test, the 4 accounts. The seed has no option for a second enterprise: the owner makes one on the page.
+  `platform-owners.ts ent_001:usr_001` answered `{"ok":true}`. The old test object named `office` stays as it was.
+- Switch: `config/server-host.json` test `office` (73e7e7b4), and the host test follows the host code (297d2476: three words, office only for
+  a copy of `OFFICE_COPIES_OPEN`). Second `all.sh test`: "Health ... answers from office;colo=MRS", the office check, MCP 401 from office.
+- Checks with an own token: the password sign-in of admin@madar.test answers 200 (559 ms) with the claim `ent: ent_001`; `session.get`
+  gives enterprise `ent_001` (name "Madar" until the Admin sets one), `platformOwner: true`, user usr_001 admin; `projects.list` works;
+  `platform.enterprises.list` gives `ent_001`, "VADOs' Companies", active.
+- Time (2026-11-08 18:22 UTC, 20 rounds, the Mac): `scripts/proof/server-time.sh` measured the Supabase function (member 209 ms median,
+  p25 163, p75 331); its page member leg got 401, because the script signs in with Supabase Auth and the office path takes only own tokens.
+  20 rounds of `session.get` with an own token on the page: median 192 ms, p25 178, p75 220. The office path is faster, so it stays.
