@@ -14,7 +14,12 @@ that passes `request` and `env`. The logic and its tests live in `server/http/` 
   to a Google host, never opens the last address, and answers only a request from the same site.
 - `satellite/[[path]].ts`: `GET /satellite/<z>/<y>/<x>`, one Esri World Imagery tile, logic in `server/http/pagesSatellite.ts`
   (the details are in its top comment). Only the page hosts of the two copies (any other host: 404). Only a person signed in to
-  that copy (the browser token, no agent token): else 401. It adds the Pages secret `ESRI_KEY` and the one referrer of the key
+  that copy (the browser token, no agent token): else 401. Two key kinds work. The route reads the issuer of the token first. The
+  Supabase issuer of the copy keeps the Supabase check. The own issuer (`<page host>/mcp`) is checked with the own key set, which
+  the route loads from the Worker of the copy through the service binding (`GET /api/auth/jwks`, `server/http/pagesOwnKeys.ts`):
+  only for a copy whose word in `config/server-host.json` is `office`, and only with its binding. The set stays 10 minutes, and an
+  unknown key id loads it again at most once in 30 seconds. A copy on `supabase` or `workers` refuses an own token with 401. A key
+  set that does not load gives 503 `sign_in_check_failed`, never a refusal. Any other issuer gets 401. The `ent` claim plays no part. It adds the Pages secret `ESRI_KEY` and the one referrer of the key
   (`https://madar.vado.sa`, for both copies), passes only a picture, and stores nothing (Esri's terms forbid stored copies). No
   `ESRI_KEY` gives 404 `no_map`. Set the secret on both environments: `pbpaste | npx wrangler pages secret put ESRI_KEY
   --project-name madar --env preview` (then `--env production`). A secret reaches only the next deployment. Why a route and

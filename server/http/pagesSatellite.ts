@@ -1,12 +1,18 @@
-import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from 'jose';
+import { createRemoteJWKSet, decodeJwt, errors, jwtVerify, type JWTVerifyGetKey } from 'jose';
+import { ownIssuer } from '../auth/ownKeys';
 import { COPY_HOSTS, copyOfPageHost, type Copy } from '../core/serverHost';
 import type { PagesEnv } from './pagesForward';
+import { ownKeySetFor } from './pagesOwnKeys';
 
 /**
  * GET /satellite/<z>/<y>/<x>: one satellite tile of the maps, through our own edge (owner, 2026-10-20). The Esri satellite host
  * answers from four edge addresses, and one of them never finishes the secure handshake from Saudi networks (measured by Kutla,
  * 2026-10-12): a browser sends every tile of a host over one connection, so a bad pick stalls the whole map. Cloudflare reaches Esri
  * well, so this function asks Esri, with a time limit and one more try, and the browser asks only its own site.
+ *
+ * Both key kinds work: a copy on Supabase Auth keeps the Supabase check, and a copy on the office object signs with its own key, so the
+ * route checks that token with the key set of the Worker (server/http/pagesOwnKeys.ts). The route reads the issuer first and picks the
+ * key set by it. The `ent` claim of an own token plays no part: a tile holds no data of an enterprise.
  *
  * The key is Madar's own Esri key (owner, 2026-10-20): the Pages secret ESRI_KEY. It never reaches a page, a URL
  * of the browser or a log. Only a person signed in to the copy of the host gets a tile, so the route is no open way to Esri. The
@@ -34,7 +40,18 @@ const JSON_HEADERS = { 'content-type': 'application/json', 'cache-control': 'no-
 
 const answer = (body: unknown, status: number): Response => new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 
-export type SatelliteDeps = { fetch: typeof fetch; keySet: (copy: Copy) => JWTVerifyGetKey };
+export type SatelliteDeps = {
+  fetch: typeof fetch;
+  /** The key set of Supabase Auth of a copy. */
+  keySet: (copy: Copy) => JWTVerifyGetKey;
+  /** The key set of the own tokens of a copy, or undefined when the copy does not run on its office object. */
+  ownKeySet?: (copy: Copy, env: PagesEnv) => JWTVerifyGetKey | undefined;
+};
+
+/** The issuer of the own tokens of a copy: the MCP address of its page host, without a trailing slash (server/auth/ownKeys.ts). */
+export function ownIssuerOf(copy: Copy): string {
+  return ownIssuer(`${COPY_HOSTS[copy].page}/mcp`);
+}
 
 /** The key set of Supabase Auth of each copy, made once for each function instance. */
 const keySets = new Map<Copy, JWTVerifyGetKey>();
@@ -49,15 +66,29 @@ function keySetOf(copy: Copy): JWTVerifyGetKey {
 
 /**
  * True for a browser token of a person of this copy, with the rules of the api function (server/auth/verify.ts): ES256 only, the
- * issuer of the copy, the audience and role "authenticated", a sub, and no client_id (an agent token). A key set that does not load
- * throws, so the route answers 503 and never treats an outage as a refusal.
+ * issuer of the copy, the audience and role "authenticated", a sub, and no client_id (an agent token). The issuer picks the key set: the
+ * Supabase issuer of the copy keeps the Supabase check, the own issuer of the copy uses the own set (undefined when the copy does not run
+ * on its office object, so the token is refused), and any other issuer is a refusal. A key set that does not load throws, so the route
+ * answers 503 and never treats an outage as a refusal.
  */
-async function isPerson(header: string | null, copy: Copy, keySet: JWTVerifyGetKey): Promise<boolean> {
+async function isPerson(header: string | null, copy: Copy, keys: { supabase: () => JWTVerifyGetKey; own: () => JWTVerifyGetKey | undefined }): Promise<boolean> {
   const match = header === null ? null : BEARER.exec(header.trim());
   if (!match) return false;
+  let issuer: unknown;
+  try {
+    // Not trusted yet: the claim only picks the key set. The signature check below decides.
+    issuer = decodeJwt(match[1]).iss;
+  } catch {
+    return false;
+  }
+  const supabaseIssuer = `${COPY_HOSTS[copy].supabaseUrl}/auth/v1`;
+  let keySet: JWTVerifyGetKey | undefined;
+  if (issuer === supabaseIssuer) keySet = keys.supabase();
+  else if (issuer === ownIssuerOf(copy)) keySet = keys.own();
+  if (!keySet) return false;
   try {
     const { payload } = await jwtVerify(match[1], keySet, {
-      issuer: `${COPY_HOSTS[copy].supabaseUrl}/auth/v1`, audience: 'authenticated', algorithms: ['ES256'], clockTolerance: 5,
+      issuer: issuer as string, audience: 'authenticated', algorithms: ['ES256'], clockTolerance: 5,
     });
     return (payload.client_id === undefined || payload.client_id === null) && payload.role === 'authenticated' && typeof payload.sub === 'string' && payload.sub !== '';
   } catch (error) {
@@ -89,7 +120,7 @@ async function askEsri(url: string, run: typeof fetch): Promise<Got> {
 
 const whole = (value: string, max: number): number | null => (Number(value) <= max ? Number(value) : null);
 
-export async function satelliteTile(request: Request, env: PagesEnv, deps: SatelliteDeps = { fetch, keySet: keySetOf }): Promise<Response> {
+export async function satelliteTile(request: Request, env: PagesEnv, deps: SatelliteDeps = { fetch, keySet: keySetOf, ownKeySet: ownKeySetFor }): Promise<Response> {
   const url = new URL(request.url);
   const copy = copyOfPageHost(url.hostname);
   if (!copy) return answer({ error: 'not_found' }, 404);
@@ -102,7 +133,7 @@ export async function satelliteTile(request: Request, env: PagesEnv, deps: Satel
   if (z === null || y === null || x === null) return answer({ error: 'bad_tile' }, 400);
   let person: boolean;
   try {
-    person = await isPerson(request.headers.get('authorization'), copy, deps.keySet(copy));
+    person = await isPerson(request.headers.get('authorization'), copy, { supabase: () => deps.keySet(copy), own: () => deps.ownKeySet?.(copy, env) });
   } catch {
     return answer({ error: 'sign_in_check_failed' }, 503);
   }
