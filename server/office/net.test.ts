@@ -50,6 +50,20 @@ describe('the network port of the office object (server/office/net.ts)', () => {
     expect(() => netPorts(recordingNet(), { guard: closed, kind: 'r2', maxFileBytes: 100, ent: 'vado' })).toThrow(ENT_REQUIRED);
   });
 
+  it('gives mailPool and does not count it in NET_BUDGET', async () => {
+    const net = recordingNet();
+    const ports = netPorts(net, { guard: closed, kind: 'r2', maxFileBytes: 100, ent: 'ent_002' });
+    for (let i = 0; i < NET_BUDGET + 5; i += 1) expect(await ports.mailPool.reserve('notice', '2026-10-04', `ent_002:n${i}`)).toBe('ok');
+    expect(ports.used()).toBe(0);
+    expect(net.calls[0]).toBe('mailReserve notice 2026-10-04 ent_002:n0');
+    // The pool call is a network call: it refuses inside a transaction, before it reaches the Worker.
+    const open = netPorts(recordingNet(), { guard: { open: () => true, now: () => NOW }, kind: 'r2', maxFileBytes: 100, ent: 'ent_002' });
+    await expect(open.mailPool.reserve('signin', '2026-10-04', 'ent_002:s')).rejects.toThrow(NET_IN_TRANSACTION);
+    // A failure of the Worker is an error: the mail does not go out.
+    const down = netPorts(recordingNet({ mailReserve: () => Promise.resolve({ ok: false, failure: { name: 'Error', message: 'The pool did not answer.' } }) }), { guard: closed, kind: 'r2', maxFileBytes: 100, ent: 'ent_002' });
+    await expect(down.mailPool.reserve('signin', '2026-10-04', 'ent_002:s')).rejects.toThrow('The pool did not answer.');
+  });
+
   it('refuses a network call while a transaction is open, before it reaches the Worker', async () => {
     const net = recordingNet();
     const ports = netPorts(net, { guard: { open: () => true, now: () => NOW }, kind: 'r2', maxFileBytes: 100, ent: ENT_VADO });

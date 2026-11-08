@@ -1,6 +1,7 @@
-import type { Clock, Config, Db, Mail, MailPort, Query } from '../core/ports';
+import type { Clock, Config, Db, Deps, Mail, MailPort, Query } from '../core/ports';
 import { isLite, sqlFor } from '../data/dialect';
 import { entOfConfig, scopedRef } from '../enterprise/scope';
+import { quotaLimitsOf } from './limits';
 
 /**
  * The email quota (plan 2 change 9, 5.4; task N2.1). Resend's free plan sends 100 emails a UTC day (00:00 UTC is 03:00 Riyadh),
@@ -13,7 +14,11 @@ import { entOfConfig, scopedRef } from '../enterprise/scope';
  */
 
 export type QuotaKind = 'notice' | 'summary' | 'signin' | 'warning';
-export const QUOTA_LIMITS: Record<QuotaKind, number> = { notice: 90, summary: 90, signin: 98, warning: 98 };
+/** The limits of the Resend Free plan: 100 mails a UTC day. A Config with `mailDayLimit` changes the total (server/mail/limits.ts). */
+export const DAY_MAIL_TOTAL = 100;
+export const QUOTA_LIMITS: Record<QuotaKind, number> = quotaLimitsOf(DAY_MAIL_TOTAL);
+/** The limits of one office: its own total, or the Free plan. */
+export const limitsOf = (config: Pick<Config, 'mailDayLimit'>): Record<QuotaKind, number> => (config.mailDayLimit === undefined ? QUOTA_LIMITS : quotaLimitsOf(config.mailDayLimit));
 /** The kinds that stop at the notice limit; their first refusal of a day warns the Admins. */
 const NOTICE_KINDS: ReadonlySet<QuotaKind> = new Set(['notice', 'summary']);
 
@@ -72,17 +77,18 @@ const dayOf = (o: DayOption) => (o.now ? utcDay(o.now) : null);
 const liteDay = (o: DayOption): string => utcDay(o.now ?? new Date());
 
 /** A place in today's quota for one mail. Run it in a short write transaction of its own: it holds the mail lock to the commit. */
-export async function reserve(q: Query, kind: QuotaKind, ref: string, o: DayOption & { userId?: string } = {}): Promise<'ok' | 'over'> {
+export async function reserve(q: Query, kind: QuotaKind, ref: string, o: DayOption & { userId?: string; limits?: Record<QuotaKind, number> } = {}): Promise<'ok' | 'over'> {
+  const limits = o.limits ?? QUOTA_LIMITS;
   if (isLite(q)) {
     const day = liteDay(o);
     const [row] = await q<{ n: number; mine: number }>(DAY_COUNT_LITE, [day, ref]);
     if (Number(row?.mine ?? 0) === 1) return 'ok';
-    if (Number(row?.n ?? 0) >= QUOTA_LIMITS[kind]) return 'over';
+    if (Number(row?.n ?? 0) >= limits[kind]) return 'over';
     await q(RESERVE_LITE, [day, kind, o.userId ?? null, ref]);
     return 'ok';
   }
   await q(MAIL_LOCK_SQL, [...MAIL_LOCK_KEY]);
-  const [row] = await q<{ ok: boolean }>(RESERVE_SQL, [dayOf(o), kind, o.userId ?? null, ref, QUOTA_LIMITS[kind]]);
+  const [row] = await q<{ ok: boolean }>(RESERVE_SQL, [dayOf(o), kind, o.userId ?? null, ref, limits[kind]]);
   return row?.ok ? 'ok' : 'over';
 }
 
@@ -104,6 +110,30 @@ export async function sentToday(q: Query, o: DayOption = {}): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
+/** The kind of place in the pool of the account: notice and summary share the notice places, sign-in mail and warnings the sign-in places. */
+const POOL_KIND = { notice: 'notice', summary: 'notice', signin: 'signin', warning: 'signin' } as const satisfies Record<QuotaKind, 'notice' | 'signin'>;
+
+/**
+ * The place in the pool of the account for one mail (Madar enterprises, design 5.12). The key is the plain key of the caller; the ref
+ * that the pool holds is the scoped one, so a retry of the same mail takes the same place. With no pool (the Postgres path, the outbox
+ * driver) it answers ok. A pool that does not answer throws: the mail does not go out, and the outbox row waits.
+ */
+export async function poolPlace(deps: { mailPool?: Deps['mailPool']; config: Pick<Config, 'ent'>; clock: Clock }, kind: QuotaKind, key: string): Promise<'ok' | 'over'> {
+  if (!deps.mailPool) return 'ok';
+  const ref = scopedRef(entOfConfig(deps.config), key);
+  return (await deps.mailPool.reserve(POOL_KIND[kind], utcDay(deps.clock.now()), ref)) === 'ok' ? 'ok' : 'over';
+}
+
+/**
+ * A place for a mail that the caller sends later: the pool first, then the local row under the scoped ref. The pool call goes before
+ * the transaction, because a network call never runs inside one.
+ */
+export async function reservePlace(deps: { db: Db; mailPool?: Deps['mailPool']; config: Pick<Config, 'ent' | 'mailDayLimit'>; clock: Clock }, kind: QuotaKind, key: string, o: { userId?: string } = {}): Promise<'ok' | 'over'> {
+  if ((await poolPlace(deps, kind, key)) === 'over') return 'over';
+  const now = deps.clock.now();
+  return deps.db.tx('write', (q) => reserve(q, kind, scopedRef(entOfConfig(deps.config), key), { now, userId: o.userId, limits: limitsOf(deps.config) }));
+}
+
 export type SendCounted = { status: 'sent'; id: string } | { status: 'over'; firstRefusal: boolean };
 
 export type SendCountedOptions = {
@@ -122,7 +152,7 @@ export type SendCountedOptions = {
  * A failed send throws and keeps the place: the outbox runs the effect again with the same key.
  */
 export async function sendCounted(
-  deps: { db: Db; mail: MailPort; clock: Clock; config: Pick<Config, 'ent'> },
+  deps: { db: Db; mail: MailPort; clock: Clock; config: Pick<Config, 'ent' | 'mailDayLimit'>; mailPool?: Deps['mailPool'] },
   kind: QuotaKind,
   mail: Mail,
   o: SendCountedOptions = {},
@@ -131,8 +161,11 @@ export async function sendCounted(
   // The caller passes the plain key. The ref and the Resend key carry the enterprise id, because Resend keeps one key space for the
   // whole account and the record ids repeat in every enterprise.
   const ref = scopedRef(entOfConfig(deps.config), mail.idempotencyKey);
+  // The pool of the account first, outside the transaction. A full pool is like a full local day: no mail, no local row, the same
+  // refusal mark and Admin warning path. A pool that throws makes this call throw, and the outbox row waits.
+  const pool = await poolPlace(deps, kind, mail.idempotencyKey);
   const placed = await deps.db.tx('write', async (q) => {
-    if ((await reserve(q, kind, ref, { now, userId: o.userId })) === 'ok') return { ok: true, firstRefusal: false };
+    if (pool === 'ok' && (await reserve(q, kind, ref, { now, userId: o.userId, limits: limitsOf(deps.config) })) === 'ok') return { ok: true, firstRefusal: false };
     const firstRefusal = NOTICE_KINDS.has(kind) ? await markFirstRefusal(q, { now }) : false;
     if (firstRefusal && o.onFirstRefusal) await o.onFirstRefusal(q);
     return { ok: false, firstRefusal };

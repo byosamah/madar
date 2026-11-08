@@ -15,6 +15,7 @@ import type { OfficeMailAnswer, OfficeMailInput } from '../../office/parts';
 import { isEnterpriseId, normalizeEmail, type EnterpriseId } from '../ids';
 import { runMailRoute } from '../mailRoute';
 import type { DayCounts, EnterpriseRow, EnterpriseStatus } from '../types';
+import { mailReserve } from './mailPool';
 import { PLATFORM_SCHEMA_VERSION } from './schema';
 import { accountStop, capVerdict, planFrom, type Plan } from '../plan';
 import { activateEnterprise, activeEnterpriseIds, createEnterprise, getEnterprise, listEnterprises, ownersOfEnterprises, setEnterpriseState, updateEnterprise } from './enterprises';
@@ -150,9 +151,10 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
       return sums(day);
     },
 
-    async mailReserve() {
-      // Plan D replaces this with the account mail pool.
-      return 'ok';
+    async mailReserve(input) {
+      // The pool of the account (plan D). The limit is the mails of the Free plan, the share is the part of an enterprise except ENT_VADO.
+      const plan = planOf();
+      return db.tx('write', (q) => mailReserve(q, input, { limit: plan.limits.mails, share: plan.share }));
     },
 
     async register({ row, emails }: { row: EnterpriseRow; emails: string[] }) {

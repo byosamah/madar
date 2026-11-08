@@ -139,9 +139,23 @@ describe('schema version 2', () => {
     const host = nodeHost(raw);
     await applyPlatformSchema(host);
     raw.exec('alter table enterprises drop column logo');
+    raw.exec('drop table mail_pool');
     raw.exec('update schema_version set version = 1');
-    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [2] });
+    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [2, 3] });
     expect((raw.prepare('select name from pragma_table_info(?)').all('enterprises') as { name: string }[]).map((r) => r.name)).toContain('logo');
+    expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
+  });
+});
+
+describe('schema version 3', () => {
+  it('steps a version 2 platform object to the table mail_pool', async () => {
+    const raw = new DatabaseSync(':memory:');
+    const host = nodeHost(raw);
+    await applyPlatformSchema(host);
+    raw.exec('drop table mail_pool');
+    raw.exec('update schema_version set version = 2');
+    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [3] });
+    expect((raw.prepare('select name from pragma_table_info(?)').all('mail_pool') as { name: string }[]).map((r) => r.name)).toEqual(['day', 'ref', 'kind', 'ent']);
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
   });
 });

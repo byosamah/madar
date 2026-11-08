@@ -7,7 +7,7 @@ import type { AuthAdminPort, Deps } from '../core/ports';
 import { isLite, sqlFor, statementQuery } from '../data/dialect';
 import { setLiteAuthLink } from '../data/lite/office';
 import { setAuthUserId } from '../data/officeCache';
-import { QuotaFull, release, reserve, sendCounted } from '../mail/quota';
+import { QuotaFull, release, reservePlace, sendCounted } from '../mail/quota';
 import { entOfConfig, scopedRef } from '../enterprise/scope';
 import { isEmailExists } from './admin';
 import { renderSigninMail, signinLink } from './mail';
@@ -258,7 +258,7 @@ export async function sendInvitation(
     }
     // The place in today's quota first: a full day makes no link (above).
     const now = deps.clock.now();
-    if ((await deps.db.tx('write', (q) => reserve(q, 'signin', scopedRef(entOfConfig(deps.config), mailKey(payload.inviteId)), { now, userId: payload.userId }))) === 'over') {
+    if ((await reservePlace(deps, 'signin', mailKey(payload.inviteId), { userId: payload.userId })) === 'over') {
       throw new QuotaFull(QUOTA_FULL, now);
     }
     link = await linkFor(deps.authAdmin, person.user.email);

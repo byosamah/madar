@@ -7,7 +7,7 @@ import { takeOfficeLock } from '../core/lock';
 import type { Deps, Query } from '../core/ports';
 import { sqlFor, statementQuery } from '../data/dialect';
 import { errorResponse, runErrorOf } from '../http/errors';
-import { reserve } from '../mail/quota';
+import { limitsOf, poolPlace, reserve } from '../mail/quota';
 import { entOfConfig, scopedRef } from '../enterprise/scope';
 import { authAdminOf } from './admin';
 import { clientAddress } from './forgot';
@@ -112,6 +112,12 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
 
   const now = deps.clock.now();
   const next = renewRow(user.id);
+  // The place in the pool of the account goes first, outside the transaction (a network call never runs inside one). A full pool ends the
+  // renewal like a full day. A pool place that a refused renewal leaves behind stays until midnight (server/mail/CLAUDE.md, "Quota").
+  if ((await poolPlace(deps, 'signin', mailKey(String(next.payload.inviteId)))) === 'over') {
+    deps.log.warn('A renewed invitation did not go out: the daily mail quota is full.', { userId: user.id });
+    return 'none';
+  }
   // One transaction under the office lock: a press that finds the key used counts nothing, and a refusal rolls back the hit of
   // the person and the place in the quota. The mail lock of reserve comes after the office lock; no code takes them the other way.
   let ids: string[];
@@ -123,7 +129,7 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
       if (!(await hitLimit(t, { key: `renew:person:${user.id}`, limit: RENEW_PERSON_PER_DAY, windowMs: DAY_MS, now })).ok) {
         throw new Refused('A renewed invitation did not go out: the person asked too often today.');
       }
-      if ((await reserve(t, 'signin', scopedRef(entOfConfig(deps.config), mailKey(String(next.payload.inviteId))), { now, userId: user.id })) === 'over') {
+      if ((await reserve(t, 'signin', scopedRef(entOfConfig(deps.config), mailKey(String(next.payload.inviteId))), { now, userId: user.id, limits: limitsOf(deps.config) })) === 'over') {
         throw new Refused('A renewed invitation did not go out: the daily mail quota is full.');
       }
       await t(sqlFor(t, PAYLOAD_MERGE_SQL, PAYLOAD_MERGE_LITE), [row.invite_id, JSON.stringify({ renewedAt: now.toISOString() })]);

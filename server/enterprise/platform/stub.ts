@@ -40,8 +40,8 @@ export type PlatformStub = {
   capState(input: { day: string }): Promise<{ stop: boolean; writesStop: boolean }>;
   /** The day counts of the account and of each enterprise, for the meter strip of the platform page. */
   meterToday(input: { day: string }): Promise<{ account: DayCounts; byEnterprise: { ent: EnterpriseId; counts: DayCounts }[] }>;
-  /** Plan D replaces this reserve of the account mail pool. */
-  mailReserve(input: { ent: EnterpriseId; kind: 'signin' | 'notice'; day: string }): Promise<'ok' | 'full'>;
+  /** A place in the mail pool of the account (plan D). The ref is the scoped idempotency key of the mail: a repeat of a ref takes no new place. */
+  mailReserve(input: { ent: EnterpriseId; kind: 'signin' | 'notice'; day: string; ref: string }): Promise<'ok' | 'full'>;
   /** Ops secret only. Upserts a row in any state and reserves its emails. */
   register(input: { row: EnterpriseRow; emails: string[] }): Promise<void>;
   /**
