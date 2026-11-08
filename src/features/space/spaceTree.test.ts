@@ -78,6 +78,14 @@ describe('buildSpaceTree', () => {
     expect(node(nodes, 'prj_a')?.open).toBe(true);
   });
 
+  // fbk_086: the id text puts tsk_1000 before tsk_999 and tsk_101. Two to-dos of one day stay in the order of their numbers.
+  it('puts the to-dos of one day in the order of their id numbers, also past 999', () => {
+    const same = (id: string) => row(makeTask({ id, projectId: 'prj_a', stageId: 'stg_a1', title: id, ownerId: 'usr_1', dueDate: '2026-10-20' }), person('usr_1'));
+    const crowded = [same('tsk_1000'), same('tsk_999'), same('tsk_101')];
+    const { nodes } = buildSpaceTree({ projects, tasks: crowded, opened: new Set(['prj_a', 'stg_a1']), focusPersonId: null, dir: 'ltr' });
+    expect(nodes.filter((item) => item.kind === 'task').sort((a, b) => a.y - b.y).map((item) => item.id)).toEqual(['tsk_101', 'tsk_999', 'tsk_1000']);
+  });
+
   it('adds the open tasks of an opened stage, and a done task never shows', () => {
     const closed = build(['prj_a']).nodes;
     expect(idsOf(closed, 'task')).toEqual([]);
