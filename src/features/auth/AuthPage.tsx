@@ -37,7 +37,7 @@ function LanguageSwitch() {
  * The top row holds the Madar logo (TASKS.md, Logo): one small mark with the name at the start, the language switch at the end.
  * The mark is hidden from screen readers, because the name is next to it.
  */
-export function AuthPage({ title, children }: { title: string; children: ReactNode }) {
+export function AuthPage({ title, children }: { title: ReactNode; children: ReactNode }) {
   const { t } = useTranslation();
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col px-4 pb-10 pt-[max(1rem,env(safe-area-inset-top))] text-ink sm:pt-16">
