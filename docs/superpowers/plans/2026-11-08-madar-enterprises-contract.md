@@ -13,7 +13,7 @@ These lines win over the rest of this file and over the plans.
 5. **`meter()`** stores the whole day so far for (ent, day) and replaces the old value, so a repeat adds nothing.
 6. **File keys:** the prefix is `e/ent-NNN/` (a hyphen, because an object key takes only `[a-z0-9/-]`). `ENT_VADO` keeps its
    keys with no prefix, and no VADO key starts with `e/`.
-7. **Schema steps:** plan B adds step 14 (the `enterprise` table), plan C step 15 (`enterprise_use`). A later plan takes 16.
+7. **Schema steps:** plan B adds step 14 (the `enterprise` table), plan C step 15 (`enterprise_use`). At the merge to main they become 15 and 16, because rb/weekly takes 14 on main (madar-b0, 2026-11-08). A later plan takes 17.
 8. **Additions:** each plan's own "Interfaces" and contract lines are accepted as written (plan B: `RESERVED_ADDRESSES`,
    `isAddressName`, `normalizeEmail`, `register`, `refuseSignin`, `refuseMail`, the tagged browser refresh token, the
    `/api/internal/cron` route; plan C: the `PlatformStub` and `OfficeStub` additions, `enterprise_use`, the reasons, the logo
