@@ -15,7 +15,7 @@
 - One builder runs this whole plan in `~/dev/madar-rb/ent-d` on branch `rb/ent-d`, with `node_modules` linked to `/Users/osamakhalil/dev/madar/.claude/worktrees/deploy-test/node_modules`. The builder edits only the files of this plan.
 - New words go only into `src/i18n/real/ent-d.en.json` and `src/i18n/real/ent-d.ar.json`. This includes the words of the What's new entries (the track rule beats the `whatsnew.*.json` rule).
 - Tests first. Inside a task, run only `npm run typecheck` and `npx vitest run <touched test files> --testTimeout=60000`. A task that changes the office object also runs `npm run test:lite` and `npm run test:office` (sandbox off). The lead runs the full suites once at the end. Add no review task.
-- One commit per task. Plain message in STE. No `Co-Authored-By` line. No `Claude-Session` line. Before each commit, `git diff --cached | grep -E '^\+[^+].*—'` must print nothing.
+- One commit per task. Plain message in STE. No `Co-Authored-By` line. No `Claude-Session` line. Before each commit, `git diff --cached | perl -CSD -ne 'print if /^\+[^+].*\x{2014}/'` must print nothing.
 - Write STE in code comments, docs and words. No em-dash. Every visible word has an English key and an Arabic key. Arabic follows the Thmanyah rules (`src/i18n/CLAUDE.md`, "Arabic style").
 - A contract change is additive. A new SQLite table is a new schema step (`server/data/CLAUDE.md`, "The SQLite path"); the platform object has its own schema step (plan B).
 - Shared keys (contract): file keys of every enterprise except `ENT_VADO` start with `e/<ent>/`. Mail idempotency keys and `mail_log` refs start with `<ent>:`. PostHog `distinct_id` is `<ent>:<personId>`. Every log line and error record has the field `ent`.
@@ -343,7 +343,7 @@ Rules of `mailReserve`: a `ref` that is in the table for the day answers `'ok'` 
   - `.github/CLAUDE.md`: the `office-backup.yml` line (a loop over the enterprises, the file name, the age check for each).
   - `TASKS.md`: tick what is done and add the lead steps below as open items.
 - [ ] **Step 2: Check the facts** that each guide line states against the code (names, file paths, the numbers 90, 98, 64 and 32).
-- [ ] **Step 3: Run** `git diff --cached | grep -E '^\+[^+].*—'` (must print nothing) and `npx vitest run scripts/vite-config.test.ts src/i18n --testTimeout=60000` (a guide change breaks no test; this proves it).
+- [ ] **Step 3: Run** `git diff --cached | perl -CSD -ne 'print if /^\+[^+].*\x{2014}/'` (must print nothing) and `npx vitest run scripts/vite-config.test.ts src/i18n --testTimeout=60000` (a guide change breaks no test; this proves it).
 - [ ] **Step 4: Commit.** `git add -A && git commit -m "Guides: enterprises, the shared services and the changed lines of each area"`
 
 ---

@@ -17,7 +17,7 @@
 - Tests first. In a task, run only `npm run typecheck` and the tests of the touched files: `npx vitest run <files> --testTimeout=60000`. A `*.wd.test.ts` file runs with `MADAR_OFFICE=1 npx vitest run --project office <file> --testTimeout=60000`. A `src/api` rule test on SQLite runs with `MADAR_LITE=1 npx vitest run --project lite <file>`. Sandbox off for workerd.
 - A task that changes the office object or the SQLite path also runs `npm run test:lite` and `npm run test:office` (sandbox off). Tasks 5 to 9 and 11 to 15 do this. The full suites run once at the end, by the lead. Add no review task.
 - One commit for each task, a plain message in STE, no `Co-Authored-By` line, no `Claude-Session` line.
-- Write all text in ASD-STE100. No em-dash anywhere. Run `git diff main | grep -P '^\+[^+].*\x{2014}'` before the last commit. It must print nothing.
+- Write all text in ASD-STE100. No em-dash anywhere. Run `git diff main | perl -CSD -ne 'print if /^\+[^+].*\x{2014}/'` before the last commit. It must print nothing.
 - Plan B adds no visible word, so it adds no word key and no What's new line. Plan D writes both.
 - A contract change is additive. An old row, token form or call still works on the Postgres path.
 - The Postgres path serves only `ENT_VADO`. It loads no file of `server/enterprise/` that imports `cloudflare:workers` (`server/entries/bundles.test.ts` and `npm run build:server` check this).
@@ -576,7 +576,7 @@ git commit -m "Add the leak tests of two enterprises with the same record ids"
 - [ ] **Step 1: Write each guide line in the guide of its part.** The enterprise guide gets: the rule list of Task 3, the platform tables, the `refuse*` idea (unknown input runs the real step on empty tables, so answer and time match), the Cron legs and their transport, the contract additions of this plan, and the ops names.
 - [ ] **Step 2: Add the open items to `TASKS.md`:** the Lead step of S1 with its result; plan C owns `storageBytes`; the Google callback and the Daftra step stay with plan A; the test copy keeps the old object `office` until it is seeded into `ent_001`.
 - [ ] **Step 3: Add the result section "Madar enterprises, plan B" to proof.md:** the test counts, the rows of `status()`, and the cold wake rows.
-- [ ] **Step 4: Check.** Run `git diff main | grep -P '^\+[^+].*\x{2014}'` (must print nothing; assert that the command printed no line), `npm run typecheck`, and `npx vitest run server/enterprise server/entries server/office server/auth server/mcp server/http scripts/office`. Commit.
+- [ ] **Step 4: Check.** Run `git diff main | perl -CSD -ne 'print if /^\+[^+].*\x{2014}/'` (must print nothing; assert that the command printed no line), `npm run typecheck`, and `npx vitest run server/enterprise server/entries server/office server/auth server/mcp server/http scripts/office`. Commit.
 
 ```bash
 git add server/enterprise/CLAUDE.md server/CLAUDE.md server/office/CLAUDE.md server/auth/CLAUDE.md server/mcp/oauth/CLAUDE.md server/data/CLAUDE.md functions/CLAUDE.md TASKS.md docs/superpowers/real-build/proof.md
