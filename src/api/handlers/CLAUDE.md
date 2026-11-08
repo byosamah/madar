@@ -153,8 +153,8 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
 - **Helpers send to review (fbk_087).** A helper with `task.work` (`mayHelperWork`, `taskGates.ts`) moves an open to-do that needs review
   to `in_review` (`tasks.move` or `tasks.complete`) and does nothing else (`helperMaySend` in `tasks.ts`; Done, other statuses and fields
   stay closed). `viewerCan.sendToReview` is true when a tick by the viewer lands in review: the button says "Send to review", and a helper
-  gets the press (`SendBlock`, `nextStep`). Undo of a send by a helper and of an approval by the reviewer passes (`isOwnSend`, `isOwnChange`
-  in `history.ts`).
+  gets the press (`SendBlock`, `nextStep`). Undo of a send by a helper passes (`isOwnSend`, `history.ts`). Undo of an approval by the
+  reviewer passes only while `mayReviewTask` holds for the to-do as the Undo puts it back (security review 2026-11-08); anyone else needs `task.review`.
 - **Makers.** The person who adds a project task (`principalOf(createdBy)`, so the task of an agent belongs to its person)
   holds the leader's rights on it while on the team. `taskResource` names `makerId` for a project task too. The gates are in
   `taskGates.ts` and `meetingGates.ts`; `tasks.update` asks one gate for each field (read the code). A person who may change
