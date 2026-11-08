@@ -90,6 +90,7 @@ Own OAuth server (consent, token step, grants): `server/mcp/oauth/CLAUDE.md`.
 - Not opened, each with its reason in `tools.ts`: `projects.delete` (no Undo), `session.get`, `push.*`, `live.ticket`,
   `chats.typing`, `google.*` (each refuses an agent), the Daftra calls, `meetings.settle` and `meetings.extend` (the job does them),
   and the raw upload calls `files.upload`, `files.uploadStart` and `feedback.uploadStart` (the content tools replace them).
+- Platform (Madar enterprises): the 8 `platform.*` calls are on `MCP_DENY` (`...PLATFORM_CALL_NAMES`), so no agent creates, pauses or changes an enterprise and no tool name starts with `platform.`. The route `POST /api/platform` refuses an agent token with 403 `agent_token`. Tests: `platformDeny.test.ts`, `server/enterprise/platform/leaks.test.ts`. `INSTRUCTIONS` rule 1 says that an agent cannot see or change other companies. `settings.update` takes `enterpriseName`, `enterpriseNameAr` and `enterpriseLogo`; the tool list cap is 111 KB since then (`toolSize.test.ts`).
 - Daftra: the six Daftra calls are on `MCP_DENY`. An agent never touches Daftra. Rules: `server/daftra/CLAUDE.md`. Test: `daftraTools.test.ts`.
 - Handler rules for an agent (`src/api/handlers/agentProfile.test.ts`): `me.updateProfile` and `me.updatePreferences` write the
   record of the person, not of the agent. `me.updateProfile` takes `avatarUrl` only as picture data (`PICTURE_DATA`; an address
@@ -119,7 +120,7 @@ Own OAuth server (consent, token step, grants): `server/mcp/oauth/CLAUDE.md`.
   for the agent of a person without the switch, on every tool (`src/api/CLAUDE.md`, "Locked folders"). `folders.create` takes `preset` to add the two
   standard folders to an older project. The folder texts sit in `INSTRUCTIONS`, so the tool list stays under its size limit (`toolSize.test.ts`).
   Test: `folderTools.test.ts`.
-- Resources (fbk_078): no tool of its own (the tool list is at its 110 KB cap, and the four `resources.*` calls of the screen are on the deny list). An agent uses `files.list`
+- Resources (fbk_078): no tool of its own (the tool list is at its cap of 111 KB, and the four `resources.*` calls of the screen are on the deny list). An agent uses `files.list`
   with `resources: true` (AI switch `ai.readWork`), `folders.create` with `resources: true`, `folders.rename`, `folders.setLock`, `folders.delete`, `files.move`,
   `files.delete`, `files.link` and `files.uploadContent` with `resources: true` (`ai.projects`). The handlers ask `resources.manage` (and `folder.locked` for a lock). A locked folder and
   its files are missing for the agent of a person without `folder.locked`, on every tool. An empty folder shows in no list. Test: `resourceTargets.test.ts`.
