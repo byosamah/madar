@@ -1,0 +1,7 @@
+{
+  "errors": {
+    "reasons": {
+      "no_reviewer": "No other person can review this to-do. Mark it Done."
+    }
+  }
+}

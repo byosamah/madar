@@ -150,6 +150,11 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   `reviewersOfTask`; the SQL twin is `SUMMARY_COUNTS_SQL` (`reviewerSql`; a test of `server/it/email.it.test.ts` compares both). A change
   of this rule changes the SQL, `mayReviewTask`, `tickLandsInReview`, the words (`office.needsReviewHint`, `taskSheet.needsReviewHint`)
   and the MCP text in one commit.
+- **A move to In review with nobody to review (tsk_692, owner 2026-11-08, "Refuse the move").** `tasks.move` to `in_review` is refused with
+  the reason `no_reviewer` (`errors.reasons.no_reviewer`, words in `real/quick-1108.*`) when the to-do needs review (`needsReview`), is not in
+  review yet, and `reviewersAfterSend(state, task, ctx.authority.id)` names nobody: the lead is the project leader (project to-do), or the lead is
+  the maker (office to-do). The words tell the person to mark it Done. A to-do that needs no review, and a move to the same status, keep the old
+  path. A tick needs no check: `tickLandsInReview` already lands it on Done.
 - **Helpers send to review (fbk_087).** A helper with `task.work` (`mayHelperWork`, `taskGates.ts`) moves an open to-do that needs review
   to `in_review` (`tasks.move` or `tasks.complete`) and does nothing else (`helperMaySend` in `tasks.ts`; Done, other statuses and fields
   stay closed). `viewerCan.sendToReview` is true when a tick by the viewer lands in review: the button says "Send to review", and a helper
