@@ -157,8 +157,8 @@ export default defineConfig(({ mode }) => ({
                 name: 'db',
                 environment: 'node',
                 include: ['src/api/**/*.test.ts'],
-                // The browser store (IndexedDB) has no db mode.
-                exclude: ['src/api/persist.test.ts'],
+                // The browser store (IndexedDB) has no db mode. The fake directory of enterprises lives in IndexedDB too.
+                exclude: ['src/api/persist.test.ts', 'src/api/fakeDirectory.test.ts'],
                 env: { MADAR_DB: '1' },
                 globalSetup: ['./server/test/global-setup.ts'],
                 setupFiles: ['./server/test/db.ts'],
@@ -175,7 +175,7 @@ export default defineConfig(({ mode }) => ({
                 name: 'lite',
                 environment: 'node',
                 include: ['src/api/**/*.test.ts'],
-                exclude: ['src/api/persist.test.ts'],
+                exclude: ['src/api/persist.test.ts', 'src/api/fakeDirectory.test.ts'],
                 env: { MADAR_DB: '1', MADAR_LITE: '1' },
                 globalSetup: ['./server/test/lite-setup.ts'],
                 setupFiles: ['./server/test/lite.ts'],

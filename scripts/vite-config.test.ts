@@ -51,6 +51,11 @@ describe('the Vitest projects', () => {
     expect(named(projects({ MADAR_DB: '1' }), 'db')?.test.exclude).toContain('src/api/persist.test.ts');
   });
 
+  it('keep the fake directory test (a store in IndexedDB) out of the db and lite projects, because they run in plain Node', () => {
+    expect(named(projects({ MADAR_DB: '1' }), 'db')?.test.exclude).toContain('src/api/fakeDirectory.test.ts');
+    expect(named(projects({ MADAR_LITE: '1' }), 'lite')?.test.exclude).toContain('src/api/fakeDirectory.test.ts');
+  });
+
   it('add the it project when MADAR_IT=1: one file at a time, a long timeout, and the Docker script tests', () => {
     const it_ = named(projects({ MADAR_IT: '1' }), 'it');
     expect(it_?.test.fileParallelism).toBe(false);
