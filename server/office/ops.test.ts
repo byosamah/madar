@@ -13,9 +13,13 @@ const write = { i: 0, name: 'tasks.update', input: { id: 'tsk_001', patch: { tit
 const read = { i: 0, name: 'tasks.list', input: { scope: 'mine' } };
 
 describe('the tables of an export (server/office/ops.ts)', () => {
-  it('takes every table of the schema but the snapshot and the version row', () => {
+  it('takes every table of the schema but the snapshot, the version row and the enterprise identity', () => {
     const all = liteSchemaSql().flatMap((text) => /^create table (\w+) /.exec(text)?.[1] ?? []);
-    expect([...EXPORT_TABLES].sort()).toEqual(all.filter((t) => t !== 'office_snapshot' && t !== 'schema_version').sort());
+    expect([...EXPORT_TABLES].sort()).toEqual(all.filter((t) => t !== 'office_snapshot' && t !== 'schema_version' && t !== 'enterprise').sort());
+  });
+
+  it('an export lists no enterprise table', () => {
+    expect(EXPORT_TABLES).not.toContain('enterprise');
   });
 
   it('knows the tables whose integer primary key is the rowid', () => {

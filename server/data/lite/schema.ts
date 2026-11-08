@@ -41,8 +41,11 @@ import type { SqlHost } from './host';
  *
  * Version 13 (CWE-863, the address that the person saw): the column redirect_uri of agent_approvals. Null for an approval from before the
  * step. Its step is in LITE_STEPS (supabase/migrations/20261028000100_platform_agent_redirect.sql).
+ *
+ * Version 14 (Madar enterprises): the server table enterprise, one row at most: the id, the state and the limits of the enterprise that this
+ * object serves. It is an office object table only: Postgres has no such table, and an export leaves it out (EXPORT_SKIP). Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 13;
+export const LITE_SCHEMA_VERSION = 14;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -134,6 +137,9 @@ const DAFTRA_SQL: readonly string[] = [
 ];
 const DAFTRA_INDEXES: readonly LiteIndex[] = [{ table: 'daftra_invoices', name: 'daftra_invoices_client', columns: 'account, daftra_client_id' }];
 
+/** The identity of the enterprise of this object (version 14, Madar enterprises). limits is JSON text: { people, storageBytes }, null for no limit. */
+const ENTERPRISE_SQL = 'create table enterprise (id text primary key, state text not null, limits text not null, created_at text not null)';
+
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
 const SERVER_SQL: readonly string[] = [
   'create table counters (prefix text primary key, n integer not null check (n >= 0))',
@@ -157,6 +163,7 @@ const SERVER_SQL: readonly string[] = [
   GOOGLE_CALENDARS_SQL,
   ...DAFTRA_SQL,
   AGENT_CONFIRMS_SQL,
+  ENTERPRISE_SQL,
   // The sign-in rows (Supabase exit, wave 2). id is the auth.users id of Supabase for an imported person, else a new uuid.
   `create table auth_users (id text primary key, user_id text, email text not null, password_hash text, password_set integer not null default 0, email_confirmed integer not null default 0, banned integer not null default 0, created_at text not null default (${NOW}), updated_at text not null default (${NOW}))`,
   `create table auth_links (token_hash text primary key, auth_id text not null, type text not null check (type in ('invite', 'recovery')), expires_at text not null, used_at text, created_at text not null default (${NOW}))`,
@@ -202,6 +209,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 10 adds the index chat_reads_conversation (chat presence design C4), as in liteSchemaSql.
  * Version 11 adds the two server tables of the Daftra link and the index daftra_invoices_client, as in liteSchemaSql.
  * Version 12 adds the server table agent_confirms and its two indexes (the email code guard of an agent), as in liteSchemaSql.
+ * Version 14 adds the table enterprise (Madar enterprises), as in liteSchemaSql.
  * Version 13 adds the column redirect_uri to agent_approvals (the address that the person saw, CWE-863). SQLite puts the new column before
  * the table constraint, so the table text of a stepped office equals the text of a new office, which names the column before its key.
  */
@@ -224,6 +232,7 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   11: [...DAFTRA_SQL, ...DAFTRA_INDEXES.map(indexSql)],
   12: [AGENT_CONFIRMS_SQL, ...CONFIRM_INDEXES.map(indexSql)],
   13: ['alter table agent_approvals add column redirect_uri text'],
+  14: [ENTERPRISE_SQL],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */
