@@ -541,7 +541,7 @@
     "noHelpers": "No helpers yet.",
     "addHelper": "Add a helper",
     "pickHelper": "Pick a person",
-    "helpersHint": "Helpers tick checklist items and comment. Only the lead finishes the to-do. A person outside the team joins it.",
+    "helpersHint": "Helpers tick checklist items, comment and send the to-do to review. Only the lead finishes it. A person outside the team joins it.",
     "removeHelper": "Remove helper {{name}}",
     "joinsTeam": "{{name}} (joins the team)",
     "newLead": "{{name}} now leads this to-do.",

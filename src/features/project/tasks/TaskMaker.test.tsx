@@ -30,7 +30,7 @@ describe('the maker of a project task in the task panel', () => {
     const outsider = Object.values(store.state.users).find((user) => user.kind === 'human' && user.active && !team.has(user.id));
     expect(outsider).toBeDefined();
     // Nobody joins the team from the list of a maker, so the hint says nothing of it.
-    expect(within(sheet).getByText('Helpers tick checklist items and comment. Only the lead finishes the to-do.')).toBeInTheDocument();
+    expect(within(sheet).getByText('Helpers tick checklist items, comment and send the to-do to review. Only the lead finishes it.')).toBeInTheDocument();
     expect(within(sheet).queryByText(/outside the team joins it/)).toBeNull();
     await userEvent.selectOptions(lead, 'usr_002');
     await waitFor(() => expect(store.state.tasks.tsk_013.ownerId).toBe('usr_002'));
