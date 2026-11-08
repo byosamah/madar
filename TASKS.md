@@ -1441,6 +1441,7 @@ Branch `rb/video` (worktree `~/dev/madar-rb/video`). Owner answers: a tile with 
 - [x] Fix in the screens: a read goes again after a 5xx answer of the whole request, after 2 s and 6 s (`SERVER_RETRY_WAITS_MS`,
   `src/api/remote/remoteApi.ts`). A write never goes again by itself. No server or MCP change: agents do not use the browser client.
   What's new 153.
-- [ ] Release: test copy, then production.
+- [x] Release: test copy, then production by Claude after the owner picked "Retry fix to production now, proxy to production after".
+  Done 2026-11-08: production at 09162e8a. Record: proof.md.
 - [ ] Proposed (owner to decide): PostHog's free managed proxy on a subdomain of vado.sa, so ad blockers stop no PostHog data. It uses a DNS
   record and no Cloudflare request quota (the reason the insight design refused a Pages Functions proxy).

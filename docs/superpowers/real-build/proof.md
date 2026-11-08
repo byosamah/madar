@@ -3119,3 +3119,21 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `echo production | scripts/deploy/all.sh production` by Claude, 2026-11-05 about 11:45 UTC. Live checks: health from supabase, 162
   calls; database, lock and asyncContext ok; /mcp with no token 401; the page title Madar and `/favicon.ico` 200; madar.vado.sa serves
   `index-Beyb5LAi.js`, the same as the deploy address; `words.en-C9H7vPZK.js` holds "Manage office resources" and the preview line.
+
+### Release record: production at 09162e8a (2026-11-08, a read goes again after a server error)
+- Why (owner: "why? fix it", with a screenshot of "The data did not load" on Notifications at 10:23): the Supabase logs of production
+  (`/analytics/endpoints/logs`, `function_edge_logs` and `function_logs`) show 4 batch requests that answered 500, and none from 1 to 7
+  November. 08:49 (Riyadh): "timeout exceeded when trying to connect" (the pooler). 10:23: "The sign-in check did not run:
+  ERR_JWKS_TIMEOUT". Each took about 5 s. At 10:23 the gateway log (`edge_logs`) holds no key request from that worker between 10:23:03 and
+  10:23:57, so the request never left the worker: a new worker had no outbound network for about 15 s, and the next worker answered. PostHog
+  got the two errors of 08:49 but not the two of 10:23 (its send left from the same worker).
+- What shipped: `remoteApi.ts` sends a read again after a 5xx answer of the whole request, twice, after 2 s and 6 s
+  (`SERVER_RETRY_WAITS_MS`). A refusal status and a write never go again by itself. What's new `2026-11-08-153`.
+- Gates, each once: typecheck; the touched folders (`src/i18n`, `src/whatsNew`, `src/api/remote`: 267 tests); npm test 12,910 passed;
+  build:remote test (first load 970,840 B of 972,000 B, gzip 295,500 B of 296,000 B, 32 files); npm run build. No server file changed, so
+  test:db, test:it, test:office, test:mcp and test:lite did not run. The prototype smoke and the deploy suite did not run: no screen changed.
+- `scripts/deploy/all.sh test` by Claude, then the test copy scripts held the waits (`[2e3,6e3]` in `bootstrap-CX89fyUs.js`).
+- `echo production | scripts/deploy/all.sh production` by Claude, 2026-11-08 about 07:53 UTC. Live checks: health from supabase, 162 calls;
+  database, lock and asyncContext ok; /mcp with no token 401; madar.vado.sa serves `bootstrap-KI40ZyNJ.js`, the same as the deploy
+  address, and it holds `[2e3,6e3]`.
+- Next on `rb/read-retry`: the PostHog managed proxy on `relay.madar.vado.sa` (What's new `2026-11-08-154`), after its certificate.
