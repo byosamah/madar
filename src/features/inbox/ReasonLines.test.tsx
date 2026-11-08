@@ -33,7 +33,8 @@ describe('a reason in the task thread of the Inbox (fbk_027)', () => {
     const setup = withThread((state, taskId) => line(taskId, 'cmt_902', 'The client sent the survey late', '2026-09-30T08:00:00.000+03:00', { dates: MOVE })(state));
     const { store } = await renderApp('/inbox/' + (await taskIdOf(setup)), setup);
     expect(store.state.comments.cmt_902).toBeDefined();
-    // The chat list shows the same short line as its preview, so the test takes the line of the thread: the one in a centered row.
+    // The chat list shows the real message as its preview and the line only in the thread (chat, 2026-11-08), so the test takes the line of
+    // the thread: the one in a centered row.
     const sentence = await waitFor(() => {
       const found = screen.getAllByText(/ changed the due date: .*The client sent the survey late/).find((node) => node.closest('li')?.classList.contains('self-center'));
       expect(found).toBeDefined();
@@ -45,8 +46,8 @@ describe('a reason in the task thread of the Inbox (fbk_027)', () => {
     expect(row.querySelector('time')).toBeNull();
     expect(row.querySelector('bdi.font-semibold')).toBeNull();
     // The message before it stays a bubble of its person.
-    const message = (await screen.findByText('The finish codes are ready.')).closest('li') as HTMLElement;
-    expect(message.querySelector('time')).not.toBeNull();
+    const message = (await screen.findAllByText('The finish codes are ready.')).map((node) => node.closest('li') as HTMLElement).find((li) => li.querySelector('time') !== null);
+    expect(message).toBeDefined();
     expect(within(row).getByText('Due date: from Sat 10 Oct to Wed 14 Oct')).toBeInTheDocument();
   });
 
@@ -60,14 +61,27 @@ describe('a reason in the task thread of the Inbox (fbk_027)', () => {
     expect((await screen.findByText(/^Madar moved the dates: .*Survey.* finished 2 working days late\.$/)).closest('li')).toHaveClass('self-center');
   });
 
-  it('shows the same short line as the preview of the thread, and counts no unread for it', async () => {
+  it('keeps the real message as the preview of the thread: a line never replaces it (chat, 2026-11-08), and it counts no unread', async () => {
     const setup = withThread((state, taskId) => line(taskId, 'cmt_902', 'The client sent the survey late', '2026-09-30T08:00:00.000+03:00', { dates: MOVE })(state));
     await renderApp('/inbox', setup);
     const row = await screen.findByRole('link', { name: /Room finish schedule/ });
-    // usr_006 wrote the message at 07:00 on 29 Sept and Hala read it at 08:00; the line came after and is no unread message.
-    expect(within(row).getByText(/ changed the due date: .*The client sent the survey late/)).toBeInTheDocument();
+    // usr_006 wrote the message at 07:00 on 29 Sept and Hala read it at 08:00; the line came after. The row shows the message, not the line.
+    expect(within(row).getByText('The finish codes are ready.')).toBeInTheDocument();
+    expect(within(row).queryByText(/ changed the due date: /)).toBeNull();
     expect(within(row).queryByText(/^Unread/)).toBeNull();
     expect(row.textContent).not.toMatch(/\d+ unread/);
+  });
+
+  it('shows the short line as the preview of a thread that holds only quiet lines', async () => {
+    const setup = (state: State) => {
+      withThread((s, taskId) => {
+        for (const [id, c] of Object.entries(s.comments)) if (c.targetId === taskId) delete s.comments[id];
+        line(taskId, 'cmt_902', 'The client sent the survey late', '2026-09-30T08:00:00.000+03:00', { dates: MOVE })(s);
+      })(state);
+    };
+    await renderApp('/inbox', setup);
+    const row = await screen.findByRole('link', { name: /Room finish schedule/ });
+    expect(within(row).getByText(/ changed the due date: .*The client sent the survey late/)).toBeInTheDocument();
   });
 });
 
