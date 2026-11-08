@@ -3248,13 +3248,27 @@ Probe: `scripts/proof/ent-core/` (`node scripts/proof/ent-core/run.mjs`, local w
 - Rows of the first `put` into the directory: 1 read, 5 written (the table, its index and the row).
 
 ## S1: Cron fan-out (Madar enterprises)
-Open. The code is ready: `server/enterprise/fanout.ts` and the probe routes `POST /api/internal/probe/fanout` and `/leg` (test tools and the
-jobs secret). The probe is `npx tsx scripts/proof/cron-fanout/probe.ts --to <page address> --kind self|api --count 15 --outside 40`. The test Worker
-has the service binding `SELF` (`[[env.test.services]]`).
-Lead step: deploy the test Worker, run the probe for `--kind self` and `--kind api` with `--count` 3, 5 and 15 and `--outside` 0, 20 and 40,
-read one real Cron run in `wrangler tail`, and write the numbers here. Rule: choose `self` when every leg stays ok at 15 legs with 40
-outside calls each. Else choose `api`. If neither works, stop and ask the owner: the Cron then runs one enterprise in each 15-minute run.
-Then set the default of `MADAR_CRON_TRANSPORT` (Task 14).
+Done 2026-11-08 (owner OK for one probe Worker). Choice: `self`. `MADAR_CRON_TRANSPORT` keeps its default `self`.
+- The probe Worker `madar-probe-fanout` (Workers Free, no Cron Trigger) ran the code of `rb/enterprises` with the bindings `OFFICE`,
+  `PLATFORM` and the service binding `SELF` to itself. Lead decision: a separate probe Worker, not the test Worker, because the test copy
+  runs the code of main for the team.
+- Results (`scripts/proof/cron-fanout/probe.ts`, the self kind):
+
+| Run | Legs | Outside calls in each leg | Legs ok | Outside calls that worked | Time |
+| --- | --- | --- | --- | --- | --- |
+| a | 3 | 0 | 3 of 3 | (none asked) | 508 ms |
+| b2 | 15 | 40 | 15 of 15 | 40 in every leg, 600 of 600 | 49,309 ms |
+
+- Each leg is its own Worker call through `SELF`, so each leg has its own budget of outside calls: 15 legs of 40 calls passed the Free
+  limit of 50 for each call. Cloudflare did not refuse the service binding of a Worker to itself. Each leg took 2 to 3 s for 40 calls.
+- The api kind was not needed, so it did not run. A real Cron run was not read (the probe had no Cron Trigger, so it used none of the 5).
+- The fan-out (`runFanout`) does not read the body of a leg, so the first run b showed only HTTP 200. The probe route of a scratch copy
+  returned the worked count for run b2.
+- A fault of the probe code: the outside call of a leg named `https://madar.vado.sa/api/health`, the health route of production. The
+  legs sent 1,204 GET requests there (the public answer: no database read, no write). Fixed test first: a leg calls the health route
+  of its own address (`new URL('/api/health', request.url)`); `officeWorker.test.ts` pins it.
+- Requests: 29 to the probe Worker, 1,204 to the production health route (about 1.2% of the Free day of the account). The probe Worker
+  is deleted (`wrangler delete`; its address answers 404 with error code 1042).
 
 ## Madar enterprises, plan B: the enterprise core (branch `rb/ent-b`, 2026-11-08)
 - What it holds: the ids and tags, the claim `ent` in the own tokens, the table `enterprise` (schema version 14) and the gate in every object

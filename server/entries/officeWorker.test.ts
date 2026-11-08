@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import type { OfficeBatchInput } from '../office/batch';
 import type { NetApi } from '../office/net';
@@ -265,6 +265,21 @@ describe('the probe routes of spike S1', () => {
     expect((await send({}, '/api/internal/probe/leg')).status).toBe(404);
     expect((await send(TOOLS, '/api/internal/probe/fanout', { 'x-madar-jobs-secret': 'wrong' })).status).toBe(401);
     expect((await send(TOOLS, '/api/internal/probe/leg')).status).toBe(401);
+  });
+
+  it('sends the outside calls of a leg to the health route of its own address only, never to another host (no production call)', async () => {
+    const seen: string[] = [];
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => (seen.push(String(input)), new Response('{}', { status: 200 })));
+    try {
+      const request = new Request('https://probe.example.workers.dev/api/internal/probe/leg', {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-madar-jobs-secret': 'jobs-secret' }, body: '{"outside":2}',
+      });
+      const answer = await setup().routes.fetch(request, TOOLS);
+      expect([answer.status, await answer.json()]).toEqual([200, { outside: 2, worked: 2 }]);
+      expect(seen).toEqual(['https://probe.example.workers.dev/api/health', 'https://probe.example.workers.dev/api/health']);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('runs a leg with the right secret and no outside calls', async () => {

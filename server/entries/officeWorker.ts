@@ -445,7 +445,7 @@ export function officeRoutes(o: OfficeRoutesOptions) {
 
   /**
    * The probe routes of spike S1 (Madar enterprises): only with the test tools on and the jobs secret. The fan-out route sends
-   * count legs through the transport; each leg makes plain outside calls to the public health route and says how many worked.
+   * count legs through the transport; each leg makes plain outside calls to the health route of its own address and says how many worked.
    */
   async function probe(request: Request, env: Env, kind: 'fanout' | 'leg'): Promise<Response> {
     const read = (name: string): string | undefined => (typeof env[name] === 'string' ? (env[name] as string) : undefined);
@@ -458,10 +458,12 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const body = (await request.json().catch(() => ({}))) as { kind?: unknown; count?: unknown; outside?: unknown };
     const outside = Math.max(0, Math.min(45, Number(body.outside) || 0));
     if (kind === 'leg') {
+      // The outside calls go to the health route of the Worker's own address, never to another copy (spike S1 once called production).
+      const health = new URL('/api/health', request.url).toString();
       let worked = 0;
       for (let i = 0; i < outside; i += 1) {
         try {
-          if ((await fetch('https://madar.vado.sa/api/health')).ok) worked += 1;
+          if ((await fetch(health)).ok) worked += 1;
         } catch {
           // A failed outside call counts as not worked.
         }
