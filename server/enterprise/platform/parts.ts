@@ -35,8 +35,8 @@ export type PlatformParts = PlatformStub & { readonly db: LiteDb };
 const CONFLICT = new ApiError('conflict', 'This email or this address is taken.', { reason: 'email_taken' });
 /** Keys that throw when read: the three refuse steps fail before they sign anything, and a read would be a defect. */
 const NO_KEYS = new Proxy({}, { get: () => { throw new Error('The platform object holds no signing key.'); } }) as unknown as SigningKeys;
-/** The enterprise id that the refuse steps pass as ent. A refusal never reaches a token, so it is never signed. */
-const REFUSE_ENT: EnterpriseId = 'ent_000';
+/** The value that the refuse steps pass as ent. A refusal never reaches a token or a company, so nothing reads it. It is no real enterprise id. */
+const REFUSE_PLACEHOLDER: EnterpriseId = 'ent_000';
 
 function entOf(value: unknown): EnterpriseId {
   if (!isEnterpriseId(value)) throw new ApiError('invalid_input', 'This is not an enterprise id.');
@@ -191,7 +191,7 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
     },
 
     async refuseSignin({ signin, input }): Promise<OpResult<unknown>> {
-      return runSigninOp({ db, clock, log, config, keys: NO_KEYS, ent: REFUSE_ENT }, signin as SigninOpName, input as OpInput<SigninOpName>);
+      return runSigninOp({ db, clock, log, config, keys: NO_KEYS, ent: REFUSE_PLACEHOLDER }, signin as SigninOpName, input as OpInput<SigninOpName>);
     },
 
     async refuseMail(input: Omit<OfficeMailInput, 'ent'>): Promise<OfficeMailAnswer> {

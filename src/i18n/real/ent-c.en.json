@@ -6,7 +6,6 @@
       "storage_limit": "Your company has no more room for files. Ask the Madar team to raise the limit.",
       "create_closed": "Creating enterprises is closed now.",
       "address_taken": "This address name is taken.",
-      "owner_enterprise": "You cannot pause an enterprise that holds a platform owner.",
       "name_mismatch": "The name does not match.",
       "not_finished": "Finish creating this enterprise first.",
       "already_accepted": "This person accepted the invitation already."

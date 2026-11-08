@@ -28,9 +28,9 @@ describe('the platform contract', () => {
     expect(input.safeParse({ id: 'ent_002', patch: { state: 'paused' } }).success).toBe(false);
   });
 
-  it('pins the 14 keys of a row: no person data', () => {
+  it('pins the 13 keys of a row: no person data', () => {
     expect(Object.keys(EnterpriseView.shape).sort()).toEqual([
-      'address', 'createdAt', 'firstAdmin', 'hasOwner', 'id', 'invited', 'lastWriteAt', 'limits', 'logo', 'name', 'nameAr', 'people', 'state', 'storageBytes',
+      'address', 'createdAt', 'firstAdmin', 'id', 'invited', 'lastWriteAt', 'limits', 'logo', 'name', 'nameAr', 'people', 'state', 'storageBytes',
     ]);
   });
 

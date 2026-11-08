@@ -57,19 +57,19 @@ async function setup() {
 }
 
 describe('platform.me and platform.enterprises.list', () => {
-  it('me gives owner true, no enterprise (ent_000) and whether create is open', async () => {
+  it('me gives only whether create is open', async () => {
     const t = await setup();
-    expect(await t.run('platform.me', {})).toEqual({ owner: true, ent: 'ent_000', createOpen: true });
+    expect(await t.run('platform.me', {})).toEqual({ createOpen: true });
   });
 
-  it('list gives one valid view for each row, with hasOwner false, the paused state and the first Admin', async () => {
+  it('list gives one valid view for each row, with the paused state and the first Admin', async () => {
     const t = await setup();
     await t.run('platform.enterprises.pause', { id: 'ent_002', confirmName: 'Acme Co' });
-    const list = (await t.run('platform.enterprises.list', {})) as { id: string; state: string; hasOwner: boolean; firstAdmin: unknown }[];
+    const list = (await t.run('platform.enterprises.list', {})) as { id: string; state: string; firstAdmin: unknown }[];
     expect(list.map((row) => row.id)).toEqual(['ent_001', 'ent_002']);
     for (const row of list) expect(EnterpriseView.safeParse(row).success).toBe(true);
-    expect(list[0]).toMatchObject({ hasOwner: false, state: 'active' });
-    expect(list[1]).toMatchObject({ hasOwner: false, state: 'paused', firstAdmin: { name: 'Sara', email: 'sara@acme.test' } });
+    expect(list[0]).toMatchObject({ state: 'active' });
+    expect(list[1]).toMatchObject({ state: 'paused', firstAdmin: { name: 'Sara', email: 'sara@acme.test' } });
   });
 });
 
@@ -115,7 +115,7 @@ describe('platform.enterprises.pause and resume', () => {
     const t = await setup();
     await expect(t.run('platform.enterprises.pause', { id: 'ent_001', confirmName: 'wrong' })).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'name_mismatch' } });
     expect(t.log).toEqual([]);
-    expect(await t.run('platform.enterprises.pause', { id: 'ent_001', confirmName: 'VADO' })).toMatchObject({ id: 'ent_001', state: 'paused', hasOwner: false });
+    expect(await t.run('platform.enterprises.pause', { id: 'ent_001', confirmName: 'VADO' })).toMatchObject({ id: 'ent_001', state: 'paused' });
     expect(t.log).toEqual(['office.setState', 'platform.setState']);
   });
 

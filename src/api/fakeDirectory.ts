@@ -37,12 +37,12 @@ export function defaultDirectory(today: string): FakeDirectory {
       {
         id: VADO_ENTERPRISE, address: 'vados', name: "VADOs' Companies", nameAr: 'شركات فادو', logo: null, state: 'active',
         limits: { people: null, storageBytes: null }, people: 10, invited: 0, storageBytes: 61_000_000, lastWriteAt: created, createdAt: created,
-        firstAdmin: null, hasOwner: false, emails: [...VADO_NAMES.map(emailOf), 'assistant@madar.test'],
+        firstAdmin: null, emails: [...VADO_NAMES.map(emailOf), 'assistant@madar.test'],
       },
       {
         id: SECOND_ENTERPRISE, address: 'oasis', name: 'Oasis Builders', nameAr: 'واحة للإنشاءات', logo: null, state: 'active',
         limits: { people: 15, storageBytes: 1_073_741_824 }, people: 3, invited: 0, storageBytes: 2_400_000, lastWriteAt: created, createdAt: created,
-        firstAdmin: { name: 'Layla Hassan', email: SECOND_ENTERPRISE_EMAILS[0] }, hasOwner: false, emails: [...SECOND_ENTERPRISE_EMAILS],
+        firstAdmin: { name: 'Layla Hassan', email: SECOND_ENTERPRISE_EMAILS[0] }, emails: [...SECOND_ENTERPRISE_EMAILS],
       },
     ],
   };

@@ -3,7 +3,7 @@ import { PICTURE_DATA } from './limits';
 
 /**
  * The platform calls of Madar enterprises (design 5.6). They are not shared calls of an office: they run in the Worker and the platform
- * object, after the token check and the owner check, and `can()` never sees them. The route is POST /api/platform. The page "Madar
+ * object, after the platform token check, and `can()` never sees them. The route is POST /api/platform. The page "Madar
  * enterprises" is the only screen that calls them. `EnterpriseView` holds no project, task, chat, file or person data, except the name and
  * the email of the first Admin of an enterprise that the owner created.
  */
@@ -49,7 +49,6 @@ export const EnterpriseView = z.object({
   lastWriteAt: z.string().nullable(),
   createdAt: z.string(),
   firstAdmin: z.object({ name: z.string(), email: z.string() }).nullable(),
-  hasOwner: z.boolean(),
 });
 export type EnterpriseView = z.infer<typeof EnterpriseView>;
 
@@ -58,7 +57,7 @@ const PlanLimitsOut = z.object({ requests: z.number(), rowsRead: z.number(), row
 export const platformContracts = {
   'platform.me': {
     input: z.object({}),
-    output: z.object({ owner: z.literal(true), ent: EnterpriseId, createOpen: z.boolean() }),
+    output: z.object({ createOpen: z.boolean() }),
   },
   'platform.enterprises.list': { input: z.object({}), output: z.array(EnterpriseView) },
   'platform.enterprises.create': {

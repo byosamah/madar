@@ -5,7 +5,7 @@ import type { Logger } from '../../core/ports';
 import type { OfficeStub } from '../../entries/officeWorker';
 import type { NetApi } from '../../office/net';
 import { testToolsOn } from '../../office/ops';
-import { ENT_NONE, type EnterpriseId } from '../ids';
+import { type EnterpriseId } from '../ids';
 import { codePrefixOf } from '../lifecycle';
 import { utcDay } from '../../mail/quota';
 import { accountStop, planFrom, warnings } from '../plan';
@@ -34,8 +34,7 @@ type CreateInput = z.output<(typeof platformContracts)['platform.enterprises.cre
 export type EnterpriseViewOut = z.output<typeof EnterpriseView>;
 
 /**
- * One row of the list, as the page sees it. firstAdmin is null when the record holds no name and no email. hasOwner is always false: there is
- * no owner list any more (plan F, design D11), and the key stays only because the contract of the page names it.
+ * One row of the list, as the page sees it. firstAdmin is null when the record holds no name and no email.
  */
 export function viewOf(row: EnterpriseListRow): EnterpriseViewOut {
   const { name, email } = row.firstAdmin;
@@ -43,7 +42,7 @@ export function viewOf(row: EnterpriseListRow): EnterpriseViewOut {
     id: row.id, address: row.address, name: row.name, nameAr: row.nameAr, logo: row.logo, state: row.state, limits: row.limits,
     people: row.status?.people ?? 0, invited: row.status?.invited ?? 0, storageBytes: row.status?.storageBytes ?? 0,
     lastWriteAt: row.status?.lastWriteAt ?? null, createdAt: row.createdAt,
-    firstAdmin: name === '' && email === '' ? null : { name, email }, hasOwner: false,
+    firstAdmin: name === '' && email === '' ? null : { name, email },
   };
 }
 
@@ -191,7 +190,7 @@ async function meterGet(_input: In<'platform.meter.get'>, ctx: PlatformCtx): Pro
 export const PLATFORM_HANDLERS: {
   [N in PlatformCallName]: (input: In<N>, ctx: PlatformCtx) => Promise<Out<N>>;
 } = {
-  'platform.me': async (_input, ctx) => ({ owner: true, ent: ENT_NONE, createOpen: createOpen(ctx.read) }),
+  'platform.me': async (_input, ctx) => ({ createOpen: createOpen(ctx.read) }),
   'platform.enterprises.list': async (_input, ctx) => {
     return (await ctx.platform.list()).map((row) => viewOf(row));
   },

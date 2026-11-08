@@ -22,7 +22,7 @@ export type ServerCallName = (typeof SERVER_CALL_NAMES)[number];
 export const SERVER_REASONS = [
   'account_off', 'client_outdated', 'busy', 'story_not_yours', 'key_reused', 'too_many_overviews',
   // Madar enterprises (plan C): the pause, the limits and the platform refusals.
-  'enterprise_paused', 'people_limit', 'storage_limit', 'create_closed', 'address_taken', 'owner_enterprise', 'name_mismatch', 'not_finished', 'already_accepted',
+  'enterprise_paused', 'people_limit', 'storage_limit', 'create_closed', 'address_taken', 'name_mismatch', 'not_finished', 'already_accepted',
 ] as const;
 export type ServerReason = (typeof SERVER_REASONS)[number];
 
