@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   COPIES,
+  SERVER_HOSTS,
   COPY_HOSTS,
   PAGE_HOSTS,
   PROJECT_REFS,
@@ -20,9 +21,10 @@ const PRODUCTION = 'oprkvdjudjxxhvodkzgs';
 const raw = JSON.parse(readFileSync(new URL('../../config/server-host.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 
 describe('config/server-host.json', () => {
-  it('holds only the two copies, each with one of the two words', () => {
+  it('holds only the two copies, each with one of the three words, and office only for a copy of OFFICE_COPIES_OPEN', () => {
     expect(Object.keys(raw).sort()).toEqual(['production', 'test']);
-    for (const value of Object.values(raw)) expect(['supabase', 'workers']).toContain(value);
+    for (const value of Object.values(raw)) expect(SERVER_HOSTS).toContain(value);
+    expect(() => parseServerHostSetting(raw)).not.toThrow();
   });
 
   it('is the setting that the resolver reads', () => {
