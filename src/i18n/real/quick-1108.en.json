@@ -3,5 +3,13 @@
     "reasons": {
       "no_reviewer": "No other person can review this to-do. Mark it Done."
     }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-08-157": {
+        "title": "To-do names on two lines",
+        "body": "To-do names in Today and in your lists now show on two lines. Today shows the name of the project, not its picture. If nobody else can review your to-do, Madar asks you to mark it Done."
+      }
+    }
   }
 }

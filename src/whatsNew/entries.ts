@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // To-do names show on two lines in Today and in the lists; Today shows the project name, not its picture; the helper line is text for a screen reader only; a move to In review with nobody to review it is refused (fbk_083, tsk_692, owner 2026-11-08). The lead sets the real release day before the test deploy.
+  { id: '2026-11-08-157', day: '2026-11-08' },
   // The lead of a to-do checks the work of its helpers; when the lead sends it, the project leader (or the maker of an office to-do) checks it; helpers can send a to-do to review (fbk_087, owner 2026-11-08). The lead sets the real release day before the test deploy.
   { id: '2026-11-08-156', day: '2026-11-08' },
   // Two small fixes (owner reports fbk_081, fbk_082): a reaction no longer moves the profile picture of the sender down in a chat, and the project view toggle on a desk Home is smaller and quieter. The lead sets the real release day before the test deploy.

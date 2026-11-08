@@ -85,6 +85,13 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   `SortableTaskRows` (`@dnd-kit/sortable`). Coming up on Home has no grips. Home Today holds two date groups in one list, so it gives
   `groupOf` (`workGroupOf`): a drop in the other group saves nothing. The row content sits in an inner box (`RowDrag`), so the drag and the
   slide never set one transform.
+- The to-do row (`TaskRowItem.tsx`, fbk_083, owner 2026-11-08). The title shows up to two lines (`line-clamp-2 break-words`) in every list. A fact
+  of the meta line is one flex item of a wrapping row: it stays whole and wraps only between facts; one that is alone on its line and still too
+  wide wraps inside (`StatusSign wrap`, fbk_036). A list with `showProject` (Today, My Work) writes the project NAME in the meta line and draws no
+  tile; it draws the faces only for a task with no project and for a task that the person helps on. The helper line ("Helper · Lead: ...") is
+  `sr-only` text: the faces and the ring of the lead say it. The "add a helper" slot of `TaskPeople` is `absolute` beside the picture (it takes
+  no room, and no row reserves a blank for it); it takes no press while it is hidden. jsdom draws no layout: `TaskRowLayout.test.tsx` pins the
+  classes, and a size change is measured in Chrome with `getBoundingClientRect`.
 - dnd-kit is a chunk of its own. `SortableTaskRows.tsx` draws static rows, and a list with a grip loads `DragLayer.tsx` through
   `dragLayerLoader.ts` and swaps it in. The test helpers load the layer first (`DragLayerSwap.test.tsx` holds the swap). The checklist drag is
   the same pattern (`ChecklistDrag.tsx`, `checklistLayerLoader.ts`, `ChecklistSwap.test.tsx`); one drop calls `change` once with the whole

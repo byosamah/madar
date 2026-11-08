@@ -19,6 +19,16 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   no stored sender (tsk_624) keeps the old rule until it is sent again. The old rule that a leader without `task.review.lead` is no
   reviewer now holds only for those old to-dos.
 
+- Home Today cuts text (fbk_083, owner, from the report of Osama; study of 2026-11-08). The owner's answers: to-do titles show up to two
+  lines in every list that uses the row ("option A"); each small fact of the meta line stays whole and wraps only between facts, with the
+  fbk_036 wrap kept for a phrase that is alone on its line; in Today (a list with `showProject`) the project shows as "Name only" and the tile
+  leaves the row; the helper line text ("Helper · Lead: ...") leaves the row ("no need for it since the images clear, the leader is clear"),
+  and its words stay for a screen reader; the empty "add helper" slot takes no room until it shows; the drag grip and the face stacks stay.
+  The builder drew the faces of a task that the person helps on in those lists, since the helper line was the only sign of it there.
+- A move to In review with nobody to review (tsk_692, owner: "Refuse the move"): a hand move to In review by a person for whom
+  `reviewersAfterSend` names nobody (the project leader who leads the to-do, the maker who leads an office to-do) is refused with the reason
+  `no_reviewer`. The words tell the person to mark it Done.
+
 ## 2026-11-05
 - Resources (fbk_078, owner, from the report of Faisal): the office keeps shared files, such as building codes and office policies, on one page. Place:
   inside Projects. On a desk, a quiet "Resources" link sits at the end side of the Filter and View row of Projects (not a second main button).
