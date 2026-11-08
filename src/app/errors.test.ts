@@ -93,14 +93,14 @@ describe('canRetry', () => {
 
 describe('the paused and limit texts of Madar enterprises (plan C, Task 22)', () => {
   const TEXTS: Record<string, [string, string]> = {
-    enterprise_paused: ['Madar is paused for your company. Ask your Admin.', 'توقّف مدار في شركتك مؤقتاً. اسأل مدير النظام عن السبب.'],
+    enterprise_paused: ['Madar is paused for your company. Ask your Admin.', 'توقّف مدار في شركتك مؤقتًا. اسأل مدير النظام عن السبب.'],
     people_limit: ['Your company reached its limit of people. Ask the Madar team to raise it.', 'وصلت شركتك إلى حد عدد الأشخاص. اطلب من فريق مدار رفع الحد.'],
     storage_limit: ['Your company has no more room for files. Ask the Madar team to raise the limit.', 'لا توجد مساحة كافية لملفات شركتك. اطلب من فريق مدار رفع الحد.'],
     create_closed: ['Creating enterprises is closed now.', 'إنشاء المنشآت مغلق الآن.'],
     address_taken: ['This address name is taken.', 'اسم العنوان مستخدم.'],
     owner_enterprise: ['You cannot pause an enterprise that holds a platform owner.', 'لا يمكنك إيقاف منشأة فيها مالك للمنصة.'],
     name_mismatch: ['The name does not match.', 'الاسم غير مطابق.'],
-    not_finished: ['Finish creating this enterprise first.', 'أكمل إنشاء هذه المنشأة أولاً.'],
+    not_finished: ['Finish creating this enterprise first.', 'أكمل إنشاء هذه المنشأة أولًا.'],
     already_accepted: ['This person accepted the invitation already.', 'هذا الشخص قبل الدعوة بالفعل.'],
   };
 
