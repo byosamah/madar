@@ -88,6 +88,14 @@ What's new, the docs and your replies to the owner in Arabic.
 - Edit Arabic with the Edit tool or a script file. `perl -pi -e` without `use utf8` writes garbled text, and `node -e` or a
   `bash` string with a quote or `'` cuts the text. After a patch script, search for `[ÙØ]{2}` in the word files.
 
+## The word tree of the platform site
+- The site Madar enterprises (`src/platform/`) has its own small tree (`platform/words.ts`): named imports of the groups that the shared parts use
+  (`common`, `errors`, `app`, `fields`, the logo words of `subCompanies`, the language names, `admin.save`), the page words (`enterprises` in
+  `real/ent-c.*` and `real/ent-ui.*`) and the words of the site itself (`platformSite` in `real/ent-f2.*`). A named import of a JSON file keeps
+  only the groups that are named, so the words of the companies' screens stay out of the site. A new key that a shared part reads needs a line in
+  `words.ts`; `platform/words.test.tsx` renders the site and fails on a key that its tree lacks. The words of the site stay in `real/`, so
+  the checks of this folder (keys, Arabic style, em-dash) cover them.
+
 ## Neutral words (Madar enterprises, design D1)
 - Every enterprise sees the same words, so no word and no agent text names VADO content: Vado, Bunah, Khobar, the code prefix `KH`, or
   their Arabic forms. `neutralWords.test.ts` scans the English and Arabic trees, `INSTRUCTIONS`, `TOOL_DOCS` and `PARITY_DOCS`. Its allow

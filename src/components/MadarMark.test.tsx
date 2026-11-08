@@ -73,7 +73,11 @@ describe('MadarMark', () => {
     };
     walk('src');
     // The app frame shows it at the top start of every screen (owner, 2026-10-04). The Open space map shows it on its office
-    // card, the root of the map and not a project (owner plan 2026-10-18, fbk_015). No project list uses it.
-    expect(users.sort()).toEqual(['src/app/HomeMark.tsx', 'src/components/MadarMark.tsx', 'src/features/auth/AuthPage.tsx', 'src/features/space/SpaceNode.tsx']);
+    // card, the root of the map and not a project (owner plan 2026-10-18, fbk_015). The site Madar enterprises shows it in its sign-in frame and
+    // its shell (design 12, D7). No project list uses it.
+    expect(users.sort()).toEqual([
+      'src/app/HomeMark.tsx', 'src/components/MadarMark.tsx', 'src/features/auth/AuthPage.tsx', 'src/features/space/SpaceNode.tsx',
+      'src/platform/PlatformApp.tsx', 'src/platform/SignInScreen.tsx',
+    ]);
   });
 });
