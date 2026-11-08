@@ -53,7 +53,7 @@ test('Leader review: approve from Notifications with two steps', async ({ page }
   await previewAs(page, 'Sara Al-Qahtani · Member');
   await page.goto('/#/projects/prj_001?tab=tasks');
   await page.getByRole('checkbox', { name: 'Complete Civil Defense drawings' }).click();
-  await expect(page.getByText('Sent to review. The leader checks it next.')).toBeVisible();
+  await expect(page.getByText('Sent to review. Another person checks it next.')).toBeVisible();
   await previewAs(page, 'Faisal Al-Harbi · Leader');
   // The two steps: reach Approve, press Enter.
   await page.goto('/#/notifications');

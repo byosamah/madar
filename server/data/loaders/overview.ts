@@ -26,10 +26,10 @@ const str = (value: unknown): string | undefined => (typeof value === 'string' &
 /** The task fields that summaryOf, computeHealth, the stage tag and the feed labels read (projects.list). */
 export const PROJECT_LIST_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'title'] as const;
 /**
- * The task fields of the dashboard: health, stage tag, overdue, throughput, workload and the review rows (insights.ts). The maker
- * (createdBy) reviews an office task and is one of its people (owner, 2026-10-06).
+ * The task fields of the dashboard: health, stage tag, overdue, throughput, workload and the review rows (insights.ts). The review rows
+ * name the reviewer from the lead, the maker (createdBy) and the stored sender (reviewSentBy; reviewersOfTask, fbk_087, owner 2026-11-08).
  */
-export const DASHBOARD_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'ownerId', 'helperIds', 'createdAt', 'completedAt', 'title', 'createdBy'] as const;
+export const DASHBOARD_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'ownerId', 'helperIds', 'createdAt', 'completedAt', 'title', 'createdBy', 'reviewSentBy'] as const;
 
 /** True when a call names no project filter, so the office tasks that the person sees join its list (owner, 2026-10-06). */
 const officeIn = (input: Input): boolean => !str(input.projectId) && !str(input.leaderId) && !str(input.clientId) && !str(input.teamId) && !str(input.subCompanyId);
