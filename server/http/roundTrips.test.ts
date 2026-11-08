@@ -189,7 +189,9 @@ describe('the round trips before the answer (performance audit SRV-1, SRV-4, SRV
     // of the rows (tsk_481: it was two reads, one for "commented" and one for the bound), then one grouped count. This source sends each read alone;
     // the real source (sqlSource.batch) sends the first round as one statement and the count as one, so the real list adds 2 statements,
     // never one for each row (taskRowUnread.test.ts keeps that).
-    expect(read).toMatchObject({ beforeAnswer: 26, total: 26 });
+    // The read of the messages that name the person with @ (chat, 2026-11-08) is one more read in the same first round: 26 to 27 here, and
+    // still the same single statement of the first round on the real source.
+    expect(read).toMatchObject({ beforeAnswer: 27, total: 27 });
   });
 
   it('a task save that mails one person: the notice mail goes after the answer', async () => {
