@@ -8,14 +8,19 @@ import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, SIGNIN_TABLES, applyLiteSchema, 
 import { freshLite } from './testDb';
 
 /** The sha256 of the schema text of LITE_SCHEMA_VERSION. A change of the schema needs a new version and a new value here. */
-const PINNED_SHA256 = '6cf12d2e84136f7d358cae063d079f940eded410125508b4cd8512da49e90e9d';
+const PINNED_SHA256 = '0fb5a525de2349c04c1f3718c7617404f33bb25a06a8a4e99e759d8706bca5dc';
 
 const tablesOf = (raw: DatabaseSync) =>
   (raw.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name").all() as { name: string }[]).map((r) => r.name);
 const columnsOf = (raw: DatabaseSync, table: string) =>
   (raw.prepare('select name from pragma_table_info(?)').all(table) as { name: string }[]).map((r) => r.name);
-/** Takes the table of version 14 away (Madar enterprises): the steps of a version below 14 make it again. */
-const dropEnterprise = (raw: DatabaseSync) => raw.exec('drop table enterprise');
+/** Takes the table of version 15 away (the use of the enterprise): the steps of a version below 15 make it again. */
+const dropUse = (raw: DatabaseSync) => raw.exec('drop table enterprise_use');
+/** Takes the table of version 14 away (Madar enterprises): the steps of a version below 14 make it again, and so does version 15's table. */
+const dropEnterprise = (raw: DatabaseSync) => {
+  raw.exec('drop table enterprise');
+  dropUse(raw);
+};
 /** Takes the column of version 13 away (the address that the person saw, CWE-863): the steps of a version below 13 make it again. */
 const dropRedirect = (raw: DatabaseSync) => {
   raw.exec('alter table agent_approvals drop column redirect_uri');
@@ -59,7 +64,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
   it('keeps the server tables of Postgres, apart from office_deletes, office_copy and platform_config, and adds its own', async () => {
     const { raw } = await freshLite();
     const kept = SERVER_TABLES.filter((table) => table !== 'office_deletes' && table !== 'office_copy' && table !== 'platform_config');
-    const expected = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...kept, 'agent_approvals', 'enterprise', 'office_snapshot', 'schema_version', 'usage_day', ...SIGNIN_TABLES];
+    const expected = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...kept, 'agent_approvals', 'enterprise', 'enterprise_use', 'office_snapshot', 'schema_version', 'usage_day', ...SIGNIN_TABLES];
     expect(tablesOf(raw)).toEqual(expected.sort());
   });
 
@@ -72,7 +77,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('drop table meetings');
     dropGoogle(raw);
     raw.exec('update schema_version set version = 2');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] });
     expect(columnsOf(raw, 'usage_day')).toEqual(['day', 'rows_read', 'rows_written', 'requests', 'calls', 'worker_requests']);
     expect(columnsOf(raw, 'sub_companies')).toEqual(['id', 'doc']);
     expect(columnsOf(raw, 'meetings')).toEqual(['id', 'doc', ...columnNames('meetings')]);
@@ -91,7 +96,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('update schema_version set version = 3');
     raw.exec('alter table messages drop column search_text');
     raw.exec('alter table comments drop column search_text');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] });
     expect(raw.prepare("select sql from sqlite_master where name = 'sub_companies'").get()).toEqual(fresh);
   });
 
@@ -105,7 +110,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('alter table messages drop column search_text');
     raw.exec('alter table comments drop column search_text');
     raw.exec('update schema_version set version = 4');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] });
     expect(objects()).toEqual(fresh);
   });
 
@@ -118,7 +123,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('drop index meetings_to_settle');
     dropGoogle(raw);
     raw.exec('update schema_version set version = 5');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [6, 7, 8, 9, 10, 11, 12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15] });
     expect([text('messages'), text('comments')]).toEqual(fresh);
     expect(columnsOf(raw, 'messages')).toEqual(['id', 'doc', 'conversation_id', 'created_at', 'search_text']);
     expect(columnsOf(raw, 'comments')).toEqual(['id', 'doc', 'target_type', 'target_id', 'created_at', 'project_id', 'search_text']);
@@ -134,7 +139,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('drop index meetings_to_settle');
     dropGoogle(raw);
     raw.exec('update schema_version set version = 6');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [7, 8, 9, 10, 11, 12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [7, 8, 9, 10, 11, 12, 13, 14, 15] });
     expect(objects()).toEqual(fresh);
   });
 
@@ -147,7 +152,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     ].sort());
     dropGoogle(raw);
     raw.exec('update schema_version set version = 7');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [8, 9, 10, 11, 12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [8, 9, 10, 11, 12, 13, 14, 15] });
     expect(objects()).toEqual(fresh);
   });
 
@@ -158,7 +163,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     expect(fresh.map((row) => (row as { name: string }).name)).toEqual(['google_calendars', 'sqlite_autoindex_google_calendars_1']);
     dropCalendars(raw);
     raw.exec('update schema_version set version = 8');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [9, 10, 11, 12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [9, 10, 11, 12, 13, 14, 15] });
     expect(objects()).toEqual(fresh);
     expect(columnsOf(raw, 'google_calendars')).toEqual(['user_id', 'calendar_id', 'changed_at']);
   });
@@ -172,7 +177,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     dropDaftra(raw);
     dropConfirms(raw);
     raw.exec('update schema_version set version = 9');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [10, 11, 12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [10, 11, 12, 13, 14, 15] });
     expect(objects()).toEqual(fresh);
   });
 
@@ -186,7 +191,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     dropDaftra(raw);
     dropConfirms(raw);
     raw.exec('update schema_version set version = 10');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [11, 12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [11, 12, 13, 14, 15] });
     expect(objects()).toEqual(fresh);
     expect(columnsOf(raw, 'daftra_clients')).toEqual(['account', 'client_id', 'daftra_id', 'daftra_name', 'matched_by', 'matched_at']);
     expect(columnsOf(raw, 'daftra_invoices')).toEqual(['account', 'id', 'daftra_client_id', 'no', 'total_halalas', 'issued_on', 'created_at', 'payment_status', 'paid_on', 'draft', 'seen_at']);
@@ -219,7 +224,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     expect(fresh.map((row) => (row as { name: string }).name)).toEqual(['agent_confirms', 'agent_confirms_lookup', 'agent_confirms_person', 'sqlite_autoindex_agent_confirms_1']);
     dropConfirms(raw);
     raw.exec('update schema_version set version = 11');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [12, 13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [12, 13, 14, 15] });
     expect(objects()).toEqual(fresh);
     expect(columnsOf(raw, 'agent_confirms')).toEqual(['id', 'person_id', 'agent_id', 'call_name', 'input_hash', 'code_hash', 'expires_at', 'tries', 'used_at', 'created_at']);
   });
@@ -232,7 +237,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec("insert into agent_approvals (client_id, owner_user_id) values ('c1', 'usr_002')");
     dropRedirect(raw);
     raw.exec('update schema_version set version = 12');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [13, 14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [13, 14, 15] });
     expect(table()).toEqual(fresh);
     // An approval from before the step keeps its row, with no address: the strict form reads it.
     expect(raw.prepare('select client_id, redirect_uri from agent_approvals').all()).toEqual([{ client_id: 'c1', redirect_uri: null }]);
@@ -246,8 +251,25 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     expect(raw.prepare('select count(*) as n from enterprise').get()).toEqual({ n: 0 });
     dropEnterprise(raw);
     raw.exec('update schema_version set version = 13');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [14] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [14, 15] });
     expect(table()).toEqual(fresh);
+  });
+
+  it('steps a version 14 office to the same enterprise_use table as a new office, with the bytes of its files (Madar enterprises, plan C)', async () => {
+    const { raw } = await freshLite();
+    const table = () => raw.prepare("select sql from sqlite_master where name = 'enterprise_use'").get();
+    const fresh = table();
+    expect(columnsOf(raw, 'enterprise_use')).toEqual(['id', 'storage_bytes', 'owners']);
+    expect(raw.prepare('select id, storage_bytes, owners from enterprise_use').all()).toEqual([{ id: 1, storage_bytes: 0, owners: '[]' }]);
+    // Two files with three versions in all: 100 + 50 and 7 bytes.
+    raw.exec(`insert into files (id, doc) values ('fil_001', '${JSON.stringify({ versions: [{ size: 100 }, { size: 50 }] })}')`);
+    raw.exec(`insert into files (id, doc) values ('fil_002', '${JSON.stringify({ versions: [{ size: 7 }] })}')`);
+    dropUse(raw);
+    raw.exec('update schema_version set version = 14');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [15] });
+    expect(table()).toEqual(fresh);
+    expect(raw.prepare('select id, storage_bytes, owners from enterprise_use').all()).toEqual([{ id: 1, storage_bytes: 157, owners: '[]' }]);
+    expect(() => raw.exec('insert into enterprise_use (id) values (2)')).toThrow('CHECK');
   });
 
   it('keeps one calendar for each person (fbk_022)', async () => {
@@ -343,6 +365,6 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
 
   it('pins the schema text to its version', () => {
     const sha256 = createHash('sha256').update(liteSchemaSql().join('\n')).digest('hex');
-    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 14, sha256: PINNED_SHA256 });
+    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 15, sha256: PINNED_SHA256 });
   });
 });

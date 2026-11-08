@@ -33,6 +33,7 @@ import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type Office
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, TICKET_REFUSED, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
+import { EnterpriseFacts } from '../enterprise/facts';
 import { EnterpriseGate } from '../enterprise/gate';
 import { runMailRoute } from '../enterprise/mailRoute';
 import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
@@ -103,6 +104,8 @@ export type OfficeParts = {
   readonly hold: OfficeHold;
   /** The identity of the enterprise of this object (server/enterprise/gate.ts). */
   readonly gate: EnterpriseGate;
+  /** The facts of the enterprise in memory (server/enterprise/facts.ts). */
+  readonly facts: EnterpriseFacts;
   depsFor(net: NetApi): Deps;
   batch(input: OfficeBatchInput, net: NetApi): Promise<OfficeBatchOutput>;
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport>;
@@ -164,6 +167,17 @@ export function officeParts(o: PartsInput): OfficeParts {
   const tickets = new LiveTickets(() => gate.id());
   const hold = new OfficeHold();
   const gate = new EnterpriseGate(db, o.name ? { name: o.name } : {});
+  // The facts of the enterprise (plan C): loaded with the first call, from the row of the gate and enterprise_use.
+  const facts = new EnterpriseFacts();
+  const factsReady = async () => {
+    if (!facts.loaded()) await facts.load(db, gate.current() ?? null);
+  };
+  /** The refusal of the gate for one call (server/enterprise/gate.ts), with the facts loaded for the Deps that follow. */
+  const guard = async (ent: unknown, allow: { allow?: 'paused' } = {}): Promise<RunError | undefined> => {
+    const refused = await gate.refusal(ent, allow);
+    await factsReady();
+    return refused;
+  };
   // The test tools (the peek route; the replace mode of the import, Task 10): MADAR_TEST_TOOLS = "on", never on production.
   const tools = testToolsOn(o.read);
   // The day cap of the test Worker (exit wave 4, server/office/cap.ts): MADAR_DAY_CAP, set for the test Worker only.
@@ -213,6 +227,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       authAdmin,
       // The enterprise of this object, once the gate has its row (every method checks the gate before it makes the deps).
       config: gate.current() ? { ...values.config, ent: gate.id() } : values.config,
+      // The facts of the enterprise: hooks read the limits and the owners from them (plan C).
+      enterprise: facts,
       log,
       pushFetch: ports.pushFetch,
       // Google and Daftra requests leave from the Worker (server/office/net.ts): the object sends them through its network port.
@@ -288,7 +304,10 @@ export function officeParts(o: PartsInput): OfficeParts {
         await importBegin(db, step.mode);
         // An object that was never made gets its identity row from the first import into an enterprise id. A rehearsal name and the old
         // name "office" make no row, so those objects answer not_found on every other call.
-        if (!(await gate.load()) && isEnterpriseId(name)) await gate.create({ id: name, state: 'active', limits: { people: null, storageBytes: null }, now });
+        if (!(await gate.load()) && isEnterpriseId(name)) {
+          await gate.create({ id: name, state: 'active', limits: { people: null, storageBytes: null }, now });
+          facts.forget();
+        }
       } catch (error) {
         hold.end(id);
         throw error;
@@ -330,9 +349,10 @@ export function officeParts(o: PartsInput): OfficeParts {
     tickets,
     hold,
     gate,
+    facts,
     depsFor,
     async batch(input, net) {
-      const refused = await gate.refusal(input.ent);
+      const refused = await guard(input.ent);
       if (refused) return { ok: false, error: refused };
       meter.request({ calls: input.calls.length, worker: input.worker });
       // An export refuses a batch with a write and serves a read batch; an import refuses every batch.
@@ -345,7 +365,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       return { ok: true, body: out.body, later: out.later };
     },
     async runEffects(input, net) {
-      const refused = await gate.refusal(input.ent);
+      const refused = await guard(input.ent);
       if (refused) throw refusalError(refused);
       meter.request({ worker: input.worker });
       // An import writes every table: the outbox rows wait for the Cron. An export lets them run (outbox and mail are drift tables).
@@ -354,7 +374,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       return { done: result.done.length, failed: result.failed.length };
     },
     async cron(input, net) {
-      const refused = await gate.refusal(input.ent);
+      const refused = await guard(input.ent);
       if (refused) throw refusalError(refused);
       meter.request({ worker: input.worker });
       const at = new Date(input.at);
@@ -373,7 +393,7 @@ export function officeParts(o: PartsInput): OfficeParts {
     },
     async signin(body) {
       // A paused object lets the sign-in steps through to the step: plan C decides each step of a paused object (design 5.8).
-      const refused = await gate.refusal(body.ent, { allow: 'paused' });
+      const refused = await guard(body.ent, { allow: 'paused' });
       if (refused) return { ok: false, error: refused };
       meter.request();
       // An export lets the sign-in steps run (their rows are drift tables of server/office/ops.ts); an import refuses them. The
@@ -391,7 +411,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       return runSigninOp({ db, clock, log, config: values.config, keys, ent: gate.id() }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
     },
     async mailRoute(input, net) {
-      const refused = await gate.refusal(input.ent, { allow: 'paused' });
+      const refused = await guard(input.ent, { allow: 'paused' });
       if (refused) return mailRefusal(refused);
       meter.request();
       // The limits and the links of forgot and renew are drift tables: an export lets them run, an import refuses them.
@@ -400,7 +420,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       return runMailRoute(depsFor(net), input);
     },
     async mailWork(input, net) {
-      const refused = await gate.refusal(input.ent, { allow: 'paused' });
+      const refused = await guard(input.ent, { allow: 'paused' });
       if (refused) throw refusalError(refused);
       meter.request();
       if (hold.refusal({ now: clock.now(), writes: false })) {
@@ -416,7 +436,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       }
     },
     async mcp(input, net) {
-      const refused = await gate.refusal(input.ent);
+      const refused = await guard(input.ent);
       if (refused) return mcpRefusal(statusOf(refused), refused.message, refused.details?.reason as string | undefined);
       meter.request({ calls: toolCallsIn(input.body), worker: input.worker });
       // An export lets the OAuth routes under /mcp run (their rows are drift tables); a request of /mcp itself may write, so it waits.
@@ -488,6 +508,7 @@ export function officeParts(o: PartsInput): OfficeParts {
     async socket(request) {
       // An object that was never made, and a paused object, take no socket: the same refusal as a ticket that does not open.
       const row = await gate.load();
+      await factsReady();
       if (!row || row.state === 'paused') return errorResponse(TICKET_REFUSED);
       meter.request();
       return acceptLive({ sockets: o.sockets, tickets, office, now: () => clock.now(), ent: () => gate.id() }, request);
@@ -511,7 +532,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       }
     },
     async status(input) {
-      const refused = await gate.refusal(input.ent, { allow: 'paused' });
+      const refused = await guard(input.ent, { allow: 'paused' });
       if (refused) throw refusalError(refused);
       meter.request();
       const now = clock.now();
