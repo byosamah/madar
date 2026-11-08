@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallName, Calls, MadarApi } from '../../api/calls';
 import type { FreshReads } from '../../api/remote/follow';
-import { fromEntry, fromStatus, noAnswer } from '../../api/remote/errors';
 import { liveSocketSource, liveUrl } from '../../api/remote/liveSocket';
 import { batchApiUrl } from '../../api/remote/pageApi';
 import { createRemoteApi } from '../../api/remote/remoteApi';
@@ -193,7 +192,7 @@ export function liveKindOf(auth: AuthMode, flag: string | undefined): string | u
   return auth === 'madar' ? 'socket' : flag;
 }
 
-export type RemoteRuntime = Runtime & { api: MadarApi; auth: AuthPort; changes: PersonChangeSource; platformConfig: NonNullable<Runtime['platformConfig']>; mode: 'remote' };
+export type RemoteRuntime = Runtime & { api: MadarApi; auth: AuthPort; changes: PersonChangeSource; mode: 'remote' };
 
 /**
  * Builds the remote runtime. The parts can come in for tests; by default they come from the public values of the build.
@@ -265,7 +264,5 @@ export async function bootstrapRemote(o: {
       live,
     }),
   });
-  // The platform calls of the page Madar enterprises (plan C): the same address and token as the batch. The client itself loads with the page.
-  const platformConfig = { url: batchBase, build: config.build, token: () => auth.accessToken(), errors: { fromEntry, fromStatus, noAnswer }, ...(o.fetch ? { fetch: o.fetch } : {}) };
-  return { api, auth, changes, live, platformConfig, mode: 'remote' };
+  return { api, auth, changes, live, mode: 'remote' };
 }

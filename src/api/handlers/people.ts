@@ -52,7 +52,7 @@ export const sessionGet = defineCall({
     limits: z.object({ maxFileBytes: z.number().int().positive() }).optional(),
     /** The real build (Madar enterprises): the enterprise of the person, with the name and the logo of its Settings. */
     enterprise: z.object({ id: z.string(), name: z.string(), nameAr: z.string(), logo: z.string().nullable() }).optional(),
-    /** True for a platform owner (the owner list of the platform object). Absent for every other person. */
+    /** Old value of the first build. Madar enterprises is a separate platform now (design 12, D9): the field stays optional and is never set. */
     platformOwner: z.literal(true).optional(),
   }),
   readOnly: true,
@@ -83,7 +83,6 @@ export const sessionGet = defineCall({
           id: ctx.enterprise.id, name: ctx.state.settings.enterpriseName ?? 'Madar', nameAr: ctx.state.settings.enterpriseNameAr ?? ctx.state.settings.enterpriseName ?? 'مدار',
           logo: ctx.state.settings.enterpriseLogo ?? null,
         },
-        ...(ctx.enterprise.platformOwner ? { platformOwner: true as const } : {}),
       } : {}),
     };
   },

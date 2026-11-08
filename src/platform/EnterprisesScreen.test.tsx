@@ -1,25 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import i18n from 'i18next';
 import userEvent from '@testing-library/user-event';
-import { PLATFORM_CALL_NAMES, type PlatformApi } from '../../api/contract/platform';
-import { ApiError } from '../../api/errors';
-import { initI18n } from '../../i18n';
-import { renderWithRuntime } from '../../test/render';
+import { render } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { PLATFORM_CALL_NAMES, type PlatformApi } from '../api/contract/platform';
+import { ApiError } from '../api/errors';
+import { ToastProvider } from '../app/toasts';
+import { createQueryClient } from '../app/runtime';
+import { initI18n } from '../i18n';
 import { EnterprisesScreen } from './EnterprisesScreen';
 import { PlatformProvider } from './usePlatform';
-
-// The prototype session has no platformOwner; the test sets what session.get answers, and every other call runs as before.
-let owner = true;
-vi.mock('../../app/runtime', async (original) => {
-  const real = await original<typeof import('../../app/runtime')>();
-  return {
-    ...real,
-    useCall: ((name: string, input: unknown, options: unknown) => (name === 'session.get'
-      ? { data: { user: { id: 'usr_001' }, ...(owner ? { platformOwner: true } : {}) } }
-      : (real.useCall as (n: string, i: unknown, o?: unknown) => unknown)(name, input, options))) as typeof real.useCall,
-  };
-});
 
 const byId = (id: string) => document.getElementById(id) as HTMLInputElement;
 
@@ -53,24 +44,19 @@ function fake(o: { rows?: ReturnType<typeof row>[]; createOpen?: boolean; meter?
 }
 
 async function open(f = fake()) {
-  const view = await renderWithRuntime(<PlatformProvider api={f.api}><EnterprisesScreen /></PlatformProvider>, undefined, { path: '/enterprises' });
+  const view = render(
+    <QueryClientProvider client={createQueryClient()}>
+      <ToastProvider><PlatformProvider api={f.api}><EnterprisesScreen /></PlatformProvider></ToastProvider>
+    </QueryClientProvider>,
+  );
   return { ...view, ...f };
 }
 
 beforeEach(() => {
-  owner = true;
   initI18n('en');
 });
 
 describe('the page Madar enterprises', () => {
-  it('shows the not-found page to a person who is no platform owner, and runs no platform call', async () => {
-    owner = false;
-    const f = fake();
-    await open(f);
-    expect(await screen.findByText(/not exist|not found|wrong link/i)).toBeInTheDocument();
-    expect(f.calls).toEqual([]);
-  });
-
   it('shows the meter strip with the 70 percent warning, the list with the paused state, and the button', async () => {
     await open();
     expect(await screen.findByRole('heading', { level: 1, name: 'Madar enterprises' })).toBeInTheDocument();
@@ -153,22 +139,20 @@ describe('the page Madar enterprises', () => {
     await waitFor(() => expect(f.calls.some((call) => call.name === 'platform.enterprises.resendInvite')).toBe(true));
   });
 
-  it('asks for the typed name before Pause on an active row, and shows owner_enterprise when the pause is refused', async () => {
-    const f = fake({ rows: [row({ id: 'ent_002', name: 'Acme Co', nameAr: 'أكمي', address: 'acme-co', hasOwner: false })] });
-    f.api['platform.enterprises.pause'] = async () => { throw new ApiError('forbidden', 'x', { reason: 'owner_enterprise' }); };
-    await open(f);
-    await userEvent.click(await screen.findByRole('button', { name: /Acme Co/ }));
+  it('asks for the typed name before Pause on an active row, also for VADO (design 12, D11), and sends confirmName', async () => {
+    const f = await open(fake({ rows: [row()] }));
+    await userEvent.click(await screen.findByRole('button', { name: /VADOs' Companies/ }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Pause' }));
     expect(within(dialog).getByText('Type the name of the enterprise to pause it.')).toBeInTheDocument();
     const pause = within(dialog).getByRole('button', { name: 'Pause' });
     expect(pause).toBeDisabled();
-    await userEvent.type(within(dialog).getByLabelText('Type the name of the enterprise to pause it.'), 'Acme');
+    await userEvent.type(within(dialog).getByLabelText('Type the name of the enterprise to pause it.'), "VADOs'");
     expect(pause).toBeDisabled();
-    await userEvent.type(within(dialog).getByLabelText('Type the name of the enterprise to pause it.'), ' Co');
+    await userEvent.type(within(dialog).getByLabelText('Type the name of the enterprise to pause it.'), ' Companies');
     expect(pause).toBeEnabled();
     await userEvent.click(pause);
-    expect(await within(dialog).findByText('You cannot pause an enterprise that holds a platform owner.')).toBeInTheDocument();
+    await waitFor(() => expect(f.calls.find((call) => call.name === 'platform.enterprises.pause')?.input).toEqual({ id: 'ent_001', confirmName: "VADOs' Companies" }));
   });
 
   it('shows Not finished for a creating row and opens the new sheet filled from it with Try again', async () => {

@@ -221,8 +221,8 @@ describe('the remote runtime (plan R2)', () => {
     const runtime = await bootstrapRemote({ config, supabase, auth: stubAuth().auth, fetch });
     expect(runtime.mode).toBe('remote');
     expect(runtime.store).toBeUndefined();
-    // The platform client of the lazy page gets the error makers from here, so it shares no chunk with the first load.
-    expect(Object.keys(runtime.platformConfig.errors).sort()).toEqual(['fromEntry', 'fromStatus', 'noAnswer']);
+    // The companies' app holds no platform part (design 12, D9): the runtime has no platform config.
+    expect(runtime).not.toHaveProperty('platformConfig');
     const [clients, teams] = await Promise.all([runtime.api.call('clients.list', {}), runtime.api.call('teams.list', {})]);
     expect([clients, teams]).toEqual([[], []]);
     expect(requests).toHaveLength(1);

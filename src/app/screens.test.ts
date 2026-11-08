@@ -34,8 +34,10 @@ async function pending(promise: Promise<unknown>): Promise<boolean> {
 
 describe('the screen loaders (performance audit BND-1)', () => {
   it('holds one loader for each screen that loads on demand, and none for the frame, the gate, Home and the error pages', () => {
-    expect(SCREEN_NAMES).toEqual(expect.arrayContaining(['projects', 'project', 'projectByCode', 'resources', 'work', 'meetings', 'dashboard', 'meeting', 'space', 'inbox', 'notifications', 'search', 'tasks', 'settings', 'me', 'meSection', 'admin', 'signIn', 'welcome', 'forgot', 'reset', 'consent', 'enterprises']));
-    expect(SCREEN_NAMES).toHaveLength(25);
+    expect(SCREEN_NAMES).toEqual(expect.arrayContaining(['projects', 'project', 'projectByCode', 'resources', 'work', 'meetings', 'dashboard', 'meeting', 'space', 'inbox', 'notifications', 'search', 'tasks', 'settings', 'me', 'meSection', 'admin', 'signIn', 'welcome', 'forgot', 'reset', 'consent']));
+    expect(SCREEN_NAMES).toHaveLength(24);
+    // Madar enterprises is a separate site (design 12, D9): the companies' app holds no loader for it.
+    expect(SCREEN_NAMES).not.toContain('enterprises');
   });
 
   it('keeps a loaded screen, so a second load imports nothing', async () => {

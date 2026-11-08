@@ -10,7 +10,6 @@ import { MeetingsScreen } from '../features/meetings/MeetingsScreen';
 import { OpenSpaceScreen } from '../features/space/OpenSpaceScreen';
 import { NotificationsScreen } from '../features/notifications/NotificationsScreen';
 import { ConsentScreen } from '../features/oauth/ConsentScreen';
-import { EnterprisesScreen } from '../features/enterprises/EnterprisesScreen';
 import { ProjectByCode } from '../features/project/ProjectByCode';
 import { ProjectScreen } from '../features/project/ProjectScreen';
 import { ProjectsScreen } from '../features/projects/ProjectsScreen';
@@ -55,5 +54,4 @@ export const LOADERS = {
   forgot: () => Promise.resolve(ForgotScreen),
   reset: () => Promise.resolve(ResetScreen),
   consent: () => Promise.resolve(ConsentScreen),
-  enterprises: () => Promise.resolve(EnterprisesScreen),
 } satisfies Record<string, () => Promise<ComponentType>>;

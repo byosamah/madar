@@ -1,33 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { EnterpriseView } from '../../api/contract/platform';
-import { useLang } from '../../app/lang';
-import { RequirePlatformOwner } from '../../app/useRight';
-import { Button } from '../../components/Button';
-import { LoadFailed } from '../../components/LoadFailed';
-import { ScreenTitle } from '../../components/ScreenTitle';
-import { EnterpriseLogo } from './EnterpriseLogo';
+import type { EnterpriseView } from '../api/contract/platform';
+import { useLang } from '../app/lang';
+import { Button } from '../components/Button';
+import { LoadFailed } from '../components/LoadFailed';
+import { ScreenTitle } from '../components/ScreenTitle';
+import { EnterpriseLogo } from '../features/enterprises/EnterpriseLogo';
 import { EnterpriseSheet, nameOf } from './EnterpriseSheet';
-import { hasStatus } from './limits';
+import { hasStatus } from '../features/enterprises/limits';
 import { MeterStrip } from './MeterStrip';
 import { NewEnterpriseSheet } from './NewEnterpriseSheet';
 import { usePlatform } from './usePlatform';
 
 /**
- * The page "Madar enterprises" (design 5.6 and 5.18): for a platform owner only. A person without the flag sees the page of a wrong link, and
- * no platform call runs. The top shows today's use of the free limits. Below is one list and one button, New enterprise. A row opens its sheet.
- * The page shows no project, task, chat, file or person of an enterprise: only counts, names and the first Admin of the enterprises the owner made.
+ * The page of the site Madar enterprises (design 5.18 and 12): it shows only to a signed-in platform account (src/platform/PlatformApp.tsx). The top shows
+ * today's use of the free limits. Below is one list and one button, New enterprise. A row opens its sheet. The page shows no project, task,
+ * chat, file or person of an enterprise: only counts, names and the first Admin of the enterprises the owner made.
  */
 export function EnterprisesScreen() {
-  return (
-    <RequirePlatformOwner>
-      <OwnerPage />
-    </RequirePlatformOwner>
-  );
-}
-
-function OwnerPage() {
   const { t } = useTranslation();
   const lang = useLang();
   const platform = usePlatform();

@@ -6,7 +6,6 @@ import { PROTOTYPE, REMOTE } from '../../app/mode';
 import { useCall } from '../../app/runtime';
 import { useRight } from '../../app/useRight';
 import { Button } from '../../components/Button';
-import { BuildingIcon } from '../../components/icons/animated/building';
 import { LayoutGridIcon } from '../../components/icons/animated/layout-grid';
 import { MessageSquarePlusIcon } from '../../components/icons/animated/message-square-plus';
 import { ShieldCheckIcon } from '../../components/icons/animated/shield-check';
@@ -43,8 +42,6 @@ export function OfficeGroup() {
             to="/admin"
           />
         )}
-        {/* The platform page: only a platform owner sees the line (session.platformOwner), the same words and route as the person menu. */}
-        {session.platformOwner === true && <MeRow icon={BuildingIcon} title={t('enterprises.title')} to="/enterprises" />}
         <MeRow
           icon={SparklesIcon}
           title={t('whatsNew.menu')}

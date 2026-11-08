@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url';
  * the same over a release that changes only app code.
  * prototype: no Supabase code, no _headers file, one script file, and none of the links of the remote build, so the
  * artifact stays a static page with the fake API.
+ * remote and prototype (design 12, D9 and D12): no platform code. Madar enterprises is a separate site (npm run build:platform), so the companies' bundles hold
+ * none of PLATFORM_MARKERS.
  * server: no sample office and no settleFuture in the function bundles, which run on the real office (cleanup 2026-10-06).
  * It prints every search, so a search with no match is visible.
  */
@@ -53,6 +55,12 @@ export const SEED_MARKERS = ['Hala Nasser', 'Faisal Al-Harbi', 'Corniche Office 
 export const FIRST_LOAD_MAX_BYTES = 972_000;
 export const FIRST_LOAD_MAX_GZIP = 296_000;
 export const FIRST_LOAD_MAX_FILES = 35;
+
+/**
+ * Text that only the code of the site Madar enterprises holds (design 12, D9): a platform call name, and the key of the platform session. The bundles
+ * of the companies (the real screens and the prototype) never hold it. A test checks that the contract still holds the first marker.
+ */
+export const PLATFORM_MARKERS = ['platform.enterprises.create', 'madar.platform.session'] as const;
 
 /** Text that only the chart package (recharts), the zod schemas and the word files hold. A test checks the word files. */
 export const CHART_MARKER = 'recharts-wrapper';
@@ -156,6 +164,7 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
   const scripts = new Map(texts.filter((f) => /^assets\/[^/]+\.js$/.test(f.name)).map((f) => [f.name.slice('assets/'.length), f.text]));
 
   const seedHits = () => texts.filter((f) => SEED_MARKERS.some((m) => f.text.includes(m))).map((f) => f.name);
+  const platformHits = () => texts.filter((f) => PLATFORM_MARKERS.some((m) => f.text.includes(m))).map((f) => f.name);
   if (kind === 'server') {
     report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, seedHits());
     report("'settleFuture'", texts.filter((f) => f.text.includes('settleFuture')).map((f) => f.name));
@@ -164,6 +173,7 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     report("the unstamped version '__MADAR_SERVER_VERSION__'", texts.filter((f) => f.text.includes('__MADAR_SERVER_VERSION__')).map((f) => f.name));
   } else if (kind === 'remote') {
     report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, seedHits());
+    report(`platform code of Madar enterprises (${PLATFORM_MARKERS.map((m) => `'${m}'`).join(', ')})`, platformHits());
     if (!index) {
       ok = false;
       lines.push(`FAIL: ${dir} has no index.html.`);
@@ -178,6 +188,7 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
       } else lines.push('skip: no first-load options given, so the first-load rules did not run.');
     }
   } else {
+    report(`platform code of Madar enterprises (${PLATFORM_MARKERS.map((m) => `'${m}'`).join(', ')})`, platformHits());
     report("'supabase' (any case)", texts.filter((f) => /supabase/i.test(f.text)).map((f) => f.name));
     report("a '_headers' file", names.filter((name) => name === '_headers' || name.endsWith('/_headers')));
     // Browser push (owner, 2026-10-08): the prototype never registers the worker, and vite.config.ts drops the file.

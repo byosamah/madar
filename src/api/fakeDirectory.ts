@@ -4,9 +4,9 @@ import { EnterpriseView } from './contract/platform';
 import { VADO_ENTERPRISE } from './vadoEnterprise';
 
 /**
- * The fake directory of the prototype (Madar enterprises, design 5.19): the list of fake enterprises and the platform owners. The platform
- * fake (platformFake.ts) reads and writes only this directory. The state of an enterprise lives in its own store (persist.ts).
- * This file is pure: it has no screen code and no state of an office.
+ * The fake directory of the prototype (Madar enterprises, design 5.19): the list of the fake companies, so the prototype of the companies can show
+ * two of them. There is no platform part in the prototype (design 12, D12), so nothing writes this directory but a test. The state of a company
+ * lives in its own store (persist.ts). This file is pure: it has no screen code and no state of an office.
  */
 
 /** The second fake enterprise. Its people have neutral names (src/data/sampleSecondEnterprise.ts uses the same emails). */
@@ -26,11 +26,10 @@ export type FakeEnterprise = z.infer<typeof FakeEnterprise>;
 
 export const FakeDirectory = z.object({
   enterprises: z.array(FakeEnterprise),
-  owners: z.array(z.object({ ent: z.string(), userId: z.string() })),
 });
 export type FakeDirectory = z.infer<typeof FakeDirectory>;
 
-/** The two enterprises of the prototype. ent_001 holds the platform owner, usr_001. */
+/** The two companies of the prototype. */
 export function defaultDirectory(today: string): FakeDirectory {
   const created = `${today}T09:00:00.000+03:00`;
   return {
@@ -38,7 +37,7 @@ export function defaultDirectory(today: string): FakeDirectory {
       {
         id: VADO_ENTERPRISE, address: 'vados', name: "VADOs' Companies", nameAr: 'شركات فادو', logo: null, state: 'active',
         limits: { people: null, storageBytes: null }, people: 10, invited: 0, storageBytes: 61_000_000, lastWriteAt: created, createdAt: created,
-        firstAdmin: null, hasOwner: true, emails: [...VADO_NAMES.map(emailOf), 'assistant@madar.test'],
+        firstAdmin: null, hasOwner: false, emails: [...VADO_NAMES.map(emailOf), 'assistant@madar.test'],
       },
       {
         id: SECOND_ENTERPRISE, address: 'oasis', name: 'Oasis Builders', nameAr: 'واحة للإنشاءات', logo: null, state: 'active',
@@ -46,7 +45,6 @@ export function defaultDirectory(today: string): FakeDirectory {
         firstAdmin: { name: 'Layla Hassan', email: SECOND_ENTERPRISE_EMAILS[0] }, hasOwner: false, emails: [...SECOND_ENTERPRISE_EMAILS],
       },
     ],
-    owners: [{ ent: VADO_ENTERPRISE, userId: 'usr_001' }],
   };
 }
 

@@ -1,7 +1,5 @@
 {
   "preview": {
-    "enterprise": "Company",
-    "platformOwner": "Platform owner",
-    "platformOwnerHint": "Manages every company"
+    "enterprise": "Company"
   }
 }

@@ -1,17 +1,17 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { EnterpriseView } from '../../api/contract/platform';
-import { errorMessage } from '../../app/errors';
-import { useLang } from '../../app/lang';
-import { useToast } from '../../app/toasts';
-import { Button } from '../../components/Button';
-import { TextField } from '../../components/Fields';
-import { Sheet } from '../../components/Sheet';
-import { formatDay } from '../../lib/dates';
-import { FormError } from '../auth/AuthPage';
-import { bytesOfGb, gbOne, gbText, hasStatus, peopleOf } from './limits';
-import { LogoPicker } from './LogoPicker';
+import type { EnterpriseView } from '../api/contract/platform';
+import { errorMessage } from '../app/errors';
+import { useLang } from '../app/lang';
+import { useToast } from '../app/toasts';
+import { Button } from '../components/Button';
+import { TextField } from '../components/Fields';
+import { Sheet } from '../components/Sheet';
+import { formatDay } from '../lib/dates';
+import { FormError } from '../components/FormError';
+import { bytesOfGb, gbOne, gbText, hasStatus, peopleOf } from '../features/enterprises/limits';
+import { LogoPicker } from '../features/enterprises/LogoPicker';
 import { usePlatform } from './usePlatform';
 
 /** The name of an enterprise in the language of the screen. */

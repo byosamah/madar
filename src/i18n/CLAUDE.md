@@ -93,8 +93,7 @@ What's new, the docs and your replies to the owner in Arabic.
   their Arabic forms. `neutralWords.test.ts` scans the English and Arabic trees, `INSTRUCTIONS`, `TOOL_DOCS` and `PARITY_DOCS`. Its allow
   list is empty: a new entry needs the owner's reason. An example in a hint uses a neutral value (`260902AZT`, `AB`). What stays outside
   the words, and why, is in `server/enterprise/CLAUDE.md`, "The sweep of VADO text".
-- The Preview as words of the fake enterprises (`preview.enterprise`, `preview.platformOwner`, `preview.platformOwnerHint`) are in
-  `real/ent-d3.*.json`.
+- The Preview as word of the fake companies (`preview.enterprise`) is in `real/ent-d3.*.json`.
 
 ## Tests
 - Run `npx vitest run src/i18n` after a word change. `keys.test.ts`, `i18n.test.ts` and `arabic.test.ts` check the keys, the

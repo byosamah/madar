@@ -54,11 +54,8 @@ export function AuthPage({ title, children }: { title: ReactNode; children: Reac
   );
 }
 
-/** The one line under a form after a failed step. A screen reader reads it at once. */
-export function FormError({ text }: { text: string | null }) {
-  if (!text) return null;
-  return <p role="alert" className="text-footnote text-late">{text}</p>;
-}
+// FormError lives in components/ now (the site Madar enterprises uses it too); this line keeps the old import path.
+export { FormError } from '../../components/FormError';
 
 /** A quiet text link under a form, for example Back to sign in. */
 export const QUIET_LINK = 'pressable inline-flex min-h-11 items-center self-start rounded-full text-subheadline font-medium text-link';

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CHART_MARKER, POSTHOG_MARKERS, checkBundles, FIRST_LOAD_MAX_BYTES, FIRST_LOAD_MAX_FILES, FIRST_LOAD_MAX_GZIP, LAZY_MARKERS, originsOf, SEED_MARKERS, staticImports, tagsOf, WORD_MARKERS, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
+import { CHART_MARKER, PLATFORM_MARKERS, POSTHOG_MARKERS, checkBundles, FIRST_LOAD_MAX_BYTES, FIRST_LOAD_MAX_FILES, FIRST_LOAD_MAX_GZIP, LAZY_MARKERS, originsOf, SEED_MARKERS, staticImports, tagsOf, WORD_MARKERS, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
 
 const dirs: string[] = [];
 
@@ -52,6 +52,32 @@ describe('checkBundles', () => {
     const seed = readFileSync(new URL('../src/data/seed.ts', import.meta.url), 'utf8');
     expect(SEED_MARKERS.length).toBeGreaterThan(0);
     for (const marker of SEED_MARKERS) expect(seed).toContain(`'${marker}'`);
+  });
+
+  it('fails a remote build that holds platform code (design 12, D9), in a first-load or a lazy file, and prints the search', () => {
+    const clean = checkBundles('remote', dist({ 'index.html': remoteIndex, 'assets/index-abc.js': 'console.log(1)', 'sw.js': '' }));
+    expect(clean.ok).toBe(true);
+    expect(clean.lines.join('\n')).toContain('Madar enterprises');
+    for (const marker of PLATFORM_MARKERS) {
+      const lazy = checkBundles('remote', dist({ 'index.html': remoteIndex, 'assets/index-abc.js': '', 'assets/page-9.js': `call("${marker}")`, 'sw.js': '' }));
+      expect(lazy.ok, marker).toBe(false);
+      expect(lazy.lines.join('\n')).toContain('assets/page-9.js');
+    }
+  });
+
+  it('fails a prototype build that holds platform code (design 12, D12)', () => {
+    expect(checkBundles('prototype', dist({ 'index.html': prototypeIndex, 'assets/index-abc.js': 'buildSeed()' })).ok).toBe(true);
+    for (const marker of PLATFORM_MARKERS) {
+      const result = checkBundles('prototype', dist({ 'index.html': prototypeIndex, 'assets/index-abc.js': `buildSeed();"${marker}"` }));
+      expect(result.ok, marker).toBe(false);
+      expect(result.lines.join('\n')).toContain('assets/index-abc.js');
+    }
+  });
+
+  it('searches for text that the platform contract really holds', () => {
+    const contract = readFileSync(new URL('../src/api/contract/platform.ts', import.meta.url), 'utf8');
+    expect(PLATFORM_MARKERS.length).toBeGreaterThan(0);
+    expect(contract).toContain(`'${PLATFORM_MARKERS[0]}'`);
   });
 
   it('passes a clean prototype build and prints what it searched', () => {

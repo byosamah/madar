@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { ADDRESS_NAME } from '../../../server/enterprise/ids';
-import { fakePlatform } from '../platformFake';
 import { ADDRESS_NAME_RULE, EnterpriseView, PLATFORM_CALL_NAMES, platformContracts } from './platform';
 
 const admin = { name: 'Sara', email: 'sara@acme.test', language: 'en' as const };
@@ -41,11 +40,5 @@ describe('the platform contract', () => {
     expect(input.safeParse({ id: 'ent_002', patch: { logo: null } }).success).toBe(true);
     expect(input.safeParse({ id: 'ent_002', patch: { logo: 'http://x' } }).success).toBe(false);
     expect(input.safeParse({ id: 'ent_002', patch: { logo: 'data:text/html;base64,AAAA' } }).success).toBe(false);
-  });
-
-  it('keeps the fake closed: every method answers not_found', async () => {
-    for (const name of PLATFORM_CALL_NAMES) {
-      await expect((fakePlatform[name] as (input: unknown) => Promise<unknown>)({})).rejects.toMatchObject({ code: 'not_found' });
-    }
   });
 });
