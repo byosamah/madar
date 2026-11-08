@@ -9,7 +9,7 @@ and `server/enterprise/CLAUDE.md` first.
   direction check, both type checks, `vite build -c vite.platform.config.ts` and `check-bundles.ts platform`. The output is `dist-platform/`
   with the page as `index.html` and `_headers` from `config/headers.platform` (the own origin only). There is no public folder: no manifest,
   no service worker, no app icons. The page says `noindex`.
-- The Pages project is `madar-platform` (test `preview.madar-platform.pages.dev`; production `madar-platform.pages.dev`, later
+- The Pages project is `madar-platform` (test `preview.madar-platform-d6c.pages.dev`; production `madar-platform-d6c.pages.dev`, later
   `platform.madar.vado.sa`). Its one Pages Function (`functions-platform/api/platform/[[path]].ts`, logic in
   `server/http/pagesPlatformProxy.ts`) hands `/api/platform*` to the Worker of the copy. The deploy and the owner steps:
   `scripts/deploy/CLAUDE.md`, "The platform site".
@@ -21,8 +21,10 @@ and `server/enterprise/CLAUDE.md` first.
   `docs/superpowers/plans/2026-11-08-madar-enterprises-f-platform-site.md`: `POST /api/platform/auth/token` (password or refresh grant),
   `POST /api/platform/auth/logout`, `POST /api/platform` (one wire call each). The calls are a Proxy, not the list of the contract, so the zod
   schemas stay out of the build.
-- `PlatformApp.tsx`: the sign-in screen or the page inside a small shell (title, theme switch, language switch, Sign out). No router. A session
-  that ends clears the query cache. `SignInScreen.tsx`, `SiteControls.tsx`, `theme.ts`, `words.ts`, `queryClient.ts`.
+- `PlatformApp.tsx`: the sign-in screen or the page inside a small shell. No router. A session that ends clears the query cache.
+  `SiteHeader.tsx` is the header of both screens: one row on every width, the brand "Madar enterprises" in one piece, then the theme switch and the
+  language switch (icon-only squares of 44 px on a phone, with the label from `sm` up) and, after sign-in, Sign out. Nothing pulls a button past the
+  side margin. `SignInScreen.tsx`, `SiteControls.tsx`, `theme.ts`, `words.ts`, `queryClient.ts`.
 - `EnterprisesScreen.tsx`, `EnterpriseSheet.tsx`, `NewEnterpriseSheet.tsx`, `MeterStrip.tsx`, `usePlatform.tsx`: the page (list, sheets, meter).
   The logo, the logo picker and the limits helpers stay in `features/enterprises/` because the Admin of a company uses them too.
 

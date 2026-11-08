@@ -86,10 +86,9 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
   (`platform/route.ts`), never in an enterprise object. The route checks, in this order: the build, the body size, the platform token (a company token, an
   agent token or no token gets 401), the account (`platform/guard.ts`: it asks the platform object only, and the account must exist and be `active`, else 401,
   `account_off` at once for a token still valid), then the shape, the name, the input and the handler. The output goes through the contract output, which
-  strips every key it does not name. All eight are on `MCP_DENY`. `platform.me` still answers `owner: true` and `ent: ENT_NONE` (`ent_000`), and the view key
-  `hasOwner` is always false: the contract names them, and the owner list is gone (design D11).
+  strips every key it does not name. All eight are on `MCP_DENY`. `platform.me` answers only `{ createOpen }`. The list row has no owner key (the owner list is gone, design D11).
 - **VADO is a normal company** (design D11). There is no owner list: no `isOwner`, no `setOwners`, no mirror in the office object, no `owner_enterprise`
-  refusal. The platform pauses `ent_001` like any other company, with the typed name. `session.get` never sets `platformOwner`. The platform table `owners`
+  refusal (the reason is gone from the contract and the words). The platform pauses `ent_001` like any other company, with the typed name. `session.get` never sets `platformOwner`. The platform table `owners`
   and the column `enterprise_use.owners` stay in the schema (a released step never changes) and nothing reads or writes them.
 - Create runs in this order: `platform.create` (row `creating`, address and Admin email reserved), `office.init` (settings, `usr_001`, the invitation),
   `platform.activate`. A failed step leaves the row `creating`; the same call again finishes it. A change of two sides writes the object first and the

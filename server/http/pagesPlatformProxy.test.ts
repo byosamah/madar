@@ -23,7 +23,7 @@ const post = (host: string, path = '/api/platform', init: RequestInit & { header
 
 describe('the hosts of the platform site', () => {
   it('are the three addresses of design 12 (D7), each with its copy', () => {
-    expect(PLATFORM_HOSTS).toEqual({ 'preview.madar-platform.pages.dev': 'test', 'madar-platform.pages.dev': 'production', 'platform.madar.vado.sa': 'production' });
+    expect(PLATFORM_HOSTS).toEqual({ 'preview.madar-platform-d6c.pages.dev': 'test', 'madar-platform-d6c.pages.dev': 'production', 'platform.madar.vado.sa': 'production' });
   });
 
   it('are not hosts of a company page, and a company host is not a platform host', () => {
@@ -33,7 +33,7 @@ describe('the hosts of the platform site', () => {
   });
 
   it('know only an exact host: no look-alike, no deployment hash, no inherited name', () => {
-    for (const host of ['evil.madar-platform.pages.dev', 'abc123.madar-platform.pages.dev', 'madar-platform.pages.dev.evil.test', 'toString', '__proto__', '', 'constructor']) {
+    for (const host of ['evil.madar-platform-d6c.pages.dev', 'abc123.madar-platform-d6c.pages.dev', 'madar-platform-d6c.pages.dev.evil.test', 'toString', '__proto__', '', 'constructor']) {
       expect(copyOfPlatformHost(host), host).toBeUndefined();
     }
   });
@@ -42,7 +42,7 @@ describe('the hosts of the platform site', () => {
 describe('the platform forwarder', () => {
   it('hands the call to the Worker of its copy through the binding, with the path, the query, the method, the headers and the body', async () => {
     const h = setup();
-    const answer = await h.call(post('preview.madar-platform.pages.dev', '/api/platform?x=1', { headers: { Authorization: 'Bearer abc', 'X-Madar-Build': '2026.11.8', 'cf-connecting-ip': '203.0.113.5' } }));
+    const answer = await h.call(post('preview.madar-platform-d6c.pages.dev', '/api/platform?x=1', { headers: { Authorization: 'Bearer abc', 'X-Madar-Build': '2026.11.8', 'cf-connecting-ip': '203.0.113.5' } }));
     expect(answer.status).toBe(200);
     expect(answer.headers.get('x-madar-server')).toBe('office');
     expect(await answer.json()).toEqual({ v: 1, results: [] });
@@ -59,21 +59,21 @@ describe('the platform forwarder', () => {
   it('hands the sign-in, refresh and logout routes under /api/platform/auth on to the Worker', async () => {
     const h = setup();
     for (const path of ['/api/platform/auth/token', '/api/platform/auth/logout']) {
-      expect((await h.call(post('preview.madar-platform.pages.dev', path))).status, path).toBe(200);
+      expect((await h.call(post('preview.madar-platform-d6c.pages.dev', path))).status, path).toBe(200);
     }
     expect(h.test.seen.map((request) => new URL(request.url).pathname)).toEqual(['/api/platform/auth/token', '/api/platform/auth/logout']);
   });
 
   it('sends a production host to the production binding and never to the test binding', async () => {
     const h = setup();
-    for (const host of ['madar-platform.pages.dev', 'platform.madar.vado.sa']) expect((await h.call(post(host))).status, host).toBe(200);
+    for (const host of ['madar-platform-d6c.pages.dev', 'platform.madar.vado.sa']) expect((await h.call(post(host))).status, host).toBe(200);
     expect(h.production.seen).toHaveLength(2);
     expect(h.test.seen).toEqual([]);
   });
 
   it('writes the client address from cf-connecting-ip only: a header from the client is dropped, and so are the cf-* and forwarded headers', async () => {
     const h = setup();
-    await h.call(post('madar-platform.pages.dev', '/api/platform', { headers: { 'x-madar-client-address': '10.0.0.1', 'x-forwarded-for': '10.0.0.2', 'cf-ray': 'abc', 'true-client-ip': '10.0.0.3', 'x-real-ip': '10.0.0.4' } }));
+    await h.call(post('madar-platform-d6c.pages.dev', '/api/platform', { headers: { 'x-madar-client-address': '10.0.0.1', 'x-forwarded-for': '10.0.0.2', 'cf-ray': 'abc', 'true-client-ip': '10.0.0.3', 'x-real-ip': '10.0.0.4' } }));
     const [seen] = h.production.seen;
     expect(seen.headers.has('x-madar-client-address')).toBe(false);
     for (const name of ['x-forwarded-for', 'cf-ray', 'true-client-ip', 'x-real-ip', 'host']) expect(seen.headers.has(name), name).toBe(false);
@@ -82,7 +82,7 @@ describe('the platform forwarder', () => {
   it('answers 404 for a company path: only /api/platform and the paths under it pass, and the Worker is never called', async () => {
     const h = setup();
     for (const path of ['/api/batch', '/api/office/export', '/api/live', '/api/auth/jwks', '/api', '/api/', '/mcp', '/mcp/vados', '/api/platformx', '/api/platform-x/y', '/', '/index.html', '/.well-known/oauth-authorization-server']) {
-      const answer = await h.call(post('preview.madar-platform.pages.dev', path));
+      const answer = await h.call(post('preview.madar-platform-d6c.pages.dev', path));
       expect(answer.status, path).toBe(404);
     }
     expect(h.test.seen).toEqual([]);
@@ -91,7 +91,7 @@ describe('the platform forwarder', () => {
 
   it('answers 404 for a company host and for any other host, and the Worker is never called', async () => {
     const h = setup();
-    for (const host of ['madar.vado.sa', 'www.madar.vado.sa', 'madar-46r.pages.dev', 'preview.madar-46r.pages.dev', 'workers.dev', 'evil.test', 'abc123.madar-platform.pages.dev']) {
+    for (const host of ['madar.vado.sa', 'www.madar.vado.sa', 'madar-46r.pages.dev', 'preview.madar-46r.pages.dev', 'workers.dev', 'evil.test', 'abc123.madar-platform-d6c.pages.dev']) {
       expect((await h.call(post(host))).status, host).toBe(404);
     }
     expect(h.test.seen).toEqual([]);
@@ -101,14 +101,14 @@ describe('the platform forwarder', () => {
   it('answers 404 for an encoded dot, an encoded slash and an encoded backslash (a raw backslash becomes a slash in the URL parser)', async () => {
     const h = setup();
     for (const path of ['/api/platform/%2e%2e/batch', '/api/platform/%2E%2e/x', '/api/platform/a%2fb', '/api/platform/a%5Cb']) {
-      expect((await h.call(post('preview.madar-platform.pages.dev', path))).status, path).toBe(404);
+      expect((await h.call(post('preview.madar-platform-d6c.pages.dev', path))).status, path).toBe(404);
     }
     expect(h.test.seen).toEqual([]);
   });
 
   it('answers 404 and logs one warning when the binding is missing, and never goes to Supabase', async () => {
     const h = setup();
-    const answer = await h.call(post('preview.madar-platform.pages.dev'), {});
+    const answer = await h.call(post('preview.madar-platform-d6c.pages.dev'), {});
     expect(answer.status).toBe(404);
     expect(h.lines).toHaveLength(1);
     expect(JSON.parse(h.lines[0])).toMatchObject({ level: 'warn', copy: 'test', reason: 'binding_missing' });
@@ -117,7 +117,7 @@ describe('the platform forwarder', () => {
 
   it('gives the status, the body and the headers of the Worker back, without the encoding headers', async () => {
     const wrong = recorder(() => new Response('{"error":{"code":"unauthenticated","reason":"invalid_credentials"}}', { status: 401, headers: { 'content-encoding': 'gzip', 'content-length': '9', 'retry-after': '30', 'x-madar-server': 'office' } }));
-    const answer = await proxyPlatform(post('preview.madar-platform.pages.dev', '/api/platform/auth/token'), { MADAR_SERVER_TEST: wrong.binding }, { log: () => undefined });
+    const answer = await proxyPlatform(post('preview.madar-platform-d6c.pages.dev', '/api/platform/auth/token'), { MADAR_SERVER_TEST: wrong.binding }, { log: () => undefined });
     expect(answer.status).toBe(401);
     expect(answer.headers.get('retry-after')).toBe('30');
     expect(answer.headers.has('content-encoding')).toBe(false);

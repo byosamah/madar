@@ -21,6 +21,7 @@
     "smoke:office": "node --import tsx scripts/dev/office-smoke.ts",
     "smoke": "bash scripts/dev/heavy-lock.sh run smoke -- playwright test",
     "dev:office": "node --import tsx scripts/dev/office-local.ts",
+    "dev:platform": "node --import tsx scripts/dev/platform-local.ts",
     "test:it": "MADAR_IT=1 bash scripts/dev/heavy-lock.sh run test-it -- vitest run --project it --passWithNoTests",
     "test:mcp": "bash scripts/dev/heavy-lock.sh run test-mcp -- sh -c 'vitest run --project server server/mcp && tsx server/mcp/conformance.ts'",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json",

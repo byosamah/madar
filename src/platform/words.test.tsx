@@ -73,7 +73,7 @@ describe('the site asks for no key that its words lack', () => {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   const row = (o: Record<string, unknown> = {}) => ({
     id: 'ent_001', address: 'vados', name: "VADOs' Companies", nameAr: 'شركات فادو', logo: null, state: 'active', limits: { people: 5, storageBytes: 1073741824 },
-    people: 15, invited: 1, storageBytes: 536870912, lastWriteAt: '2026-11-08T07:00:00.000Z', createdAt: '2026-11-08T00:00:00.000Z', firstAdmin: { name: 'Sara', email: 'sara@acme.test' }, hasOwner: false, ...o,
+    people: 15, invited: 1, storageBytes: 536870912, lastWriteAt: '2026-11-08T07:00:00.000Z', createdAt: '2026-11-08T00:00:00.000Z', firstAdmin: { name: 'Sara', email: 'sara@acme.test' }, ...o,
   });
   const METER = { day: '2026-11-08', limits: { requests: 100, rowsRead: 100, rowsWritten: 100, mails: 100 }, total: { requests: 80, rowsRead: 1, rowsWritten: 1, mails: 1 }, share: 0.1, warn: ['requests'], stop: true, enterprises: [] };
 
@@ -89,7 +89,7 @@ describe('the site asks for no key that its words lack', () => {
       if (String(url).includes('/auth/')) return json({ access_token: 'a', refresh_token: 'r', expires_in: 900, account: { id: 'pla_001', name: 'O', email: 'o@example.test' } });
       const name = (JSON.parse(String(init?.body)) as { calls: { name: string }[] }).calls[0].name;
       if (name === 'platform.enterprises.list' && failList) return json({ v: 1, serverTime: 'x', results: [{ i: 0, ok: false, error: { code: 'failed', message: 'x' } }] });
-      const output = name === 'platform.me' ? { owner: true, ent: 'ent_001', createOpen: false } : name === 'platform.meter.get' ? METER : name === 'platform.enterprises.resendInvite' ? { sentAt: 'x' } : [row(), row({ id: 'ent_002', name: 'Acme Co', nameAr: 'أكمي', address: 'acme-co', state: 'paused' }), row({ id: 'ent_003', name: 'Init', nameAr: 'بداية', address: 'init', state: 'creating' })];
+      const output = name === 'platform.me' ? { createOpen: false } : name === 'platform.meter.get' ? METER : name === 'platform.enterprises.resendInvite' ? { sentAt: 'x' } : [row(), row({ id: 'ent_002', name: 'Acme Co', nameAr: 'أكمي', address: 'acme-co', state: 'paused' }), row({ id: 'ent_003', name: 'Init', nameAr: 'بداية', address: 'init', state: 'creating' })];
       return json({ v: 1, serverTime: 'x', results: [{ i: 0, ok: true, output }] });
     }) as unknown as typeof globalThis.fetch;
     const site = createPlatformSite({ base: '/api', build: '1', fetch, store: createSessionStore(window.localStorage), withLock: async (run) => run() });
@@ -120,7 +120,7 @@ describe('the site asks for no key that its words lack', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Pause' }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     // The same in Arabic.
-    await userEvent.click(screen.getByRole('button', { name: 'العربية' }));
+    await userEvent.click(screen.getByRole('button', { name: /العربية/ }));
     await userEvent.click(await screen.findByRole('button', { name: /أكمي/ }));
     dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'إلغاء' }));

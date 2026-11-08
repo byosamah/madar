@@ -1,0 +1,20 @@
+# The Pages project madar-platform: the site Madar enterprises (design 12, D7). Only scripts/deploy/pages-platform.sh uses this file. It runs
+# wrangler from this folder. Never put a wrangler.toml at the repo root: the project madar deploys from the root.
+# Cloudflare reads this file at deploy time and then it is the source of truth: the dashboard shows the same fields and does not edit them.
+# Docs: https://developers.cloudflare.com/pages/functions/wrangler-configuration/
+# Paths in this file start at this folder. The function (functions-platform/) is compiled by the script into dist-platform/_worker.js.
+# The function uses only the fetch API, so it needs no compatibility flag.
+name = "madar-platform"
+pages_build_output_dir = "../../dist-platform"
+compatibility_date = "2026-09-01"
+
+# The service bindings are non-inheritable keys, and each environment names its own. The preview environment reaches only the Worker of the
+# test copy, and the production environment reaches only the Worker of production (server/http/pagesPlatformProxy.ts picks the binding by
+# the host). The Worker names come from wrangler.server.toml ([env.test] and [env.production]).
+[[env.preview.services]]
+binding = "MADAR_SERVER_TEST"
+service = "madar-server-test"
+
+[[env.production.services]]
+binding = "MADAR_SERVER_PRODUCTION"
+service = "madar-server-production"

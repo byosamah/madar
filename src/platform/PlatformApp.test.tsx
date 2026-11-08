@@ -15,13 +15,13 @@ const json = (body: unknown, status = 200, headers: Record<string, string> = {})
 const ACCOUNT = { id: 'pla_001', name: 'Osama', email: 'osama@example.test' };
 const row = (o: Record<string, unknown> = {}) => ({
   id: 'ent_001', address: 'vados', name: "VADOs' Companies", nameAr: 'شركات فادو', logo: null, state: 'active', limits: { people: null, storageBytes: null },
-  people: 15, invited: 1, storageBytes: 536870912, lastWriteAt: '2026-11-08T07:00:00.000Z', createdAt: '2026-11-08T00:00:00.000Z', firstAdmin: null, hasOwner: false, ...o,
+  people: 15, invited: 1, storageBytes: 536870912, lastWriteAt: '2026-11-08T07:00:00.000Z', createdAt: '2026-11-08T00:00:00.000Z', firstAdmin: null, ...o,
 });
 const METER = { day: '2026-11-08', limits: { requests: 100000, rowsRead: 5000000, rowsWritten: 100000, mails: 100 }, total: { requests: 10, rowsRead: 10, rowsWritten: 10, mails: 1 }, share: 0.1, warn: [], stop: false, enterprises: [] };
 const wire = (output: unknown) => json({ v: 1, serverTime: 'x', results: [{ i: 0, ok: true, output }] });
 const outputOf = (name: string): unknown => {
   switch (name) {
-    case 'platform.me': return { owner: true, ent: 'ent_001', createOpen: true };
+    case 'platform.me': return { createOpen: true };
     case 'platform.meter.get': return METER;
     case 'platform.enterprises.list': return [row(), row({ id: 'ent_002', address: 'acme-co', name: 'Acme Co', nameAr: 'أكمي', state: 'paused', people: 4, invited: 0 })];
     default: throw new Error(name);
@@ -166,7 +166,7 @@ describe('the language and the theme', () => {
   it('switches to Arabic with the direction, and keeps the choice', async () => {
     setup(undefined, { stored: true });
     await screen.findByRole('button', { name: /VADOs' Companies/ });
-    await userEvent.click(screen.getByRole('button', { name: 'العربية' }));
+    await userEvent.click(screen.getByRole('button', { name: /العربية/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'منشآت مدار' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     expect(document.documentElement.lang).toBe('ar');
@@ -177,7 +177,7 @@ describe('the language and the theme', () => {
 
   it('says the sign-in screen in Arabic', async () => {
     setup();
-    await userEvent.click(await screen.findByRole('button', { name: 'العربية' }));
+    await userEvent.click(await screen.findByRole('button', { name: /العربية/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'تسجيل الدخول' })).toBeInTheDocument();
     expect(screen.getByLabelText('البريد الإلكتروني')).toBeInTheDocument();
     expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument();
@@ -192,5 +192,59 @@ describe('the language and the theme', () => {
     expect(window.localStorage.getItem(PLATFORM_THEME_KEY)).toBe('dark');
     await userEvent.click(screen.getByRole('button', { name: 'Light mode' }));
     expect(document.documentElement.dataset.theme).toBe('light');
+  });
+});
+
+const header = () => document.querySelector('header') as HTMLElement;
+const brandText = () => (document.querySelector('[data-madar-brand]') as HTMLElement).textContent;
+
+describe('the header of the site (one row on a phone)', () => {
+  it('holds the brand, two icon-only buttons of 44 px with a name and a title, and Sign out, in one row with no pull to the edge', async () => {
+    setup(undefined, { stored: true });
+    await screen.findByRole('button', { name: /VADOs' Companies/ });
+    const bar = header();
+    expect(bar.className).not.toMatch(/-me-|-ms-|flex-wrap/);
+    expect(bar.querySelectorAll('.flex-wrap')).toHaveLength(0);
+    for (const name of ['Dark mode', /Change language to/]) {
+      const button = within(bar).getByRole('button', { name });
+      expect(button.className).toMatch(/\bsize-11\b/);
+      expect(button.getAttribute('title')).toBe(button.getAttribute('aria-label'));
+      expect(button.querySelector('.hidden')?.className).toMatch(/\bsm:inline\b/);
+    }
+    expect(within(bar).getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(within(bar).getAllByRole('button')).toHaveLength(3);
+  });
+
+  it('uses one brand, Madar enterprises, on the sign-in screen and on the page, in English and in Arabic', async () => {
+    setup();
+    await screen.findByRole('heading', { level: 1, name: 'Sign in' });
+    expect(brandText()).toBe('Madar enterprises');
+    expect(header().className).not.toMatch(/-me-|flex-wrap/);
+    expect(within(header()).getAllByRole('button')).toHaveLength(2);
+    expect(within(header()).queryByRole('button', { name: 'Sign out' })).toBeNull();
+    await userEvent.click(within(header()).getByRole('button', { name: /العربية/ }));
+    await screen.findByRole('heading', { level: 1, name: 'تسجيل الدخول' });
+    expect(brandText()).toBe('منشآت مدار');
+    await userEvent.click(within(header()).getByRole('button', { name: /English/ }));
+    await act(async () => { await i18n.changeLanguage('en'); });
+  });
+
+  it('keeps the brand on the page after sign-in, in both languages', async () => {
+    setup(undefined, { stored: true });
+    await screen.findByRole('button', { name: /VADOs' Companies/ });
+    expect(brandText()).toBe('Madar enterprises');
+    await userEvent.click(within(header()).getByRole('button', { name: /العربية/ }));
+    await screen.findByRole('heading', { level: 1, name: 'منشآت مدار' });
+    expect(brandText()).toBe('منشآت مدار');
+    expect(within(header()).getByRole('button', { name: 'سجّل الخروج' })).toBeInTheDocument();
+    expect(within(header()).getByRole('button', { name: 'الوضع الداكن' }).getAttribute('title')).toBe('الوضع الداكن');
+    await act(async () => { await i18n.changeLanguage('en'); });
+  });
+
+  it('keeps the brand in one piece: it never wraps', async () => {
+    setup();
+    await screen.findByRole('heading', { level: 1, name: 'Sign in' });
+    const brand = document.querySelector('[data-madar-brand]') as HTMLElement;
+    expect(brand.innerHTML).toMatch(/whitespace-nowrap|truncate/);
   });
 });

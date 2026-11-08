@@ -129,7 +129,7 @@ describe('POST /api/platform', () => {
     const t = await world();
     const answer = await post(t, await platformToken(t), call('platform.me'));
     expect(answer.status).toBe(200);
-    expect(parse(answer.body)).toMatchObject({ v: 1, results: [{ i: 0, ok: true, output: { owner: true, ent: 'ent_000', createOpen: true } }] });
+    expect(parse(answer.body)).toMatchObject({ v: 1, results: [{ i: 0, ok: true, output: { createOpen: true } }] });
   });
 
   it('answers 401 to a company token (an Admin of VADO and of another company, a Member) with the body of a missing token', async () => {

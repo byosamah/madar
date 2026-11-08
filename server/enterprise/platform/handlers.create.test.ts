@@ -77,7 +77,7 @@ describe('platform.enterprises.create', () => {
     const view = await createEnterprise(input(), t.ctx);
     expect(t.log).toEqual(['create', 'init', 'activate']);
     expect(EnterpriseView.safeParse(view).success).toBe(true);
-    expect(view).toMatchObject({ id: 'ent_002', state: 'active', firstAdmin: { name: 'Sara', email: 'sara@acme.test' }, hasOwner: false });
+    expect(view).toMatchObject({ id: 'ent_002', state: 'active', firstAdmin: { name: 'Sara', email: 'sara@acme.test' } });
   });
 
   it('sends the code prefix of the address and the language of the Admin to init', async () => {

@@ -114,8 +114,8 @@ describe('the platform calls', () => {
   };
 
   it('sends one wire call to /api/platform with the bearer token and the build, and gives the output', async () => {
-    const t = await signedIn(() => entry({ owner: true, ent: 'ent_001', createOpen: false }));
-    expect(await t.site.api['platform.me']({})).toEqual({ owner: true, ent: 'ent_001', createOpen: false });
+    const t = await signedIn(() => entry({ createOpen: false }));
+    expect(await t.site.api['platform.me']({})).toEqual({ createOpen: false });
     expect(t.calls[0].url).toBe('/api/platform');
     expect(t.calls[0].init.headers).toMatchObject({ Authorization: 'Bearer access-1', 'X-Madar-Build': '2026.11.8' });
     expect(t.calls[0].body).toEqual({ v: 1, calls: [{ i: 0, name: 'platform.me', input: {} }] });
