@@ -45,7 +45,7 @@ describe('the registries', () => {
       'projects.delete': ['prepare'],
       // Madar enterprises (plan C): the email directory, the people limit and the use numbers of the Admin.
       'settings.get': ['preflight'],
-      'users.create': ['prepare', 'preflight', 'settle'],
+      'users.create': ['preflight', 'prepare', 'settle'],
       'users.reactivate': ['prepare'],
       'users.remove': ['preflight', 'settle'],
       'users.update': ['preflight', 'settle'],
