@@ -1473,9 +1473,10 @@ Study: 4 read-only Sonnet agents (cause, what exists, options). Branch `rb/revie
   (fixed: `DASHBOARD_TASK_FIELDS`; then 104 and 76 rule tests passed). The smoke found the old toast words in two browser tests (fixed).
 - [x] Release: test copy, then production by Claude after the owner picked "Gates, test copy, then to production". Done 2026-11-08:
   production at ea14943a. Record: proof.md.
+- [x] The four reports are closed (done, 2026-11-08; Faisal got the notices of fbk_086 and fbk_087). Worktrees bugs-1108 and review-rule removed.
 - [ ] tsk_624 itself keeps the old rule until it is sent again (no stored sender). Moataz can approve it now.
 - [ ] A hand move to In review by a person who needs no review (for example the project leader who leads the to-do) still waits with no
-  named reviewer; only a backup can approve it. Decide: refuse the move, or keep it.
+  named reviewer; only a backup can approve it. Owner: refuse the move (2026-11-08). Madar to-do tsk_692, next batch.
 - [ ] The first load holds 971,290 B of 972,000 B (710 B left) and 295,724 B of 296,000 B in gzip (276 B left). The next first-load change
   must make room first.
 - [ ] Not started (owner reports): fbk_083 (Home Today cuts text), fbk_084 (the header of a continuous project), fbk_085 (a board in the
