@@ -109,14 +109,20 @@ export async function writeState(o: Pick<InitOptions, 'db' | 'gate' | 'facts'>, 
 }
 
 /**
- * The name, the Arabic name and the logo, into the Settings row. One transaction: the row, the office version and the snapshot, so the next
- * read of the office sees them (the rule of lite/office.ts).
+ * The name, the Arabic name and the logo, into the Settings row. A field that is left out keeps its value; a logo of null takes the logo
+ * off. One transaction: the row, the office version and the snapshot, so the next read of the office sees them (the rule of lite/office.ts).
  */
-export async function writeIdentity(db: LiteDb, brand: { name: string; nameAr: string; logo: string | null }): Promise<void> {
+export async function writeIdentity(db: LiteDb, brand: { name?: string; nameAr?: string; logo?: string | null }): Promise<void> {
   await db.tx('write', async (q) => {
     const office = await readLiteOffice(liteDbOf(q), q);
-    const { enterpriseLogo: _old, ...rest } = office.lists.settings;
-    const settings = { ...rest, enterpriseName: brand.name, enterpriseNameAr: brand.nameAr, ...(brand.logo ? { enterpriseLogo: brand.logo } : {}) };
+    const { enterpriseLogo: oldLogo, ...rest } = office.lists.settings;
+    const logo = brand.logo === undefined ? oldLogo : brand.logo;
+    const settings = {
+      ...rest,
+      ...(brand.name !== undefined ? { enterpriseName: brand.name } : {}),
+      ...(brand.nameAr !== undefined ? { enterpriseNameAr: brand.nameAr } : {}),
+      ...(logo ? { enterpriseLogo: logo } : {}),
+    };
     await q("update settings set doc = ?1 where id = 'office'", [JSON.stringify(settings)]);
     const [meta] = await q<{ version: number }>('update office_meta set version = version + 1 where id = 1 returning version');
     await writeOfficeSnapshot(q, { ...office.lists, settings }, Number(meta.version));

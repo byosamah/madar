@@ -130,7 +130,7 @@ export type OfficeParts = {
    */
   setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void>;
   setLimits(input: { ent: EnterpriseId; limits: EnterpriseLimits }): Promise<void>;
-  setIdentity(input: { ent: EnterpriseId; name: string; nameAr: string; logo: string | null }): Promise<void>;
+  setIdentity(input: { ent: EnterpriseId; name?: string; nameAr?: string; logo?: string | null }): Promise<void>;
   setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
   /** The Madar person behind a sign-in id, or null for a turned-off, a removed, an agent or an unknown one. */
   person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
@@ -612,7 +612,10 @@ export function officeParts(o: PartsInput): OfficeParts {
       const refused = await guard(input.ent);
       if (refused) throw refusalError(refused);
       meter.request();
-      await writeIdentity(db, { name: input.name, nameAr: input.nameAr, logo: input.logo });
+      await writeIdentity(db, {
+        ...(input.name !== undefined ? { name: input.name } : {}), ...(input.nameAr !== undefined ? { nameAr: input.nameAr } : {}),
+        ...(input.logo !== undefined ? { logo: input.logo } : {}),
+      });
     },
     async setPlatformOwners(input) {
       const refused = await guard(input.ent);

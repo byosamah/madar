@@ -139,7 +139,9 @@ describe('the Cron fan-out and the status report (Madar enterprises)', () => {
       },
     });
     const platform = {
-      listed: o.listed ?? (async () => ['ent_001', 'ent_002']),
+      // The legs find their enterprise in the listed ids (a paused one too); the run starts a leg for each active id only.
+      listed: async () => ['ent_001', 'ent_002', 'ent_003'],
+      activeIds: o.listed ?? (async () => ['ent_001', 'ent_002']),
       resolveAddress: async () => null,
       report: async (input: unknown) => void seen.reports.push(input),
       meter: async (input: unknown) => void seen.meters.push(input),
@@ -222,6 +224,13 @@ describe('the Cron fan-out and the status report (Madar enterprises)', () => {
     expect(seen.sweeps).toHaveLength(1);
   });
 
+  it('starts a leg for each active enterprise only: a paused one (listed, not active) gets no cron call (plan C)', async () => {
+    const { seen, routes } = cronWorld({ listed: async () => ['ent_001'] });
+    await routes.scheduled(AT, {});
+    expect(seen.legs.map((leg) => leg.ent)).toEqual(['ent_001']);
+    expect(seen.cron.map((one) => one.ent)).toEqual(['ent_001']);
+  });
+
   it('logs and returns when the list of enterprises does not load, and starts no leg', async () => {
     const { seen, routes, deps } = cronWorld({ listed: async () => { throw new Error('The platform is down.'); } });
     expect(await routes.scheduled(AT, {})).toBeUndefined();
@@ -231,13 +240,13 @@ describe('the Cron fan-out and the status report (Madar enterprises)', () => {
 
   it('starts no leg when the Worker has no jobs secret, and uses the self transport by default', async () => {
     const plain = officeRoutes({
-      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], sweep: async () => undefined }) as never,
+      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], activeIds: async () => ['ent_001'], sweep: async () => undefined }) as never,
       net: () => recordingNet(), jobsSecret: () => undefined,
     });
     expect(await plain.scheduled(AT, {})).toBeUndefined();
     // With the secret and no binding SELF, the leg fails with the clear error and the run goes on.
     const selfless = officeRoutes({
-      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], sweep: async () => undefined }) as never,
+      deps: fakeDeps(), verifyToken: async () => ({ authUserId: 'x' }), stubFor: () => ({}) as never, platform: () => ({ listed: async () => ['ent_001'], activeIds: async () => ['ent_001'], sweep: async () => undefined }) as never,
       net: () => recordingNet(), jobsSecret: () => 'jobs-secret',
     });
     const out = await selfless.scheduled(AT, {});

@@ -106,7 +106,7 @@ export type OfficeStub = {
   init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>>;
   setState(input: { ent: EnterpriseId; state: EnterpriseState }): Promise<void>;
   setLimits(input: { ent: EnterpriseId; limits: EnterpriseLimits }): Promise<void>;
-  setIdentity(input: { ent: EnterpriseId; name: string; nameAr: string; logo: string | null }): Promise<void>;
+  setIdentity(input: { ent: EnterpriseId; name?: string; nameAr?: string; logo?: string | null }): Promise<void>;
   setPlatformOwners(input: { ent: EnterpriseId; userIds: string[] }): Promise<void>;
   person(input: { ent: EnterpriseId; authUserId: string }): Promise<{ userId: string } | null>;
   reinvite(input: { ent: EnterpriseId }, net: NetApi): Promise<OpResult<{ sentAt: string }>>;
@@ -496,7 +496,8 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       const platform = o.platform(env);
       let ids: EnterpriseId[];
       try {
-        ids = await platform.listed();
+        // Only the active enterprises get a job: a paused one sends no mail and no push (design 5.8).
+        ids = await platform.activeIds();
       } catch (error) {
         log.error('The list of enterprises did not load. The next run tries again.', { error: error instanceof Error ? error.message : String(error) });
         return undefined;

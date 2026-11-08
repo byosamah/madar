@@ -119,7 +119,7 @@ export class Office extends DurableObject<Env> {
     return this.parts.setLimits(input);
   }
 
-  setIdentity(input: { ent: EnterpriseId; name: string; nameAr: string; logo: string | null }): Promise<void> {
+  setIdentity(input: { ent: EnterpriseId; name?: string; nameAr?: string; logo?: string | null }): Promise<void> {
     return this.parts.setIdentity(input);
   }
 
