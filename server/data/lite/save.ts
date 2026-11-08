@@ -1,5 +1,6 @@
 import type { State } from '../../../src/api/store';
 import type { Query } from '../../core/ports';
+import { bytesOfFile } from '../../enterprise/storage';
 import { rowOf, type Row } from '../rows';
 import { diffState, writeDiff, type Diff, type SaveOptions, type SaveResult, type TableChange } from '../save';
 import { rowsOf, type TableSpec } from '../tables';
@@ -54,6 +55,13 @@ async function writeTable(q: Query, change: TableChange, before: State, after: S
   const { spec } = change;
   for (const id of change.deleted) await q(`delete from ${spec.table} where id = ?`, [id]);
   const old = new Map(rowsOf(before, spec).filter((row) => row.doc !== undefined).map((row) => [row.id, row.doc]));
+  // The running total of the file bytes (Madar enterprises, plan C): the change of this write, added in the same transaction.
+  if (spec.table === 'files') {
+    let delta = 0;
+    for (const id of change.deleted) delta -= bytesOfFile(old.get(id) as Parameters<typeof bytesOfFile>[0]);
+    for (const row of change.upserts) delta += bytesOfFile(row.doc as Parameters<typeof bytesOfFile>[0]) - bytesOfFile(old.get(row.id) as Parameters<typeof bytesOfFile>[0]);
+    if (delta !== 0) await q('update enterprise_use set storage_bytes = max(0, storage_bytes + ?1) where id = 1', [delta]);
+  }
   const inserted = new Set(change.inserted);
   for (const row of change.upserts) {
     const was = old.get(row.id);

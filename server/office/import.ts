@@ -8,6 +8,7 @@ import { insertRow } from '../data/lite/save';
 import { EVENT_GUARDS, eventGuardsSql } from '../data/lite/schema';
 import type { Row } from '../data/rows';
 import { TABLES } from '../data/tables';
+import { recountStorage } from '../enterprise/storage';
 import { EXPORT_TABLES, META_ROW_LITE } from './ops';
 import type { DayRow } from './parts';
 
@@ -156,6 +157,8 @@ export async function importFinish(
     // The sign-in rows (wave 2): importSigninRows raises the version once more and writes the snapshot with the lists of the
     // tables, so the first call after the import reads the new office.
     await importSigninRows(q, signin, now);
+    // The running total of the file bytes counts again from the records that came in (plan C): enterprise_use never travels in an export.
+    await recountStorage(q);
     if (flush) await flush(q);
     for (const u of server.usageMonth) {
       await q('insert into usage_month (month, calls, bytes_read, backup_bytes, signals_failed, signals_failed_at) values (?1, ?2, ?3, ?4, ?5, ?6) '

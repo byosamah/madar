@@ -6,6 +6,7 @@ import { can, taskResource } from '../../src/api/permissions';
 import type { ServerHooks } from '../../src/api/registry';
 import type { State } from '../../src/api/store';
 import type { Deps } from '../core/ports';
+import { assertStorageRoom } from '../enterprise/storage';
 import type { BatchScope, Principal, ServerCall } from '../core/types';
 import { confirmThumb, confirmUpload, fileTooLarge } from '../files/confirm';
 import { projectBlobKeys, removeNowOrLater, stashProjectKeys } from '../files/effects';
@@ -74,6 +75,8 @@ export const filesUploadStart: ServerCall<'files.uploadStart'> = async (input, c
   }
   const limit = fileLimit(deps, input);
   if (input.size > limit) throw fileTooLarge('size', limit);
+  // The storage limit of the enterprise (plan C): a size equal to the room passes, one byte more fails.
+  await assertStorageRoom(deps, input.size);
   if (input.thumb && !isPictureType(input.thumb.mimeType)) throw invalid('thumb', 'The small picture must be a PNG, JPEG, GIF, WebP or AVIF picture.');
 
   const id = newUploadId();

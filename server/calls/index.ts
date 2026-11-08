@@ -8,6 +8,7 @@ import { daftraFindClients, daftraMatchClient, daftraPaymentLink, daftraStatus, 
 import { feedbackScreenshotHooks, feedbackSendHooks, feedbackUploadStart } from './feedback';
 import { filesLink, filesUploadHooks, filesUploadStart, projectsDeleteHooks } from './files';
 import { googleConnect, googleConnectStart, googleDisconnect, googleStatus } from './google';
+import { settingsGetHooks } from '../enterprise/storage';
 import { usersInvites, usersResendInvite } from './people';
 import { usersCreateHooks, usersReactivateHooks, usersRemoveHooks, usersUpdateHooks } from './peopleHooks';
 import { storyStart } from './story';
@@ -54,6 +55,8 @@ export const SERVER_HOOKS: Partial<Record<SharedCallName, ServerHooks<unknown, u
   'users.create': usersCreateHooks,
   'users.update': usersUpdateHooks,
   'users.remove': usersRemoveHooks,
+  // The use of the limits for the Admin to read (design 5.9): the numbers come from the object.
+  'settings.get': settingsGetHooks,
   // The people limit of the enterprise (design 5.9).
   'users.reactivate': usersReactivateHooks,
 };
