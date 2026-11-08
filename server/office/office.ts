@@ -1,7 +1,7 @@
 import { DurableObject, type DurableObjectState } from 'cloudflare:workers';
 import type { OfficeSnapshot, Principal } from '../core/types';
 import type { EnterpriseId } from '../enterprise/ids';
-import type { EnterpriseStatus } from '../enterprise/types';
+import type { EnterpriseInit, EnterpriseStatus } from '../enterprise/types';
 import { applyLiteSchema } from '../data/lite/schema';
 import { env, setEnvSource } from '../env';
 import type { OfficeBatchInput, OfficeBatchOutput } from './batch';
@@ -103,6 +103,11 @@ export class Office extends DurableObject<Env> {
   /** The status row of this enterprise (Madar enterprises): the Cron of the Worker sends it to the platform object. */
   status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus> {
     return this.parts.status(input);
+  }
+
+  /** The first start of an enterprise (plan C): the Worker calls it once from platform.enterprises.create. A repeat changes nothing. */
+  init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>> {
+    return this.parts.init(input, net);
   }
 
   /** The socket of /api/live, and the office ops of exit wave 4 under /office/ (the Worker checks their secret first). */

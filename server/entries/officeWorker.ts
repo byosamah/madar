@@ -19,7 +19,7 @@ import { padTo } from '../enterprise/pad';
 import type { PlatformStub } from '../enterprise/platform/stub';
 import { entRouter, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
 import { challengeOf } from '../mcp/metadata';
-import type { EnterpriseStatus } from '../enterprise/types';
+import type { EnterpriseInit, EnterpriseStatus } from '../enterprise/types';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
 import { runInHost } from '../core/after';
@@ -103,6 +103,7 @@ export type OfficeStub = {
   mcp(input: OfficeMcpInput, net: NetApi): Promise<OfficeMcpAnswer>;
   health(): Promise<OfficeHealth>;
   status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus>;
+  init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>>;
   fetch(request: Request): Promise<Response>;
 };
 

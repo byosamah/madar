@@ -35,10 +35,11 @@ import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, TICKET_REFUSED, accep
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
 import { EnterpriseFacts } from '../enterprise/facts';
 import { EnterpriseGate } from '../enterprise/gate';
+import { initEnterprise } from '../enterprise/lifecycle';
 import { runMailRoute } from '../enterprise/mailRoute';
 import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { enterpriseStatusOf } from '../enterprise/status';
-import type { EnterpriseStatus } from '../enterprise/types';
+import type { EnterpriseInit, EnterpriseStatus } from '../enterprise/types';
 import { officeTyping, socketClosed, stateMessage } from './presence';
 import { importBegin, importFinish, importPart, importStepOf, type ImportStep } from './import';
 import { netPorts, type NetApi } from './net';
@@ -120,6 +121,8 @@ export type OfficeParts = {
   health(): Promise<OfficeHealth>;
   /** The status row of this enterprise (Madar enterprises). A paused object answers it too. */
   status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus>;
+  /** The first start of an enterprise (plan C): its row, its settings, the first Admin and the invitation. A repeat changes nothing. */
+  init(input: EnterpriseInit, net: NetApi): Promise<OpResult<{ adminUserId: string }>>;
   /** One office op of the Worker (exit wave 4): /office/export, /office/import and /office/peek, as JSON in and out. */
   ops(request: Request): Promise<Response>;
   /** The counts of the UTC day of now: the day row and the counts that the meter holds in memory still (exit wave 4). */
@@ -537,6 +540,27 @@ export function officeParts(o: PartsInput): OfficeParts {
       meter.request();
       const now = clock.now();
       return enterpriseStatusOf(db, gate.id(), await office(), await dayCounts(now), now);
+    },
+    async init(input, net) {
+      // An object with a row refuses another id and a paused state. An object with no row takes the id only when its own name agrees
+      // (the Worker made it with idFromName), so a wrong name never makes an enterprise.
+      if (await gate.load()) {
+        const refused = await guard(input.ent);
+        if (refused) return { ok: false, error: refused };
+      } else {
+        const name = o.name?.();
+        if (!isEnterpriseId(input.ent) || (name !== undefined && name !== input.ent)) {
+          return { ok: false, error: runErrorOf(new ApiError('unauthenticated', 'Sign in to continue.')) };
+        }
+      }
+      meter.request();
+      try {
+        const out = await initEnterprise({ db, clock, gate, facts, depsFor: () => depsFor(net) }, input);
+        return { ok: true, value: out };
+      } catch (error) {
+        log.error('The first start of an enterprise failed.', { ent: input.ent, error: error instanceof Error ? error.message : String(error) });
+        return { ok: false, error: runErrorOf(error) };
+      }
     },
     async health() {
       meter.request();

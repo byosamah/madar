@@ -24,6 +24,7 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: O
     runEffects: async (input, net) => (seen.effects.push({ ...input, net }), { done: input.ids.length, failed: 0 }),
     health: async () => ((seen.health += 1), { schema: 3, lastJob: null }),
     status: async () => STATUS,
+    init: async () => ({ ok: true, value: { adminUserId: 'usr_001' } }),
     cron: async (input, net) => (seen.cron.push({ ...input, net }), { ok: true, at: input.at, steps: [], closed: 0, day: null, status: STATUS }),
     signin: async (body) => (seen.signins.push(body), { ok: true, value: { echo: body.signin } }),
     mailRoute: async () => ({ status: 200, body: '{"v":1,"ok":true}' }),
