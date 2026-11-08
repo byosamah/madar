@@ -9,6 +9,8 @@ import { workerEntry } from './worker';
  * OFFICE and the migration office-v1 name.
  */
 export { Office } from '../office/office';
+/** The platform object of Madar enterprises (binding PLATFORM, migration platform-v1): the list of enterprises, the email directory, the owners. */
+export { Platform } from '../enterprise/platform/object';
 
 type Env = Record<string, unknown>;
 type Ctx = { waitUntil(work: Promise<unknown>): void };

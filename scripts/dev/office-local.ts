@@ -1,6 +1,7 @@
 /**
  * npm run dev:office (Supabase exit, wave 4): the local office stack. The real Workers bundle on wrangler dev with the office path
- * and the own sign-in (a new sign-in key for each run), the sample office and the 4 accounts through the seed of the office object,
+ * and the own sign-in (a new sign-in key for each run), the sample office as ent_001 and a small fake enterprise as ent_002 (the 4 accounts
+ * of the sample office, 2 accounts of the fake one), through the register op and the seed of the office objects,
  * and the Madar build of the screens on vite preview. It needs no Docker. Run it after npm run build:server, with the sandbox off
  * (wrangler dev and vite preview bind ports). It writes test-results/office-local/run.env (mode 600) with the lines of the deploy
  * suite on the office path, then waits; Ctrl-C (or a kill) stops both servers and removes the state of the run. The values that
@@ -17,6 +18,7 @@ import { localPasswords } from '../../tests/e2e-deploy/local';
 import { buildId } from '../build-remote';
 import { newAuthKey } from '../office/auth-key';
 import { importOffice } from '../office/import';
+import { FAKE_ENTERPRISE, fakeEnterpriseSource, registerEnterprise, SAMPLE_ENTERPRISE } from '../office/enterprise';
 import { opsOf } from '../office/ops';
 import { seedSource } from '../office/seed';
 
@@ -48,6 +50,8 @@ export function playwrightLines(o: { opsSecret: string }): string[] {
   return [
     `MADAR_DEPLOY_URL=${LOCAL_SCREENS}`, `MADAR_E2E_APP_URL=${LOCAL_SCREENS}`, `MADAR_E2E_OFFICE_URL=${LOCAL_OFFICE}`, `MADAR_E2E_MCP_URL=${LOCAL_OFFICE}/mcp`,
     `MADAR_E2E_OPS_SECRET=${o.opsSecret}`, 'MADAR_E2E_AFTER_G=1',
+    // The second enterprise (Madar enterprises): the fake one, with the same record ids as the sample office. A leak spec reads it.
+    `MADAR_E2E_SECOND_ENTERPRISE=${FAKE_ENTERPRISE.id}`,
     ...Object.entries(localPasswords()).map(([name, value]) => `${name}=${value}`),
   ];
 }
@@ -91,9 +95,15 @@ async function main(): Promise<void> {
     stop();
     throw new Error('wrangler dev did not answer /api/health in 60 s. Run npm run build:server first.');
   }
-  const { source } = await seedSource({ now: new Date(), passwords: localPasswords() });
-  const report = await importOffice(opsOf({ base: LOCAL_OFFICE, secret: secrets.opsSecret, header: OPS_SECRET_HEADER }), source, { mode: 'replace' });
-  console.log(`Seeded the local office: ${report.records} records and the 4 accounts.`);
+  // Two enterprises (Madar enterprises): the platform lists each one with its sign-in emails first, then the import names its object.
+  const now = new Date();
+  const sample = (await seedSource({ now, passwords: localPasswords() })).source;
+  const fake = await fakeEnterpriseSource({ now, passwords: localPasswords() });
+  for (const [row, source] of [[SAMPLE_ENTERPRISE, sample], [FAKE_ENTERPRISE, fake]] as const) {
+    await registerEnterprise(LOCAL_OFFICE, secrets.opsSecret, { row, emails: source.signin.map((one) => one.email) });
+    const report = await importOffice(opsOf({ base: LOCAL_OFFICE, secret: secrets.opsSecret, header: OPS_SECRET_HEADER, office: row.id }), source, { mode: 'replace' });
+    console.log(`Seeded ${row.id} (${row.name}): ${report.records} records and ${source.signin.length} accounts.`);
+  }
   const env = { ...process.env, ...screensEnv(buildId(new Date())) };
   const built = spawnSync('npx', ['vite', 'build', '--mode', 'remote-local', '--outDir', `${LOCAL_OUT}/dist`], { stdio: 'inherit', env });
   if (built.status !== 0) {

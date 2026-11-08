@@ -14,6 +14,16 @@ grants of Settings, Agents. The tools, the token check and the approval are in `
   `server/http/pagesWellKnown.ts`) answer only for a copy with the word `office`. Every other copy answers 404, and a client of
   such a copy finds `/mcp/.well-known/openid-configuration`.
 
+## The address of an enterprise (Madar enterprises)
+- `/mcp` serves ent_001 (VADOs' Companies). `/mcp/<address>` serves the enterprise that the platform lists for that address name: the issuer,
+  the audience, the metadata, the challenge and the OAuth routes all use the full address (`https://madar.vado.sa/mcp/globex`). The Worker
+  builds that address from its own `MCP_URL` and passes it as `OfficeMcpInput.mcpUrl`; the object refuses an address that is not under its
+  own `MCP_URL`. The path word `oauth` and `oauth-protected-resource`, and a first segment that starts with a dot, belong to the VADO address.
+- The agent token check refuses a token whose `ent` differs from the object. A bad or unknown address gets the 401 of the MCP app for a missing
+  (or unreadable) token, with the challenge of that address, and makes no object.
+- The Pages discovery paths `/.well-known/<oauth-authorization-server|openid-configuration>/mcp/<address>` go to
+  `/mcp/<address>/.well-known/<name>` (`server/http/pagesWellKnown.ts`). `INSTRUCTIONS` says that an agent acts for one person of one enterprise.
+
 ## Rules
 - Every own route refuses an agent token. So the open risk of Z7 (an agent token with the full rights of its person at Auth) does not
   exist on the own stack. The consent screen of the own stack leaves out the line "can also use your account outside the Madar screens"

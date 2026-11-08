@@ -6,7 +6,8 @@ that passes `request` and `env`. The logic and its tests live in `server/http/` 
 - `api/[[path]].ts`: the page's own `/api`, logic in `server/http/pagesApiProxy.ts`.
 - `.well-known/oauth-authorization-server/[[path]].ts` and `.well-known/openid-configuration/[[path]].ts`: the discovery of the
   own OAuth server, only for a copy with the word office (`server/http/pagesWellKnown.ts`); every other copy answers 404. Two
-  narrow files, not one `.well-known/[[path]].ts`, so no other `/.well-known/` path of the site changes.
+  narrow files, not one `.well-known/[[path]].ts`, so no other `/.well-known/` path of the site changes. Madar enterprises: the paths
+  `/.well-known/<name>/mcp/<address>` also pass, for an address name that `isAddressName` accepts (`wellKnownTarget`); nothing else.
 - `map/[[path]].ts`: unused route, kept for a later own map file (`server/http/pagesMap.ts`). It needs the R2 binding `MAP`;
   without it every request answers 404 `map_not_ready`. The screens read the free OpenFreeMap tiles.
 - `maplink.ts`: `POST /maplink` follows a short Google Maps link (`maps.app.goo.gl`, `goo.gl/maps`) and answers the long address,

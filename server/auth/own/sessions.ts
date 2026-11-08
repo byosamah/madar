@@ -3,6 +3,7 @@ import type { Query } from '../../core/ports';
 import type { LiteDb } from '../../data/lite/db';
 import { readLiteOffice } from '../../data/lite/office';
 import { userIdOfAuth } from '../../data/officeCache';
+import { tagged } from '../../enterprise/ids';
 import { ACCESS_TTL_S } from '../ownKeys';
 import { principalOf } from '../principal';
 import { hitLimit } from '../rateLimit';
@@ -47,10 +48,13 @@ export async function insertSession(q: Query, o: { authId: string; clientId: str
   return id;
 }
 
-/** The token answer of a browser session, signed after the commit. */
+/**
+ * The token answer of a browser session, signed after the commit. The refresh token is tagged with the enterprise (the Worker
+ * finds the object from the tag); the table keeps the sha256 of the bare secret, so a step takes the bare secret.
+ */
 export async function browserAnswer(deps: SigninDeps, o: { authId: string; sessionId: string; refresh: string }): Promise<TokenAnswer> {
-  const accessToken = await signBrowserToken(deps.keys, { authId: o.authId, sessionId: o.sessionId, now: deps.clock.now() });
-  return { access_token: accessToken, token_type: 'bearer', expires_in: ACCESS_TTL_S, refresh_token: o.refresh, user: { id: o.authId } };
+  const accessToken = await signBrowserToken(deps.keys, { authId: o.authId, sessionId: o.sessionId, now: deps.clock.now(), ent: deps.ent });
+  return { access_token: accessToken, token_type: 'bearer', expires_in: ACCESS_TTL_S, refresh_token: tagged(deps.ent, o.refresh), user: { id: o.authId } };
 }
 
 type Rotation = { kind: 'ok'; row: SessionRow } | { kind: 'ended' };

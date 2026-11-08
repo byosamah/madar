@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runInHost } from '../../core/after';
 import type { Deps } from '../../core/ports';
+import { untag } from '../../enterprise/ids';
 import { createForgotRoute } from '../forgot';
 import { createRenewRoute } from '../renew';
 import { addSignIn, linkValueOfMail, signinOffice } from './testOffice';
@@ -22,6 +23,29 @@ describe('the forgot and renew routes on SQLite (Supabase exit, wave 2)', () => 
     expect(t.deps.mail.sent.map((mail) => mail.to)).toEqual([email]);
     expect(t.deps.mail.sent[0].html).toContain('/reset?token_hash=');
     expect(t.raw.prepare('select type from auth_links where used_at is null').all()).toEqual([{ type: 'recovery' }]);
+  });
+
+  it('tags the token and the renew key of the invitation of an office object, and leaves the link of the Postgres path as it was', async () => {
+    const tagged = await signinOffice();
+    tagged.deps.config.ent = 'ent_002';
+    await tagged.call('usr_001', 'users.create', { name: 'New Person', email: 'new.person@madar.test', systemRole: 'member', discipline: 'Architect' });
+    const html = tagged.deps.mail.sent[0].html;
+    expect(untag(tokenOfMail(html))).toMatchObject({ ent: 'ent_002' });
+    expect(untag(renewOfMail(html))).toMatchObject({ ent: 'ent_002' });
+    const plain = await signinOffice();
+    await plain.call('usr_001', 'users.create', { name: 'New Person', email: 'new.person@madar.test', systemRole: 'member', discipline: 'Architect' });
+    expect(untag(tokenOfMail(plain.deps.mail.sent[0].html))).toBeNull();
+    expect(untag(renewOfMail(plain.deps.mail.sent[0].html))).toBeNull();
+  });
+
+  it('tags the token of a reset mail of an office object', async () => {
+    const t = await signinOffice();
+    t.deps.config.ent = 'ent_002';
+    await addSignIn(t, 'usr_002', { password: 'a good password' });
+    const email = (t.raw.prepare('select email from auth_users').get() as { email: string }).email;
+    const route = createForgotRoute({ minMs: 0, host: () => ({ host: 'workers' }) });
+    await runInHost({ host: 'workers' }, () => route(post('/auth/forgot', { email }), t.deps as unknown as Deps));
+    expect(untag(tokenOfMail(t.deps.mail.sent[0].html))).toMatchObject({ ent: 'ent_002' });
   });
 
   it('counts the limits of the address that the Pages Function wrote, and of the email, in rate_limits', async () => {

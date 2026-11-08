@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import { ApiError } from '../../src/api/errors';
+import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { env, requireEnv } from '../env';
 import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from './ownKeys';
 
@@ -19,8 +20,12 @@ import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from './ownKeys'
  * the batch route logs it and answers the hidden 500 failed, so an outage of the JWKS never signs a person out.
  */
 
-export type TokenCheckOptions = { issuer: string; jwks: JWTVerifyGetKey };
-export type TokenChecker = (header: string | null) => Promise<{ authUserId: string; sessionId?: string }>;
+/**
+ * requireEnt (the own key): the token must carry a valid claim ent, the enterprise of the person (Madar enterprises). On the Supabase
+ * key (the Postgres way back) there is no claim, and the Postgres path serves ENT_VADO only.
+ */
+export type TokenCheckOptions = { issuer: string; jwks: JWTVerifyGetKey; requireEnt?: boolean };
+export type TokenChecker = (header: string | null) => Promise<{ authUserId: string; sessionId?: string; ent?: EnterpriseId }>;
 
 const AUDIENCE = 'authenticated';
 /** The tolerance for clock drift between Auth and the function, in seconds. */
@@ -70,7 +75,10 @@ export function browserTokenChecker(o: TokenCheckOptions): TokenChecker {
     if (hasClientId(payload)) throw agentToken();
     if (payload.role !== AUDIENCE || typeof payload.sub !== 'string' || payload.sub === '') throw signIn();
     const sessionId = typeof payload.session_id === 'string' && payload.session_id !== '' ? payload.session_id : undefined;
-    return sessionId === undefined ? { authUserId: payload.sub } : { authUserId: payload.sub, sessionId };
+    const claim = isEnterpriseId(payload.ent) ? payload.ent : undefined;
+    // The own key always carries ent. A token with no valid ent fails the same way as a bad token (no hint of the cause).
+    if (o.requireEnt === true && claim === undefined) throw signIn();
+    return { authUserId: payload.sub, ...(sessionId === undefined ? {} : { sessionId }), ...(claim === undefined ? {} : { ent: claim }) };
   };
 }
 
@@ -94,7 +102,7 @@ function checkerFromEnv(): { check: TokenChecker; keys: { reload(): Promise<void
     const id = `own|${issuer}|${String(ownPublicJwks(own).keys[0].kid)}`;
     let checker = checkers.get(id);
     if (!checker) {
-      checker = { check: browserTokenChecker({ issuer, jwks: ownKeySet(own) }), keys: { reload: async () => undefined } };
+      checker = { check: browserTokenChecker({ issuer, jwks: ownKeySet(own), requireEnt: true }), keys: { reload: async () => undefined } };
       checkers.set(id, checker);
     }
     return checker;

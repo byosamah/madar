@@ -1,0 +1,22 @@
+# Probe of Madar enterprises, plan B Task 1 (spikes S2 and S3). Local workerd only (wrangler createTestHarness); it never deploys.
+name = "madar-ent-core-probe"
+main = "entry.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[[durable_objects.bindings]]
+name = "PIN"
+class_name = "PinOffice"
+
+[[durable_objects.bindings]]
+name = "DIR"
+class_name = "ProbeDirectory"
+
+[[durable_objects.bindings]]
+name = "NAME"
+class_name = "ProbeName"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PinOffice", "ProbeDirectory", "ProbeName"]

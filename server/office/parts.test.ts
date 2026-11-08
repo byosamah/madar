@@ -23,6 +23,7 @@ import { EffectLedger, type OfficeBatchInput } from './batch';
 import { officeParts } from './parts';
 import { principalOfWho } from './who';
 import { fakeSockets, openFor, recordingNet } from './test/fakes';
+import { ENT_VADO, untag } from '../enterprise/ids';
 
 const TODAY = '2026-10-04';
 const NOW = '2026-10-04T06:00:00.000Z';
@@ -62,9 +63,10 @@ async function office(edit: (seed: State) => void = () => undefined, o: { env?: 
   const seed = await buildSeed(TODAY, async () => undefined);
   edit(seed);
   await parts.db.tx('write', (q) => liteWriteState(q, seed));
+  await parts.gate.create({ id: ENT_VADO, state: 'active', limits: { people: null, storageBytes: null }, now: new Date(NOW) });
   const net = o.net ?? recordingNet();
   const batch = async (userId: string, calls: Omit<OfficeBatchInput['calls'][number], 'i'>[]) => {
-    const out = await parts.batch({ who: { kind: 'browser', authUserId: userId }, calls: calls.map((c, i) => ({ i, ...c })), overviewCalls: 0, worker: 1 }, net);
+    const out = await parts.batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId: userId }, calls: calls.map((c, i) => ({ i, ...c })), overviewCalls: 0, worker: 1 }, net);
     return out.ok ? { ...out, answer: JSON.parse(out.body) as WireResponse } : out;
   };
   return { raw, parts, sockets, seed, net, batch };
@@ -226,7 +228,7 @@ describe('the office parts (server/office/parts.ts)', () => {
   it('runs the job steps on a Cron call, adds the meter counts, and closes a stale socket', async () => {
     const { parts, sockets, raw, net } = await office();
     const stale = openFor(sockets, 'usr_002', Date.parse(NOW) - 10 * 60_000);
-    const report = await parts.cron({ at: NOW, worker: 2 }, net);
+    const report = await parts.cron({ ent: ENT_VADO, at: NOW, worker: 2 }, net);
     expect(report.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'daftra', 'summary', 'quietEnd', 'outbox', 'cleanup', 'uploads']);
     // The reminders of the run send signals, and each delivery sweeps first: that sweep or the one of the Cron closes the socket.
     expect(stale.closed?.code).toBe(CLOSE_STALE);
@@ -237,7 +239,7 @@ describe('the office parts (server/office/parts.ts)', () => {
   it('sends no warning mail in a Cron run when a day meter reaches 80%: the usage warning went (owner, 2026-10-23)', async () => {
     const { parts, raw, net } = await office();
     raw.prepare("insert into usage_day (day, rows_read) values ('2026-10-04', 4500000)").run();
-    await parts.cron({ at: NOW, worker: 0 }, net);
+    await parts.cron({ ent: ENT_VADO, at: NOW, worker: 0 }, net);
     expect(net.calls.filter((call) => call.includes('limit-warning'))).toEqual([]);
   });
 
@@ -275,7 +277,7 @@ describe('the effects of a turn-off in the office object (merge of exit waves 2 
     });
     const { answer, later } = ok(await batch('usr_001', [{ name: 'users.deactivate', input: { id: 'usr_007' } }]));
     expect(answer.results[0].ok).toBe(true);
-    expect(await parts.runEffects({ ids: later, worker: 0 }, net)).toMatchObject({ failed: 0 });
+    expect(await parts.runEffects({ ent: ENT_VADO, ids: later, worker: 0 }, net)).toMatchObject({ failed: 0 });
     // Every outbox row of the batch ran, and no statement met the refusal of the SQLite host.
     const rows = raw.prepare('select kind, done_at, error from outbox').all() as { kind: string; done_at: string | null; error: string | null }[];
     expect(rows.length).toBeGreaterThan(0);
@@ -295,7 +297,7 @@ describe('the sign-in steps in the office object (Office.signin)', () => {
     const jwk = await testPrivateJwk();
     const { parts, seed } = await office(undefined, { env: { MADAR_AUTH_PRIVATE_JWK: jwk } });
     const { authId, email } = await withPassword(parts, seed, 'usr_002');
-    const result = await parts.signin({ signin: 'auth.password', input: { email, password: 'a good password', address: '203.0.113.7' } });
+    const result = await parts.signin({ ent: ENT_VADO, signin: 'auth.password', input: { email, password: 'a good password', address: '203.0.113.7' } });
     if (!result.ok) throw new Error(`The sign-in was refused: ${JSON.stringify(result)}`);
     const answer = result.value as { access_token: string; user: { id: string } };
     expect(answer.user.id).toBe(authId);
@@ -311,16 +313,16 @@ describe('the sign-in steps in the office object (Office.signin)', () => {
     const names = Object.keys(SIGNIN_STEPS);
     expect(names).toHaveLength(13);
     for (const name of names) {
-      const result = await parts.signin({ signin: name, input: {} });
+      const result = await parts.signin({ ent: ENT_VADO, signin: name, input: {} });
       expect(JSON.stringify(result), name).not.toContain('This sign-in step does not exist.');
     }
-    expect(await parts.signin({ signin: 'auth.nothing', input: {} })).toMatchObject({ ok: false, error: { code: 'not_found', message: 'This sign-in step does not exist.' } });
+    expect(await parts.signin({ ent: ENT_VADO, signin: 'auth.nothing', input: {} })).toMatchObject({ ok: false, error: { code: 'not_found', message: 'This sign-in step does not exist.' } });
   });
 
   it('answers failed with no key, and the log names the secret and never a value', async () => {
     const log = keptLog();
     const { parts } = await office(undefined, { log });
-    expect(await parts.signin({ signin: 'auth.password', input: { email: 'x@madar.test', password: 'a good password', address: '203.0.113.7' } })).toMatchObject({ ok: false, error: { code: 'failed' } });
+    expect(await parts.signin({ ent: ENT_VADO, signin: 'auth.password', input: { email: 'x@madar.test', password: 'a good password', address: '203.0.113.7' } })).toMatchObject({ ok: false, error: { code: 'failed' } });
     expect(log.lines.map((line) => JSON.stringify(line)).join('\n')).toContain('MADAR_AUTH_PRIVATE_JWK');
   });
 });
@@ -331,30 +333,30 @@ describe('the forgot and renew routes in the office object (Office.mailRoute, Of
   it('checks the limits and gives back the email; the work then sends the reset mail through the Worker port', async () => {
     const { parts, seed, raw, net } = await office();
     const { email } = await withPassword(parts, seed, 'usr_002');
-    const out = await parts.mailRoute({ route: 'forgot', body: JSON.stringify({ email: email.toUpperCase() }), address: ADDRESS }, net);
+    const out = await parts.mailRoute({ ent: ENT_VADO, route: 'forgot', body: JSON.stringify({ email: email.toUpperCase() }), address: ADDRESS }, net);
     expect({ ...out, body: JSON.parse(out.body) }).toEqual({ status: 200, body: { v: 1, ok: true }, work: email });
     expect(mailCalls(net)).toEqual([]);
-    await parts.mailWork({ route: 'forgot', value: out.work! }, net);
+    await parts.mailWork({ ent: ENT_VADO, route: 'forgot', value: out.work! }, net);
     expect(mailCalls(net)).toHaveLength(1);
     expect(raw.prepare('select type from auth_links where used_at is null').all()).toEqual([{ type: 'recovery' }]);
   });
 
   it('gives the same answer and a work for an unknown email, and the work sends nothing', async () => {
     const { parts, net } = await office();
-    const out = await parts.mailRoute({ route: 'forgot', body: JSON.stringify({ email: 'nobody@madar.test' }), address: ADDRESS }, net);
+    const out = await parts.mailRoute({ ent: ENT_VADO, route: 'forgot', body: JSON.stringify({ email: 'nobody@madar.test' }), address: ADDRESS }, net);
     expect([out.status, JSON.parse(out.body), out.work]).toEqual([200, { v: 1, ok: true }, 'nobody@madar.test']);
-    await parts.mailWork({ route: 'forgot', value: out.work! }, net);
+    await parts.mailWork({ ent: ENT_VADO, route: 'forgot', value: out.work! }, net);
     expect(mailCalls(net)).toEqual([]);
   });
 
   it('refuses a body with no email and the fourth try for one email, with no work', async () => {
     const { parts, net } = await office();
-    const shape = await parts.mailRoute({ route: 'forgot', body: '{}', address: ADDRESS }, net);
+    const shape = await parts.mailRoute({ ent: ENT_VADO, route: 'forgot', body: '{}', address: ADDRESS }, net);
     expect([shape.status, shape.work]).toEqual([400, undefined]);
     const statuses: number[] = [];
     let last: Awaited<ReturnType<typeof parts.mailRoute>> | undefined;
     for (let i = 0; i < 4; i += 1) {
-      last = await parts.mailRoute({ route: 'forgot', body: JSON.stringify({ email: 'same@madar.test' }), address: ADDRESS }, net);
+      last = await parts.mailRoute({ ent: ENT_VADO, route: 'forgot', body: JSON.stringify({ email: 'same@madar.test' }), address: ADDRESS }, net);
       statuses.push(last.status);
     }
     expect(statuses).toEqual([200, 200, 200, 429]);
@@ -367,10 +369,11 @@ describe('the forgot and renew routes in the office object (Office.mailRoute, Of
     const { parts, raw, batch } = await office(undefined, { net });
     ok(await batch('usr_001', [{ name: 'users.create', input: { name: 'New Person', email: 'new.person@madar.test', systemRole: 'member', discipline: 'Architect' } }]));
     const href = /href="([^"]+)"/.exec(mails[0].html)![1].replace(/&amp;/g, '&');
-    const key = new URL(href).searchParams.get('renew')!;
-    const out = await parts.mailRoute({ route: 'renew', body: JSON.stringify({ key }), address: ADDRESS }, net);
+    // The link of an office object carries the enterprise as a tag; the Worker strips it, so the object gets the bare key.
+    const key = untag(new URL(href).searchParams.get('renew')!)!.secret;
+    const out = await parts.mailRoute({ ent: ENT_VADO, route: 'renew', body: JSON.stringify({ key }), address: ADDRESS }, net);
     expect([out.status, out.work]).toEqual([200, key]);
-    await parts.mailWork({ route: 'renew', value: key }, net);
+    await parts.mailWork({ ent: ENT_VADO, route: 'renew', value: key }, net);
     expect(mails).toHaveLength(2);
     expect(raw.prepare('select count(*) as n from auth_links where used_at is null').get()).toEqual({ n: 1 });
   });
@@ -391,7 +394,7 @@ describe('MCP in the office object (Office.mcp)', () => {
       await q("insert into auth_sessions (id, auth_id, client_id, amr, refresh_hash, expires_at, created_at) values (?1, ?2, ?3, 'oauth', ?4, '2026-11-17T06:00:00.000Z', ?5)", [sessionId, authId, clientId, `h-${clientId}`, NOW]);
     });
     // jose checks the time of the token with the real clock, so the token gets the real time.
-    return signAgentToken(await signingKeysOf(jwk, MCP_URL), { authId, sessionId, clientId, now: new Date() });
+    return signAgentToken(await signingKeysOf(jwk, MCP_URL), { authId, sessionId, clientId, now: new Date(), ent: ENT_VADO });
   }
 
   async function mcpOffice() {
@@ -404,7 +407,7 @@ describe('MCP in the office object (Office.mcp)', () => {
     const rpc = async (token: string | null, method: string, params: Record<string, unknown> = {}): Promise<Rpc & { later: string[] }> => {
       const headers: [string, string][] = [['content-type', 'application/json'], ['accept', 'application/json, text/event-stream'], ['mcp-protocol-version', '2025-11-25']];
       if (token) headers.push(['authorization', `Bearer ${token}`]);
-      const out = await t.parts.mcp({ url: MCP_URL, method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: (id += 1), method, params }), worker: 1 }, t.net);
+      const out = await t.parts.mcp({ ent: ENT_VADO, mcpUrl: 'https://madar.test/mcp', url: MCP_URL, method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: (id += 1), method, params }), worker: 1 }, t.net);
       // A 2025-era answer may come as one SSE event.
       const json = out.body.startsWith('event:') ? out.body.split('\n').find((line) => line.startsWith('data: '))!.slice(6) : out.body;
       return { status: out.status, headers: Object.fromEntries(out.headers), body: json ? JSON.parse(json) : {}, later: out.later };
@@ -446,14 +449,14 @@ describe('MCP in the office object (Office.mcp)', () => {
 
   it('answers the metadata of the own sign-in from the object, with no token', async () => {
     const t = await mcpOffice();
-    const out = await t.parts.mcp({ url: `${MCP_URL}/.well-known/oauth-authorization-server`, method: 'GET', headers: [], body: null, worker: 0 }, t.net);
+    const out = await t.parts.mcp({ ent: ENT_VADO, mcpUrl: 'https://madar.test/mcp', url: `${MCP_URL}/.well-known/oauth-authorization-server`, method: 'GET', headers: [], body: null, worker: 0 }, t.net);
     expect(out.status).toBe(200);
     expect(JSON.parse(out.body)).toMatchObject({ issuer: MCP_URL });
   });
 
   it('answers 503 with no key of the own sign-in, and runs nothing', async () => {
     const t = await office();
-    const out = await t.parts.mcp({ url: MCP_URL, method: 'POST', headers: [['content-type', 'application/json']], body: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', worker: 0 }, t.net);
+    const out = await t.parts.mcp({ ent: ENT_VADO, mcpUrl: 'https://madar.test/mcp', url: MCP_URL, method: 'POST', headers: [['content-type', 'application/json']], body: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', worker: 0 }, t.net);
     expect([out.status, JSON.parse(out.body).error.code, out.later]).toEqual([503, -32603, []]);
   });
 });

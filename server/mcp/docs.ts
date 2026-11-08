@@ -18,7 +18,7 @@ export const INSTRUCTIONS = [
   'Call madar.readFirst once, before you call any other tool. It returns this text in full and names the person you act for. Your client may show you only the start of this text.',
   '',
   'Rules:',
-  '1. You act for one person, with that person\'s rights and never more. You have no role of your own. A call that the person may not make fails for you too.',
+  '1. You act for one person of one enterprise, with that person\'s rights and never more. You have no role of your own. A call that the person may not make fails for you too.',
   '2. Every change records two names: yours (the agent) and the person you act for. The History shows both.',
   '3. A story ties together the changes of one request. Call story.start once, then pass its storyId to each write of that request.',
   '4. The person you act for gets no notification for your changes. Tell the person what you changed.',

@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import { ApiError } from '../../src/api/errors';
 import { OWN_AUTH_SECRET, ownIssuer, ownKeySet } from '../auth/ownKeys';
+import { isEnterpriseId, type EnterpriseId } from '../enterprise/ids';
 import { issuerOf } from '../auth/verify';
 import { env } from '../env';
 import { userIdOfAuth } from '../data/officeCache';
@@ -35,7 +36,7 @@ import { addressListOf, assertAddressesSeen } from './approval';
  *   session belongs to another person than the one who approved the client (401).
  */
 
-export type AgentToken = { token: string; authUserId: string; clientId: string; sessionId: string; expiresAt?: number };
+export type AgentToken = { token: string; authUserId: string; clientId: string; sessionId: string; expiresAt?: number; ent?: EnterpriseId };
 export type AgentTokenChecker = (header: string | null) => Promise<AgentToken>;
 
 const CLOCK_TOLERANCE_S = 5;
@@ -55,7 +56,7 @@ function accountOff(): ApiError {
 
 const text = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
 
-export function agentTokenChecker(o: { issuer: string; audience: string; jwks: JWTVerifyGetKey }): AgentTokenChecker {
+export function agentTokenChecker(o: { issuer: string; audience: string; jwks: JWTVerifyGetKey; requireEnt?: boolean }): AgentTokenChecker {
   return async (header) => {
     const match = header === null ? null : BEARER.exec(header.trim());
     if (!match) throw signInAgain('Send the Madar access token in the Authorization header.');
@@ -69,9 +70,12 @@ export function agentTokenChecker(o: { issuer: string; audience: string; jwks: J
     }
     if (!text(payload.client_id)) throw signInAgain('This access token is not for Madar\'s MCP server.');
     if (!text(payload.session_id) || !text(payload.sub) || payload.role !== 'authenticated') throw signInAgain();
+    const ent = isEnterpriseId(payload.ent) ? payload.ent : undefined;
+    if (o.requireEnt === true && ent === undefined) throw signInAgain('This access token is not for Madar\'s MCP server.');
     return {
       token: match[1], authUserId: payload.sub, clientId: payload.client_id, sessionId: payload.session_id,
       ...(typeof payload.exp === 'number' ? { expiresAt: payload.exp } : {}),
+      ...(ent === undefined ? {} : { ent }),
     };
   };
 }
@@ -86,7 +90,7 @@ const checkers = new Map<string, AgentTokenChecker>();
  */
 export function agentTokenCheckerOf(o: { supabaseUrl: string; mcpUrl: string; issuer?: string }): AgentTokenChecker {
   const own = env(OWN_AUTH_SECRET);
-  if (own !== undefined) return agentTokenChecker({ issuer: ownIssuer(o.mcpUrl), audience: o.mcpUrl, jwks: ownKeySet(own) });
+  if (own !== undefined) return agentTokenChecker({ issuer: ownIssuer(o.mcpUrl), audience: o.mcpUrl, jwks: ownKeySet(own), requireEnt: true });
   const auth = issuerOf(o.supabaseUrl);
   const issuer = o.issuer ?? env('AUTH_ISSUER') ?? auth;
   const id = `${auth}|${issuer}|${o.mcpUrl}`;

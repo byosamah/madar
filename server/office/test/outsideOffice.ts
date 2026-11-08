@@ -15,6 +15,7 @@ import { officeParts, type OfficeCronReport, type OfficeEffectsReport, type Offi
 import { principalOfWho } from '../who';
 import { fakeSockets, recordingNet } from './fakes';
 import { NODE_OFFICE_ENV } from './nodeOffice';
+import { ENT_VADO } from '../../enterprise/ids';
 
 /**
  * For tests only: the office object parts on node:sqlite with Google and Daftra behind the network port. The object makes no network call
@@ -70,6 +71,7 @@ export async function outsideOffice(o: OutsideOptions = {}) {
   const seed = await buildSeed(at.slice(0, 10), async () => undefined);
   o.edit?.(seed);
   await parts.db.tx('write', (q) => liteWriteState(q, seed));
+  await parts.gate.create({ id: ENT_VADO, state: 'active', limits: { people: null, storageBytes: null }, now: new Date(at) });
 
   const openAtCall: boolean[] = [];
   const daftraSites = daftraDeps(...fakes);
@@ -92,7 +94,7 @@ export async function outsideOffice(o: OutsideOptions = {}) {
     raw, parts, net, clock, lines, google, daftra: fakes, openAtCall,
     /** One batch of a person (the token is the user id). `later` holds the rows that run after the answer. */
     async batch(userId: string, calls: { name: string; input: unknown }[]): Promise<{ results: WireEntry[]; later: string[] }> {
-      const out = await parts.batch({ who: { kind: 'browser', authUserId: userId }, calls: calls.map((call, i) => ({ i, ...call })), overviewCalls: 0, worker: 1 }, net);
+      const out = await parts.batch({ ent: ENT_VADO, who: { kind: 'browser', authUserId: userId }, calls: calls.map((call, i) => ({ i, ...call })), overviewCalls: 0, worker: 1 }, net);
       if (!out.ok) throw new Error(`The batch was refused: ${JSON.stringify(out.error)}`);
       return { results: (JSON.parse(out.body) as WireResponse).results, later: out.later };
     },
@@ -105,8 +107,8 @@ export async function outsideOffice(o: OutsideOptions = {}) {
       google.state.challenge = url.searchParams.get('code_challenge') ?? undefined;
       return this.batch(userId, [{ name: 'google.connect', input: { code: code ?? google.state.code, state: url.searchParams.get('state') } }]);
     },
-    effects: (ids: string[]): Promise<OfficeEffectsReport> => parts.runEffects({ ids, worker: 1 }, net),
-    cron: (when: Date): Promise<OfficeCronReport> => parts.cron({ at: when.toISOString(), worker: 0 }, net),
+    effects: (ids: string[]): Promise<OfficeEffectsReport> => parts.runEffects({ ent: ENT_VADO, ids, worker: 1 }, net),
+    cron: (when: Date): Promise<OfficeCronReport> => parts.cron({ ent: ENT_VADO, at: when.toISOString(), worker: 0 }, net),
     rows: (text: string, values: unknown[] = []) => parts.db.statement('read', text, values) as Promise<Record<string, unknown>[]>,
   };
 }

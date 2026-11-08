@@ -161,6 +161,14 @@ describe('renderEmailChangedMail: the notice at the old email after an email cha
   });
 });
 
+describe('signinLink with an enterprise (Madar enterprises)', () => {
+  it('tags the token and the renew key when ent is given, and is unchanged without ent', () => {
+    expect(signinLink('https://madar.test', 'welcome', 'h', 'invite', 'rk', 'ent_002')).toBe('https://madar.test/welcome?token_hash=ent_002.h&type=invite&renew=ent_002.rk');
+    expect(signinLink('https://madar.test', 'reset', 'h', 'recovery', undefined, 'ent_002')).toBe('https://madar.test/reset?token_hash=ent_002.h&type=recovery');
+    expect(signinLink('https://madar.test', 'welcome', 'h', 'invite', 'rk')).toBe('https://madar.test/welcome?token_hash=h&type=invite&renew=rk');
+  });
+});
+
 describe('signinLink', () => {
   it('points at Welcome for an invitation and at Reset for a reset, with the link type that the screen sends to verifyOtp', () => {
     expect(signinLink('https://madar.test/', 'welcome', 'h a/sh', 'invite')).toBe('https://madar.test/welcome?token_hash=h+a%2Fsh&type=invite');

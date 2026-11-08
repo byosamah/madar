@@ -6,6 +6,7 @@ import { signinOffice } from '../../auth/own/testOffice';
 import type { SigninDeps } from '../../auth/own/types';
 import { ownIssuer, ownKeySet, ownPublicJwks } from '../../auth/ownKeys';
 import type { Deps } from '../../core/ports';
+import { ENT_VADO } from '../../enterprise/ids';
 import { createRunCall } from '../../core/runCall';
 import { liteData } from '../../data/lite/callData';
 import { readLiteOffice } from '../../data/lite/office';
@@ -24,7 +25,7 @@ export async function oauthApp(o: { at?: string } = {}) {
   const t = await signinOffice({ at: o.at ?? new Date().toISOString(), config: { mcpUrl: TEST_MCP_URL, appUrl: 'https://madar.test', allowedOrigins: ['https://madar.test'] } });
   const jwk = await testPrivateJwk();
   const keys = await signingKeysOf(jwk, TEST_MCP_URL);
-  const deps: SigninDeps = { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys };
+  const deps: SigninDeps = { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys, ent: ENT_VADO };
   const office = localSigninOffice(deps);
   const run = createRunCall({ data: liteData });
   const mcp = mcpApp(t.deps as unknown as Deps, {

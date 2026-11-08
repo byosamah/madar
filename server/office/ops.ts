@@ -23,8 +23,11 @@ function tablesOf(): { name: string; alias?: string }[] {
   });
 }
 
-/** The tables that an export leaves out: the snapshot comes back from the tables, and the schema step makes the version row. */
-export const EXPORT_SKIP: readonly string[] = ['office_snapshot', 'schema_version'];
+/**
+ * The tables that an export leaves out: the snapshot comes back from the tables, and the schema step makes the version row. The identity
+ * row enterprise never travels: a backup of ent_002 must not write its identity into another object (the platform object holds the master copy).
+ */
+export const EXPORT_SKIP: readonly string[] = ['office_snapshot', 'schema_version', 'enterprise'];
 
 /** Every table of the schema, in schema order, but the ones of EXPORT_SKIP. */
 export const EXPORT_TABLES: readonly string[] = tablesOf().map((t) => t.name).filter((name) => !EXPORT_SKIP.includes(name));

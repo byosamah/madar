@@ -38,6 +38,7 @@ opens a file in that folder. Read the guide of a part before you change that par
 | Browser push | `server/push/CLAUDE.md` | the push line, VAPID, who gets one, devices, keys, the service worker |
 | Pages Functions | `functions/CLAUDE.md` | the /api and /mcp forwarders on Cloudflare Pages |
 | Daftra link | `server/daftra/CLAUDE.md` | one Daftra account for each sub-company, the GET-only client, the cache, the paid check of the job step |
+| Enterprises | `server/enterprise/CLAUDE.md` | ids, gate, router, platform object, Cron fan-out |
 
 **Keep the guides true.** When you learn a fact about one part, write it in that part's guide, not here. When a change
 makes a guide line wrong, fix the line in the same commit. A rule that applies to two or more parts stays in this file.

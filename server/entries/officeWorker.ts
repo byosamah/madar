@@ -8,8 +8,18 @@ import { errorResponse, runErrorOf } from '../http/errors';
 import { checkBuild, parseBatch, readBody } from '../http/limits';
 import { JOBS_SECRET_HEADER, sameSecret } from '../jobs/app';
 import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
-import { TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
-import { OFFICE_NAME_HEADER, REHEARSAL_NAME } from '../office/ops';
+import { TICKET_REFUSE_MIN_MS, TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
+import { OFFICE_NAME_HEADER, REHEARSAL_NAME, testToolsOn } from '../office/ops';
+import { CRON_PATH, runFanout, selfTransport, type FanoutLeg, type FanoutTransport } from '../enterprise/fanout';
+import { utcDay } from '../mail/quota';
+import { firstRunOfDay } from '../office/jobs';
+import { ENT_VADO, isEnterpriseId, untag, type EnterpriseId } from '../enterprise/ids';
+import { OwnersBodyShape, RegisterBodyShape } from '../enterprise/shapes';
+import { padTo } from '../enterprise/pad';
+import type { PlatformStub } from '../enterprise/platform/stub';
+import { entRouter, mcpAddressOf, newListedCache, type EntRouter } from '../enterprise/router';
+import { challengeOf } from '../mcp/metadata';
+import type { EnterpriseStatus } from '../enterprise/types';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
 import { runInHost } from '../core/after';
@@ -39,7 +49,11 @@ export const OFFICE_NAME = 'office';
 export const EXPORT_SECRET_HEADER = 'x-madar-export-secret';
 export const OPS_SECRET_HEADER = 'x-madar-ops-secret';
 
-type OpRule = { secret: 'export' | 'ops'; names: 'any' | 'office' | 'rehearsal' };
+/**
+ * names: any (the old name office, a rehearsal name, or a listed enterprise id), office (the old name or a listed enterprise id), rehearsal
+ * (a rehearsal name only), none (an op of the platform object: it takes no ?office=).
+ */
+type OpRule = { secret: 'export' | 'ops'; names: 'any' | 'office' | 'rehearsal' | 'none' };
 
 /** Each op, its secret and the object names it takes. export is the nightly GitHub job; the others run from the Mac. */
 const OPS: Readonly<Record<string, OpRule>> = {
@@ -47,12 +61,16 @@ const OPS: Readonly<Record<string, OpRule>> = {
   import: { secret: 'ops', names: 'any' },
   peek: { secret: 'ops', names: 'office' },
   drop: { secret: 'ops', names: 'rehearsal' },
+  'platform-register': { secret: 'ops', names: 'none' },
+  'platform-owners': { secret: 'ops', names: 'none' },
 };
 
-function nameAllowed(rule: OpRule['names'], name: string): boolean {
-  if (rule === 'office') return name === OFFICE_NAME;
+/** The names that an op takes without the list of the platform. An enterprise id needs the list (listed). */
+function nameAllowed(rule: OpRule['names'], name: string, listed: boolean): boolean {
+  if (rule === 'none') return false;
   if (rule === 'rehearsal') return REHEARSAL_NAME.test(name);
-  return name === OFFICE_NAME || REHEARSAL_NAME.test(name);
+  if (rule === 'office') return name === OFFICE_NAME || listed;
+  return name === OFFICE_NAME || REHEARSAL_NAME.test(name) || listed;
 }
 
 /** True when the env has the office binding OFFICE (the test Worker from wave 3; production from wave 6). */
@@ -84,23 +102,33 @@ export type OfficeStub = {
   mailWork(input: OfficeMailWork, net: NetApi): Promise<void>;
   mcp(input: OfficeMcpInput, net: NetApi): Promise<OfficeMcpAnswer>;
   health(): Promise<OfficeHealth>;
+  status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus>;
   fetch(request: Request): Promise<Response>;
 };
 
-/** What a route of the routes option gets for its request: the office object, a new network port, and the work after the answer. */
-export type OfficeCall = { stub: OfficeStub; net: () => NetApi; after?: After };
+/**
+ * What a route of the routes option gets for its request: the router that turns an enterprise id into an office object (the only way,
+ * server/enterprise/router.ts), the platform object, a new network port, and the work after the answer.
+ */
+export type OfficeCall = { router: EntRouter; platform: PlatformStub; net: () => NetApi; after?: After };
 export type OfficeRoute = { method: 'GET' | 'POST'; path: string; handler: (request: Request, call: OfficeCall) => Promise<Response> };
 
 export type OfficeRoutesOptions = {
   deps: Pick<Deps, 'config' | 'clock' | 'log'>;
-  verifyToken: (header: string | null) => Promise<{ authUserId: string }>;
-  stub: (env: Env) => OfficeStub;
+  /** The token check. ent is the claim of an own-key token; a token with no claim (the Supabase key on an office copy) serves ENT_VADO. */
+  verifyToken: (header: string | null) => Promise<{ authUserId: string; ent?: EnterpriseId }>;
+  /** The office object of an enterprise, by its id (server/entries/officeEntry.ts names it with idFromName). Reach it through the router. */
+  stubFor: (env: Env, ent: EnterpriseId) => OfficeStub;
+  /** The one platform object. */
+  platform: (env: Env) => PlatformStub;
   net: () => NetApi;
   jobsSecret: () => string | undefined;
   /** More routes under /api (the own sign-in, server/entries/officeSignin.ts), as apiApp takes AppOptions.routes. */
   routes?: OfficeRoute[];
-  /** The object of an op by its name (the office of the copy, or a spare object of the rehearsal). Default: stub, for "office". */
-  stubOf?: (env: Env, name: string) => Pick<OfficeStub, 'fetch'>;
+  /** The transport of the Cron legs. Default: selfTransport (the binding SELF, or the public API address when MADAR_CRON_TRANSPORT is api). */
+  fanout?: (env: Env) => FanoutTransport;
+  /** The timer of the minimum answer time of a refused ticket. Default: setTimeout. A test records the waits here. */
+  sleep?: (ms: number) => Promise<void>;
   /** MADAR_EXPORT_SECRET: the nightly export of GitHub. */
   exportSecret?: () => string | undefined;
   /** MADAR_OPS_SECRET: the import, the peek and the drop from the Mac. */
@@ -117,6 +145,16 @@ function mcpError(status: number, message: string, reason?: string): Response {
   return Response.json({ jsonrpc: '2.0', id: null, error: { code: status, message, ...(reason ? { data: { reason } } : {}) } }, { status });
 }
 
+/**
+ * The 401 of an MCP request that names no enterprise: the words and the challenge that the MCP app gives a request with no token, or with a
+ * token it cannot read. The address is the one the request named, so the challenge points at that address and tells a stranger nothing.
+ */
+function mcpUnauthorized(mcpUrl: string, tokenCame: boolean): Response {
+  const message = tokenCame ? 'This access token is not for Madar\'s MCP server.' : 'Send the Madar access token in the Authorization header.';
+  const challenge = challengeOf(mcpUrl, tokenCame ? { error: 'invalid_token', description: message } : {});
+  return Response.json({ jsonrpc: '2.0', id: null, error: { code: 401, message } }, { status: 401, headers: { 'WWW-Authenticate': challenge } });
+}
+
 /** The refusal of an office object call that threw: busy when Cloudflare marks the error overloaded or retryable. */
 export function officeErrorOf(error: unknown, log: Deps['log']): RunError {
   const marks = error as { overloaded?: unknown; retryable?: unknown } | null;
@@ -127,6 +165,10 @@ export function officeErrorOf(error: unknown, log: Deps['log']): RunError {
 
 export function officeRoutes(o: OfficeRoutesOptions) {
   const { log } = o.deps;
+  // The list of enterprises and the resolved addresses live as long as the isolate, so most requests read no platform object.
+  const listedCache = newListedCache();
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const routerOf = (env: Env): EntRouter => entRouter({ stubFor: (ent) => o.stubFor(env, ent), platform: o.platform(env), cache: listedCache });
   let seen = 0;
   const reported = (): number => {
     const n = seen;
@@ -138,26 +180,31 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     let calls: OfficeBatchInput['calls'];
     let overviewCalls: number;
     let authUserId: string;
+    let ent: EnterpriseId;
     try {
       checkBuild(request.headers.get('X-Madar-Build') ?? undefined, o.deps.config.minClientBuild);
       const parsed = parseBatch(await readBody(request));
       calls = parsed.request.calls;
       overviewCalls = parsed.overviewCalls;
-      ({ authUserId } = await o.verifyToken(request.headers.get('Authorization')));
+      const checked = await o.verifyToken(request.headers.get('Authorization'));
+      authUserId = checked.authUserId;
+      // The claim of the signed token names the enterprise. No claim (the Postgres way back) is ENT_VADO.
+      ent = checked.ent ?? ENT_VADO;
     } catch (error) {
       if (!(error instanceof ApiError)) log.error('The batch failed before its calls.', { error: error instanceof Error ? error.message : String(error) });
       return errorResponse(runErrorOf(error));
     }
     const net = o.net();
+    const stub = routerOf(env).stub(ent);
     let out: OfficeBatchOutput;
     try {
-      out = await o.stub(env).batch({ who: { kind: 'browser', authUserId }, calls, overviewCalls, worker: reported() }, net);
+      out = await stub.batch({ ent, who: { kind: 'browser', authUserId }, calls, overviewCalls, worker: reported() }, net);
     } catch (error) {
       return errorResponse(officeErrorOf(error, log));
     }
     if (!out.ok) return errorResponse(out.error);
     if (out.later.length > 0) {
-      const work = o.stub(env).runEffects({ ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+      const work = stub.runEffects({ ent, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
         log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
       });
       if (after) after(work);
@@ -180,17 +227,33 @@ export function officeRoutes(o: OfficeRoutesOptions) {
         return mcpError(413, 'The request is too large.', 'too_large');
       }
     }
+    // The enterprise of the request comes from the address (design 5.5): /mcp serves ENT_VADO, /mcp/<address> serves the enterprise that the
+    // platform lists for that address. A bad or unknown address gets the 401 of a missing token and makes no object.
+    const url = new URL(request.url);
+    const base = o.deps.config.mcpUrl.replace(/\/+$/, '');
+    const parsed = mcpAddressOf(url.pathname);
+    const router = routerOf(env);
+    const target = parsed === 'bad' ? null : parsed.address === null ? { ent: ENT_VADO, stub: router.stub(ENT_VADO) } : await router.addressStub(parsed.address);
+    if (parsed === 'bad' || !target) {
+      // The text of the app for a request with no token or a token it cannot read, so a listed and an unlisted address answer alike.
+      const named = parsed !== 'bad' && parsed.address !== null ? `${base}/${parsed.address}` : base;
+      return mcpUnauthorized(named, request.headers.has('authorization'));
+    }
+    const mcpUrl = parsed.address === null ? base : `${base}/${parsed.address}`;
+    // The object routes the path without the address: the app serves /mcp, /mcp/oauth/... and /mcp/.well-known/....
+    const forward = new URL(request.url);
+    forward.pathname = parsed.rest;
     const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
     const net = o.net();
     let out: OfficeMcpAnswer;
     try {
-      out = await o.stub(env).mcp({ url: request.url, method: request.method, headers, body, worker: reported() }, net);
+      out = await target.stub.mcp({ ent: target.ent, mcpUrl, url: forward.toString(), method: request.method, headers, body, worker: reported() }, net);
     } catch (error) {
       const refusal = officeErrorOf(error, log);
       return refusal.details?.reason === 'busy' ? mcpError(503, refusal.message, 'busy') : mcpError(500, 'Something went wrong. Try again.');
     }
     if (out.later.length > 0) {
-      const work = o.stub(env).runEffects({ ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+      const work = target.stub.runEffects({ ent: target.ent, ids: out.later, worker: 0 }, net).catch((error: unknown) => {
         log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
       });
       if (after) after(work);
@@ -211,9 +274,12 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     if (!secret || given === null || !(await sameSecret(given, secret))) {
       return errorResponse({ code: 'unauthenticated', message: 'The secret of this address is not right.' });
     }
-    const name = new URL(request.url).searchParams.get('office') ?? OFFICE_NAME;
-    if (!nameAllowed(rule.names, name)) return errorResponse({ code: 'forbidden', message: 'This office name is not allowed for this op.' });
-    const stub = o.stubOf ? o.stubOf(env, name) : o.stub(env);
+    if (rule.names === 'none') return platformOp(request, env, op);
+    // Without ?office= the op is for ENT_VADO. An enterprise id works only when the platform object lists it, so an op never makes an object.
+    const name = new URL(request.url).searchParams.get('office') ?? ENT_VADO;
+    const listed = isEnterpriseId(name) ? await routerOf(env).listedStub(name) : null;
+    if (!nameAllowed(rule.names, name, listed !== null)) return errorResponse({ code: 'forbidden', message: 'This office name is not allowed for this op.' });
+    const stub = listed?.stub ?? o.stubFor(env, name);
     try {
       return await stub.fetch(new Request(`https://office.internal/office/${op}`, {
         method: 'POST', headers: { 'content-type': 'application/json', [OFFICE_NAME_HEADER]: name }, body: request.body, duplex: 'half',
@@ -223,11 +289,98 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     }
   }
 
+  /**
+   * One Cron leg (Madar enterprises): the job of one enterprise in its object, then its status and its meter to the platform object. A
+   * leg that throws (a paused object) still sends the status, which a paused object answers. The jobs secret opens the route.
+   */
+  async function cronLeg(request: Request, env: Env): Promise<Response> {
+    const secret = o.jobsSecret();
+    const given = request.headers.get(JOBS_SECRET_HEADER);
+    if (request.method !== 'POST' || !secret || given === null || !(await sameSecret(given, secret))) {
+      return errorResponse({ code: 'unauthenticated', message: 'The job secret is not right.' });
+    }
+    let body: { ent?: unknown; at?: unknown } = {};
+    try {
+      body = JSON.parse(await readBody(request)) as typeof body;
+    } catch {
+      return errorResponse({ code: 'invalid_input', message: 'A Cron leg needs { ent, at }.' });
+    }
+    const at = typeof body.at === 'string' ? new Date(body.at) : new Date(Number.NaN);
+    if (Number.isNaN(at.getTime())) return errorResponse({ code: 'invalid_input', message: 'A Cron leg needs { ent, at }.' });
+    const target = await routerOf(env).listedStub(body.ent);
+    if (!target) return errorResponse({ code: 'not_found', message: 'This address does not exist.' });
+    const platform = o.platform(env);
+    const { ent, stub } = target;
+    seen += 1;
+    try {
+      const report = await stub.cron({ ent, at: at.toISOString(), worker: reported() }, o.net());
+      log.info('The office jobs ran.', { ent, ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed });
+      await platform.report(report.status);
+      await platform.meter({ ent, day: utcDay(at), counts: report.status.day });
+      return Response.json({ ok: report.ok });
+    } catch (error) {
+      log.error('The office jobs did not run. The next run tries again.', { ent, error: error instanceof Error ? error.message : String(error) });
+      // A paused object refuses the jobs but answers its status, so the platform page still shows it.
+      try {
+        await platform.report(await stub.status({ ent }));
+      } catch (again) {
+        log.warn('The status of an enterprise did not load.', { ent, error: again instanceof Error ? again.message : String(again) });
+      }
+      return errorResponse({ code: 'failed', message: 'Something went wrong. Try again.' });
+    }
+  }
+
+  /**
+   * The two ops of the platform object (Madar enterprises, with the ops secret): platform-register writes one enterprise row and its emails
+   * (an upsert, any state), and platform-owners replaces the list of the platform owners. The body is checked with zod first.
+   */
+  async function platformOp(request: Request, env: Env, op: string): Promise<Response> {
+    let value: unknown;
+    try {
+      value = JSON.parse(await readBody(request));
+    } catch {
+      return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body of this op is one JSON object.')));
+    }
+    try {
+      const platform = o.platform(env);
+      if (op === 'platform-register') {
+        const parsed = RegisterBodyShape.safeParse(value);
+        if (!parsed.success) return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body is { row, emails }, with an enterprise row.')));
+        await platform.register(parsed.data);
+        // This isolate reads the list again at its next lookup, so the import that follows finds the new enterprise at once. Another
+        // isolate sees it after LISTED_MISS_MS at most.
+        delete listedCache.list;
+        listedCache.addresses.clear();
+      } else {
+        const parsed = OwnersBodyShape.safeParse(value);
+        if (!parsed.success) return errorResponse(runErrorOf(new ApiError('invalid_input', 'The body is { owners: [{ ent, userId }] }.')));
+        await platform.setOwners(parsed.data);
+      }
+      return Response.json({ ok: true });
+    } catch (error) {
+      if (error instanceof ApiError || (error as { code?: unknown })?.code !== undefined) return errorResponse(runErrorOf(error));
+      return errorResponse(officeErrorOf(error, log));
+    }
+  }
+
+  /**
+   * The socket (Madar enterprises): the ticket is <ent>.<secret>. The shape and the listed tag come first; a ticket that fails here, or in
+   * the object, gets the one refusal after the same minimum time, and a failure here makes no object.
+   */
   async function live(request: Request, env: Env): Promise<Response> {
     if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response('This address needs a WebSocket.', { status: 426 });
-    if (!TICKET_SHAPE.test(new URL(request.url).searchParams.get('ticket') ?? '')) return errorResponse(TICKET_REFUSED);
+    const started = performance.now();
+    const refused = async (): Promise<Response> => {
+      await padTo(started, TICKET_REFUSE_MIN_MS, sleep);
+      return errorResponse(TICKET_REFUSED);
+    };
+    const ticket = new URL(request.url).searchParams.get('ticket') ?? '';
+    if (!TICKET_SHAPE.test(ticket)) return refused();
+    const target = await routerOf(env).listedStub(untag(ticket)?.ent);
+    if (!target) return refused();
     try {
-      return await o.stub(env).fetch(request);
+      const response = await target.stub.fetch(request);
+      return response.status === 401 ? await refused() : response;
     } catch (error) {
       return errorResponse(officeErrorOf(error, log));
     }
@@ -240,11 +393,47 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     const secret = o.jobsSecret();
     if (!secret || !(await sameSecret(given, secret))) return errorResponse({ code: 'unauthenticated', message: 'The job secret is not right.' });
     try {
-      return Response.json({ ...base, office: await o.stub(env).health() });
+      // Only ENT_VADO, and only when the platform lists it: the health check reads no other enterprise.
+      const vado = await routerOf(env).listedStub(ENT_VADO);
+      return Response.json(vado ? { ...base, office: await vado.stub.health() } : base);
     } catch (error) {
       log.error('The office object failed its health check.', { error: error instanceof Error ? error.message : String(error) });
       return Response.json({ ...base, ok: false }, { status: 503 });
     }
+  }
+
+  /**
+   * The probe routes of spike S1 (Madar enterprises): only with the test tools on and the jobs secret. The fan-out route sends
+   * count legs through the transport; each leg makes plain outside calls to the public health route and says how many worked.
+   */
+  async function probe(request: Request, env: Env, kind: 'fanout' | 'leg'): Promise<Response> {
+    const read = (name: string): string | undefined => (typeof env[name] === 'string' ? (env[name] as string) : undefined);
+    if (request.method !== 'POST' || !testToolsOn(read)) return errorResponse({ code: 'not_found', message: 'This address does not exist.' });
+    const secret = o.jobsSecret();
+    const given = request.headers.get(JOBS_SECRET_HEADER);
+    if (!secret || given === null || !(await sameSecret(given, secret))) {
+      return errorResponse({ code: 'unauthenticated', message: 'The job secret is not right.' });
+    }
+    const body = (await request.json().catch(() => ({}))) as { kind?: unknown; count?: unknown; outside?: unknown };
+    const outside = Math.max(0, Math.min(45, Number(body.outside) || 0));
+    if (kind === 'leg') {
+      let worked = 0;
+      for (let i = 0; i < outside; i += 1) {
+        try {
+          if ((await fetch('https://madar.vado.sa/api/health')).ok) worked += 1;
+        } catch {
+          // A failed outside call counts as not worked.
+        }
+      }
+      return Response.json({ outside, worked });
+    }
+    const count = Math.max(1, Math.min(30, Number(body.count) || 1));
+    const ids = Array.from({ length: count }, (_, i) => `ent_9${String(i).padStart(2, '0')}`);
+    const transport = selfTransport(env, {
+      kind: body.kind === 'api' ? 'api' : 'self', secret, apiUrl: `${o.deps.config.appUrl.replace(/\/$/, '')}/api`,
+      path: '/api/internal/probe/leg', extra: { outside },
+    });
+    return Response.json(await runFanout({ ids, at: o.deps.clock.now(), transport, log }));
   }
 
   const afterOf = (c: Context): After | undefined => {
@@ -262,11 +451,14 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   app.all('/mcp', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.all('/mcp/*', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.get('/api/health', (c) => health(c.req.raw, c.env));
+  app.all(CRON_PATH, (c) => cronLeg(c.req.raw, c.env));
+  app.all('/api/internal/probe/fanout', (c) => probe(c.req.raw, c.env, 'fanout'));
+  app.all('/api/internal/probe/leg', (c) => probe(c.req.raw, c.env, 'leg'));
   app.post('/api/batch', (c) => batch(c.req.raw, c.env, afterOf(c)));
   for (const route of o.routes ?? []) {
     app.on(route.method, `/api${route.path}`, (c) => {
       const after = afterOf(c);
-      return route.handler(c.req.raw, { stub: o.stub(c.env), net: o.net, ...(after ? { after } : {}) });
+      return route.handler(c.req.raw, { router: routerOf(c.env), platform: o.platform(c.env), net: o.net, ...(after ? { after } : {}) });
     });
   }
   app.notFound(() => errorResponse({ code: 'not_found', message: 'This address does not exist.' }));
@@ -287,17 +479,39 @@ export function officeRoutes(o: OfficeRoutesOptions) {
         app.fetch(request, env, ctx as Parameters<typeof app.fetch>[2]));
     },
 
-    /** One Cron run: the whole job in one office object call. The report goes to the log, where wave 5 reads the day meters. */
-    async scheduled(at: Date, env: Env): Promise<OfficeCronReport | undefined> {
+    /**
+     * One Cron run (Madar enterprises, design 5.13): read the list of enterprises, then send one leg for each through the transport. A leg is
+     * one Worker call (cronLeg), so the job of each enterprise has its own budget of outside calls. The first run after 00:00 UTC also
+     * sweeps the rate limits of the platform object. The log line names ids and counts only.
+     */
+    async scheduled(at: Date, env: Env): Promise<{ legs: FanoutLeg[] } | undefined> {
       seen += 1;
+      const platform = o.platform(env);
+      let ids: EnterpriseId[];
       try {
-        const report = await o.stub(env).cron({ at: at.toISOString(), worker: reported() }, o.net());
-        log.info('The office jobs ran.', { ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed, day: report.day });
-        return report;
+        ids = await platform.listed();
       } catch (error) {
-        log.error('The office jobs did not run. The next run tries again.', { error: error instanceof Error ? error.message : String(error) });
+        log.error('The list of enterprises did not load. The next run tries again.', { error: error instanceof Error ? error.message : String(error) });
         return undefined;
       }
+      if (firstRunOfDay(at)) {
+        await platform.sweep({ at: at.toISOString() }).catch((error: unknown) => {
+          log.warn('The platform cleanup did not run.', { error: error instanceof Error ? error.message : String(error) });
+        });
+      }
+      const secret = o.jobsSecret();
+      let transport: FanoutTransport;
+      try {
+        if (o.fanout) transport = o.fanout(env);
+        else if (secret) transport = selfTransport(env, { kind: env.MADAR_CRON_TRANSPORT === 'api' ? 'api' : 'self', secret, apiUrl: o.deps.config.apiUrl });
+        else throw new Error('JOBS_SECRET is not set: the Cron legs need it.');
+      } catch (error) {
+        log.error('The Cron legs cannot start.', { error: error instanceof Error ? error.message : String(error) });
+        return undefined;
+      }
+      const out = await runFanout({ ids, at, transport, log });
+      log.info('The Cron legs ran.', { count: out.legs.length, failed: out.legs.filter((leg) => !leg.ok).map((leg) => leg.ent), ms: out.legs.map((leg) => leg.ms) });
+      return out;
     },
   };
 }

@@ -29,6 +29,17 @@ class_name = "Office"
 tag = "office-v1"
 new_sqlite_classes = ["Office"]
 
+# The platform object of Madar enterprises (server/enterprise/platform/object.ts): the list of enterprises, the email directory, the owners
+# and the meters. One object named "platform". Like OFFICE, the binding is repeated in [env.test], and [env.production] turns the
+# migrations off until the switch (plan E adds both there).
+[[durable_objects.bindings]]
+name = "PLATFORM"
+class_name = "Platform"
+
+[[migrations]]
+tag = "platform-v1"
+new_sqlite_classes = ["Platform"]
+
 # The 15-minute job of the office object (wave 3), in UTC. scheduled() returns at once while MADAR_DATA is not "office", so on the
 # test Worker it does nothing before wave 5. It takes 1 of the 5 Cron Triggers of the account (Workers Free).
 [triggers]
@@ -62,6 +73,16 @@ id = "1c4fc4b830234fad8956b6e80c52f4fc"
 name = "OFFICE"
 class_name = "Office"
 
+[[env.test.durable_objects.bindings]]
+name = "PLATFORM"
+class_name = "Platform"
+
+# The Cron fan-out of Madar enterprises (spike S1, server/enterprise/fanout.ts): this Worker calls itself once for each enterprise, so
+# each job has its own budget of outside calls. The binding names the Worker of this env.
+[[env.test.services]]
+binding = "SELF"
+service = "madar-server-test"
+
 # Public values. WORKER_REGION is the region label (server/core/deps.ts): no AWS region name, so no MCP region hop starts.
 [env.test.vars]
 SUPABASE_URL = "https://qdgwpnesxppnqsaabqzd.supabase.co"
@@ -69,6 +90,9 @@ WORKER_REGION = "workers-eu-central-1"
 # The test tools of the office object (exit wave 4): the replace mode of the import (the seed) and the peek route of the deploy
 # suite, both behind MADAR_OPS_SECRET. Never on production: server/office/ops.ts refuses them on a production copy anyway.
 MADAR_TEST_TOOLS = "on"
+# How the Cron sends one leg for each enterprise (server/enterprise/fanout.ts): "self" (the binding SELF) or "api" (the public API address).
+# The default of the code is "self". The lead sets this var from the result of the spike S1 (proof.md, "S1: Cron fan-out").
+MADAR_CRON_TRANSPORT = "self"
 # The day cap of the test copy (owner decision 6, form A: the same account as production): 50% of each Free day limit, so a heavy
 # test day cannot stop production. It acts only on the office path (config/server-host.json test: office).
 MADAR_DAY_CAP = "rows_written=50000,rows_read=2500000,requests=50000"

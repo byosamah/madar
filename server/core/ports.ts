@@ -1,4 +1,5 @@
 import type { DaftraConfig } from '../daftra/config';
+import type { EnterpriseId } from '../enterprise/ids';
 import type { RunCall } from './runCall';
 import type { ServerHost } from './serverHost';
 import type { TypingSignal } from '../../src/api/remote/wire';
@@ -115,6 +116,11 @@ export type Limits = {
 };
 
 export type Config = {
+  /**
+   * The enterprise of this object (Madar enterprises). The office object sets it from its identity row; the Postgres path leaves it out,
+   * and entOfConfig (plan D) reads a missing value as ENT_VADO.
+   */
+  ent?: EnterpriseId;
   /** The key of pg_advisory_xact_lock for the office. In tests, one key for each worker schema. */
   lockKey: number;
   appUrl: string;

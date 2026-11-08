@@ -67,20 +67,33 @@ export async function startLive(o: { outside?: boolean } = {}) {
       ({ url } = await server.listen());
       await read(await post('/test/seed', state));
     },
-    rows: async <R,>(text: string, values: unknown[] = []) => read<R[]>(await post('/test/rows', { text, values })),
+    /** A second object (an enterprise other than ENT_VADO): its own state, its identity row, and its row in the platform list. */
+    seedEnterprise: async (ent: string, state: State, address: string) => {
+      await read(await post(`/test/seed?ent=${ent}`, state));
+      await read(await post('/test/platform', { method: 'register', args: [{
+        row: { id: ent, address, name: `Test ${ent}`, nameAr: `اختبار ${ent}`, state: 'active', limits: { people: null, storageBytes: null }, createdAt: '2026-11-08T08:00:00.000Z', firstAdmin: { name: 'First', email: `first@${address}.test` } },
+        emails: [],
+      }] }));
+    },
+    rows: async <R,>(text: string, values: unknown[] = [], o: { ent?: string } = {}) => read<R[]>(await post('/test/rows', { text, values, ...o })),
     exec: async (text: string, values: unknown[] = []) => read<{ ok: true }>(await post('/test/exec', { text, values })),
+    /** One method of the platform object (TestPlatform), through the test Worker: the Worker holds the stub, not Node. */
+    platform: async <T,>(method: string, ...args: unknown[]) => (await read<{ value: T }>(await post('/test/platform', { method, args }))).value,
+    evictPlatform: () => worker().evictDurableObject('PLATFORM', { name: 'platform' }),
+    statusRows: async () => read<{ status: Record<string, unknown>; rows: number }>(await worker().fetch('/test/statusRows')),
+    named: async (name: string) => read<{ ok: boolean; code?: string | null; message?: string }>(await post('/test/named', { name })),
     readBack: async () => read<State>(await worker().fetch('/test/readBack')),
     net: async () => read<NetSeen>(await worker().fetch('/test/net')),
     /** The requests that the fake Google and the fake Daftra saw (method and address only). */
     outside: async () => read<OutsideSeen>(await worker().fetch('/test/outside')),
-    batch: async (userId: string, calls: BatchCall[]) => {
-      const response = await post('/api/batch', { v: 1, calls: calls.map((c, i) => ({ i, ...c })) }, { authorization: `Bearer ${userId}` });
+    batch: async (userId: string, calls: BatchCall[], o: { ent?: string } = {}) => {
+      const response = await post('/api/batch', { v: 1, calls: calls.map((c, i) => ({ i, ...c })) }, { authorization: `Bearer ${o.ent ? `${o.ent}:` : ''}${userId}` });
       return { status: response.status, body: (await response.json()) as WireResponse & { error?: RunError } };
     },
-    agent: async (ownerId: string) => read<{ authId: string; clientId: string; sessionId: string }>(await post('/test/agent', { ownerId })),
+    agent: async (ownerId: string, o: { ent?: string } = {}) => read<{ authId: string; clientId: string; sessionId: string }>(await post('/test/agent', { ownerId, ...o })),
     /** One 2025-era MCP request with an agent token (or none), and its JSON answer (one SSE event or plain JSON). */
-    mcp: async (token: string | null, method: string, params: Record<string, unknown> = {}) => {
-      const response = await post('/mcp', { jsonrpc: '2.0', id: 1, method, params }, {
+    mcp: async (token: string | null, method: string, params: Record<string, unknown> = {}, o: { path?: string } = {}) => {
+      const response = await post(o.path ?? '/mcp', { jsonrpc: '2.0', id: 1, method, params }, {
         accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-11-25', ...(token ? { authorization: `Bearer ${token}` } : {}),
       });
       const text = await response.text();
@@ -88,7 +101,7 @@ export async function startLive(o: { outside?: boolean } = {}) {
       return { status: response.status, body: (json ? JSON.parse(json) : {}) as { result?: Record<string, any>; error?: { message: string } } };
     },
     open: (ticket: string) => openSocket(`${url.href.replace(/^http/, 'ws')}api/live?ticket=${ticket}`),
-    evict: () => worker().evictDurableObject('OFFICE', { name: 'office', webSockets: 'hibernate' }),
+    evict: () => worker().evictDurableObject('OFFICE', { name: 'ent_001', webSockets: 'hibernate' }),
     /** One office op through the Worker, with the secret of the test Worker (entry.ts); a status above 299 throws with it. */
     ops: async (op: string, body: unknown, o: { office?: string } = {}) => {
       const header = op === 'export' ? 'x-madar-export-secret' : 'x-madar-ops-secret';

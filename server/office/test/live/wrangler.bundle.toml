@@ -16,14 +16,24 @@ SUPABASE_URL = "http://127.0.0.1:54321"
 MADAR_FILE_STORE = "r2"
 R2_BUCKET = "madar-files-test"
 WORKER_REGION = "workers-local"
+# Madar enterprises: the Cron sends each leg to the public API address of this Worker (there is no binding SELF in a local run).
+MADAR_CRON_TRANSPORT = "api"
 
 [[durable_objects.bindings]]
 name = "OFFICE"
 class_name = "Office"
 
+[[durable_objects.bindings]]
+name = "PLATFORM"
+class_name = "Platform"
+
 [[migrations]]
 tag = "office-v1"
 new_sqlite_classes = ["Office"]
+
+[[migrations]]
+tag = "platform-v1"
+new_sqlite_classes = ["Platform"]
 
 [triggers]
 crons = ["*/15 * * * *"]

@@ -3179,3 +3179,49 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   2026-11-08 about 10:25 UTC. Live checks: health from supabase, 162 calls; database, lock and asyncContext ok; /mcp with no token 401;
   madar.vado.sa serves `bootstrap-DsjVwWMM.js`, and its first-load `index-Dv5fBnds.js` holds the class of the quiet toggle.
 - Open: tsk_624 keeps the old rule until it is sent again; the reports stay open until the owner says to close them (TASKS.md).
+
+## Madar enterprises: core spikes S2 and S3
+Probe: `scripts/proof/ent-core/` (`node scripts/proof/ent-core/run.mjs`, local workerd, sandbox off, it never deploys). Run on 2026-11-08.
+- S3, how an object knows its own name: **yes**. An object made with `idFromName('ent_001')` reports `ctx.id.name` equal to `ent_001` in
+  its constructor, in a method, and after `evictDurableObject`. An object made with `newUniqueId()` reports no name. Decision: the gate
+  compares the object name with the row id (`EnterpriseGate`, option `name`).
+- S2, the directory read of a sign-in. One primary-key read of a `directory` table: a hit reads 1 row, a miss reads 0 rows, and both write
+  0 rows. This holds warm and after an evict (cold: the `create table if not exists` check adds no counted row). A sign-in by email adds
+  one Durable Object request (the platform object) before the request to the enterprise object. A sign-in with an unknown email adds the
+  same one request and sends nothing to an enterprise object.
+- S2, the refusal of an unknown email. `runSigninOp` on empty sign-in tables inside the directory object, with keys that throw when read,
+  answers `invalid_credentials`, the same answer as a wrong password in the office object (`PinOffice.signin`).
+- Time of the two paths on local workerd, 20 runs each, in ms: the office object path has a median of 12.8 and a p95 of 14.5; the
+  refusal path in the directory object has a median of 12.4 and a p95 of 13.4. The difference is inside the noise. (A first run on a cold
+  workerd showed a median of 27.7 and 24.9, a p95 of 84.8 and 79.6, because of the start of the object. Take the warm run.) The refusal
+  path runs one PBKDF2 like the real step, so both answer in about the same time.
+- Rows of the first `put` into the directory: 1 read, 5 written (the table, its index and the row).
+
+## S1: Cron fan-out (Madar enterprises)
+Open. The code is ready: `server/enterprise/fanout.ts` and the probe routes `POST /api/internal/probe/fanout` and `/leg` (test tools and the
+jobs secret). The probe is `npx tsx scripts/proof/cron-fanout/probe.ts --to <page address> --kind self|api --count 15 --outside 40`. The test Worker
+has the service binding `SELF` (`[[env.test.services]]`).
+Lead step: deploy the test Worker, run the probe for `--kind self` and `--kind api` with `--count` 3, 5 and 15 and `--outside` 0, 20 and 40,
+read one real Cron run in `wrangler tail`, and write the numbers here. Rule: choose `self` when every leg stays ok at 15 legs with 40
+outside calls each. Else choose `api`. If neither works, stop and ask the owner: the Cron then runs one enterprise in each 15-minute run.
+Then set the default of `MADAR_CRON_TRANSPORT` (Task 14).
+
+## Madar enterprises, plan B: the enterprise core (branch `rb/ent-b`, 2026-11-08)
+- What it holds: the ids and tags, the claim `ent` in the own tokens, the table `enterprise` (schema version 14) and the gate in every object
+  method, the platform object, the router and the listed cache, sign-in by email, tagged links, keys, refresh tokens and socket tickets, the MCP
+  address `/mcp/<address>`, the ops by enterprise id and the two platform ops, the Cron fan-out, two enterprises on the local stack, and the leak
+  tests of two enterprises. Guides: `server/enterprise/CLAUDE.md` and the guide of each part.
+- Tests of the track, each run once at the end of the track (sandbox off for workerd and wrangler): `npm run typecheck` clean; the node tests of
+  `server`, `scripts`, `tests` and `src/api/contract` (the `wd` files left out): 325 files, 3,980 passed, 6 skipped; `npm run test:lite`: 192 files,
+  3,526 passed, 54 skipped; `npm run test:office`: 12 files, 55 passed; `npm run build:server` ok (no `cloudflare:workers` in the Supabase
+  bundles); `npm run smoke:office`: 12 of 12 checks, the Cron run through the `api` transport included. Not run in the track: `npm test`,
+  `test:db`, `test:it`, `test:mcp`, the prototype smoke (the lead runs the full gate once).
+- Rows of `status()` on the sample office on workerd: 3 rows read (the office lists come from memory; the count of invited people, the last write and
+  the mails of the day are three statements). A Cron run adds one `status()` read at its end. A directory read of the platform object: 1 row for a hit,
+  0 for a miss, 0 written.
+- Cold wake: the rows pins (`CRON_PINS`, `COLD_EXTRA_ROWS`, `server/office/test/pins.ts`) did not change and still pass. The test object of the pins
+  (`PinOffice`) has no gate. The real object reads its identity row once on its first call: 1 row more on a cold wake, which the pin does not count.
+- Finds while building (the plan did not say them): the path `/mcp/oauth-protected-resource` is a path word of the VADO address, so it is reserved
+  next to `oauth`; after `platform-register` the Worker drops its listed cache, else an import that follows the register would wait 5 s; an unknown
+  MCP address answers with the words of the MCP app for a missing or unreadable token, so a listed and an unlisted address cannot be told apart.
+- Open for the lead: spike S1 (section "S1: Cron fan-out" above), the by-hand check of the local stack, and the gates that the track did not run.

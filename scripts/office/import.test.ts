@@ -3,7 +3,7 @@ import { buildSeed } from '../../src/data/seed';
 import { IMPORT_ROWS_PER_RECORD as PIN } from '../../server/office/test/pins';
 import { NODE_TODAY, nodeOffice } from '../../server/office/test/nodeOffice';
 import { recordDigest } from './digest';
-import { budgetProblem, IMPORT_ROWS_PER_RECORD, importOffice, planParts, rowsToWrite, targetOf } from './import';
+import { budgetProblem, IMPORT_ROWS_PER_RECORD, importOffice, officeNameOf, planParts, rowsToWrite, targetOf } from './import';
 import { partsOps, type OfficeOps } from './ops';
 import { stateSource } from './source';
 
@@ -80,6 +80,14 @@ describe('the import client (scripts/office/import.ts)', () => {
     await expect(importOffice(ops, stateSource(seed), { mode: 'empty', wait: async () => undefined })).rejects.toThrow(/answered 409/);
     expect(steps).toEqual(['begin', 'part', 'abort']);
     expect(t.parts.hold.active(t.clock.now())).toBeUndefined();
+  });
+
+  it('--office accepts ent_002 and a rehearsal name, and refuses office and ent_2', () => {
+    expect(officeNameOf('ent_002')).toBe('ent_002');
+    expect(officeNameOf('ent_1234')).toBe('ent_1234');
+    expect(officeNameOf('rehearsal-20261108')).toBe('rehearsal-20261108');
+    expect(officeNameOf(undefined)).toBeUndefined();
+    for (const bad of ['office', 'ent_2', 'ENT_002', 'ent_002 ', 'rehearsal-2026', 'platform', '']) expect(() => officeNameOf(bad), bad).toThrow('--office must be');
   });
 
   it('takes the test copy and the local office as targets, and refuses production before wave 6', () => {

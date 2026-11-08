@@ -60,6 +60,8 @@ export const FORGOT_EMAIL_PER_WINDOW = 3;
 /** No longer than the life of a reset link (otp_expiry, in config.toml and in each hosted project): see the comment above. */
 export const FORGOT_EMAIL_WINDOW_MS = HOUR_MS;
 export const FORGOT_IP_PER_HOUR = 10;
+/** The limit of one network address. On the office path the Worker counts it once in the platform object (skipAddress below). */
+export const FORGOT_ADDRESS_LIMIT = { prefix: 'forgot:ip', limit: FORGOT_IP_PER_HOUR, windowMs: HOUR_MS } as const;
 export const FORGOT_MIN_MS = 1500;
 /** The address of the route under the page api. */
 export const FORGOT_PATH = '/auth/forgot';
@@ -70,6 +72,8 @@ export const FORGOT_PERSON_SQL = "select id, doc, auth_user_id::text as auth fro
 export const FORGOT_PERSON_LITE = 'select u.id as id, u.doc as doc, a.id as auth from auth_users a join users u on u.id = a.user_id where a.email = ?1';
 
 const Body = z.object({ email: z.email() });
+/** The body of the forgot route: the Worker of the office path reads it to find the enterprise of the email. */
+export const ForgotBody = Body;
 
 /** The header of the client address that the Pages Function writes for the Worker (server/http/pagesApiProxy.ts). */
 export { CLIENT_ADDRESS_HEADER };
@@ -102,7 +106,7 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
     return 'none';
   }
   const mail = renderSigninMail('reset', user.preferences.language, {
-    name: personName(user, user.preferences.language), link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery'),
+    name: personName(user, user.preferences.language), link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery', undefined, deps.config.ent),
   }, user.gender, { appUrl: deps.config.appUrl });
   // sendCounted finds the place that this key holds.
   const sent = await sendCounted(deps, 'signin', { to: user.email, ...mail, tag: 'reset', idempotencyKey: key }, { userId: row.id });
@@ -114,7 +118,7 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
 }
 
 /** Over the limit of the network address. */
-function tooMany(retryAfterMs: number): Response {
+export function tooMany(retryAfterMs: number): Response {
   return errorResponse({ code: 'conflict', message: 'Too many tries. Wait a few minutes, then try again.', details: { reason: 'too_many_resets', retryAfterMs } });
 }
 
@@ -131,7 +135,11 @@ function tooManyForEmail(retryAfterMs: number): Response {
  * work: the mail work after the limits, in place of sendReset. The office path (exit waves 2 and 3) passes one that keeps the value:
  * the object answers at once, and the Worker runs the work in a second object call after the answer (server/office/signinRoutes.ts).
  */
-export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost; work?: (value: string, deps: Deps) => Promise<unknown> } = {}) {
+export function createForgotRoute(o: {
+  minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost; work?: (value: string, deps: Deps) => Promise<unknown>;
+  /** The Worker of the office path counted the address already, in the platform object: this route counts the email only. */
+  skipAddress?: boolean;
+} = {}) {
   const work = o.work ?? ((value: string, deps: Deps) => sendReset(value, deps));
   const minMs = o.minMs ?? FORGOT_MIN_MS;
   const hostOf = o.host ?? requestHost;
@@ -152,8 +160,11 @@ export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => P
     const { after } = hostOf();
     const q: Query = statementQuery(deps.db, 'write');
     const now = deps.clock.now();
-    const byAddress = await hitLimit(q, { key: await hashedKey('forgot:ip', clientAddress(request)), limit: FORGOT_IP_PER_HOUR, windowMs: HOUR_MS, now });
-    if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
+    if (o.skipAddress !== true) {
+      const { prefix, ...window } = FORGOT_ADDRESS_LIMIT;
+      const byAddress = await hitLimit(q, { key: await hashedKey(prefix, clientAddress(request)), ...window, now });
+      if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
+    }
     const byEmail = await hitLimit(q, { key: await hashedKey('forgot:email', email), limit: FORGOT_EMAIL_PER_WINDOW, windowMs: FORGOT_EMAIL_WINDOW_MS, now });
     if (!byEmail.ok) return tooManyForEmail(byEmail.retryAfterMs);
 

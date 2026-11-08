@@ -1,6 +1,9 @@
 import { ApiError } from '../../../../src/api/errors';
+import { emptyState } from '../../../../src/api/store';
 import { consoleLogger } from '../../../core/deps';
 import { officeRoutes, type OfficeStub } from '../../../entries/officeWorker';
+import { ENT_VADO, PLATFORM_OBJECT, VADO_ADDRESS } from '../../../enterprise/ids';
+import type { PlatformStub } from '../../../enterprise/platform/stub';
 import { setEnvSource } from '../../../env';
 import { testConfig } from '../../../test/fakes/deps';
 import { fakeFiles } from '../../../test/fakes/files';
@@ -8,12 +11,14 @@ import { fakeMail } from '../../../test/fakes/mail';
 import { WorkerNet } from '../../workerNet';
 import { isOutsideHost, OUTSIDE_DAFTRA, outsideFetch, outsideSeen } from './outside';
 import { TestOffice } from './testOffice';
+import { TestPlatform } from './testPlatform';
 
-export { TestOffice };
+export { TestOffice, TestPlatform };
 
-type Env = Record<string, unknown> & { OFFICE: { idFromName(name: string): unknown; get(id: unknown): unknown } };
+type Namespace = { idFromName(name: string): unknown; get(id: unknown): unknown };
+type Env = Record<string, unknown> & { OFFICE: Namespace; PLATFORM: Namespace };
 type Ctx = { waitUntil(work: Promise<unknown>): void };
-type Test = OfficeStub & Pick<TestOffice, 'seed' | 'readBack' | 'rows' | 'exec' | 'agent'>;
+type Test = OfficeStub & Pick<TestOffice, 'seed' | 'readBack' | 'rows' | 'exec' | 'agent' | 'statusRows'>;
 
 // The network of the test Worker: files and mail in memory, and a push service that takes every push. /test/net shows them.
 const files = fakeFiles({ kind: 'r2' });
@@ -27,20 +32,27 @@ const pushFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 // The fetch behind the network port: a Google or Daftra address goes to the fakes (outside.ts), a push address to the push service above.
 const portFetch = ((input: RequestInfo | URL, init?: RequestInit) => (isOutsideHost(input) ? outsideFetch(input, init) : pushFetch(input, init))) as typeof fetch;
 
-const stubOf = (env: Env) => env.OFFICE.get(env.OFFICE.idFromName('office')) as Test;
+// The object of the test Worker is named with the enterprise id, as the real Worker names it (the gate compares the name with its row).
+const stubOf = (env: Env, ent: string = ENT_VADO) => env.OFFICE.get(env.OFFICE.idFromName(ent === 'office' ? ENT_VADO : ent)) as Test;
+const platformOf = (env: Env) => env.PLATFORM.get(env.PLATFORM.idFromName(PLATFORM_OBJECT)) as unknown as PlatformStub;
 const routes = officeRoutes({
-  deps: { config: testConfig({ fileStore: 'r2' }), clock: { now: () => new Date() }, log: consoleLogger() },
-  // No sign-in here: the token is the Madar user id (TestOffice.principal checks that the person acts now).
+  // The MCP address of the Worker is the MCP_URL of the objects (wrangler.toml): the Worker builds the address of each request from it.
+  deps: { config: testConfig({ fileStore: 'r2', mcpUrl: 'https://madar.test/mcp' }), clock: { now: () => new Date() }, log: consoleLogger() },
+  // No sign-in here: the token is the Madar user id (TestOffice.principal checks that the person acts now), or "<ent>:<user id>" for an
+  // enterprise other than ENT_VADO (the claim ent of a real token).
   verifyToken: async (header) => {
     const token = (header ?? '').replace(/^Bearer /, '');
-    if (!/^usr_\d{3}$/.test(token)) throw new ApiError('unauthenticated', 'Sign in to Madar again.');
-    return { authUserId: token };
+    const match = /^(?:(ent_\d{3,}):)?(usr_\d{3})$/.exec(token);
+    if (!match) throw new ApiError('unauthenticated', 'Sign in to Madar again.');
+    return { authUserId: match[2], ...(match[1] ? { ent: match[1] } : {}) };
   },
-  stub: (env) => stubOf(env as Env),
-  // The office ops of exit wave 4: an object by its name, and the two secrets of this test Worker (harness.ts sends them).
-  stubOf: (env, name) => (env as Env).OFFICE.get((env as Env).OFFICE.idFromName(name)) as Test,
+  stubFor: (env, ent) => stubOf(env as Env, ent),
+  platform: (env) => platformOf(env as Env),
+  // The two secrets of this test Worker (harness.ts sends them). The ops name an object by its name through stubFor.
   net: () => new WorkerNet({ files, mail, fetch: portFetch, daftra: OUTSIDE_DAFTRA }),
   jobsSecret: () => 'test-jobs-secret',
+  // The Cron legs go straight into the routes of the same isolate (the real Worker calls itself through the binding SELF).
+  fanout: (env) => async (leg) => routes.fetch(new Request('https://self.internal/api/internal/cron', { method: 'POST', headers: { 'x-madar-jobs-secret': 'test-jobs-secret' }, body: JSON.stringify(leg) }), env, { waitUntil: () => undefined }),
   exportSecret: () => 'test-export-secret',
   opsSecret: () => 'test-ops-secret',
 });
@@ -52,17 +64,47 @@ export default {
     if (pathname === '/test/net') return Response.json({ files: files.calls, mails: mail.sent, pushes });
     if (pathname === '/test/outside') return Response.json(outsideSeen());
     if (pathname === '/test/seed') {
-      await stubOf(env).seed(await request.json());
+      const ent = new URL(request.url).searchParams.get('ent') ?? ENT_VADO;
+      await stubOf(env, ent).seed(await request.json());
+      // VADOs' Companies is listed by the platform, as in production: the Worker finds a socket ticket and an MCP address through the list.
+      if (ent === ENT_VADO) {
+        await platformOf(env).register({
+          row: {
+            id: ENT_VADO, address: VADO_ADDRESS, name: "VADOs' Companies", nameAr: 'شركات فادو', state: 'active', limits: { people: null, storageBytes: null },
+            createdAt: '2026-11-08T08:00:00.000Z', firstAdmin: { name: 'First Admin', email: 'first-admin@vado.test' },
+          },
+          emails: [],
+        });
+      }
       return Response.json({ ok: true });
+    }
+    if (pathname === '/test/platform') {
+      // One method of the platform object by name, or resolveRows (the rows of a directory read).
+      const { method, args } = (await request.json()) as { method: string; args: unknown[] };
+      const platform = platformOf(env) as unknown as Record<string, (...values: unknown[]) => Promise<unknown>>;
+      return Response.json({ value: (await platform[method](...args)) ?? null });
+    }
+    if (pathname === '/test/statusRows') return Response.json(await stubOf(env).statusRows());
+    if (pathname === '/test/named') {
+      // An object of another name, made with a row of ENT_VADO: the gate compares the name with the row (spike S3).
+      const { name } = (await request.json()) as { name: string };
+      const other = env.OFFICE.get(env.OFFICE.idFromName(name)) as Test;
+      await other.seed(emptyState(''), ENT_VADO);
+      try {
+        await other.status({ ent: ENT_VADO });
+        return Response.json({ ok: true });
+      } catch (error) {
+        return Response.json({ ok: false, code: (error as { code?: string }).code ?? null, message: (error as Error).message });
+      }
     }
     if (pathname === '/test/readBack') return Response.json(await stubOf(env).readBack());
     if (pathname === '/test/rows') {
-      const { text, values } = (await request.json()) as { text: string; values?: unknown[] };
-      return Response.json(await stubOf(env).rows(text, values));
+      const { text, values, ent } = (await request.json()) as { text: string; values?: unknown[]; ent?: string };
+      return Response.json(await stubOf(env, ent).rows(text, values));
     }
     if (pathname === '/test/agent') {
-      const { ownerId } = (await request.json()) as { ownerId: string };
-      return Response.json(await stubOf(env).agent(ownerId));
+      const { ownerId, ent } = (await request.json()) as { ownerId: string; ent?: string };
+      return Response.json(await stubOf(env, ent).agent(ownerId));
     }
     if (pathname === '/test/exec') {
       const { text, values } = (await request.json()) as { text: string; values?: unknown[] };

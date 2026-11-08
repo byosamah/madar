@@ -3,6 +3,7 @@ import { resolveActor } from '../core/actor';
 import type { LivePort, Logger, Query, SignalPort } from '../core/ports';
 import type { ChangeSignal, OfficeSnapshot, RunError } from '../core/types';
 import { onCommit } from '../data/lite/db';
+import { tagged, untag, type EnterpriseId } from '../enterprise/ids';
 import { errorResponse, runErrorOf } from '../http/errors';
 import { SIGNAL_EVENT } from '../signal/realtime';
 import { announceChanges, officeStates, retire, sendStates, type DeviceState } from './presence';
@@ -28,7 +29,12 @@ export const LIVE_PONG = 'pong';
 export const TICKET_MS = 60_000;
 /** At most this many tickets wait in memory: a person opens one socket for each tab. */
 export const TICKET_CAP = 200;
-export const TICKET_SHAPE = /^[0-9a-f]{64}$/;
+/** The secret of a ticket: 32 random bytes in hex. The map of the object keeps only this part. */
+export const TICKET_SECRET_SHAPE = /^[0-9a-f]{64}$/;
+/** The ticket as the screen gets it and sends it (Madar enterprises): <ent>.<secret>. An untagged ticket is refused. */
+export const TICKET_SHAPE = /^ent_\d{3,}\.[0-9a-f]{64}$/;
+/** Every refusal of a ticket waits at least this long, so a bad shape, an unlisted tag and an unknown ticket take the same time. */
+export const TICKET_REFUSE_MIN_MS = 100;
 export const LIVE_STALE_MS = 150_000;
 /** The close codes of the object: 4000 a socket with no pong, 4003 a person who is off. */
 export const CLOSE_STALE = 4000;
@@ -67,6 +73,9 @@ export function noteOf(socket: LiveSocket): SocketNote | undefined {
 export class LiveTickets implements LivePort {
   readonly #held = new Map<string, { userId: string; until: number }>();
 
+  /** ent: the enterprise of the object. It tags every ticket, so the Worker finds the object from the ticket (design 5.2). */
+  constructor(private readonly ent: () => EnterpriseId) {}
+
   mint(userId: string, now: Date): { ticket: string; expiresAt: string } {
     const at = now.getTime();
     for (const [ticket, held] of this.#held) if (held.until < at) this.#held.delete(ticket);
@@ -74,12 +83,12 @@ export class LiveTickets implements LivePort {
     const ticket = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, '0')).join('');
     const until = at + TICKET_MS;
     this.#held.set(ticket, { userId, until });
-    return { ticket, expiresAt: nowStamp(new Date(until)) };
+    return { ticket: tagged(this.ent(), ticket), expiresAt: nowStamp(new Date(until)) };
   }
 
-  /** The person of a ticket, once. A ticket of the wrong shape, an unknown one and an old one give undefined. */
+  /** The person of a bare secret, once. A secret of the wrong shape, an unknown one and an old one give undefined. */
   take(ticket: string, now: Date): { userId: string } | undefined {
-    if (!TICKET_SHAPE.test(ticket)) return undefined;
+    if (!TICKET_SECRET_SHAPE.test(ticket)) return undefined;
     const held = this.#held.get(ticket);
     this.#held.delete(ticket);
     if (!held || held.until < now.getTime()) return undefined;
@@ -142,11 +151,15 @@ export function liveSignals(o: LiveOptions): SignalPort {
 
 /** Opens the socket of a ticket: the person must still act now; the tags come from the ticket. */
 export async function acceptLive(
-  o: { sockets: Sockets; tickets: LiveTickets; office: () => Promise<OfficeSnapshot>; now: () => Date },
+  o: { sockets: Sockets; tickets: LiveTickets; office: () => Promise<OfficeSnapshot>; now: () => Date; ent: () => EnterpriseId },
   request: Request,
 ): Promise<Response> {
   if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response('This address needs a WebSocket.', { status: 426 });
-  const held = o.tickets.take(new URL(request.url).searchParams.get('ticket') ?? '', o.now());
+  // The tag is compared before the ticket is taken: a ticket of another enterprise stays good for its own object. An untagged ticket, a
+  // wrong tag and an unknown ticket give the same refusal.
+  const tag = untag(new URL(request.url).searchParams.get('ticket') ?? '');
+  if (!tag || tag.ent !== o.ent()) return errorResponse(TICKET_REFUSED);
+  const held = o.tickets.take(tag.secret, o.now());
   if (!held) return errorResponse(TICKET_REFUSED);
   try {
     resolveActor(await o.office(), { userId: held.userId });

@@ -5,6 +5,7 @@ import { ACCESS_TTL_S, OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } fr
 import { browserTokenChecker, verifyBrowserToken } from '../verify';
 import { signAgentToken, signBrowserToken, signingKeysOf } from './keys';
 import { testPrivateJwk } from './testKeys';
+import { ENT_VADO } from '../../enterprise/ids';
 
 const MCP_URL = 'https://madar.test/mcp';
 const NOW = new Date('2026-10-17T06:00:00Z');
@@ -15,14 +16,21 @@ describe('the own tokens (server/auth/own/keys.ts, server/auth/ownKeys.ts)', () 
   it('signs a browser token that the browser check of today accepts, with the own issuer and key set', async () => {
     const jwk = await testPrivateJwk();
     const keys = await signingKeysOf(jwk, `${MCP_URL}/`);
-    const token = await signBrowserToken(keys, { authId: 'a-1', sessionId: 's-1', now: new Date() });
+    const token = await signBrowserToken(keys, { authId: 'a-1', sessionId: 's-1', now: new Date(), ent: ENT_VADO });
     const check = browserTokenChecker({ issuer: ownIssuer(MCP_URL), jwks: ownKeySet(jwk) });
-    expect(await check(`Bearer ${token}`)).toEqual({ authUserId: 'a-1', sessionId: 's-1' });
+    expect(await check(`Bearer ${token}`)).toEqual({ authUserId: 'a-1', sessionId: 's-1', ent: ENT_VADO });
+  });
+
+  it('signs the ent claim into a browser token and into an agent token', async () => {
+    const keys = await signingKeysOf(await testPrivateJwk(), MCP_URL);
+    const claimsOf = (token: string) => JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    expect(claimsOf(await signBrowserToken(keys, { authId: 'a-1', sessionId: 's-1', now: NOW, ent: 'ent_002' })).ent).toBe('ent_002');
+    expect(claimsOf(await signAgentToken(keys, { authId: 'a-1', sessionId: 's-1', clientId: 'c-1', now: NOW, ent: 'ent_003' })).ent).toBe('ent_003');
   });
 
   it('gives a token of 15 minutes', async () => {
     const keys = await signingKeysOf(await testPrivateJwk(), MCP_URL);
-    const token = await signBrowserToken(keys, { authId: 'a-1', sessionId: 's-1', now: NOW });
+    const token = await signBrowserToken(keys, { authId: 'a-1', sessionId: 's-1', now: NOW, ent: ENT_VADO });
     const claims = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
     expect(claims.exp - claims.iat).toBe(ACCESS_TTL_S);
     expect(ACCESS_TTL_S).toBe(900);
@@ -32,8 +40,8 @@ describe('the own tokens (server/auth/own/keys.ts, server/auth/ownKeys.ts)', () 
   it('keeps the two token kinds apart', async () => {
     const jwk = await testPrivateJwk();
     const keys = await signingKeysOf(jwk, MCP_URL);
-    const agent = await signAgentToken(keys, { authId: 'a-1', sessionId: 's-2', clientId: 'c-1', now: new Date() });
-    const browser = await signBrowserToken(keys, { authId: 'a-1', sessionId: 's-1', now: new Date() });
+    const agent = await signAgentToken(keys, { authId: 'a-1', sessionId: 's-2', clientId: 'c-1', now: new Date(), ent: ENT_VADO });
+    const browser = await signBrowserToken(keys, { authId: 'a-1', sessionId: 's-1', now: new Date(), ent: ENT_VADO });
     await expect(browserTokenChecker({ issuer: MCP_URL, jwks: ownKeySet(jwk) })(`Bearer ${agent}`)).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'agent_token' } });
     const agents = agentTokenChecker({ issuer: MCP_URL, audience: MCP_URL, jwks: ownKeySet(jwk) });
     expect(await agents(`Bearer ${agent}`)).toMatchObject({ authUserId: 'a-1', clientId: 'c-1', sessionId: 's-2' });
@@ -42,7 +50,7 @@ describe('the own tokens (server/auth/own/keys.ts, server/auth/ownKeys.ts)', () 
 
   it('refuses a token of another key', async () => {
     const keys = await signingKeysOf(await testPrivateJwk(), MCP_URL);
-    const token = await signBrowserToken(keys, { authId: 'a-1', sessionId: 's-1', now: new Date() });
+    const token = await signBrowserToken(keys, { authId: 'a-1', sessionId: 's-1', now: new Date(), ent: ENT_VADO });
     await expect(browserTokenChecker({ issuer: MCP_URL, jwks: ownKeySet(await testPrivateJwk()) })(`Bearer ${token}`)).rejects.toMatchObject({ code: 'unauthenticated' });
   });
 
@@ -61,10 +69,10 @@ describe('the own tokens (server/auth/own/keys.ts, server/auth/ownKeys.ts)', () 
   it('checks a token with the own key when the Worker has the secret, and with Supabase when it has not', async () => {
     const jwk = await testPrivateJwk();
     const keys = await signingKeysOf(jwk, MCP_URL);
-    const token = await signBrowserToken(keys, { authId: 'a-9', sessionId: 's-9', now: new Date() });
+    const token = await signBrowserToken(keys, { authId: 'a-9', sessionId: 's-9', now: new Date(), ent: ENT_VADO });
     setEnvSource({ [OWN_AUTH_SECRET]: jwk, MCP_URL, SUPABASE_URL: 'http://127.0.0.1:54321' });
-    expect(await verifyBrowserToken(`Bearer ${token}`)).toEqual({ authUserId: 'a-9', sessionId: 's-9' });
-    const agent = await signAgentToken(keys, { authId: 'a-9', sessionId: 's-8', clientId: 'c-9', now: new Date() });
+    expect(await verifyBrowserToken(`Bearer ${token}`)).toEqual({ authUserId: 'a-9', sessionId: 's-9', ent: ENT_VADO });
+    const agent = await signAgentToken(keys, { authId: 'a-9', sessionId: 's-8', clientId: 'c-9', now: new Date(), ent: ENT_VADO });
     expect(await agentTokenCheckerOf({ supabaseUrl: 'http://127.0.0.1:54321', mcpUrl: MCP_URL })(`Bearer ${agent}`)).toMatchObject({ clientId: 'c-9' });
   });
 });

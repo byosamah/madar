@@ -45,6 +45,7 @@ in a node script with `devices['iPhone 15']` too. Both configs run Desktop Chrom
   `npx tsx scripts/office/seed.ts --to <address>` before and after the run. A new SQL text in the walk needs its SQLite form in
   `OFFICE_SQL`: `scripts/e2e-deploy-helpers.test.ts` fails without it, and prepares each form on the SQLite schema.
   `npm run dev:office` writes the lines for the local office (`scripts/dev/office-local.ts`).
+- Two enterprises (Madar enterprises): `npm run dev:office` seeds the sample office as `ent_001` and a small fake enterprise as `ent_002` (same record ids, other names, accounts `admin@globex.test` and `member@globex.test`), and `run.env` names it in `MADAR_E2E_SECOND_ENTERPRISE`. A spec that reads the peek route of `ent_002` sets `office` in its `OfficeTarget`.
 - Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`). `agents.spec.ts` skips itself
   without `MADAR_E2E_AFTER_G=1` ("1 skipped" is no pass). One case alone: `-g "an approved agent shows in Settings"`.
 - `full.spec.ts` alone takes about 12 minutes, more than the 600 s limit of a foreground Bash call: run it in the background.

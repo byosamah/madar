@@ -9,7 +9,8 @@ import { signAgentToken, signingKeysOf } from './keys';
 import { localSigninOffice, runSigninOp } from './office';
 import { ownAuthRoutes } from './routes';
 import { testPrivateJwk } from './testKeys';
-import { addSignIn, signinOffice } from './testOffice';
+import { addSignIn, bareToken, signinOffice } from './testOffice';
+import { ENT_VADO } from '../../enterprise/ids';
 
 async function setup() {
   // The real time: the route checks each token with jose against the time of the machine.
@@ -18,7 +19,7 @@ async function setup() {
   const email = (t.raw.prepare('select email from auth_users where id = ?').get(authId) as { email: string }).email;
   const jwk = await testPrivateJwk();
   const keys = await signingKeysOf(jwk, t.deps.config.mcpUrl);
-  const deps = { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys };
+  const deps = { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys, ent: ENT_VADO };
   const checkToken = browserTokenChecker({ issuer: ownIssuer(t.deps.config.mcpUrl), jwks: ownKeySet(jwk) });
   const app = apiApp(t.deps as unknown as Deps, { routes: [...ROUTES, ...ownAuthRoutes(localSigninOffice(deps), { jwks: ownPublicJwks(jwk), checkToken })] });
   const send = (path: string, o: { body?: unknown; token?: string; address?: string; method?: string } = {}) => runInHost({ host: 'workers' }, async () => {
@@ -41,7 +42,7 @@ describe('the HTTP routes of the own sign-in (server/auth/own/routes.ts)', () =>
     const first = await send('/auth/token', { body: { grant_type: 'password', email, password: 'a good password' } });
     expect(first).toMatchObject({ status: 200, body: { token_type: 'bearer', expires_in: 900, user: { id: authId } } });
     expect(first.headers.get('cache-control')).toBe('no-store');
-    expect((await send('/auth/token', { body: { grant_type: 'refresh_token', refresh_token: first.body.refresh_token } })).status).toBe(200);
+    expect((await send('/auth/token', { body: { grant_type: 'refresh_token', refresh_token: bareToken(first.body.refresh_token) } })).status).toBe(200);
     const wrong = await send('/auth/token', { body: { grant_type: 'password', email, password: 'not it' } });
     const unknown = await send('/auth/token', { body: { grant_type: 'password', email: 'nobody@madar.test', password: 'not it' } });
     expect([wrong.status, wrong.body]).toEqual([unknown.status, unknown.body]);
@@ -63,6 +64,14 @@ describe('the HTTP routes of the own sign-in (server/auth/own/routes.ts)', () =>
     expect((await send('/auth/token', { body: { grant_type: 'password', email: 'p99@madar.test', password: 'x' }, address: '192.0.2.51' })).status).toBe(401);
   });
 
+  it('ignores a request field named addressChecked: the address is still counted, for the password and for the link open', async () => {
+    const { send } = await setup();
+    for (let i = 0; i < 30; i += 1) await send('/auth/token', { body: { grant_type: 'password', email: `p${i}@madar.test`, password: 'x', addressChecked: true }, address: '192.0.2.60' });
+    expect((await send('/auth/token', { body: { grant_type: 'password', email: 'p99@madar.test', password: 'x', addressChecked: true }, address: '192.0.2.60' })).status).toBe(429);
+    for (let i = 0; i < 20; i += 1) await send('/auth/verify', { body: { token_hash: `t${i}`, type: 'invite', addressChecked: true }, address: '192.0.2.61' });
+    expect((await send('/auth/verify', { body: { token_hash: 'last', type: 'invite', addressChecked: true }, address: '192.0.2.61' })).status).toBe(429);
+  });
+
   it('opens a link once, and refuses a used link and a wrong type', async () => {
     const { t, email, send } = await setup();
     const link = await t.deps.authAdmin.generateLink('recovery', email);
@@ -74,7 +83,7 @@ describe('the HTTP routes of the own sign-in (server/auth/own/routes.ts)', () =>
   it('sets a password with a browser token, and refuses an agent token and no token', async () => {
     const { authId, email, keys, send } = await setup();
     const signedIn = await send('/auth/token', { body: { grant_type: 'password', email, password: 'a good password' } });
-    const agent = await signAgentToken(keys, { authId, sessionId: 's-agent', clientId: 'c-1', now: new Date() });
+    const agent = await signAgentToken(keys, { authId, sessionId: 's-agent', clientId: 'c-1', now: new Date(), ent: ENT_VADO });
     expect(await send('/auth/password', { token: agent, body: { password: 'an agent password', current: 'a good password' } })).toMatchObject({ status: 403, body: { error: { details: { reason: 'agent_token' } } } });
     expect((await send('/auth/password', { body: { password: 'x'.repeat(12) } })).status).toBe(401);
     expect(await send('/auth/password', { token: signedIn.body.access_token, body: { password: 'a new password', current: 'a good password' } })).toMatchObject({ status: 200, body: { ok: true } });

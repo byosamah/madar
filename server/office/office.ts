@@ -1,5 +1,7 @@
 import { DurableObject, type DurableObjectState } from 'cloudflare:workers';
 import type { OfficeSnapshot, Principal } from '../core/types';
+import type { EnterpriseId } from '../enterprise/ids';
+import type { EnterpriseStatus } from '../enterprise/types';
 import { applyLiteSchema } from '../data/lite/schema';
 import { env, setEnvSource } from '../env';
 import type { OfficeBatchInput, OfficeBatchOutput } from './batch';
@@ -45,7 +47,11 @@ export class Office extends DurableObject<Env> {
     void ctx.blockConcurrencyWhile(async () => {
       const host = doHost(ctx.storage);
       await applyLiteSchema(host);
-      this.parts = officeParts({ host, read: env, sockets: socketsOf(ctx), principal: (who, office) => this.principal(who, office) });
+      this.parts = officeParts({
+        host, read: env, sockets: socketsOf(ctx), principal: (who, office) => this.principal(who, office),
+        // The object knows its own name when the Worker made it with idFromName (spike S3): the gate then refuses a row of another id.
+        name: () => ctx.id.name,
+      });
     });
   }
 
@@ -92,6 +98,11 @@ export class Office extends DurableObject<Env> {
 
   health(): Promise<OfficeHealth> {
     return this.parts.health();
+  }
+
+  /** The status row of this enterprise (Madar enterprises): the Cron of the Worker sends it to the platform object. */
+  status(input: { ent: EnterpriseId }): Promise<EnterpriseStatus> {
+    return this.parts.status(input);
   }
 
   /** The socket of /api/live, and the office ops of exit wave 4 under /office/ (the Worker checks their secret first). */

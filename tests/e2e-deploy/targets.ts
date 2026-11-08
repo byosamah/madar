@@ -74,7 +74,8 @@ export function r2BucketTarget(env: Env): R2Values | null {
   return r2Values(env, 'test');
 }
 
-export type OfficeTarget = { apiUrl: string; mcpUrl: string; opsSecret: string };
+/** office: the object that the peek route reads (an enterprise id). Left out, the Worker takes ENT_VADO. */
+export type OfficeTarget = { apiUrl: string; mcpUrl: string; opsSecret: string; office?: string };
 
 /**
  * The office path of a run (exit wave 4): MADAR_E2E_OFFICE_URL names the host of the office routes, the local office

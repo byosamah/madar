@@ -13,10 +13,12 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { calculateJwkThumbprint, exportJWK, generateKeyPair } from 'jose';
+import { LITE_SCHEMA_VERSION } from '../../server/data/lite/schema';
 
 const PORT = 8791;
 const BASE = `http://127.0.0.1:${PORT}`;
 const SECRET = 'smoke-jobs-secret';
+const OPS_SECRET = 'smoke-ops-secret';
 
 // The key of the own sign-in, made for this run only (the form of the secret MADAR_AUTH_PRIVATE_JWK). It is never a real key.
 const { privateKey } = await generateKeyPair('ES256', { extractable: true });
@@ -26,10 +28,10 @@ const kid = await calculateJwkThumbprint(jwk);
 const dir = mkdtempSync(join(tmpdir(), 'madar-office-smoke-'));
 const envFile = join(dir, 'smoke.env');
 writeFileSync(envFile, [
-  'MADAR_SECRET_KEY=sb_secret_test_not_a_key', `JOBS_SECRET=${SECRET}`, `R2_ACCOUNT_ID=${'0'.repeat(32)}`,
+  'MADAR_SECRET_KEY=sb_secret_test_not_a_key', `JOBS_SECRET=${SECRET}`, `MADAR_OPS_SECRET=${OPS_SECRET}`, `R2_ACCOUNT_ID=${'0'.repeat(32)}`,
   'R2_ACCESS_KEY_ID=test-not-a-key', 'R2_SECRET_ACCESS_KEY=test-not-a-key', `MADAR_AUTH_PRIVATE_JWK=${JSON.stringify({ ...jwk, kid })}`,
   // The own tokens name MCP_URL as their issuer, so the token check of a copy with the key needs it.
-  `MCP_URL=${BASE}/mcp`,
+  `MCP_URL=${BASE}/mcp`, `API_URL=${BASE}/api`,
 ].join('\n'), { mode: 0o600 });
 
 const dev = spawn('npx', [
@@ -61,8 +63,20 @@ const checks: [string, boolean][] = [];
 try {
   const open = await until(() => health(), 60_000);
   checks.push(['the health route names the office host', open?.host === 'office']);
+  // Madar enterprises: the platform lists ent_001, then a begin of an empty import makes its identity row, and an abort frees it. The Cron
+  // run below needs both.
+  const opsPost = (op: string, body: unknown) => fetch(`${BASE}/api/office/${op}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-madar-ops-secret': OPS_SECRET }, body: JSON.stringify(body) });
+  const registered = await opsPost('platform-register', {
+    row: { id: 'ent_001', address: 'vados', name: "VADOs' Companies", nameAr: 'شركات فادو', state: 'active', limits: { people: null, storageBytes: null }, createdAt: new Date().toISOString(), firstAdmin: { name: 'Admin', email: 'admin@madar.test' } },
+    emails: [],
+  });
+  checks.push(['the platform register op lists ent_001', registered.ok]);
+  const begun = await opsPost('import', { step: 'begin', mode: 'empty' });
+  const hold = begun.ok ? ((await begun.json()) as { id: string }).id : undefined;
+  const aborted = hold ? await opsPost('import', { step: 'abort', id: hold }) : undefined;
+  checks.push(['an import begin makes the identity row of ent_001, and an abort frees the office', Boolean(aborted?.ok)]);
   const before = await health(SECRET);
-  checks.push(['the office object answers with schema 3 and no job run yet', before.office?.schema === 3 && before.office?.lastJob === null]);
+  checks.push([`the office object answers with schema ${LITE_SCHEMA_VERSION} and no job run yet`, before.office?.schema === LITE_SCHEMA_VERSION && before.office?.lastJob === null]);
   const batch = await fetch(`${BASE}/api/batch`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: 1, calls: [] }) });
   checks.push(['a batch with no token gets 401 from the office route', batch.status === 401 && (batch.headers.get('x-madar-server') ?? '').startsWith('office;')]);
   const live = await fetch(`${BASE}/api/live?ticket=${'a'.repeat(64)}`);
@@ -94,6 +108,6 @@ try {
   rmSync(dir, { recursive: true, force: true });
 }
 for (const [name, ok] of checks) console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`);
-const passed = checks.length === 10 && checks.every(([, ok]) => ok);
+const passed = checks.length === 12 && checks.every(([, ok]) => ok);
 if (!passed) console.log(output.split('\n').slice(-40).join('\n'));
 process.exit(passed ? 0 : 1);

@@ -52,6 +52,8 @@ const DAY_MS = 24 * HOUR_MS;
 export const RENEW_PATH = '/auth/renew-invite';
 export const RENEW_KEY_PER_HOUR = 3;
 export const RENEW_IP_PER_HOUR = 10;
+/** The limit of one network address. On the office path the Worker counts it once in the platform object (skipAddress below). */
+export const RENEW_ADDRESS_LIMIT = { prefix: 'renew:ip', limit: RENEW_IP_PER_HOUR, windowMs: HOUR_MS } as const;
 export const RENEW_PERSON_PER_DAY = 3;
 export const RENEW_MIN_MS = 1500;
 
@@ -73,6 +75,8 @@ export const RENEW_ROW_LITE =
 class Refused extends Error {}
 
 const Body = z.object({ key: z.string().trim().min(1).max(200) });
+/** The body of the renew route: the Worker of the office path reads it to find the enterprise of the key tag. */
+export const RenewBody = Body;
 
 type KeyRow = { id: string; user_id: string; invite_id: string; sent: boolean | number; renewed: boolean | number };
 
@@ -139,7 +143,7 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
 }
 
 /** Over a limit of the key or of the network address. */
-function tooMany(retryAfterMs: number): Response {
+export function tooMany(retryAfterMs: number): Response {
   return errorResponse({ code: 'conflict', message: 'Too many tries. Wait a few minutes, then try again.', details: { reason: 'too_many', retryAfterMs } });
 }
 
@@ -147,7 +151,11 @@ function tooMany(retryAfterMs: number): Response {
  * work: the mail work after the limits, in place of renewInvitation. The office path (exit waves 2 and 3) passes one that keeps the value:
  * the object answers at once, and the Worker runs the work in a second object call after the answer (server/office/signinRoutes.ts).
  */
-export function createRenewRoute(o: { minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost; work?: (value: string, deps: Deps) => Promise<unknown> } = {}) {
+export function createRenewRoute(o: {
+  minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost; work?: (value: string, deps: Deps) => Promise<unknown>;
+  /** The Worker of the office path counted the address already, in the platform object: this route counts the key only. */
+  skipAddress?: boolean;
+} = {}) {
   const work = o.work ?? ((value: string, deps: Deps) => renewInvitation(value, deps));
   const minMs = o.minMs ?? RENEW_MIN_MS;
   const hostOf = o.host ?? requestHost;
@@ -168,8 +176,11 @@ export function createRenewRoute(o: { minMs?: number; sleep?: (ms: number) => Pr
     const { after } = hostOf();
     const q: Query = statementQuery(deps.db, 'write');
     const now = deps.clock.now();
-    const byAddress = await hitLimit(q, { key: await hashedKey('renew:ip', clientAddress(request)), limit: RENEW_IP_PER_HOUR, windowMs: HOUR_MS, now });
-    if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
+    if (o.skipAddress !== true) {
+      const { prefix, ...window } = RENEW_ADDRESS_LIMIT;
+      const byAddress = await hitLimit(q, { key: await hashedKey(prefix, clientAddress(request)), ...window, now });
+      if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
+    }
     const byKey = await hitLimit(q, { key: await hashedKey('renew:key', key), limit: RENEW_KEY_PER_HOUR, windowMs: HOUR_MS, now });
     if (!byKey.ok) return tooMany(byKey.retryAfterMs);
 
