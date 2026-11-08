@@ -12,9 +12,10 @@ import { normalizeEmail } from '../enterprise/ids';
  *
  * 1. The email directory (design 5.4). One email belongs to one enterprise. The preflight of users.create and of an email change reserves
  *    the email in the directory of the platform object, outside the lock and before the write. A taken email gives the calm refusal
- *    email_taken, which never names the other enterprise. The settle step undoes the reserve when the write did not commit, and frees the
- *    old email after a committed change or a removal. A release always re-checks that no user row of this enterprise holds the email now,
- *    so two writes that race for one email, or a refused write, never free an email that a real person holds.
+ *    email_taken, which never names the other enterprise. The settle step makes the directory equal to the rows: it frees the reserved
+ *    email when no row holds it (a write that did not commit, a replay, a row that took another email), and it frees the old email after
+ *    a committed change or a removal. Every release re-reads the rows after the commit. The row of the target counts as a holder, so a
+ *    write that did not change the email, and a replayed answer, never free an email that a real person holds.
  * 2. The people limit (design 5.9). The prepare step of users.create and users.reactivate counts the active humans inside the lock and
  *    refuses a person above the limit of the enterprise (Deps.enterprise). Invited people are active people and count. Turned-off, removed
  *    and agent users do not count.
@@ -37,8 +38,8 @@ async function emailHeld(deps: Deps, email: string, exceptId?: string): Promise<
 }
 
 /** Gives the email back to the directory unless a person of this enterprise holds it. */
-async function releaseUnlessHeld(deps: Deps, email: string, exceptId?: string): Promise<void> {
-  if (!deps.directory || (await emailHeld(deps, email, exceptId))) return;
+async function releaseUnlessHeld(deps: Deps, email: string): Promise<void> {
+  if (!deps.directory || (await emailHeld(deps, email))) return;
   await deps.directory.release(email);
 }
 
@@ -53,6 +54,14 @@ async function authorityOf(deps: Deps, actorId: string) {
   if (!actor) return null;
   const authority = actor.kind === 'agent' ? (actor.ownerId ? office.lists.users[actor.ownerId] : undefined) : actor;
   return authority ? { actor, authority: withRights(office.lists, authority) } : null;
+}
+
+/** The state of one person after the commit: the email in lower case, and whether the person is removed. */
+async function rowOf(deps: Deps, id: string): Promise<{ email: string | null; removed: boolean } | undefined> {
+  const [row] = await deps.db.statement<{ email: string | null; removed: number | null }>(
+    'read', "select lower(json_extract(doc, '$.email')) as email, coalesce(json_extract(doc, '$.removed'), 0) as removed from users where id = ?1", [id],
+  );
+  return row ? { email: row.email, removed: Number(row.removed) === 1 } : undefined;
 }
 
 async function targetOf(deps: Deps, id: string): Promise<Target | undefined> {
@@ -117,16 +126,14 @@ export const usersUpdateHooks: ServerHooks<unknown, unknown, Deps> = {
     return { reserved: email, release: old } satisfies Change;
   },
 
-  async settle(input, { deps }, preflight, outcome) {
+  async settle(_input, { deps }, preflight, outcome) {
     const change = preflight as Change | undefined;
-    const id = (input as { id?: string }).id;
     if (!deps.directory || !change || (change.reserved === null && change.release === null)) return;
-    // A change that committed frees the old email. A change that did not commit frees the new one. Both re-check the rows.
-    if (outcome.ok) {
-      if (change.release) await releaseUnlessHeld(deps, change.release, id);
-    } else if (change.reserved) {
-      await releaseUnlessHeld(deps, change.reserved);
-    }
+    // The rows decide, after the commit, and the row of the target counts as a holder. The new email stays only when a row holds it: a write
+    // that did not commit, a replayed answer and a row that took another email leave it with no holder, so it goes back. The old email goes
+    // back only after a first answer, and only when no row holds it now: a write that left the email as it was changes nothing.
+    if (change.reserved) await releaseUnlessHeld(deps, change.reserved);
+    if (outcome.ok && outcome.replayed !== true && change.release) await releaseUnlessHeld(deps, change.release);
   },
 };
 
@@ -138,11 +145,14 @@ export const usersRemoveHooks: ServerHooks<unknown, unknown, Deps> = {
     return target?.kind === 'human' && typeof target.email === 'string' ? normalizeEmail(target.email) : null;
   },
 
-  async settle(_input, { deps }, preflight, outcome) {
+  async settle(input, { deps }, preflight, outcome) {
     const email = preflight as string | null | undefined;
-    if (!deps.directory || !email || !outcome.ok) return;
-    // A removed person frees the email in the directory (design 5.4). The record of the person stays in the enterprise, so no re-check here: the
-    // row of the removed person is the one that holds the email. A turned-off person keeps it (users.deactivate has no hook).
+    const id = (input as { id?: string }).id;
+    if (!deps.directory || !email || typeof id !== 'string' || !outcome.ok || outcome.replayed === true) return;
+    // A removed person frees the email in the directory (design 5.4). The record of the person stays in the enterprise, so the row of the
+    // removed person is no holder here. The email goes back only when the row is removed now, still has this email, and no other row holds it.
+    const row = await rowOf(deps, id);
+    if (!row?.removed || row.email !== email || (await emailHeld(deps, email, id))) return;
     await deps.directory.release(email);
   },
 };

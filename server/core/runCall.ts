@@ -214,10 +214,11 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       preflight = await hooks.preflight(parsed, { actorId, now: deps.clock.now(), deps });
     }
     // The settle hook (plan C) hears how the write ended, so a preflight that reserved something outside the database can undo it.
-    let outcome: { ok: true; output: unknown } | { ok: false } = { ok: false };
+    let outcome: { ok: true; output: unknown; replayed?: boolean } | { ok: false } = { ok: false };
+    const written = { replayed: false };
     try {
-      const result = await writeAfterPreflight(deps, req, entry, parsed, data, code, preflight);
-      if (result.ok) outcome = { ok: true, output: result.output };
+      const result = await writeAfterPreflight(deps, req, entry, parsed, data, code, preflight, written);
+      if (result.ok) outcome = { ok: true, output: result.output, ...(written.replayed ? { replayed: true } : {}) };
       return result;
     } finally {
       if (hooks?.settle) {
@@ -232,6 +233,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
 
   async function writeAfterPreflight(
     deps: Deps, req: RunRequest, entry: SharedEntry, parsed: unknown, data: CallData, code: { value?: string } | undefined, preflight: unknown,
+    written: { replayed: boolean },
   ): Promise<RunResult> {
     const actorId = req.principal.userId;
     const hooks = entry.hooks;
@@ -303,6 +305,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     }
     if (!finished) throw await answerStop(deps, data, afterCommit, stopped!);
     const done: Done = finished;
+    written.replayed = done.replayed;
 
     if (done.ref !== undefined && done.result.storyId !== undefined) req.batch.storyRefs.set(done.ref, done.result.storyId);
     if (done.officeChanged) req.batch.office = undefined;

@@ -57,7 +57,9 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
 - Limits: `facts.ts` (`EnterpriseFacts`, `Deps.enterprise`) holds the id, state, limits and owners in memory. The people limit is the `prepare` of
   `users.create` and `users.reactivate` (`server/calls/peopleHooks.ts`). The storage limit is `assertStorageRoom` in `files.uploadStart`, with a running
   total in `enterprise_use` (`storage.ts`). The email directory is the preflight and settle of the people hooks (`server/calls/peopleHooks.ts`,
-  `directory.ts`, `NetApi.directoryReserve`).
+  `directory.ts`, `NetApi.directoryReserve`). The settle step makes the directory equal to the rows: after the commit it re-reads the rows, and
+  the row of the target counts as a holder. It frees the reserved email when no row holds it, and the old email after a first answer only
+  (`outcome.replayed` is true for a stored answer of an idempotency key). `users.remove` frees the email only when the row is removed now.
 - Plan and cap: `plan.ts` (`planFrom`, `capVerdict`, `accountStop`, `warnings`) reads the Free limits from `MADAR_PLAN_*` and the share from
   `MADAR_ENTERPRISE_SHARE`. The platform object keeps the day counts (`meter`, `capState`, `meterToday`). The Worker gate `accountGate.ts` refuses every
   enterprise but ENT_VADO at 90 percent of the account (kept 60 s, fails open); the object refuses the share of its own enterprise in a batch and in a tool

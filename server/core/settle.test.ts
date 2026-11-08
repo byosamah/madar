@@ -22,7 +22,7 @@ beforeAll(async () => {
   seed = await buildSeed('2026-10-04', async () => undefined);
 });
 
-type Seen = { outcome: { ok: boolean; output?: unknown }; preflight: unknown }[];
+type Seen = { outcome: { ok: boolean; output?: unknown; replayed?: boolean }; preflight: unknown }[];
 
 function setup(hooks: Partial<NonNullable<SharedEntry['hooks']>> = {}, def?: AnyCall) {
   const seen: Seen = [];
@@ -55,6 +55,13 @@ describe('the settle hook of runCall', () => {
     expect((await call(ADMIN, { name: 'Twice' }, { key: 'key-1' })).ok).toBe(true);
     expect((await call(ADMIN, { name: 'Twice' }, { key: 'key-1' })).ok).toBe(true);
     expect(seen.map((one) => one.outcome.ok)).toEqual([true, true]);
+  });
+
+  it('tells the settle hook that a replayed answer is a replay, and a first answer is not', async () => {
+    const { seen, call } = setup();
+    await call(ADMIN, { name: 'Flagged' }, { key: 'key-flag' });
+    await call(ADMIN, { name: 'Flagged' }, { key: 'key-flag' });
+    expect(seen.map((one) => one.outcome.replayed ?? false)).toEqual([false, true]);
   });
 
   it('hears not ok after a throw of the handler', async () => {
