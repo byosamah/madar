@@ -2,7 +2,6 @@ import type { JSONWebKeySet } from 'jose';
 import { CLIENT_ADDRESS_HEADER, FORGOT_MIN_MS, FORGOT_PATH } from '../auth/forgot';
 import type { OpInput, OpOutput, OpResult, SigninOffice, SigninOpName } from '../auth/own/office';
 import { ownApiRoutes } from '../auth/own/routes';
-import { GOOGLE_CALLBACK_PATH, callbackRedirect } from '../google/callback';
 import { RENEW_MIN_MS, RENEW_PATH } from '../auth/renew';
 import type { TokenChecker } from '../auth/verify';
 import type { Deps } from '../core/ports';
@@ -17,7 +16,8 @@ import { officeErrorOf, type OfficeRoute, type OfficeStub } from './officeWorker
  * with the steps in the office object. The Worker does the HTTP part only (the body, the address, the browser token check); each
  * step is one call of Office.signin. The forgot and renew routes need the database, so they run in two object calls: mailRoute
  * (the shape check and the limits) before the answer, and mailWork (the mail) after it. The Worker pads the answer to the minimum
- * time of the route, so the time of the answer does not tell a known email from an unknown one.
+ * time of the route, so the time of the answer does not tell a known email from an unknown one. The Google callback runs in the Worker
+ * as it is: it checks the signed state with the Worker values and calls no object (server/google/callback.ts).
  */
 
 /** The SigninOffice of one request: each step runs in the office object of that request. */
@@ -77,22 +77,11 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
     },
   });
 
-  // The office path has no Google yet (fbk_022; docs/superpowers/real-build/exit-handoff.md): the callback answers not_ready and calls no
-  // object. The log gets the word only, never the query.
-  const googleNotReady: OfficeRoute = {
-    method: 'GET',
-    path: GOOGLE_CALLBACK_PATH,
-    handler: async () => {
-      o.deps.log.info('The Google callback ended.', { word: 'not_ready' });
-      return callbackRedirect(o.deps.config.appUrl, 'google=not_ready');
-    },
-  };
-
   return routesOf(NO_OFFICE).map((route): OfficeRoute => {
-    if (route.method === 'GET' && route.path === GOOGLE_CALLBACK_PATH) return googleNotReady;
     if (route.method === 'POST' && route.path === FORGOT_PATH) return mailRoute('forgot', route.path, o.minMs?.forgot ?? FORGOT_MIN_MS);
     if (route.method === 'POST' && route.path === RENEW_PATH) return mailRoute('renew', route.path, o.minMs?.renew ?? RENEW_MIN_MS);
-    // The routes of the own steps read no deps: each one sends its step to the office object of the request.
+    // The routes of the own steps read no deps: each one sends its step to the office object of the request. The Google callback reads
+    // no database and calls no object: it runs here, in the Worker, with the Worker deps (server/google/callback.ts).
     return { method: route.method, path: route.path, handler: (request, call) => routesOf(call.stub).find(same(route))!.handler(request, o.deps) };
   });
 }

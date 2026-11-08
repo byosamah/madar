@@ -3,6 +3,7 @@ import type { SharedCallName } from '../../src/api/sharedCalls';
 import { isLite } from '../data/dialect';
 import type { SaveResult } from '../data/save';
 import type { Deps, Query } from './ports';
+import { retryAtOf } from './retryAt';
 
 /**
  * Effects after the commit (plan 4.12; task C3). Handlers stay synchronous and pure, so work outside the database (an invitation,
@@ -117,12 +118,6 @@ export async function writeOutbox(q: Query, rows: OutboxRow[]): Promise<string[]
   }
   const found = await q<{ id: string | number }>(OUTBOX_INSERT_SQL, [JSON.stringify(rows)]);
   return found.map((row) => String(row.id)).sort((a, b) => Number(a) - Number(b));
-}
-
-/** The time to try again that an error names, when it names one. */
-function retryAtOf(error: unknown): Date | null {
-  const at = (error as { retryAt?: unknown } | null)?.retryAt;
-  return at instanceof Date && !Number.isNaN(at.getTime()) ? at : null;
 }
 
 function messageOf(error: unknown): string {

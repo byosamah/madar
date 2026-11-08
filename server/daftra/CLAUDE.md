@@ -37,6 +37,10 @@ Spec: `docs/superpowers/specs/2026-10-26-daftra-link-design.md`. Facts of the Da
   Address `https://<site>/api2/<entity>.json`, header `apikey`. `Deps.daftraFetch` is the fetch of a test: no test reaches Daftra (`fakeDaftra.ts`,
   one fake for each account, and `daftraDeps(...fakes)` routes each request by host).
 - Four reads: `findClients(keywords)`, `client(id)`, `invoicesOf(daftraClientId, createdFrom)`, `invoice(id)`. Ids are numbers (checked before any request).
+- On the office path the client gets `NetPorts.daftraFetch`. It sends the address only (`NetApi.daftraGet`, GET only). The Worker finds the
+  account by the site of the address, adds the key (`daftraRequest` in `office/net.ts`), and sends the GET behind the same read-only lock.
+  So the Daftra key never crosses to the object. The Worker needs the `DAFTRA_<NAME>_*` pairs as secrets (`scripts/deploy/secrets.ts <env>
+  --office` sends them). `DAFTRA_API_PREFIX` (`client.ts`) is the one text of the path.
 - The timeout is `DAFTRA_TIMEOUT_MS` for each call, the documented exception to the 3 s rule of `server/CLAUDE.md`. A redirect is a refusal
   (`redirect: 'manual'`): the key never goes to another host.
 - `DaftraError { code, status, retryable }`; its message is only the code. 401 is `bad_key`, 403 is `refused` (the key role refuses the entity),
@@ -91,8 +95,10 @@ Spec: `docs/superpowers/specs/2026-10-26-daftra-link-design.md`. Facts of the Da
   as the source and has no Undo), the save and the signals. It checks again inside the lock that the payment still holds the same account and
   invoice and has no received day. The day never lies after today; a paid invoice with no payment row gets today. The actor is the person who
   linked the payment while active, else the first active Admin (`paidActorOf`).
-- With no account in the config it returns `{ skipped: 'no_config' }`. On the office object path (SQLite, `MADAR_DATA=office`) it returns
-  `{ skipped: 'office' }` at once, until a `NetApi` method exists for it. A test turns the office path on with `onOffice`.
+- With no account in the config it returns `{ skipped: 'no_config' }`. On the office object path (SQLite, `MADAR_DATA=office`) it runs as on
+  Postgres: each read goes through `NetApi.daftraGet` (below), and the internal call runs with `Deps.daftraRun` (the SQLite data of the object).
+  A spent network budget (`NetBudgetSpent`) puts the item back, does not count the call, ends the run, and still saves the state. It is no
+  Daftra problem. The next run takes the rest.
 - It logs codes, ids and account names only: `{ step: 'daftra', account, code, status }`.
 
 ## Tests

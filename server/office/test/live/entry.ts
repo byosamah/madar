@@ -6,6 +6,7 @@ import { testConfig } from '../../../test/fakes/deps';
 import { fakeFiles } from '../../../test/fakes/files';
 import { fakeMail } from '../../../test/fakes/mail';
 import { WorkerNet } from '../../workerNet';
+import { isOutsideHost, OUTSIDE_DAFTRA, outsideFetch, outsideSeen } from './outside';
 import { TestOffice } from './testOffice';
 
 export { TestOffice };
@@ -23,6 +24,9 @@ const pushFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   return new Response(null, { status: 201 });
 }) as typeof fetch;
 
+// The fetch behind the network port: a Google or Daftra address goes to the fakes (outside.ts), a push address to the push service above.
+const portFetch = ((input: RequestInfo | URL, init?: RequestInit) => (isOutsideHost(input) ? outsideFetch(input, init) : pushFetch(input, init))) as typeof fetch;
+
 const stubOf = (env: Env) => env.OFFICE.get(env.OFFICE.idFromName('office')) as Test;
 const routes = officeRoutes({
   deps: { config: testConfig({ fileStore: 'r2' }), clock: { now: () => new Date() }, log: consoleLogger() },
@@ -35,7 +39,7 @@ const routes = officeRoutes({
   stub: (env) => stubOf(env as Env),
   // The office ops of exit wave 4: an object by its name, and the two secrets of this test Worker (harness.ts sends them).
   stubOf: (env, name) => (env as Env).OFFICE.get((env as Env).OFFICE.idFromName(name)) as Test,
-  net: () => new WorkerNet({ files, mail, fetch: pushFetch }),
+  net: () => new WorkerNet({ files, mail, fetch: portFetch, daftra: OUTSIDE_DAFTRA }),
   jobsSecret: () => 'test-jobs-secret',
   exportSecret: () => 'test-export-secret',
   opsSecret: () => 'test-ops-secret',
@@ -46,6 +50,7 @@ export default {
     setEnvSource(env);
     const { pathname } = new URL(request.url);
     if (pathname === '/test/net') return Response.json({ files: files.calls, mails: mail.sent, pushes });
+    if (pathname === '/test/outside') return Response.json(outsideSeen());
     if (pathname === '/test/seed') {
       await stubOf(env).seed(await request.json());
       return Response.json({ ok: true });

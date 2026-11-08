@@ -5,6 +5,7 @@ import {
   type EventBody, type GoogleClient,
 } from './api';
 import { REQUEST_TIMEOUT_MS } from '../../src/api/remote/remoteApi';
+import { NetBudgetSpent } from '../office/net';
 
 /** The Google client (fbk_022). Every test hands it a stub fetch; the real fetch never runs, and every value here is made up. */
 
@@ -303,5 +304,28 @@ describe('revokeToken', () => {
   it('gives server and timeout errors that retry, and refused for the rest', async () => {
     expect(await revokeToken(client(stub(() => json({}, 503)).fetch), 'rt-1').catch((e: unknown) => e)).toMatchObject({ code: 'server', retry: true });
     expect(await revokeToken(client(stub(() => json({}, 401)).fetch), 'rt-1').catch((e: unknown) => e)).toMatchObject({ code: 'refused', retry: false });
+  });
+});
+
+describe('a spent network budget of the office object', () => {
+  const spent = new NetBudgetSpent(new Date('2026-11-08T06:00:00Z'));
+  const budget = () => stub(() => { throw spent; });
+
+  it('passes through exchangeCode, refreshAccess and listEvents as the same object, and not as a GoogleError', async () => {
+    const { fetch } = budget();
+    for (const run of [
+      () => exchangeCode(client(fetch), 'code-1', 'verifier-1'),
+      () => refreshAccess(client(fetch), 'rt-1'),
+      () => listEvents(client(fetch), 'at-1', 'cal-1', '2026-11-08T00:00:00Z'),
+    ]) {
+      const error = await run().catch((e: unknown) => e);
+      expect(error).toBe(spent);
+      expect(error).not.toBeInstanceOf(GoogleError);
+    }
+  });
+
+  it('still gives unreachable for a plain network error', async () => {
+    const { fetch } = stub(() => { throw new TypeError('connect ECONNREFUSED'); });
+    await expect(refreshAccess(client(fetch), 'rt-1')).rejects.toMatchObject({ code: 'unreachable', retry: true });
   });
 });

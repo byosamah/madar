@@ -4,9 +4,11 @@ import type { WireResponse } from '../../../../src/api/remote/wire';
 import type { State } from '../../../../src/api/store';
 import { testPrivateJwk } from '../../../auth/own/testKeys';
 import { makeVapidKeys } from '../../../push/vapid';
+import { OUTSIDE_SECRETS } from './outside';
 
 export type SocketClient = { ws: WebSocket; got: string[]; opened: Promise<void>; closed: Promise<{ code: number; reason: string }> };
 export type NetSeen = { files: { op: string; key: string }[]; mails: { to: string; tag: string; idempotencyKey: string }[]; pushes: { endpoint: string; headers: Record<string, string> }[] };
+export type OutsideSeen = { google: { method: string; path: string }[]; daftra: { method: string; url: string }[] };
 export type BatchCall = { name: string; input: unknown; story?: { ref: string } | { id: string }; key?: string };
 type Answer = { ok: boolean; url: string; status: number; text(): Promise<string>; json(): Promise<unknown> };
 
@@ -28,8 +30,9 @@ export function openSocket(address: string): SocketClient {
 /**
  * Starts the live test Worker on local workerd. Every call goes through fetch, so Node holds no stub of the office object and an
  * evict works (proof.md, "Wave 1: the rows pins"). fresh() gives each test a new office: reset() makes the storage again.
+ * `outside`: the office object also gets the Google values and the Daftra pair of the fakes (outside.ts). Other suites keep their env.
  */
-export async function startLive() {
+export async function startLive(o: { outside?: boolean } = {}) {
   const vapid = await makeVapidKeys();
   // The key of the own sign-in for this run only (the MCP suite signs its agent tokens with it). It is never a real key.
   const jwk = await testPrivateJwk();
@@ -41,6 +44,7 @@ export async function startLive() {
         R2_ACCESS_KEY_ID: 'test-not-a-key', R2_SECRET_ACCESS_KEY: 'test-not-a-key',
         VAPID_PUBLIC_KEY: vapid.publicKey, VAPID_PRIVATE_KEY: vapid.privateKey, VAPID_SUBJECT: 'mailto:madar@vado.sa',
         MADAR_AUTH_PRIVATE_JWK: jwk,
+        ...(o.outside ? OUTSIDE_SECRETS : {}),
       },
     }],
   });
@@ -67,6 +71,8 @@ export async function startLive() {
     exec: async (text: string, values: unknown[] = []) => read<{ ok: true }>(await post('/test/exec', { text, values })),
     readBack: async () => read<State>(await worker().fetch('/test/readBack')),
     net: async () => read<NetSeen>(await worker().fetch('/test/net')),
+    /** The requests that the fake Google and the fake Daftra saw (method and address only). */
+    outside: async () => read<OutsideSeen>(await worker().fetch('/test/outside')),
     batch: async (userId: string, calls: BatchCall[]) => {
       const response = await post('/api/batch', { v: 1, calls: calls.map((c, i) => ({ i, ...c })) }, { authorization: `Bearer ${userId}` });
       return { status: response.status, body: (await response.json()) as WireResponse & { error?: RunError } };

@@ -21,6 +21,7 @@ describe('the export client (scripts/backup/officeExport.ts)', () => {
     expect(events.length).toBe(Number((t.raw.prepare('select count(*) as n from events').get() as { n: number }).n));
     expect(JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8')) as ExportManifest).toEqual(manifest);
     expect(manifest.drift).toContain('auth_sessions');
+    expect(manifest.drift).toContain('google_events');
     // A table with no row gets an empty file and a digest of 0 rows.
     expect(readFileSync(join(dir, 'tables', 'mail_log.ndjson'), 'utf8')).toBe('');
     expect(manifest.tables.mail_log.rows).toBe(0);

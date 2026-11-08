@@ -11,6 +11,7 @@ import { createRenewRoute, RENEW_PATH, renewInvitation } from '../auth/renew';
 import { runInHost } from '../core/after';
 import type { Clock, Deps, Logger } from '../core/ports';
 import { createRunCall, type RunCall } from '../core/runCall';
+import { DAFTRA_INTERNAL_CALLS } from '../daftra/paidCall';
 import type { CallEntry } from '../core/serverCallMap';
 import type { OfficeSnapshot, Principal, RunError, RunResult } from '../core/types';
 import { liteDb, type LiteDb } from '../data/lite/db';
@@ -150,12 +151,11 @@ export function officeParts(o: PartsInput): OfficeParts {
   const signals = liveSignals({ sockets: o.sockets, log, now: () => clock.now(), staleMs });
   const ledgers = new WeakMap<Deps, EffectLedger>();
   const data = officeData({ meter, ledgerOf: (deps) => ledgers.get(deps) });
-  const run = createRunCall({
-    ...(o.calls ? { calls: o.calls } : {}),
-    data,
-    // runCall gives each committed effect to afterCommit (the object has no host "after"): the ledger keeps it for the batch.
-    afterCommit: async (deps, ids) => ledgers.get(deps)?.committed(ids),
-  });
+  // runCall gives each committed effect to afterCommit (the object has no host "after"): the ledger keeps it for the batch.
+  const afterCommit = async (deps: Deps, ids: string[]) => ledgers.get(deps)?.committed(ids);
+  const run = createRunCall({ ...(o.calls ? { calls: o.calls } : {}), data, afterCommit });
+  // The internal call of the Daftra step (payments.daftraPaid) runs on the same SQLite data, with the same ledger.
+  const daftraRun = createRunCall({ calls: DAFTRA_INTERNAL_CALLS, data, afterCommit });
   const office = () => db.tx('read', (q) => readLiteOffice(db, q));
   // The sign-in rows live in the object (exit wave 2): the effects of server/auth/invite.ts and server/auth/effects.ts run here,
   // and only their mail goes through the network port of the Worker.
@@ -192,11 +192,21 @@ export function officeParts(o: PartsInput): OfficeParts {
       config: values.config,
       log,
       pushFetch: ports.pushFetch,
+      // Google and Daftra requests leave from the Worker (server/office/net.ts): the object sends them through its network port.
+      googleFetch: ports.googleFetch,
+      daftraFetch: ports.daftraFetch,
+      // The rows that a server call (google.connect, google.disconnect) wrote run after the answer, as the rows of a shared call.
+      later: (ids, kinds) => {
+        const ledger = ledgers.get(deps);
+        ledger?.wrote(ids, kinds);
+        ledger?.committed(ids);
+      },
       live: tickets,
       // The typing signal of chats.typing goes to the sockets of the members (server/office/presence.ts).
       typing: officeTyping({ sockets: o.sockets }),
       // A job step that runs a normal call (the meetings step) runs it on the SQLite data of this object.
       runCall: run,
+      daftraRun,
     };
     ledgers.set(deps, new EffectLedger());
     return deps;

@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { STATE_LIFE_MS, signState } from '../google/state';
+import { googleKeysOf } from '../google/keys';
+import { GOOGLE_CONFIG, GOOGLE_KEY } from '../google/testOffice';
 import { APPROVE_PATH } from '../mcp/approval';
 import type { OfficeMailAnswer, OfficeMailInput, OfficeMailWork, OfficeSigninInput } from '../office/parts';
 import { recordingNet } from '../office/test/fakes';
@@ -9,8 +12,8 @@ import { officeRoutes, type OfficeStub } from './officeWorker';
 const JWKS = { keys: [{ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', kid: 'k1', alg: 'ES256', use: 'sig' }] };
 const ADDRESS = '203.0.113.7';
 
-function setup(o: { mail?: OfficeMailAnswer } = {}) {
-  const deps = fakeDeps();
+function setup(o: { mail?: OfficeMailAnswer; google?: boolean } = {}) {
+  const deps = fakeDeps(o.google ? { config: { google: GOOGLE_CONFIG } } : {});
   const seen = { signins: [] as OfficeSigninInput[], mailRoutes: [] as OfficeMailInput[], mailWorks: [] as OfficeMailWork[], sleeps: [] as number[] };
   const stub = {
     signin: async (body: OfficeSigninInput) => (seen.signins.push(body), { ok: true as const, value: { access_token: 't', step: body.signin } }),
@@ -55,15 +58,38 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     expect(new Set(paths).size).toBe(paths.length);
   });
 
-  it('answers the Google callback with #google=not_ready and calls no object (the office path has no Google yet, fbk_022)', async () => {
-    const { seen, routes, net } = setup();
-    const answer = await routes.fetch(new Request('https://madar-server.internal/api/google/callback?code=code-SECRET&state=state-made-up'), {});
+  it('answers the Google callback with finish, the code and the state, and calls no object', async () => {
+    const { deps, seen, routes, net } = setup({ google: true });
+    const { state } = await signState(await googleKeysOf(GOOGLE_KEY), 'usr_001', deps.clock.now());
+    const answer = await routes.fetch(new Request(`https://madar-server.internal/api/google/callback?code=code-SECRET&state=${encodeURIComponent(state)}`), {});
     expect([answer.status, answer.headers.get('location'), answer.headers.get('cache-control'), answer.headers.get('referrer-policy')]).toEqual([
-      302, 'http://127.0.0.1:5173/settings#google=not_ready', 'no-store', 'no-referrer',
+      302, `http://127.0.0.1:5173/settings#google=finish&code=code-SECRET&state=${encodeURIComponent(state)}`, 'no-store', 'no-referrer',
     ]);
     expect(seen.signins).toEqual([]);
     expect(seen.mailRoutes).toEqual([]);
-    expect(net.calls ?? []).toEqual([]);
+    expect(net.calls).toEqual([]);
+    const log = JSON.stringify(deps.logs);
+    expect(log).toContain('finish');
+    expect(log).not.toContain('code-SECRET');
+    expect(log).not.toContain(state);
+  });
+
+  it('answers old, failed, denied and not_ready with one word, and no object call', async () => {
+    const callback = async (o: { google: boolean; query: (state: string) => string; late?: boolean }) => {
+      const { deps, seen, routes } = setup({ google: o.google });
+      const { state } = await signState(await googleKeysOf(GOOGLE_KEY), 'usr_001', deps.clock.now());
+      if (o.late) deps.clock.advance(STATE_LIFE_MS + 1000);
+      const answer = await routes.fetch(new Request(`https://madar-server.internal/api/google/callback?${o.query(encodeURIComponent(state))}`), {});
+      expect(seen.signins).toEqual([]);
+      expect(JSON.stringify(deps.logs)).not.toContain('code-SECRET');
+      return answer.headers.get('location');
+    };
+    const base = 'http://127.0.0.1:5173/settings#';
+    expect(await callback({ google: true, late: true, query: (state) => `code=code-SECRET&state=${state}` })).toBe(`${base}google=old`);
+    expect(await callback({ google: true, query: () => 'code=code-SECRET&state=plain-text-not-a-state' })).toBe(`${base}google=failed`);
+    expect(await callback({ google: true, query: () => 'code=code-SECRET&state=eyJhbGciOiJFUzI1NiJ9.e30.AAAA' })).toBe(`${base}google=failed`);
+    expect(await callback({ google: true, query: () => 'error=access_denied&state=x' })).toBe(`${base}google=denied`);
+    expect(await callback({ google: false, query: (state) => `code=code-SECRET&state=${state}` })).toBe(`${base}google=not_ready`);
   });
 
   it('answers a reset request from the limits of the office object, pads it to the minimum time, and sends the mail after the answer', async () => {

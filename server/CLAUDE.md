@@ -105,7 +105,7 @@ The other host stays deployed as the way back. Each area has its own guide: `mcp
 ## Ports
 - `core/ports.ts`: Db, Clock, FilesPort, MailPort, SignalPort, AuthAdminPort, LivePort, TypingPort. Fakes in `test/fakes`.
 - `Config.google`: all three variables or none; the server refuses to start with some (`google/CLAUDE.md`). `Deps.googleFetch` and
-  `Deps.daftraFetch` are the fetches of test stubs; no test reaches Google or Daftra.
+  `Deps.daftraFetch` are the fetches of test stubs; no test reaches Google or Daftra. The office object sets both from its network port (`office/CLAUDE.md`).
 - `Config.daftra`: one account for each sub-company, read by name pattern (`daftra/CLAUDE.md`). `env.names()` lists the names of the host.
 - `buildDeps` (`core/deps.ts`) reads the env. A missing variable gives an error that names the variable, never a value.
 

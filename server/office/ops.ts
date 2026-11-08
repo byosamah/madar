@@ -34,12 +34,16 @@ export const ROWID_ALIAS: ReadonlyMap<string, string> = new Map(tablesOf().flatM
 
 /**
  * The tables that may change while an export holds the office: the sign-in rows (a refresh, a consent), the mail and the outbox
- * (the effects of a write that came before the hold), the limits and the meters. Their rows are what the export read; a count
- * that differs from the live office is a note, never a failure (the rule of OUTSIDE_OFFICE_LOCK of the Postgres backup).
+ * (the effects of a write that came before the hold), the Google and Daftra rows that those effects write, the limits and the meters.
+ * Their rows are what the export read; a count that differs from the live office is a note, never a failure (the rule of
+ * OUTSIDE_OFFICE_LOCK of the Postgres backup).
  */
 export const DRIFT_TABLES: readonly string[] = [
   'auth_users', 'auth_links', 'auth_sessions', 'oauth_clients', 'oauth_requests', 'agent_approvals', 'rate_limits', 'outbox', 'mail_log',
   'mail_outbox', 'usage_day', 'usage_month', 'usage_warnings', 'agent_confirms',
+  // The Google effects and the Daftra cache run during an export hold (runEffects lets them). These four are in OUTSIDE_OFFICE_LOCK of
+  // scripts/backup/check.ts too. google_calendars changes only under the office lock, so it is not here.
+  'google_connections', 'google_events', 'daftra_clients', 'daftra_invoices',
 ];
 
 /** An export holds the office for at most 5 minutes (spec section 2); an import for at most 30 minutes. */

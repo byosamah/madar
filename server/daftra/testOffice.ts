@@ -15,7 +15,7 @@ import { DAFTRA_INTERNAL_CALLS } from './paidCall';
 
 /**
  * A test office for the Daftra tests (the Daftra link), for tests only: the sample office on node:sqlite with runCall on liteData, the Daftra
- * accounts of the fakes in the config, and the fakes behind `deps.daftraFetch`, so no test reaches Daftra. The step runs with `onOffice`.
+ * accounts of the fakes in the config, and the fakes behind `deps.daftraFetch`, so no test reaches Daftra.
  *
  * The seed gets three sub-companies and four projects with a sub-company:
  *   sub_001 MAZJ    prj_001 (client cli_001, payment pay_003: 320,000, due 2026-10-14)
@@ -27,12 +27,11 @@ import { DAFTRA_INTERNAL_CALLS } from './paidCall';
 
 export const AT = '2026-10-26T06:00:00Z';
 
-export type DaftraOffice = Awaited<ReturnType<typeof daftraOffice>>;
-
-export async function daftraOffice(o: { at?: string; fakes?: FakeDaftra[]; edit?: (seed: State) => void } = {}) {
-  const at = o.at ?? AT;
-  const { raw, db } = await freshLite();
-  const seed = await buildSeed(at.slice(0, 10), async () => undefined);
+/**
+ * Gives the seed three sub-companies and links four projects to them (the layout in the header of this file). The ids come back.
+ * The office object tests use it too (server/office/daftra.test.ts).
+ */
+export function addSubCompanies(seed: State): { mazj: string; vado: string; studio: string } {
   const make = (name: string): string => {
     const id = nextId(seed, 'sub');
     const row: SubCompany = { id, name, nameAr: name, logo: null, createdBy: 'usr_001', createdAt: '2026-09-01T09:00:00.000+03:00' };
@@ -43,6 +42,16 @@ export async function daftraOffice(o: { at?: string; fakes?: FakeDaftra[]; edit?
   seed.projects.prj_001.subCompanyId = mazj;
   seed.projects.prj_002.subCompanyId = vado;
   seed.projects.prj_006.subCompanyId = studio;
+  return { mazj, vado, studio };
+}
+
+export type DaftraOffice = Awaited<ReturnType<typeof daftraOffice>>;
+
+export async function daftraOffice(o: { at?: string; fakes?: FakeDaftra[]; edit?: (seed: State) => void } = {}) {
+  const at = o.at ?? AT;
+  const { raw, db } = await freshLite();
+  const seed = await buildSeed(at.slice(0, 10), async () => undefined);
+  const { mazj, vado, studio } = addSubCompanies(seed);
   o.edit?.(seed);
   await db.tx('write', (q) => liteWriteState(q, seed));
   const fakes = o.fakes ?? [];
@@ -64,7 +73,7 @@ export async function daftraOffice(o: { at?: string; fakes?: FakeDaftra[]; edit?
     internal,
     /** One run of the daftra step, on the SQLite data. */
     step: (extra: DaftraStepOptions = {}, when: Date = deps.clock.now()): Promise<DaftraReport> =>
-      daftraStep(asDeps, when, { onOffice: true, run: internal, ...extra }),
+      daftraStep(asDeps, when, { run: internal, ...extra }),
     /** The stored document of a payment. */
     payment: async (id: string) => ((await db.statement('read', 'select doc from payments where id = ?1', [id])) as { doc: Record<string, unknown> }[])[0]?.doc,
     /** Every log line of the deps as one text, for the leak checks. */

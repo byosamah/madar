@@ -104,9 +104,16 @@ export const googleConnectStart: ServerCall<'google.connectStart'> = async (_inp
   return { output: { url: authUrl(ready.client, { state, challenge, loginHint: person.email }) }, changed: false };
 };
 
-/** Runs the outbox rows after the commit: on the host `after` when it has one, else before the answer (tests). */
-async function runAfterCommit(deps: Deps, ids: string[], name: string): Promise<void> {
+/**
+ * Runs the outbox rows after the commit: on the host `after` when it has one, else before the answer (tests). The office object has
+ * `Deps.later`: it keeps the rows, and the Worker runs them after the answer in one more call (runEffects), as the rows of a shared call.
+ */
+async function runAfterCommit(deps: Deps, ids: string[], kinds: string[], name: string): Promise<void> {
   if (ids.length === 0) return;
+  if (deps.later) {
+    deps.later(ids, kinds);
+    return;
+  }
   const work = processOutbox(deps, ids).then(
     () => undefined,
     (error: unknown) => deps.log.warn('The effects after the commit did not run. The job tries them again.', { name, error: error instanceof Error ? error.message : 'failed' }),
@@ -199,7 +206,7 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
     const now = deps.clock.now();
     if (ctx.key !== undefined && digest !== undefined) {
       const stored = replay(await sqlKeys(q).get(actorId, ctx.key), digest);
-      if (stored) return { result: stored, ids: [] as string[] };
+      if (stored) return { result: stored, ids: [] as string[], kinds: [] as string[] };
     }
     const rows: OutboxRow[] = [];
     // The old live row of the person goes out. Its grant is the same grant at Google, so the revoke row only deletes the sealed
@@ -216,9 +223,9 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
     const ids = await writeOutbox(q, rows);
     const result: StoredResult = { output: { state: 'ok', meetings: rows.filter((row) => row.kind === 'gcal.sync').length }, changed: false };
     if (ctx.key !== undefined && digest !== undefined) await sqlKeys(q).put({ actorId, key: ctx.key, name: 'google.connect', digest, result, at: now });
-    return { result, ids };
+    return { result, ids, kinds: rows.map((row) => row.kind) };
   });
-  await runAfterCommit(deps, done.ids, 'google.connect');
+  await runAfterCommit(deps, done.ids, done.kinds, 'google.connect');
   return { output: done.result.output as { state: 'ok'; meetings: number }, changed: false };
 };
 
@@ -232,6 +239,6 @@ export const googleDisconnect: ServerCall<'google.disconnect'> = async (_input, 
     await deleteEventsOfUser(q, person.id);
     return writeOutbox(q, revoking.map((id) => ({ kind: 'gcal.revoke', payload: { connectionId: id } })));
   });
-  await runAfterCommit(deps, ids, 'google.disconnect');
+  await runAfterCommit(deps, ids, ids.map(() => 'gcal.revoke'), 'google.disconnect');
   return { output: { state: 'none' as const }, changed: false };
 };

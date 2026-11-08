@@ -233,7 +233,7 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
   - [x] Last step: the five real keys are in production (2026-10-26, production at 2c3d2018). Every key reads its own account
   - [x] Dropped by the owner (2026-10-26: "I don't mind"): the five keys stay without the Daftra role "Only Allow"; Madar's own read-only lock is the guard
   - [x] The What's new day of 2026-10-23-113 is 2026-10-26, the production release day
-  - [ ] Later: the Daftra job step does nothing on the office object path (SQLite, `MADAR_DATA=office`) until a `NetApi` method exists
+  - [x] The Daftra job step runs on the office object path through `NetApi.daftraGet` (plan A of Madar enterprises, built 2026-11-08 on rb/ent-a; the lead still tests it on the test copy)
   - [x] The paid check reads the invoice read longest ago first, and the cache fills go first (code review fix, released 2026-10-26)
   - [x] Screenshots of the Daftra part of the payment sheet at desk width: English and Arabic, light and dark (test copy, 2026-10-26)
   - [ ] Later: a rename of a sub-company's English name changes its Daftra account name (`DAFTRA_<NAME>_*`): rename the two secrets in the same step

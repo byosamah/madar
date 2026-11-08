@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DAFTRA_TIMEOUT_MS, DaftraError, daftraAccountsOf, daftraClientOf, daftraOf } from './client';
+import { NetBudgetSpent } from '../office/net';
 import { daftraDeps, fakeDaftra } from './fakeDaftra';
 
 const source = readFileSync(new URL('./client.ts', import.meta.url), 'utf8');
@@ -212,5 +213,15 @@ describe('daftraOf (one client for one account)', () => {
     const deps = daftraDeps(fakeDaftra({ account: 'VADO' }), fakeDaftra({ account: 'BUNAH' }));
     expect(daftraAccountsOf(deps)).toEqual(['BUNAH', 'VADO']);
     expect(daftraAccountsOf({ config: {} as never })).toEqual([]);
+  });
+});
+
+describe('a spent network budget of the office object', () => {
+  it('passes through as the same object and not as a DaftraError', async () => {
+    const spent = new NetBudgetSpent(new Date('2026-11-08T06:00:00Z'));
+    const client = daftraClientOf({ site: 'mazj.daftra.com', apiKey: 'K'.repeat(30), fetch: (async () => { throw spent; }) as typeof fetch });
+    const error = await client.invoice('1').catch((e: unknown) => e);
+    expect(error).toBe(spent);
+    expect(error).not.toBeInstanceOf(DaftraError);
   });
 });

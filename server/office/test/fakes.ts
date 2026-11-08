@@ -75,6 +75,8 @@ export function recordingNet(over: Partial<NetApi> = {}): NetApi & { calls: stri
     remove: (keys) => (calls.push(`remove ${keys.join(',')}`), ok(null)),
     sendMail: (mail) => (calls.push(`mail ${mail.idempotencyKey}`), ok({ id: `mail_${calls.length}` })),
     pushPost: (endpoint) => (calls.push(`push ${endpoint}`), ok({ status: 201 })),
+    googleFetch: (req) => (calls.push(`google ${req.method} ${req.url}`), ok({ status: 404, body: '{}' })),
+    daftraGet: (req) => (calls.push(`daftra GET ${req.url}`), ok({ status: 404, body: '{}' })),
     ...over,
   };
 }

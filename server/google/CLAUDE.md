@@ -11,8 +11,23 @@ part is in `src/api/CLAUDE.md`. The four calls are on the MCP deny list: an agen
   refuses to start and names the absent ones.
 - The scope is only `calendar.app.created` (`GOOGLE_SCOPE`): Madar makes its own calendar and writes only there.
 - `GET /google/callback` has no sign-in, reads no database and writes nothing. It checks the signed state and answers 302 to
-  `<APP_URL>/settings#google=<word>` with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. On the office path it
-  answers `#google=not_ready` and calls no object. The Pages forwarder passes the query and the 302 as they are.
+  `<APP_URL>/settings#google=<word>` with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. On the office path the route runs
+  in the Worker as it is, with the Worker values: it checks the signed state and calls no object (`entries/officeSignin.ts`). It answers
+  `#google=not_ready` only when the Worker holds no Google values. The Pages forwarder passes the query and the 302 as they are.
+
+## On the office path
+- The office path runs this feature now. The office object does no network work, so every Google request goes through the network port:
+  `Deps.googleFetch` is `NetPorts.googleFetch` (`office/net.ts`), which calls `NetApi.googleFetch` in the Worker. The Worker side
+  (`googleRequest`) accepts only the token and revoke addresses and the Calendar API, keeps three headers, never follows a redirect, and
+  answers the status and the text. Any HTTP status is a value, not a failure. An error text never crosses.
+- The Worker needs the three Google values as secrets (`scripts/deploy/secrets.ts <env> --office` sends them). The object reads them too.
+- The rows that `google.connect` and `google.disconnect` write run after the answer: the calls hand them to `Deps.later`, and the Worker runs
+  them in one more call (`runEffects`), as the rows of a shared call.
+- The network budget (`NET_BUDGET`, 45 for each object call) can end in the middle of a backfill. `NetBudgetSpent` passes through
+  `google/api.ts` and `sync.ts` (`core/retryAt.ts`): the connection stays `ok`, the outbox row waits 60 s and keeps its attempt, and the
+  next run sends the rest. The revoke keeps its row when the budget ends.
+- Tests: `server/office/google.test.ts` (node:sqlite, the port with `googleRequest` and the fake Google), `server/office/outside.wd.test.ts`
+  (local workerd).
 
 ## Timeouts
 - A Google call has the 3 s limit of `server/CLAUDE.md` (`GOOGLE_TIMEOUT_MS`). The one exception is `google.connect`: its calls share a

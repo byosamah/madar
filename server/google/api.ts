@@ -6,6 +6,7 @@
  * An error is a GoogleError whose message is its code and nothing more. The text of a network error, a Google answer, an address, a
  * token or a title never reaches an error, a log line or the outbox. The caller decides from `code` and `retry`.
  */
+import { retryAtOf } from '../core/retryAt';
 
 export const GOOGLE_TIMEOUT_MS = 3000;
 /**
@@ -75,6 +76,8 @@ async function send(c: GoogleClient, url: string, init: { method: string; header
     return await Promise.race([work, limit]);
   } catch (error) {
     if (error instanceof GoogleError) throw error;
+    // A spent network budget of the office object is no failure of Google: it waits (server/core/retryAt.ts).
+    if (retryAtOf(error) !== null) throw error;
     throw new GoogleError('unreachable');
   } finally {
     clearTimeout(timer);

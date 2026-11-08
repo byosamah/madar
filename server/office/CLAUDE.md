@@ -15,7 +15,11 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
   The object runs `runCall` on SQLite for each entry, one after the other, and answers JSON text. It runs the waited effect kinds with
   no wait. Mails and pushes run after the answer in one more call (`runEffects`). An overloaded or reset object answers the reason `busy`.
 - The object does no network work. Each call gets a `WorkerNet` (`workerNet.ts`, an `RpcTarget`) and calls it back for file links, R2,
-  Resend and the push POST (`net.ts`). The port refuses a call inside a transaction and stops at `NET_BUDGET` calls for each object call
+  Resend, the push POST, Google (`googleFetch`) and Daftra (`daftraGet`) (`net.ts`). The Google and Daftra requests carry no secret of the
+  Worker: the Worker side checks the address, adds the Daftra key from its own accounts, and answers the status and the text. The object
+  sets `Deps.googleFetch` and `Deps.daftraFetch` from the port, `Deps.later` for the rows of a server call, and `Deps.daftraRun` for the
+  internal call of the Daftra step. The Worker needs the Google values and the `DAFTRA_<NAME>_*` pairs as secrets
+  (`scripts/deploy/secrets.ts <env> --office` sends them). The port refuses a call inside a transaction and stops at `NET_BUDGET` calls for each object call
   (`NetBudgetSpent`: the outbox row waits a minute and keeps its attempt). Every network call keeps the 3 s rule (`net.ts`).
 - A batch reports an office change when any entry cleared `batch.office` (`runOfficeEntries`), so a turn-off with a read after it still
   closes the sockets of that person. The object has its own batch (`batch.ts`) and no first-read join.
@@ -48,7 +52,9 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
 ## Hold, import, ops routes
 - The hold (`ops.ts`, `OfficeHold`, in memory, `HOLD_MS`): an export holds the office for a short time, an import for longer. An export
   refuses a batch with a write (reason `busy`), a request of `/mcp` itself (503) and the Cron steps. Reads, the sign-in steps, forgot, renew
-  and the OAuth routes under `/mcp/` run, because their rows are the drift tables (`DRIFT_TABLES`). An import refuses every call, step and
+  and the OAuth routes under `/mcp/` run, because their rows are the drift tables (`DRIFT_TABLES`). The Google and Daftra effects run
+  during a hold too, so `google_connections`, `google_events`, `daftra_clients` and `daftra_invoices` are drift tables as well
+  (`google_calendars` changes only under the office lock). An import refuses every call, step and
   mail route, and the effects wait for the Cron.
 - `Office.fetch` sends `/office/*` to `parts.ops`: `export` (begin, pages of `EXPORT_PAGE_ROWS` rows in rowid order, end with the version and
   `office_seq` of the begin) and `peek` (one select of `PEEK_ROWS` rows at most, only with `testToolsOn`). `/office/drop` deletes the storage

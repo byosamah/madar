@@ -57,7 +57,7 @@ export function officeEntry() {
         const namespace = env.OFFICE as Namespace;
         return namespace.get(namespace.idFromName(name)) as OfficeStub;
       },
-      net: () => new WorkerNet({ files: deps.files, mail: deps.mail }),
+      net: () => new WorkerNet({ files: deps.files, mail: deps.mail, ...(deps.config.daftra ? { daftra: deps.config.daftra } : {}) }),
       jobsSecret: () => values.jobsSecret,
       exportSecret: () => readEnv('MADAR_EXPORT_SECRET'),
       opsSecret: () => readEnv('MADAR_OPS_SECRET'),

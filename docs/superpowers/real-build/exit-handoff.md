@@ -104,14 +104,16 @@ share one limit count; `server-time.sh` has no member sign-in for the office pat
 Chat search on the office path scans `messages` and `comments` (`instr`). At the restart, give both an FTS5 table with the trigram
 tokenizer, fed by the save, and lower the `search.query` pins (`server/office/test/pins.ts`; the numbers are in `proof.md`, "Chat search").
 
-## 7b. Google Calendar and the office object (fbk_022, 2026-10-19)
-- The Google Calendar connect is built for the Postgres path (Supabase functions and the Worker with Hyperdrive). The office path has no Google yet:
-  `entries/officeSignin.ts` answers `GET /api/google/callback` with `#google=not_ready` and calls no object, and the office object builds no
-  `Config.google`. The SQLite schema (version 9) already has the three server tables, empty.
-- Before the office path gets Google: the network port of the Worker needs the Google calls (the object does no network work), `Deps.googleFetch`
-  must use it, the sync effects must run in the object (`gcal.sync`, `gcal.revoke` and `gcal.tidy` write only `google_connections` and `google_events`; `google.connect` and `users.remove` also write `google_calendars`), the
-  import of wave 4 must copy the three tables (it copies no server table of this kind today), and `DRIFT_TABLES` must name them. People then connect again
-  at the restart, or the sealed tokens move with the key `MADAR_GOOGLE_KEY` of the copy.
+## 7b. Google Calendar and the office object (fbk_022, 2026-10-19; built 2026-11-08, plan A of Madar enterprises)
+- Google Calendar and the Daftra step now run on the office path. The network port of the Worker carries every Google and Daftra request
+  (`NetApi.googleFetch`, `NetApi.daftraGet`, `server/office/net.ts`). The Daftra key stays in the Worker. The Google callback runs in the
+  Worker (`entries/officeSignin.ts`). The sync effects run in the object. A spent network budget waits and loses no attempt.
+- `DRIFT_TABLES` names `google_connections`, `google_events`, `daftra_clients` and `daftra_invoices`. The export lists every table of the
+  schema, so the import carries them.
+- At the move, the Worker of the copy needs the three Google values and the `DAFTRA_<NAME>_*` pairs as secrets
+  (`npx tsx scripts/deploy/secrets.ts <env> --office`). People connect Google again, or the sealed tokens move with the key
+  `MADAR_GOOGLE_KEY` of the copy. The two redirect URIs in Google Cloud stay as they are.
+- The satellite route (`server/http/pagesSatellite.ts`) also takes the own-key token of a copy on the office object.
 
 ## 8. References
 - Spec: `docs/superpowers/specs/2026-10-16-madar-cloudflare-exit-design.md` (wave 0 results and six changes at the top; section 7
