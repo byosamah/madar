@@ -41,8 +41,11 @@ import type { SqlHost } from './host';
  *
  * Version 13 (CWE-863, the address that the person saw): the column redirect_uri of agent_approvals. Null for an approval from before the
  * step. Its step is in LITE_STEPS (supabase/migrations/20261028000100_platform_agent_redirect.sql).
+ *
+ * Version 14 (the weekly question, fbk_088): the table checkins with its key columns and the unique index checkins_one. Its step is in
+ * LITE_STEPS (supabase/migrations/20261108000100_checkins.sql).
  */
-export const LITE_SCHEMA_VERSION = 13;
+export const LITE_SCHEMA_VERSION = 14;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -50,6 +53,7 @@ export type LiteIndex = { table: string; name: string; columns: string; unique?:
 export const LITE_INDEXES: readonly LiteIndex[] = [
   { table: 'push_devices', name: 'push_devices_endpoint', columns: 'endpoint', unique: true },
   { table: 'push_devices', name: 'push_devices_user', columns: 'user_id' },
+  { table: 'checkins', name: 'checkins_one', columns: 'week, user_id, kind', unique: true },
   { table: 'meetings', name: 'meetings_starts', columns: 'starts_at' },
   { table: 'meetings', name: 'meetings_project_starts', columns: 'project_id, starts_at' },
   { table: 'meetings', name: 'meetings_to_settle', columns: 'ends_at', where: "status = 'scheduled' and settled_at is null" },
@@ -204,6 +208,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 12 adds the server table agent_confirms and its two indexes (the email code guard of an agent), as in liteSchemaSql.
  * Version 13 adds the column redirect_uri to agent_approvals (the address that the person saw, CWE-863). SQLite puts the new column before
  * the table constraint, so the table text of a stepped office equals the text of a new office, which names the column before its key.
+ * Version 14 adds the table checkins (fbk_088) with the key columns of query.ts and its unique index, as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -224,6 +229,10 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   11: [...DAFTRA_SQL, ...DAFTRA_INDEXES.map(indexSql)],
   12: [AGENT_CONFIRMS_SQL, ...CONFIRM_INDEXES.map(indexSql)],
   13: ['alter table agent_approvals add column redirect_uri text'],
+  14: [
+    'create table checkins (id text primary key, doc text not null, user_id text, week text, kind text)',
+    'create unique index checkins_one on checkins (week, user_id, kind)',
+  ],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

@@ -4,6 +4,7 @@ import type { State } from '../../../src/api/store';
 import { Load, type LoadCtx } from './build';
 import { chatMessageCall, chatMessageRows, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsSetNotify, chatsUnread, chatsWaiting } from './chat';
 import { chatsOpenDirect } from './chatOpen';
+import { checkinsMine, checkinsSave, checkinsWeek } from './checkins';
 import { inboxCount, inboxList } from './inbox';
 import { meetingCall, meetingCancel, meetingChange, meetingExtend, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
@@ -39,6 +40,7 @@ import {
  *   projectDelete  every row of P and what points at it
  *   push           the push devices of the person of the call (push.register also reads the row of its endpoint)
  *   report         reports.office: the tasks, Tracker entries and payments of the projects, and the events of the period as counts
+ *   checkins       the weekly answers of one week (checkins.week), or of one person in one week (checkins.mine, checkins.save with the to-dos it keeps)
  *   meetings       the meetings of one window (meetings.list), or one meeting by id with the records it names (meetings.get, update, cancel,
  *                  settle), with its series from it on for a "later" update or delete, the whole series for a "later" cancel, or the series of one id
  *                  (meetings.extend)
@@ -46,7 +48,7 @@ import {
  * The 9 server calls of plan 4.11 run their own code on the office snapshot and have no loader.
  */
 
-export type LoaderName = 'office' | 'feedback' | 'project' | 'task' | 'content' | 'story' | 'inbox' | 'chat' | 'overview' | 'projectDelete' | 'push' | 'report' | 'meetings';
+export type LoaderName = 'office' | 'feedback' | 'project' | 'task' | 'content' | 'story' | 'inbox' | 'chat' | 'overview' | 'projectDelete' | 'push' | 'report' | 'meetings' | 'checkins';
 type InputOf<N extends SharedCallName> = z.output<SharedCalls[N]['input']>;
 export type LoaderSpec<I> = { loader: LoaderName; load(L: Load, input: I): Promise<unknown> };
 
@@ -62,6 +64,7 @@ const push = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> =
 const overview = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'overview', load });
 const report = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'report', load });
 const meetings = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'meetings', load });
+const checkins = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'checkins', load });
 
 /** The project of a stage or a deadline, from the office. */
 const projectOfStage = (L: Load, stageId: string) => L.office.stages[stageId]?.projectId;
@@ -230,6 +233,11 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'push.mine': push(pushMine),
   'push.register': push(pushRegister),
   'push.remove': push(pushRemove),
+
+  // The weekly question (fbk_088): the rows of one week, or of one person in one week. A save also reads the to-dos that it keeps.
+  'checkins.mine': checkins(checkinsMine),
+  'checkins.save': checkins(checkinsSave),
+  'checkins.week': checkins(checkinsWeek),
 
   'tracker.list': project(trackerList),
   'tracker.log': project(trackerLog),

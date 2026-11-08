@@ -1,0 +1,49 @@
+{
+  "week": {
+    "plan": {
+      "title": "What do you plan this week?",
+      "lines": "Your to-dos due this week",
+      "sent": "Plan sent.",
+      "saved": "Plan saved."
+    },
+    "review": {
+      "title": "What did you do this week?",
+      "lines": "Your to-dos done this week",
+      "sent": "Answer sent.",
+      "saved": "Answer saved."
+    },
+    "text": "Anything else",
+    "teamLink": "See the team's week",
+    "page": {
+      "title": "Week",
+      "range": "{{from}} to {{to}}",
+      "previous": "Previous week",
+      "next": "Next week",
+      "plan": "Plan",
+      "review": "Done",
+      "none": "No answer yet",
+      "missingPlan": "No plan yet: {{names}}",
+      "missingReview": "No answer yet: {{names}}",
+      "empty": "No one has answered yet."
+    }
+  },
+  "settings": {
+    "triggers": {
+      "week_question": "The weekly question waits for my answer"
+    }
+  },
+  "inbox": {
+    "trigger": {
+      "week_question": "What do you plan this week? Say it on Home.",
+      "week_question_review": "What did you do this week? Say it on Home."
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-08-159": {
+        "title": "Your week on Home",
+        "body": "Each Sunday, Home asks what you plan this week. Each Thursday, it asks what you did. Everyone can read the plans of the team on the Week page."
+      }
+    }
+  }
+}

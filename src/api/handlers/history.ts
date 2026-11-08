@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Meeting, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
+import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Checkin, type Event, type FileRec, type Meeting, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
@@ -447,6 +447,13 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if ((event.verb === 'meeting.created' || event.verb === 'meeting.added') && isOwnChange(ctx, event)) return need('meeting.plan', resource);
       if (!mayEditMeeting(ctx.authority, resource)) throw forbidden('You cannot do this.', { action: 'meeting.editOwn' });
       return;
+    }
+    case 'checkin': {
+      // The Undo of a weekly answer belongs to its author, the person or the agent of the person (fbk_088). Nobody else takes it back, the Admin
+      // too: the answer is the words of one person. The live answer tells the author, else the whole answer that the event keeps.
+      const answer = ctx.state.checkins?.[event.targetId] ?? (event.after as Checkin | null) ?? (event.before as Checkin | null);
+      if (!answer || answer.userId !== ctx.authority.id) throw forbidden('You can undo your own weekly answer only.');
+      return need('checkin.answer');
     }
     case 'subCompany':
       // An agent never makes, changes or deletes a sub-company (MCP deny list), so it never takes such a change back either:

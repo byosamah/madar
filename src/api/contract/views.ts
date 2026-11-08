@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { NOTIFY_LEVELS } from './limits';
 import {
-  Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, FolderId, Gender, GeoPoint, HealthValue,
+  Checkin, Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, FolderId, Gender, GeoPoint, HealthValue,
   MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectFolder, ProjectTemplateId, ResourceFolder, Team,
   ProjectId, ProjectShape, ProjectStatus, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerId, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
@@ -580,3 +580,25 @@ export const OfficeReport = z.object({
   guide: z.string().max(20_000).optional(),
 });
 export type OfficeReport = z.infer<typeof OfficeReport>;
+
+/**
+ * The own answers of one week (fbk_088): the plan and the review of the person who asks. `week` is the Sunday of the week. A person with no
+ * answer of a kind gets null for it. Only the person's own rows are in it, so it holds nothing of anyone else.
+ */
+export const CheckinMine = z.object({ week: Day, plan: Checkin.nullable(), review: Checkin.nullable() });
+export type CheckinMine = z.infer<typeof CheckinMine>;
+
+/**
+ * The week of the team (fbk_088, owner 2026-11-08: everyone reads every answer). One row for each person who answered something, in the
+ * name order of the person, with the plan and the review side by side. `missing` names the active people who have not answered yet: the
+ * review list stays empty until the review is due (Thursday of that week, or any later day). `previous` is the Sunday before, `next` the
+ * Sunday after, or null for the week that holds today.
+ */
+export const WeekView = z.object({
+  week: Day,
+  previous: Day,
+  next: Day.nullable(),
+  rows: z.array(z.object({ user: UserCard, plan: Checkin.nullable(), review: Checkin.nullable() })),
+  missing: z.object({ plan: z.array(UserCard), review: z.array(UserCard) }),
+});
+export type WeekView = z.infer<typeof WeekView>;

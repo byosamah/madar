@@ -1021,7 +1021,7 @@ describe('the jobs loader (plan 4.6, for track N3)', () => {
     const wholeBefore = structuredClone(whole);
     const count = runScheduledTriggers(whole, NOW);
 
-    const loaded = await loadJobs({ src: memorySource(state), office: snapshotOf(state, 1) });
+    const loaded = await loadJobs({ src: memorySource(state), office: snapshotOf(state, 1), now: NOW });
     expect(Object.keys(loaded.notifications)).toEqual([]);
     const scoped = structuredClone(loaded);
     const dedupeUsed = (k: string) => Object.values(state.notifications).some((n) => n.dedupeKey === k);
@@ -1029,7 +1029,8 @@ describe('the jobs loader (plan 4.6, for track N3)', () => {
     expect(changesOf(loaded, scoped)).toEqual(changesOf(wholeBefore, whole));
 
     const made = Object.values(whole.notifications).filter((n) => !state.notifications[n.id]);
-    expect(new Set(made.map((n) => n.trigger))).toEqual(new Set(['due_tomorrow', 'overdue', 'resume_due']));
+    // The time of the run is Sunday 09:00, so the weekly question goes too (fbk_088).
+    expect(new Set(made.map((n) => n.trigger))).toEqual(new Set(['due_tomorrow', 'overdue', 'resume_due', 'week_question']));
     expect(made.some((n) => n.dedupeKey === `${key}:${late.ownerId}`)).toBe(false);
   });
 });
@@ -1121,7 +1122,7 @@ describe('office tasks (owner, 2026-10-06)', () => {
     const whole = structuredClone(traps);
     const wholeBefore = structuredClone(whole);
     const count = runScheduledTriggers(whole, NOW);
-    const loaded = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1) });
+    const loaded = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1), now: NOW });
     const scoped = structuredClone(loaded);
     const dedupeUsed = (k: string) => Object.values(traps.notifications).some((n) => n.dedupeKey === k);
     expect(runScheduledTriggers(scoped, NOW, { dedupeUsed })).toBe(count);
@@ -1129,7 +1130,7 @@ describe('office tasks (owner, 2026-10-06)', () => {
     const paper = Object.values(traps.tasks).find((t) => t.projectId === null && t.ownerId === null)!;
     // The task with no lead has nobody to remind; the licence task waits in review. A lead makes the reminder go.
     apply(traps, 'tasks.take', { taskId: paper.id }, paper.createdBy);
-    const again = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1) });
+    const again = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1), now: NOW });
     runScheduledTriggers(again, NOW, { dedupeUsed });
     expect(Object.values(again.notifications).filter((n) => n.targetId === paper.id).map((n) => [n.userId, n.trigger])).toEqual([[paper.createdBy, 'overdue']]);
   });

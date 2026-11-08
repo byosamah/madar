@@ -95,7 +95,10 @@ export function noticeSentence(view: NoticeView, t: Words, lang: Language): stri
     : t('adminReach.andOthers', { names: names.slice(0, 2).join(', '), others: t('adminReach.others', { count: names.length - 2 }) });
   // The name of a project in the target follows the language (owner, 2026-10-26, fbk_062). The other targets have no Arabic twin.
   const shownTarget = lang === 'ar' && view.targetAr ? view.targetAr : target;
-  const sentenceKey = copy ? copyKey(view) : meeting ? meetingKey(n, gone) : report ? reportKey(n) : everyone ? everyoneKey(group, target !== '')
+  // The weekly question (fbk_088): its target id is "plan:<Sunday>" or "review:<Sunday>", and the review has its own sentence.
+  const weekly = n.targetType === 'week';
+  const sentenceKey = weekly ? (n.targetId.startsWith('review') ? 'inbox.trigger.week_question_review' : 'inbox.trigger.week_question')
+    : copy ? copyKey(view) : meeting ? meetingKey(n, gone) : report ? reportKey(n) : everyone ? everyoneKey(group, target !== '')
     : reply ? (direct ? 'notices.repliedDirect' : group && target === '' ? 'notices.repliedGroupGone' : 'notices.repliedToYou')
       : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past'
         : paymentDue && !n.payment ? 'inbox.paymentGone' : paymentPast ? 'inbox.trigger.payment_due_past' : `inbox.trigger.${n.trigger}`;

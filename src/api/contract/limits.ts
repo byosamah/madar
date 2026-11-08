@@ -108,3 +108,9 @@ export const MEETING_LIMITS = {
  * (server/daftra/account.ts). It is also the middle of the secret names DAFTRA_<NAME>_KEY and DAFTRA_<NAME>_SITE. The names are not secret.
  */
 export const DAFTRA_ACCOUNT_PATTERN = /^[A-Z][A-Z0-9]{1,19}$/;
+
+/**
+ * The limits of a weekly answer (fbk_088, owner 2026-11-08). The lines are the to-dos that the person keeps (30 at most, with their titles as
+ * they were), and the text is the free line "Anything else". The title is cut to titleMax when the answer is saved.
+ */
+export const CHECKIN_LIMITS = { itemsMax: 30, titleMax: 200, textMax: 2000 } as const;

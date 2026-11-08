@@ -36,6 +36,8 @@ export type Action =
   | 'payment.view' | 'payment.add' | 'payment.change' | 'payment.receive' | 'payment.daftraLink'
   | 'templates.projectCreate' | 'templates.projectAny' | 'templates.taskSave' | 'templates.taskAny'
   | 'dashboard.view' | 'workload.view' | 'search.use'
+  // The weekly question (fbk_088, owner 2026-11-08): answer it for yourself, and read the answers of the team. Both are basic switches.
+  | 'checkin.answer' | 'checkin.read'
   | 'ai.connect' | 'ai.readWork' | 'ai.readChats' | 'ai.todos' | 'ai.posts' | 'ai.messages' | 'ai.meetings' | 'ai.tracker' | 'ai.projects' | 'ai.projectSetup'
   | 'ai.payments' | 'ai.feedback' | 'ai.report' | 'ai.admin' | 'ai.myState' | 'ai.undo' | 'ai.undoOthers'
   | 'feedback.send' | 'office.settings';
@@ -51,7 +53,7 @@ export const RIGHT_SECTIONS: readonly { readonly key: string; readonly rights: r
   rights: section.powers.flatMap((power) => power.switches.map((item) => item.id)),
 }));
 
-/** The 121 switches, in the order of the sections. The Admin holds every one of them. */
+/** The 125 switches, in the order of the sections. The Admin holds every one of them. */
 export const OFFICE_RIGHTS: readonly OfficeRight[] = CATALOG_RIGHT_IDS;
 
 export { BASIC_ON, DEFAULT_EXTRA };
@@ -100,7 +102,7 @@ const SIMPLE: ReadonlySet<Action> = new Set<Action>([
   'project.create', 'client.create', 'project.seeAll', 'project.hidden', 'folder.locked', 'resources.manage', 'task.assign', 'task.officeAll', 'file.share', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.mentionEveryone',
   'tracker.reply', 'tracker.export', 'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'clients.change',
   'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'payment.daftraLink', 'templates.projectCreate', 'templates.projectAny',
-  'templates.taskAny', 'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office',
+  'templates.taskAny', 'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office', 'checkin.answer', 'checkin.read',
   'ai.connect', 'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts', 'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects',
   'ai.projectSetup', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.admin', 'ai.myState', 'ai.undo', 'feedback.send', 'feedback.manage', 'office.settings',
 ]);

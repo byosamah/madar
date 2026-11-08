@@ -23,7 +23,7 @@ export type ReadRule = { scope: ReadScope; kinds: readonly Kind[]; projectOf?(in
 export const COLLECTION_KINDS = [
   'users', 'clients', 'projects', 'members', 'stages', 'deadlines', 'tasks', 'updates', 'comments', 'files', 'notifications',
   'events', 'conversations', 'messages', 'chatReads', 'stageTemplates', 'taskTemplates', 'projectTemplates', 'tracker', 'payments',
-  'feedback', 'teams', 'settings', 'subCompanies', 'meetings',
+  'feedback', 'teams', 'settings', 'subCompanies', 'meetings', 'checkins',
 ] as const satisfies readonly Kind[];
 
 /** The kinds of a change that belongs to one person: they go only on that person's channel (plan, change 13). */
@@ -40,6 +40,9 @@ const byProjectId = (input: unknown) => field(input, 'projectId');
 
 const rule = (scope: ReadScope, kinds: readonly Kind[], projectOf?: ReadRule['projectOf']): ReadRule =>
   projectOf ? { scope, kinds, projectOf } : { scope, kinds };
+
+/** The weekly answers (fbk_088): both reads are office reads. settings: the switch "Read the weekly answers" comes from the roles. */
+const CHECKINS = rule('office', ['checkins', 'settings', 'users']);
 
 const PROJECT_DETAIL: Kind[] = ['clients', 'comments', 'deadlines', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'updates', 'users'];
 
@@ -80,6 +83,8 @@ const RULES: Record<string, ReadRule> = {
   // channels, so both reads are office reads. members: the leader and the team change who may edit a project meeting.
   'meetings.list': rule('office', ['meetings', 'members', 'projects', 'tasks', 'tracker', 'users']),
   'meetings.get': rule('office', ['files', 'meetings', 'members', 'projects', 'tasks', 'tracker', 'users']),
+  'checkins.mine': CHECKINS,
+  'checkins.week': CHECKINS,
   'stageTemplates.list': rule('office', ['stageTemplates', 'users']),
   'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
   'projectTemplates.list': rule('office', ['members', 'projectTemplates', 'projects', 'users']),

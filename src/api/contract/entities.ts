@@ -3,7 +3,7 @@ import { INITIALS_PATTERN, RECORD_CODE_PATTERN, visibleTextPattern } from '../..
 import { PROJECT_SHAPE_MAX, PROJECT_SHAPE_PATTERN, PROJECT_SHAPE_RULE, PROJECT_SHAPE_TEXT_PATTERN } from '../../lib/projectShape';
 import {
   DAFTRA_ACCOUNT_PATTERN, DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_CHAT_FILE_BYTES, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
-  NOTIFY_LEVELS, PICTURE_DATA, REACTIONS, fileLimitOf, isProjectUpload,
+  NOTIFY_LEVELS, PICTURE_DATA, REACTIONS, fileLimitOf, isProjectUpload, CHECKIN_LIMITS,
 } from './limits';
 import { isReactionEmoji } from './emoji';
 import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
@@ -12,7 +12,7 @@ import { CATALOG_RIGHT_IDS, STORED_RIGHT_IDS } from '../rightsCatalog';
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
 export {
   DAFTRA_ACCOUNT_PATTERN, DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_CHAT_FILE_BYTES, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
-  NOTIFY_LEVELS, PICTURE_DATA, REACTIONS, fileLimitOf, isProjectUpload,
+  NOTIFY_LEVELS, PICTURE_DATA, REACTIONS, fileLimitOf, isProjectUpload, CHECKIN_LIMITS,
 };
 
 export type { UploadPlace } from './limits';
@@ -54,6 +54,7 @@ export const TeamId = id('tm');
 export const SubCompanyId = id('sub');
 export const MeetingId = id('mtg');
 export const PushDeviceId = id('pdv');
+export const CheckinId = id('chk');
 export const RoleId = id('rol');
 
 export const Day = z.iso.date();
@@ -78,6 +79,7 @@ export const TRIGGERS = [
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested',
   'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
   'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted', 'payment_due',
+  'week_question',
 ] as const;
 export const Trigger = z.enum(TRIGGERS);
 export type Trigger = z.infer<typeof Trigger>;
@@ -89,8 +91,10 @@ export type Trigger = z.infer<typeof Trigger>;
 // each one gives news and asks for no action, so it stays in the app and in push, never in email (fbk_034, fbk_035, owner 2026-10-20).
 // "payment_due" (a payment reaches its due day, to the people who link Daftra invoices): the mail quota is small, so it stays in the app and
 // in push too (the Daftra link, owner 2026-10-26).
+// "week_question" (the weekly question, to a person who has not answered): one push on Sunday and one on Thursday, in the app and in push, never in email
+// (fbk_088, owner 2026-11-08).
 export const IN_APP_ONLY_TRIGGERS = [
-  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted', 'payment_due',
+  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted', 'payment_due', 'week_question',
 ] as const satisfies readonly Trigger[];
 export type EmailTrigger = Exclude<Trigger, (typeof IN_APP_ONLY_TRIGGERS)[number]>;
 export function isEmailTrigger(trigger: Trigger): trigger is EmailTrigger {
@@ -113,10 +117,11 @@ export type NotifyLevel = z.infer<typeof NotifyLevel>;
 
 export const EventTarget = z.enum([
   'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker', 'payment', 'feedback', 'team',
-  'projectTemplate', 'subCompany', 'meeting',
+  'projectTemplate', 'subCompany', 'meeting', 'checkin',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
-export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat', 'feedback', 'meeting']);
+// "week": the weekly question (fbk_088). Its target id is the kind and the Sunday of the week, such as "plan:2026-11-08".
+export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat', 'feedback', 'meeting', 'week']);
 export type NotificationTarget = z.infer<typeof NotificationTarget>;
 
 /**
@@ -1244,6 +1249,30 @@ export const Meeting = z.object({
   createdAt: Stamp,
 });
 export type Meeting = z.infer<typeof Meeting>;
+
+/** The two weekly questions (fbk_088): the plan on Sunday ("What do you plan this week?") and the review on Thursday ("What did you do this week?"). */
+export const CheckinKind = z.enum(['plan', 'review']);
+export type CheckinKind = z.infer<typeof CheckinKind>;
+/** One line of a weekly answer: a to-do that the person kept, with its title as it was when the answer was saved. */
+export const CheckinItem = z.object({ taskId: TaskId, title: z.string().min(1).max(CHECKIN_LIMITS.titleMax) });
+export type CheckinItem = z.infer<typeof CheckinItem>;
+
+/**
+ * The answer of one person to a weekly question (fbk_088, owner 2026-11-08). One person has at most one answer for each week and kind. The
+ * week is the Sunday that starts it, in office time. Everyone who holds "Read the weekly answers" reads every answer, and only the author
+ * writes the own answer of the current week.
+ */
+export const Checkin = z.object({
+  id: CheckinId,
+  userId: UserId,
+  week: Day,
+  kind: CheckinKind,
+  items: z.array(CheckinItem).max(CHECKIN_LIMITS.itemsMax),
+  text: z.string().max(CHECKIN_LIMITS.textMax),
+  createdAt: Stamp,
+  updatedAt: Stamp,
+});
+export type Checkin = z.infer<typeof Checkin>;
 
 export const Settings = z.object({
   defaultStages: z.array(z.string().trim().min(1).max(60)).min(1).max(20),

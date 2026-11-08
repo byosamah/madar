@@ -126,6 +126,8 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('feedback.screenshot', { id: report.id, index: 0 });
     // The office report of one month (fbk_016). The agent acts for the Admin, who holds the report right.
     await run('reports.office', { period: 'month' });
+    // The weekly answers of the team, for the weekly report (fbk_088).
+    await run('checkins.week', {});
 
     // The writes, all in one story, so the last sample takes the whole story back.
     const { storyId } = (await run('story.start', {})) as { storyId: string };
@@ -149,6 +151,8 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await write('tasks.move', { id: newTask, status: 'in_progress' });
     await write('tasks.complete', { id: newTask });
     await write('comments.create', { targetType: 'task', targetId: newTask, body: 'The levels match the survey.' });
+    // The weekly answer of the person, saved only when the person asks (fbk_088). No to-do line: the text is enough for the sample.
+    await write('checkins.save', { kind: 'plan', items: [], text: 'This week: finish the facade drawings and send the drainage report.' });
     await write('updates.create', { projectId: project.id, body: 'The drainage check is done. The levels match the survey.' });
     // The message tools (owner, 2026-10-12): the direct chat with one other active person, then one message into it.
     const colleague = first(Object.values(s().users).filter((u) => u.kind === 'human' && u.active && u.id !== agent.ownerId), 'person to message');

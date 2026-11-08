@@ -46,6 +46,10 @@ export function readSweep(office: State): SweepCall[] {
       ['reports.office', { period: 'quarter' }, actor],
       // The own push devices (owner, 2026-10-08).
       ['push.mine', {}, actor],
+      // The weekly question (fbk_088): the own answers and the week of the team, of this week and of the week before.
+      ['checkins.mine', {}, actor],
+      ['checkins.week', {}, actor],
+      ['checkins.week', { week: '2026-09-27' }, actor],
     );
   }
   // The Leader and Client filters of the lists that the Dashboard opens (owner, 2026-10-06).
@@ -243,6 +247,9 @@ export function writeSweep(office: State): SweepCall[] {
     ['stages.setDates', { stageId: task.stageId, startDate: '2026-09-01', endDate: '2026-12-01' }, ADMIN],
     ['deadlines.update', { id: Object.values(office.deadlines)[0].id, patch: { name: 'Moved' } }, ADMIN],
     ['tasks.create', { projectId: 'prj_001', title: 'New' }, leader],
+    // The weekly question (fbk_088): the leader keeps a to-do of the own lead (or none) and a line of text.
+    ['checkins.save', { kind: 'plan', items: [], text: 'Sweep plan' }, leader],
+    ...(tasks.find((t) => t.projectId === 'prj_001' && t.ownerId === leader) ? [['checkins.save', { kind: 'review', items: [tasks.find((t) => t.projectId === 'prj_001' && t.ownerId === leader)!.id], text: '' }, leader] as SweepCall] : []),
     ['tasks.update', { id: task.id, patch: { title: 'New title' } }, leader],
     ['tasks.complete', { id: task.id }, ADMIN],
     ['tasks.newVersion', { id: tasks.find((t) => t.status === 'done')!.id, reason: 'Client change' }, ADMIN],
@@ -656,6 +663,23 @@ function meetingTraps(state: State): void {
   apply(state, 'meetings.create', { kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-10-05T12:00:00+03:00', attendeeIds: ['usr_003'] }, leader, 'cor_trap_meeting_project');
 }
 
+/**
+ * The weekly answers (fbk_088) on a copy of the sample office. The time of the sweep is Sunday 2026-10-04. The leader of prj_001 answers the plan
+ * and the review of this week, the Admin answers the plan, and a person who left (usr_006) answered the week before. The reads of checkins.mine
+ * and checkins.week give the same answers on the scoped load as on the whole office.
+ */
+function checkinTraps(state: State): void {
+  const leader = state.projects.prj_001.leaderId!;
+  apply(state, 'checkins.save', { kind: 'plan', items: [], text: 'The plan of the leader' }, leader, 'cor_trap_checkin_plan');
+  apply(state, 'checkins.save', { kind: 'review', items: [], text: 'The review of the leader' }, leader, 'cor_trap_checkin_review');
+  apply(state, 'checkins.save', { kind: 'plan', items: [], text: 'The plan of the Admin' }, ADMIN, 'cor_trap_checkin_admin');
+  const at = '2026-09-27T09:00:00.000+03:00';
+  state.checkins = {
+    ...state.checkins,
+    chk_900: { id: 'chk_900', userId: 'usr_006', week: '2026-09-27', kind: 'plan', items: [], text: 'An old plan', createdAt: at, updatedAt: at },
+  };
+}
+
 /** The titles of the two series of seriesTraps. */
 export const SERIES_PRIVATE_TITLE = 'Private weekly talk';
 export const SERIES_PROJECT_TITLE = 'Daily site check';
@@ -795,6 +819,7 @@ export function trapOffice(seed: State): State {
   const state = structuredClone(seed);
   officeTraps(state);
   meetingTraps(state);
+  checkinTraps(state);
   chatFileTrap(state);
   resourceTrap(state);
   meetingFileTrap(state);

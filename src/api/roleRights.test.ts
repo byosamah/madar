@@ -106,8 +106,8 @@ describe('the list of the switches', () => {
     expect(RIGHT_SECTIONS.map((section) => section.key)).toEqual([
       'projects', 'todos', 'meetings', 'posts', 'files', 'chat', 'tracker', 'people', 'money', 'templates', 'dashboard', 'ai', 'office',
     ]);
-    expect(OFFICE_RIGHTS).toHaveLength(123);
-    expect(new Set(OFFICE_RIGHTS).size).toBe(123);
+    expect(OFFICE_RIGHTS).toHaveLength(125);
+    expect(new Set(OFFICE_RIGHTS).size).toBe(125);
     expect([...OFFICE_RIGHTS]).toEqual(RIGHT_SECTIONS.flatMap((section) => section.rights));
   });
 

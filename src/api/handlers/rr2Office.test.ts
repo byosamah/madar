@@ -554,6 +554,21 @@ describe('the Dashboard', () => {
   });
 });
 
+describe('The weekly question (fbk_088)', () => {
+  it('refuses checkins.save without checkin.answer and checkins.week without checkin.read, for the person and for the agent of the person', async () => {
+    const save = { kind: 'plan', items: [], text: 'My week.' };
+    const roles = { [TEAM]: { off: ['checkin.answer', 'checkin.read'] as OfficeRight[] } };
+    expect(await attempt(world(roles), TEAM, 'checkins.save', save)).toBe('forbidden');
+    expect(await attempt(world(roles), TEAM_AGENT, 'checkins.save', save)).toBe('forbidden');
+    expect(await attempt(world(roles), TEAM, 'checkins.week', {})).toBe('forbidden');
+    expect(await attempt(world(roles), TEAM_AGENT, 'checkins.week', {})).toBe('forbidden');
+    // The switch is basic: a person outside every project answers and reads, and so does the agent of a person who holds both.
+    expect(await attempt(world(), OUTSIDER, 'checkins.save', save)).toBe('ok');
+    expect(await attempt(world(), TEAM_AGENT, 'checkins.save', save)).toBe('ok');
+    expect(await attempt(world(), OUTSIDER, 'checkins.week', {})).toBe('ok');
+  });
+});
+
 describe('Search', () => {
   function searchWorld(roles: Record<string, RoleSpec> = {}) {
     const t = world(roles);

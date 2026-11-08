@@ -47,6 +47,7 @@ const COLUMNS: Partial<Record<TableCollection, Record<string, Column>>> = {
   },
   payments: { project_id: text('projectId') },
   pushDevices: { user_id: text('userId'), endpoint: text('endpoint') },
+  checkins: { user_id: text('userId'), week: text('week'), kind: text('kind') },
   meetings: {
     project_id: text('projectId'), organizer_id: text('organizerId'), starts_at: text('startsAt'), ends_at: text('endsAt'), status: text('status'),
     settled_at: text('settledAt'),

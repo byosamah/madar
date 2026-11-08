@@ -63,7 +63,7 @@ export const INSTRUCTIONS = [
   '',
   'Words: the Madar screens call a task a "to-do", and the Tasks tab holds To-dos and Meetings. The calls and the tools keep the word "tasks".',
   '',
-  'Reports: when your person asks for a Madar report (an office report, a weekly report, or a report from one day to another), call reports.office with guide: true and follow its guide exactly. So every report has the same pages, numbers rules, design and checks. Build no report without the guide.',
+  'Reports: when your person asks for a Madar report (an office report, a weekly report, or a report from one day to another), call reports.office with guide: true and follow its guide exactly. So every report has the same pages, numbers rules, design and checks. Build no report without the guide. For a weekly report, also read checkins.week: what each person plans and did, in their words, and who has not answered.',
   '',
   'Pauses: a paused project may hold a restart date (project.pause.resumeOn). The date is a reminder only: on that day the person who paused the project and its leader get a notice, and Madar never restarts the project by itself. You pause with projects.pause (it needs a reason in the words of your person), resume with projects.resume and move the date with projects.setRestart, only when your person asks.',
   '',
@@ -171,7 +171,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.list': {
     title: 'List chats',
-    description: 'Lists the chats your person may open, newest first: project, direct, group and task threads. A row has its unread count, newest message, author and archived (true when archived). For an Admin, a chat of a project the Admin neither leads nor works on counts only the unread messages that name the Admin, unless your person picks All messages. Settings can change this (see Messages). A direct chat with no message shows only for the person who opened it. Use the id with chats.messages and chats.send; a row of kind task with comments.list and comments.create. previewKind names a quiet line.',
+    description: 'Lists the chats your person may open, newest first: project, direct, group and task threads. A row has its unread count, newest message, author and archived. For an Admin, a chat of a project the Admin neither leads nor works on counts only the unread messages that name the Admin, unless your person picks All messages. Settings can change this (see Messages). A direct chat with no message shows only for the person who opened it. Use the id with chats.messages and chats.send; a row of kind task with comments.list and comments.create. previewKind names a quiet line.',
   },
   'chats.messages': {
     title: 'Read a chat',
@@ -179,7 +179,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.waiting': {
     title: 'List what waits for a reply',
-    description: 'Lists the chats and task threads that wait for the reply of your person, oldest first. A direct chat waits when its newest message came from someone else. A group or a project chat waits when a newer message names your person (an @mention or a reply). A task thread waits when its newest comment came from someone else and your person leads the task, or a newer comment names your person. A 👍 or ✅ of your person on that message counts as a reply. A row has id, from, body (plain text) and days. A row of kind task: answer it with comments.create. Archived chats are left out.',
+    description: 'Lists the chats and task threads that wait for the reply of your person, oldest first. A direct chat waits when its newest message came from someone else. A group or a project chat waits when a newer message names your person (@mention or reply). A task thread waits when its newest comment came from someone else and your person leads the task, or a newer comment names your person. A 👍 or ✅ of your person on that message counts as a reply. A row has id, from, body (plain text) and days. Answer a row of kind task with comments.create. Archived chats are left out.',
   },
   'chats.openDirect': {
     title: 'Open a direct chat',
@@ -203,7 +203,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'meetings.update': {
     title: 'Change a meeting',
-    description: 'Changes one meeting by id. Send only the fields that change; they are those of meetings.create, but the project never changes. A new day, time or place sends a notice to every attendee, and a new attendee gets one too. After the end of a meeting only the notes change. A project meeting is changed by its organizer and by meeting.any (by default the leader and the Admin). A meeting with no project is changed by its organizer only. scope (one, the default, or later) changes a meeting of a series alone, or it and every scheduled meeting after it; a new day needs scope one.',
+    description: 'Changes one meeting by id. Send only the fields that change (those of meetings.create; the project never changes). A new day, time or place sends a notice to every attendee, and so does a new attendee. After the end only the notes change. A project meeting is changed by its organizer and by meeting.any (by default the leader and the Admin). A meeting with no project is changed by its organizer only. scope (one, the default, or later) changes a meeting of a series alone, or it and every scheduled meeting after it; a new day needs scope one.',
   },
   'meetings.saveMinutes': {
     title: 'Write the minutes',
@@ -252,7 +252,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'feedback.setStatus': {
     title: 'Set the status of a request or bug',
-    description: 'Needs the switch "Read requests and bugs" (feedback.manage): by default only the Admin. status is new, in_review, in_progress, rejected or done. "done" gives the sender an in-app notice that the request is done or the bug is fixed: call it only when your person says that the fix is live. "rejected" needs reason (1 to 500 characters) and gives the sender an in-app notice with it: use the words of your person, never invent one. status "new" opens the report again. in_review, in_progress and "new" send no notice. events.undo of a done or rejected change takes the notice back.',
+    description: 'Needs the switch "Read requests and bugs" (feedback.manage): by default only the Admin. status is new, in_review, in_progress, rejected or done. "done" sends the sender an in-app notice that the request is done or the bug is fixed: use it only when your person says the fix is live. "rejected" needs reason (1 to 500 characters), sent to the sender in-app: use the words of your person, never invent one. status "new" opens the report again. in_review, in_progress and "new" send no notice. events.undo of a done or rejected change takes the notice back.',
   },
   'files.uploadContent': {
     title: 'Upload a file',
@@ -341,7 +341,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'search.query': {
     title: 'Search',
-    description: 'Searches projects, tasks of active projects, people, files and sub-companies by words in "text". Returns the matches of each kind, with their IDs. A sub-company match gives its project count. It never finds a file of a direct or group chat. messages: the newest 5 chat messages and task comments that hold every word (one word of 3 letters or more; chat messages only with the AI switch ai.readChats), each with chatId, kind, title, author, line and at; open one with chats.messages and around, or comments.list for kind task.',
+    description: 'Searches projects, tasks of active projects, people, files and sub-companies by words in "text". A sub-company match gives its project count. It never finds a file of a direct or group chat. messages: the newest 5 chat messages and task comments that hold every word (one word of 3 letters or more; chat messages only with the AI switch ai.readChats), each with chatId, kind, title, author, line and at; open one with chats.messages and around, or comments.list for kind task.',
   },
   'stages.setDates': {
     title: 'Set stage dates',
@@ -361,7 +361,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.create': {
     title: 'Add a task',
-    description: 'Adds a task to a project: a title, and optionally the stage, owner (the lead), helpers, prerequisites, dates, description, flag and review need. Without ownerId the task has no lead. A team member names only team mates as owner or helpers. needsReview false needs the leader. A new open task in an earlier stage needs "reason" (not if continuous). Without projectId it adds an office task: no project, no stage, no prerequisites; only its maker, lead, helpers and the Admin see it. Check Busy week first.',
+    description: 'Adds a task to a project: a title, and optionally the stage, owner (the lead), helpers, prerequisites, dates, description, flag and review need. Without ownerId the task has no lead. A team member names only team mates as owner or helpers. needsReview false needs the leader. A new open task in an earlier stage needs "reason" (not if continuous). Without projectId it adds an office task (no project, stage or prerequisites), seen only by its maker, lead, helpers and the Admin. Check Busy week first.',
   },
   'tasks.get': {
     title: 'Get a task',
@@ -385,7 +385,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.createMany': {
     title: 'Add many tasks',
-    description: 'Makes up to 50 to-dos in one call: items, each the input of tasks.create. Items run in order with the rights and rules of tasks.create, in one story (your storyId, or a new one that this tool starts), so one events.undoStory takes them all back. A failed item does not stop the next. The answer is short: storyId, done, failed and results (index, ok, id, title, stageId, status, or error). A reason request fails only that item: ask your person, then send that item again with reason. Check Busy week first.',
+    description: 'Makes up to 50 to-dos in one call: items, each the input of tasks.create. Items run in order with the rights and rules of tasks.create, in one story (your storyId, or a new one that this tool starts), so one events.undoStory takes them all back. A failed item does not stop the next. The answer: storyId, done, failed and results (index, ok, id, title, stageId, status, or error). A reason request fails only that item: ask your person, then send that item again with reason. Check Busy week first.',
   },
   'tasks.updateMany': {
     title: 'Change many tasks',
@@ -427,6 +427,14 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
     title: 'List project updates',
     description: 'Lists the feed of one project (projectId), newest first: posts, decisions, task changes and files. Filter: all, posts, decisions, tasks or files; limit sets how many.',
   },
+  'checkins.week': {
+    title: 'Read the weekly answers',
+    description: 'The weekly answers of the team: what each person plans (plan, Sunday) and did (review, Thursday), the to-dos they kept, and who has not answered. week: any day of the week (default this week). Use it for the weekly report.',
+  },
+  'checkins.save': {
+    title: 'Save the weekly answer',
+    description: 'Saves the weekly answer of your person: kind plan or review, items (ids of the own to-dos to keep; a to-do with no project or in a hidden project is left out) and text. A second save changes the answer. Only when your person asks.',
+  },
   'reports.office': {
     title: 'Get the office report',
     description: 'Gives the office report of one period: week (Sunday to Saturday), month, quarter or year with start (YYYY-MM-DD, a day in it), or range with from and to (400 days at most). subCompanyId: one sub-company. guide: true adds guide, the steps, pages and checks of the Madar report: ask on the first call and follow it. The answer has the data, trend (to-dos made and done, 6 weeks) and design: build the document on a white page. money needs payment.view. withPictures: true adds pictures. Needs report.office.',
@@ -441,10 +449,10 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'comments.create': {
     title: 'Add a comment',
-    description: 'Adds a comment to a task or an update (targetType and targetId): a body in words, and optionally files (fileIds). On a task, replyToId answers one comment of the same task, and its author is named. Only the project team may comment; on an office task, only its people. People named with @, and the author of the comment you answer, get a notification when they may see the task. On a task, @everyone, @all or @الجميع names its lead, helpers, maker and project leader, only if your person holds "Mention everyone": a notice and a push, no email. Quiet hours hold the push.',
+    description: 'Adds a comment to a task or an update (targetType and targetId): a body in words, and optionally files (fileIds). On a task, replyToId answers one comment of the same task, and its author is named. Only the project team may comment; on an office task, only its people. People named with @, and the author of the comment you answer, get a notice when they may see the task. On a task, @everyone, @all or @الجميع names its lead, helpers, maker and project leader, only if your person holds "Mention everyone": notice and push, no email. Quiet hours hold the push.',
   },
   'comments.list': {
     title: 'List comments',
-    description: 'Lists the comments on one task or one update (targetType and targetId), oldest first, with their authors, reactions (any emoji: user ids) and files (id, name, type). Each comment has kind: message (words of a person), or a quiet line that Madar shows without a bubble: due_date and start_date (the reason of a date move), reopened (the reason of a task that opens again) or shifted (a move that Madar made). replyTo is the comment it answers (id, author, firstLine, deleted), and namesMe is true when it names your person. A line never waits for a reply.',
+    description: 'Lists the comments on one task or one update (targetType and targetId), oldest first, with authors, reactions (any emoji: user ids) and files (id, name, type). kind is message (words of a person) or a quiet line without a bubble: due_date and start_date (the reason of a date move), reopened (the reason a task opens again) or shifted (a move by Madar). replyTo is the comment it answers (id, author, firstLine, deleted), and namesMe is true when it names your person. A line never waits for a reply.',
   },
 };

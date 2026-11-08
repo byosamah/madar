@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type { Api } from './client';
 import { chatCalls } from './handlers/chats';
+import { checkinCalls } from './handlers/checkins';
 import { contentCalls } from './handlers/content';
 import { fileCalls } from './handlers/files';
 import { folderCalls } from './handlers/folders';
@@ -52,6 +53,7 @@ export const mapCalls = {
   ...meetingCalls,
   ...projectTemplateCalls,
   ...pushCalls,
+  ...checkinCalls,
   ...rolesCalls,
   ...reportsCalls,
 };

@@ -20,7 +20,10 @@ import { triggers } from './triggers';
 import { uploads } from './uploads';
 
 const DAY = '2026-10-04';
-/** 08:00 Riyadh on a Sunday: after the 07:30 summary, and the reminders of the sample office are due (5 notices). */
+/**
+ * 08:00 Riyadh on a Sunday: after the 07:30 summary, and the reminders of the sample office are due (5 notices). The weekly question (fbk_088)
+ * goes out at this time too, to every active person who has not answered (asked below).
+ */
 const AT = new Date('2026-10-04T05:00:00Z');
 
 async function office(edit: (seed: State) => void = () => undefined) {
@@ -32,6 +35,9 @@ async function office(edit: (seed: State) => void = () => undefined) {
   deps.clock.set(AT);
   return { ...lite, seed, deps };
 }
+
+/** The people whom the weekly question asks at AT: the active people, agents out, who hold "Answer the weekly question" (a basic switch) and have no answer. */
+const asked = (seed: State) => Object.values(seed.users).filter((u) => u.kind === 'human' && u.active).length;
 
 const mailOn = (seed: State) => {
   const prefs = seed.users.usr_002.preferences;
@@ -51,9 +57,9 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
   });
 
   it('writes the reminders once, mails the person who takes them, and writes nothing in a second run', async () => {
-    const { db, deps } = await office(mailOn);
+    const { db, deps, seed } = await office(mailOn);
     const first = await triggers(deps, AT);
-    expect(first.notices).toBe(5);
+    expect(first.notices).toBe(5 + asked(seed));
     expect(deps.mail.sent.length).toBeGreaterThan(0);
     expect(deps.mail.sent.every((m) => m.tag === 'notice')).toBe(true);
     const notices = await db.statement('read', 'select count(*) as n from notifications');
@@ -67,7 +73,7 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
       id, kind: 'meeting' as const, title: `Meeting ${id}`, projectId: null, startsAt, endsAt, where: '', guests: '', notes: '', organizerId: 'usr_003', attendeeIds: ['usr_004'],
       status: 'scheduled' as const, rev: 1, createdBy: 'usr_003', createdAt: '2026-10-03T09:00:00.000+03:00', ...extra,
     });
-    const { db, deps } = await office((seed) => {
+    const { db, deps, seed } = await office((seed) => {
       seed.meetings = {
         mtg_001: meeting('mtg_001', '2026-10-04T08:20:00.000+03:00', '2026-10-04T09:20:00.000+03:00'),
         mtg_002: meeting('mtg_002', '2026-10-04T08:45:00.000+03:00', '2026-10-04T09:45:00.000+03:00'),
@@ -76,7 +82,7 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
     });
     const soon = async () => db.statement<{ target_id: string; user_id: string }>('read', "select json_extract(doc, '$.targetId') as target_id, user_id from notifications where json_extract(doc, '$.trigger') = 'meeting_soon' order by id");
     const first = await triggers(deps, AT);
-    expect(first.notices).toBe(5 + 2);
+    expect(first.notices).toBe(5 + 2 + asked(seed));
     expect(await soon()).toEqual([{ target_id: 'mtg_001', user_id: 'usr_003' }, { target_id: 'mtg_001', user_id: 'usr_004' }]);
     expect(await triggers(deps, AT)).toEqual({ notices: 0, mails: 0 });
     // At 08:20 the second meeting is 25 minutes away, so its people hear it now. Nothing of the first one comes again.
@@ -104,10 +110,26 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
     expect(accounting.length).toBeGreaterThan(0);
     const due = async () => db.statement<{ user_id: string; payment: string }>('read', "select user_id, json_extract(doc, '$.payment.id') as payment from notifications where json_extract(doc, '$.trigger') = 'payment_due' order by user_id");
     const first = await triggers(deps, AT);
-    expect(first.notices).toBe(5 + accounting.length);
+    expect(first.notices).toBe(5 + accounting.length + asked(seed));
     expect(await due()).toEqual(accounting.map((user_id) => ({ user_id, payment: 'pay_901' })));
     expect(await triggers(deps, AT)).toEqual({ notices: 0, mails: 0 });
     expect(await due()).toHaveLength(accounting.length);
+  });
+
+  // The weekly question (fbk_088, owner 2026-11-08): the plan goes at 08:00 on Sunday to the people with no answer, once for each week.
+  it('asks the weekly question once at 08:00 on Sunday, and leaves out the person who answered', async () => {
+    const at = '2026-10-04T07:30:00.000+03:00';
+    const { db, deps, seed } = await office((edit) => {
+      edit.checkins = { chk_001: { id: 'chk_001', userId: 'usr_002', week: DAY, kind: 'plan', items: [], text: 'My plan.', createdAt: at, updatedAt: at } };
+    });
+    const rows = () => db.statement<{ user_id: string; target: string }>('read', "select user_id, json_extract(doc, '$.targetId') as target from notifications where json_extract(doc, '$.trigger') = 'week_question' order by user_id");
+    await triggers(deps, AT);
+    const first = await rows();
+    expect(first).toHaveLength(asked(seed) - 1);
+    expect(first.map((row) => row.user_id)).not.toContain('usr_002');
+    expect(new Set(first.map((row) => row.target))).toEqual(new Set([`plan:${DAY}`]));
+    expect(await triggers(deps, AT)).toEqual({ notices: 0, mails: 0 });
+    expect(await rows()).toHaveLength(first.length);
   });
 
   it('settles the meetings that ended in the job, with the Tracker line of a project meeting, and settles nothing in a second run', async () => {

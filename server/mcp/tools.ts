@@ -139,6 +139,10 @@ export const MCP_BY_RIGHT = {
   'subCompanies.save': 'subCompanies.manage',
   'subCompanies.delete': 'subCompanies.manage',
   'settings.update': 'office.settings',
+  // The weekly question (fbk_088, owner 2026-11-08): the answers of the team for the weekly report, and the own answer of the person. The AI switches are
+  // ai.readWork and ai.myState; an agent saves only when its person asks.
+  'checkins.week': 'checkin.read',
+  'checkins.save': 'checkin.answer',
 } as const satisfies Readonly<Partial<Record<SharedCallName | ServerCallName | typeof FEEDBACK_SEND_WITH_SCREENSHOTS, OfficeRight>>>;
 const RIGHT_TOOLS = Object.keys(MCP_BY_RIGHT) as (keyof typeof MCP_BY_RIGHT)[];
 
@@ -163,6 +167,8 @@ export const MCP_DENY = [
   'meetings.extend',
   // Browser push devices (owner, 2026-10-08): a device is the browser of a person. An agent has none and reads none.
   'push.register', 'push.remove', 'push.mine',
+  // The own answers of one week (fbk_088): checkins.week gives them with the answers of the team, so an agent needs no second read.
+  'checkins.mine',
   // Live updates (exit wave 3): the ticket opens a browser socket. An agent has no socket.
   'live.ticket',
   // The typing signal is live and personal, like the push calls: an agent never types (chat presence design B).

@@ -1980,6 +1980,46 @@
               "needs": []
             }
           ]
+        },
+        {
+          "power": "checkin.answer",
+          "en": "Answer the weekly question",
+          "ar": "الإجابة عن سؤال الأسبوع",
+          "hint": "Say what you plan on Sunday and what you did on Thursday.",
+          "switches": [
+            {
+              "id": "checkin.answer",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "checkin.read",
+          "en": "Read the weekly answers",
+          "ar": "قراءة إجابات الأسبوع",
+          "hint": "Read the plans and the reviews of the team on the Week page.",
+          "switches": [
+            {
+              "id": "checkin.read",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
         }
       ]
     },
@@ -2012,7 +2052,7 @@
           "power": "ai.readWork",
           "en": "AI reads work data",
           "ar": "يقرأ المساعد بيانات العمل",
-          "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, teams, office settings, the bell, the Dashboard, the History and Search.",
+          "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, teams, office settings, the bell, the Dashboard, the History, Search and the weekly answers.",
           "mcpTools": [
             "projects.list",
             "projects.get",
@@ -2035,7 +2075,8 @@
             "notifications.count",
             "users.get",
             "teams.list",
-            "settings.get"
+            "settings.get",
+            "checkins.week"
           ],
           "switches": [
             {
@@ -2467,7 +2508,7 @@
           "power": "ai.myState",
           "en": "AI changes my own marks and settings",
           "ar": "يغيّر المساعد علاماتي وإعداداتي",
-          "hint": "Mark notices and chats read or unread, archive a chat, and set Notify me. Change the own profile, settings and AI apps of the person. Only when the person asks.",
+          "hint": "Mark notices and chats read or unread, archive a chat, and set Notify me. Change the own profile, settings and AI apps of the person. Save the weekly answer of the person. Only when the person asks.",
           "mcpTools": [
             "notifications.markRead",
             "notifications.markAllRead",
@@ -2480,7 +2521,8 @@
             "me.updateProfile",
             "me.updatePreferences",
             "agents.list",
-            "agents.remove"
+            "agents.remove",
+            "checkins.save"
           ],
           "switches": [
             {

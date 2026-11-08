@@ -17,6 +17,8 @@ import { inbox as inboxInboxAr } from '../../src/i18n/real/inbox.ar.json';
 import { inbox as inboxInboxEn } from '../../src/i18n/real/inbox.en.json';
 import { inbox as meetingsInboxAr } from '../../src/i18n/real/meetings.ar.json';
 import { inbox as meetingsInboxEn } from '../../src/i18n/real/meetings.en.json';
+import { inbox as weeklyInboxAr } from '../../src/i18n/real/weekly.ar.json';
+import { inbox as weeklyInboxEn } from '../../src/i18n/real/weekly.en.json';
 import { push as pushAr } from '../../src/i18n/real/push.ar.json';
 import { push as pushEn } from '../../src/i18n/real/push.en.json';
 import { inbox as teamaInboxAr } from '../../src/i18n/real/teama.ar.json';
@@ -41,8 +43,8 @@ const tree = (inbox: object[], notices: object, push: object, lang: Language) =>
 );
 
 export const PUSH_WORDS = {
-  en: tree([baseInboxEn, inboxInboxEn, meetingsInboxEn, teamaInboxEn, teamhelpInboxEn, fbnoticesInboxEn, fbk067InboxEn, batchbInboxEn, daftraInboxEn], chatmsgNoticesEn, pushEn, 'en'),
-  ar: tree([baseInboxAr, inboxInboxAr, meetingsInboxAr, teamaInboxAr, teamhelpInboxAr, fbnoticesInboxAr, fbk067InboxAr, batchbInboxAr, daftraInboxAr], chatmsgNoticesAr, pushAr, 'ar'),
+  en: tree([baseInboxEn, inboxInboxEn, meetingsInboxEn, teamaInboxEn, teamhelpInboxEn, fbnoticesInboxEn, fbk067InboxEn, batchbInboxEn, daftraInboxEn, weeklyInboxEn], chatmsgNoticesEn, pushEn, 'en'),
+  ar: tree([baseInboxAr, inboxInboxAr, meetingsInboxAr, teamaInboxAr, teamhelpInboxAr, fbnoticesInboxAr, fbk067InboxAr, batchbInboxAr, daftraInboxAr, weeklyInboxAr], chatmsgNoticesAr, pushAr, 'ar'),
 };
 
 const instance = i18next.createInstance();
