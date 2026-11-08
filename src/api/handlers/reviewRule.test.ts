@@ -305,6 +305,21 @@ describe('who approves or sends back a to-do in review (rules 2 and 4)', () => {
     await expect(t.api.call('tasks.approve', { id: byLeader })).rejects.toMatchObject({ code: 'forbidden' });
   });
 
+  it('keeps the sender out after a change of the lead during the review: the new lead reviews (security review 2026-11-08)', async () => {
+    const t = world();
+    const id = office(t);
+    t.as('usr_004');
+    await t.api.call('tasks.complete', { id });
+    expect(reviewersOfTask(t.store.state, t.store.state.tasks[id])).toEqual(['usr_001']);
+    // Omar made the to-do, so he may name its lead. He names Nour while it waits for review.
+    await t.api.call('tasks.update', { id, patch: { ownerId: 'usr_006' } });
+    expect(reviewersOfTask(t.store.state, t.store.state.tasks[id])).toEqual(['usr_006']);
+    await expect(t.api.call('tasks.approve', { id })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('tasks.sendBack', { id, note: 'No' })).rejects.toMatchObject({ code: 'forbidden' });
+    t.as('usr_006');
+    await expect(t.api.call('tasks.approve', { id })).resolves.toMatchObject({ task: { status: 'done' } });
+  });
+
   it('refuses a tick of the sender on a to-do in review: it stays in review', async () => {
     const t = world();
     const id = office(t, { helperIds: [] });
@@ -503,6 +518,31 @@ describe('the memory of the sender (rule 6)', () => {
     await t.api.call('events.undo', { eventId: event.id });
     expect(status(t, id)).toBe('in_progress');
     expect(t.store.state.tasks[id]).toHaveProperty('reviewSentBy', null);
+  });
+
+  it('lets the reviewer with no switch take back an own approval only while that person may still review it (security review 2026-11-08)', async () => {
+    const t = world();
+    t.store.state.settings.roles = without('task.review.lead');
+    const id = project(t, { ownerId: 'usr_003', createdBy: 'usr_008', helperIds: ['usr_006'] });
+    const approve = async () => {
+      t.as('usr_006');
+      await t.api.call('tasks.move', { id, status: 'in_review' });
+      t.as('usr_003');
+      await t.api.call('tasks.approve', { id });
+      return Object.values(t.store.state.events).filter((e) => e.targetId === id && e.verb === 'task.approved' && !e.undoneBy).at(-1)!;
+    };
+    // Sara is the named reviewer: she takes her approval back.
+    await t.api.call('events.undo', { eventId: (await approve()).id });
+    expect(status(t, id)).toBe('in_review');
+    t.as('usr_003');
+    await t.api.call('tasks.sendBack', { id, note: 'Again' });
+    // Sara approves again, then the leader gives the lead to Tarek. Sara is no longer the reviewer and holds no review switch.
+    const second = await approve();
+    t.as('usr_002');
+    await t.api.call('tasks.update', { id, patch: { ownerId: 'usr_008' } });
+    t.as('usr_003');
+    await expect(t.api.call('events.undo', { eventId: second.id })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(status(t, id)).toBe('done');
   });
 
   it('puts the sender back with Undo of an approval', async () => {

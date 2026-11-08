@@ -6,7 +6,7 @@ import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { noticeProjectHidden } from '../hiddenNotice';
-import { feedbackNoticeHidden } from '../notify';
+import { feedbackNoticeHidden, mayReviewTask } from '../notify';
 import { eventHiddenByLock, eventTouchesLocked } from '../folderLock';
 import { isResourceFileEvent, isResourceFoldersEvent } from '../resourceLock';
 import { undoResourceFolders } from './resources';
@@ -280,8 +280,16 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
         if (can(ctx.authority, 'task.any', { ...base })) return;
         return need('task.deleteOwn');
       }
-      // The reviewer who approved may take the approval back: the named reviewer holds no switch (fbk_087). Any other person needs the review right.
-      if (event.verb === 'task.approved') return isOwnChange(ctx, event) ? undefined : need('task.review');
+      // The reviewer who approved may take the approval back while that person may still review the to-do as the Undo puts it back: the
+      // named reviewer holds no switch (fbk_087). A person who is no longer the reviewer, and any other person, needs the review right
+      // (security review 2026-11-08).
+      if (event.verb === 'task.approved') {
+        const live = ctx.state.tasks[event.targetId];
+        const sentBy = fieldsOf(event.before).reviewSentBy;
+        const restored = live && { ...live, status: 'in_review' as const, reviewSentBy: typeof sentBy === 'string' ? sentBy : null };
+        if (isOwnChange(ctx, event) && restored && mayReviewTask(ctx.state, ctx.authority, restored)) return;
+        return need('task.review');
+      }
       // The person who took a task with no lead may give it back (owner, 2026-10-05). Any other change of lead keeps the rule below.
       if (isOwnTake(ctx, event)) return need('task.take');
       // The person who joined a task as a helper, or left it, may take that back (fbk_035).
