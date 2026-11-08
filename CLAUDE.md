@@ -137,6 +137,7 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 - `npm run dev:office` - the local office stack, with no Docker: the real bundle on wrangler dev with the own sign-in, the
   sample office and the screens on 127.0.0.1:4174. It writes `test-results/office-local/run.env` for the deploy suite
   (`tests/CLAUDE.md`). Run it after `build:server`, sandbox off.
+- `npm run dev:platform` - the built platform site (`dist-platform`) on 127.0.0.1:4175 with `/api/platform` passed to the local office (run `build:platform` and `dev:office` first, sandbox off; `tests/CLAUDE.md`).
 - `npm run smoke` - the prototype smoke (`tests/CLAUDE.md`). `npm run icons` - the app icons.
 - `MADAR_IT=1 npx vitest run --project it <files>` - integration tests on the full local stack, one file at a time.
   Each suite uses its own schema. `scripts/restore-check.test.ts` needs `MADAR_AGE` (the `age` binary). Storage and R2
