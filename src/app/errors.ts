@@ -24,7 +24,7 @@ export function errorMessage(error: unknown, t: TFunction): string {
  */
 export function canRetry(error: unknown): boolean {
   if (!(error instanceof ApiError)) return false;
-  return error.code === 'failed' || (error.code === 'unauthenticated' && error.details.reason !== 'account_off');
+  return error.code === 'failed' || (error.code === 'unauthenticated' && error.details.reason !== 'account_off' && error.details.reason !== 'enterprise_paused');
 }
 
 /** The inline message for one field of a refused form (spec 11.6), or undefined when the refusal does not name it. */

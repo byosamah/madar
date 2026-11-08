@@ -24,7 +24,7 @@ type Locks = { request<T>(name: string, work: () => Promise<T>): Promise<T> };
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const REASONS: Readonly<Record<string, AuthFailureReason>> = {
-  invalid_credentials: 'wrong_credentials', current_password_required: 'wrong_credentials', account_off: 'account_off',
+  invalid_credentials: 'wrong_credentials', current_password_required: 'wrong_credentials', account_off: 'account_off', enterprise_paused: 'enterprise_paused',
   link_ended: 'link_ended', weak: 'weak', same: 'same', too_many: 'too_many',
 };
 

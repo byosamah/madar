@@ -19,6 +19,8 @@ export function fromEntry(error: RunError): ApiError {
 export function fromStatus(status: number, body: unknown, retryAfter: string | null, now = Date.now()): ApiError {
   const reason = reasonOf(body);
   if (status === 401) return new ApiError('unauthenticated', 'Sign in to continue.', reason ? { reason } : {});
+  // A paused company (Madar enterprises): the object refuses with 403 and the reason. The person is not turned off; the screens say the paused sentence.
+  if (status === 403 && reason === 'enterprise_paused') return new ApiError('forbidden', 'Madar is paused for your company. Ask your Admin.', { reason });
   if (status === 403) return new ApiError('unauthenticated', 'Your account is turned off.', { reason: 'account_off' });
   if (status === 409) return new ApiError('failed', 'Madar has a new version. Reload the page.', { reason: 'client_outdated' });
   if (status === 429) {

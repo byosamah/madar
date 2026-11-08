@@ -2,7 +2,7 @@ import type { AuthPort, AuthStatus, LinkType } from '../../app/auth';
 import { AuthFailure, MIN_PASSWORD, type AuthFailureReason } from './authFailure';
 import { clearLeaving, leftOnPurpose, markLeaving, type SessionChange, type SessionListener } from './sessionEnd';
 
-export type FakeAccount = { email: string; password: string; userId: string; off?: boolean };
+export type FakeAccount = { email: string; password: string; userId: string; off?: boolean; paused?: boolean };
 export type FakeLink = { type: LinkType; email: string; used?: boolean };
 
 /** What the fake did, in order, so a test can check the steps of a screen. */
@@ -97,6 +97,8 @@ export function fakeAuth(o: {
       const account = accounts.get(email.trim().toLowerCase());
       if (!account || account.password !== password) throw new AuthFailure('wrong_credentials');
       if (account.off) throw new AuthFailure('account_off');
+      // The company is paused: the right password gets the calm sentence, and nobody signs in (Madar enterprises).
+      if (account.paused) throw new AuthFailure('enterprise_paused');
       become(account);
     },
     async signOut(options) {
