@@ -64,13 +64,13 @@ export function homeKeys(role: string | undefined, today: string, phone = false,
 
 const HOME_NAMES = new Set<string>(homeKeys(undefined, '').map((key) => key[1] as string));
 
-type SessionLike = { user?: { systemRole?: string; roleId?: string | null }; authority?: { officeRights?: string[] } };
+type SessionLike = { user?: { systemRole?: string; roleId?: string | null }; authority?: { officeRights?: string[] }; enterprise?: { id?: string } };
 
-/** The role and the rights of a session answer, as one text. Another text means another role or other rights. */
+/** The role, the rights and the enterprise of a session answer, as one text. Another text means another role, other rights or another enterprise. */
 export function fingerprintOf(session: unknown): string {
   const s = (session ?? {}) as SessionLike;
   const rights = [...(s.authority?.officeRights ?? [])].sort().join(',');
-  return `${s.user?.systemRole ?? ''}|${s.user?.roleId ?? ''}|${rights}`;
+  return `${s.user?.systemRole ?? ''}|${s.user?.roleId ?? ''}|${rights}|${s.enterprise?.id ?? ''}`;
 }
 
 // ---- IndexedDB, with no package. Each step opens the database and closes it, so a delete never waits for a held connection. ----

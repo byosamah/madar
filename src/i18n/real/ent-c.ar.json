@@ -79,5 +79,19 @@
     "peopleCount_few": "{{count}} أشخاص",
     "peopleCount_many": "{{count}} شخصًا",
     "peopleCount_other": "{{count}} شخص"
+  },
+  "admin": {
+    "enterpriseName": "اسم الشركة",
+    "enterpriseNameAr": "اسم الشركة بالعربية",
+    "enterpriseLogo": "شعار الشركة",
+    "usage": {
+      "people": "الأشخاص: {{used}} من {{limit}}",
+      "peopleOnly": "الأشخاص: {{used}}",
+      "storage": "التخزين: {{used}} من {{limit}}",
+      "storageOnly": "التخزين: {{used}} جيجابايت",
+      "gb": "{{n}} جيجابايت",
+      "noLimit": "بلا حد",
+      "readOnly": "فريق مدار وحده يغيّر هذه الحدود."
+    }
   }
 }

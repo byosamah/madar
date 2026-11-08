@@ -75,5 +75,19 @@
     "peopleCount": "{{n}} people",
     "peopleCount_one": "1 person",
     "peopleCount_other": "{{count}} people"
+  },
+  "admin": {
+    "enterpriseName": "Company name",
+    "enterpriseNameAr": "Company name in Arabic",
+    "enterpriseLogo": "Company logo",
+    "usage": {
+      "people": "People: {{used}} of {{limit}}",
+      "peopleOnly": "People: {{used}}",
+      "storage": "Storage: {{used}} of {{limit}}",
+      "storageOnly": "Storage: {{used}} GB",
+      "gb": "{{n}} GB",
+      "noLimit": "No limit",
+      "readOnly": "Only the Madar team changes these limits."
+    }
   }
 }
