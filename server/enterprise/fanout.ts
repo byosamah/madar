@@ -1,8 +1,6 @@
 import type { Logger } from '../core/ports';
 import { JOBS_SECRET_HEADER } from '../jobs/app';
-
-// Task 3 moves this type to ids.ts.
-type EnterpriseId = string;
+import type { EnterpriseId } from './ids';
 
 /**
  * The Cron fan-out of Madar enterprises (design 5.13, spike S1). One Cron invocation lists the enterprises and sends one Worker
