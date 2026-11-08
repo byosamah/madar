@@ -35,7 +35,7 @@ describe('the fake directory', () => {
     expect(handle.read().enterprises[1].name).toBe('Changed');
   });
 
-  it('keeps the directory in IndexedDB across opens, and starts the default when the record is broken', async () => {
+  it('keeps the directory in IndexedDB across opens', async () => {
     const first = await openDirectory('2026-11-08', 'madar-test-directory');
     const next = structuredClone(first.read());
     next.enterprises[1].name = 'Saved';
