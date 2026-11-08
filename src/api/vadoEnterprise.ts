@@ -1,5 +1,5 @@
 /**
- * The id of VADOs' Companies in the prototype (the same value as ENT_VADO in server/enterprise/ids.ts). The prototype may not import the
- * server, so a test pins the two values. The prototype keeps the old store keys of this enterprise, and it shows usage data only for it.
+ * The id of VADOs' Companies for the prototype. One source holds the value: src/lib/enterprise.ts (a server test pins it to ENT_VADO
+ * of server/enterprise/ids.ts, which the screens may not import). The prototype keeps the old store keys of this enterprise.
  */
-export const VADO_ENTERPRISE = 'ent_001';
+export { VADO_ENTERPRISE } from '../lib/enterprise';
