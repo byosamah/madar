@@ -2,6 +2,7 @@ import { nowStamp } from '../../../src/lib/dates';
 import { summaryStartOn } from '../../../src/lib/quietHours';
 import type { Deps } from '../../core/ports';
 import { sqlFor } from '../../data/dialect';
+import { entOfConfig, scopedRef } from '../../enterprise/scope';
 import { MailSendError } from '../../mail/resend';
 import { sendSummary, summaryRoster, type SummaryOutcome } from '../../mail/summary';
 
@@ -42,7 +43,8 @@ export type SummaryStep =
   | { due: true; day: string; done: true }
   | ({ due: true; day: string; already: number; refused: number } & Record<SummaryOutcome, number>);
 
-const refOf = (day: string, userId: string) => `summary-${day}-${userId}`;
+/** The mail_log ref of one summary: sendCounted puts the enterprise id before the key, so the sent check reads the same text. */
+const refOf = (deps: Pick<Deps, 'config'>, day: string, userId: string) => scopedRef(entOfConfig(deps.config), `summary-${day}-${userId}`);
 const markOf = (day: string, userId: string) => `summary:${day}:${userId}`;
 
 export async function summary(deps: Deps, at: Date): Promise<SummaryStep> {
@@ -63,7 +65,7 @@ export async function summary(deps: Deps, at: Date): Promise<SummaryStep> {
   const people = started.map((one) => one.id).filter((id) => !closed.has(markOf(day, id)));
   if (people.length === 0) return { due: true, day, done: true };
   const sent = new Set(
-    (await deps.db.statement<{ ref: string }>('write', sqlFor(deps.db, SUMMARY_SENT_SQL, SUMMARY_SENT_LITE), [people.map((id) => refOf(day, id))])).map((row) => row.ref),
+    (await deps.db.statement<{ ref: string }>('write', sqlFor(deps.db, SUMMARY_SENT_SQL, SUMMARY_SENT_LITE), [people.map((id) => refOf(deps, day, id))])).map((row) => row.ref),
   );
   const mark = (userId: string) => deps.db.statement('write', sqlFor(deps.db, SUMMARY_MARK_SQL, SUMMARY_MARK_LITE), [markOf(day, userId), at]);
   const counts: Record<SummaryOutcome, number> = { sent: 0, empty: 0, over: 0, skipped: 0 };
@@ -71,7 +73,7 @@ export async function summary(deps: Deps, at: Date): Promise<SummaryStep> {
   let refused = 0;
   let failed = 0;
   for (const userId of people) {
-    if (sent.has(refOf(day, userId))) {
+    if (sent.has(refOf(deps, day, userId))) {
       already += 1;
       await mark(userId);
       continue;

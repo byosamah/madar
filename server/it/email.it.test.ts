@@ -83,14 +83,14 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
     expect(noticeId).toBeTruthy();
     expect(await outboxOf(NOTICE_EFFECT)).toEqual([{ id: expect.any(String), payload: { notificationId: noticeId }, done: true, attempts: 1 }]);
     const sent = await mails();
-    expect(sent.map((m) => [m.to_email, m.tag, m.idempotency_key])).toEqual([[sara.email, 'notice', `notice-${noticeId}`]]);
+    expect(sent.map((m) => [m.to_email, m.tag, m.idempotency_key])).toEqual([[sara.email, 'notice', `ent_001:notice-${noticeId}`]]);
     for (const part of [sent[0].mail.subject, sent[0].mail.html, sent[0].mail.text]) {
       expect(part).not.toContain(SECRET_TITLE);
       expect(part).not.toContain(project.name);
     }
     expect(sent[0].mail.html).toContain('https://madar.test/notifications');
     const log = await office.sql<{ kind: string; user_id: string; ref: string; sent: boolean }>('select kind, user_id, ref, resend_id is not null as sent from mail_log');
-    expect(log).toEqual([{ kind: 'notice', user_id: sara.id, ref: `notice-${noticeId}`, sent: true }]);
+    expect(log).toEqual([{ kind: 'notice', user_id: sara.id, ref: `ent_001:notice-${noticeId}`, sent: true }]);
   });
 
   it('sends once when the effect runs twice: the claim, then the place in the quota and the idempotency key', async () => {
@@ -240,7 +240,7 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
       ?? people.find((p) => tasks.some((t) => t.status === 'in_review' && projects[t.projectId!]?.status === 'active' && reviewersOf(state, t.projectId!).includes(p.id)))!;
     expect(await sendSummary(live(), someone.id, TODAY)).toBe('sent');
     expect(await sendSummary(live(), someone.id, TODAY)).toBe('sent');
-    expect((await mails()).map((m) => [m.to_email, m.tag, m.idempotency_key])).toEqual([[someone.email, 'summary', `summary-${TODAY}-${someone.id}`]]);
+    expect((await mails()).map((m) => [m.to_email, m.tag, m.idempotency_key])).toEqual([[someone.email, 'summary', `ent_001:summary-${TODAY}-${someone.id}`]]);
   });
 
   // fbk_087 (owner 2026-11-08): the stored sender of a to-do in review decides who reviews it. The SQL must name the same people as

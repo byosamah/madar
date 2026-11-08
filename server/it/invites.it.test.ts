@@ -292,7 +292,7 @@ describe('suite 4: invitations on the local stack', () => {
       const mail = mailTo(late.email);
       expect(mail.subject).toBe('Your invitation to Madar');
       expect(await counted(late.user.id)).toEqual([{ ref: mail.idempotencyKey, day: '2026-10-05', sent: true }]);
-      const [last] = await office.sql<{ key: string }>("select 'invite:' || (payload->>'inviteId') as key from outbox where id = $1", [waiting[2]]);
+      const [last] = await office.sql<{ key: string }>("select 'ent_001:invite:' || (payload->>'inviteId') as key from outbox where id = $1", [waiting[2]]);
       expect(mail.idempotencyKey).toBe(last.key);
       expect((await sentAtOf(late.user.id))?.sentAt).toEqual(expect.any(String));
       await accept(mail.text);

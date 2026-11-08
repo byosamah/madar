@@ -88,7 +88,7 @@ describe('suite 9: the email quota on the local database', () => {
     await fill('notice', 90);
     const db = newDb();
     const mail = fakeMail();
-    const deps = { db, mail, clock: fixedClock(DAY_START) };
+    const deps = { db, mail, clock: fixedClock(DAY_START), config: {} };
     await expect(sendCounted(deps, 'notice', mailFor('notice-91'))).resolves.toEqual({ status: 'over', firstRefusal: true });
     await expect(sendCounted(deps, 'notice', mailFor('notice-92'))).resolves.toEqual({ status: 'over', firstRefusal: false });
     for (let i = 91; i <= 98; i += 1) await expect(sendCounted(deps, 'signin', mailFor(`invite-${i}`))).resolves.toMatchObject({ status: 'sent' });

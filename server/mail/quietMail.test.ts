@@ -34,7 +34,7 @@ describe('the notice mail in quiet hours (SQLite)', () => {
   it('sends the mail in work hours', async () => {
     const { deps } = await office(MORNING);
     await sendNoticeMail({ notificationId: 'ntf_901' }, deps);
-    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['notice-ntf_901']);
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['ent_001:notice-ntf_901']);
   });
 
   it('sends no mail in quiet hours, takes no place of the quota, and sends none later either', async () => {

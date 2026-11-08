@@ -130,13 +130,13 @@ describe('sendNoticeMail: the mail of one notice', () => {
     await sendNoticeMail({ notificationId: 'ntf_1' }, deps);
     expect(deps.mail.sent).toHaveLength(1);
     const [mail] = deps.mail.sent;
-    expect(mail).toMatchObject({ to: 'usr_002@madar.test', tag: 'notice', idempotencyKey: 'notice-ntf_1' });
+    expect(mail).toMatchObject({ to: 'usr_002@madar.test', tag: 'notice', idempotencyKey: 'ent_001:notice-ntf_1' });
     expect(mail.html).toContain('dir="rtl"');
     expect(mail.html).toContain('https://madar.test/notifications');
     // The Madar mark at the app address of the server config (TASKS.md, Logo, point 4).
     expect(mail.html).toContain('<img src="https://madar.test/icons/madar-192.png"');
     expect(mail.text).toContain('افتحي مدار');
-    expect(mem.log).toEqual([{ utc_day: DAY, kind: 'notice', user_id: 'usr_002', ref: 'notice-ntf_1', resend_id: 'mail_1' }]);
+    expect(mem.log).toEqual([{ utc_day: DAY, kind: 'notice', user_id: 'usr_002', ref: 'ent_001:notice-ntf_1', resend_id: 'mail_1' }]);
   });
 
   it('sends nothing for a notice that is gone, a person who left, an agent, or a switch that is off now', async () => {
@@ -163,7 +163,7 @@ describe('sendNoticeMail: the mail of one notice', () => {
     await sendNoticeMail({ notificationId: 'ntf_1' }, deps);
     expect(mem.log.filter((r) => r.kind === 'notice')).toHaveLength(1);
     // The fake records both sends; Resend (and the outbox driver) keeps one mail for the one key.
-    expect(new Set(deps.mail.sent.map((m) => m.idempotencyKey))).toEqual(new Set(['notice-ntf_1']));
+    expect(new Set(deps.mail.sent.map((m) => m.idempotencyKey))).toEqual(new Set(['ent_001:notice-ntf_1']));
   });
 
   it('throws when the send fails, so the outbox tries again with the same key', async () => {
@@ -171,7 +171,7 @@ describe('sendNoticeMail: the mail of one notice', () => {
     deps.mail.failNext(new Error('Resend is down'));
     await expect(sendNoticeMail({ notificationId: 'ntf_1' }, deps)).rejects.toThrow('Resend is down');
     await sendNoticeMail({ notificationId: 'ntf_1' }, deps);
-    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['notice-ntf_1']);
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['ent_001:notice-ntf_1']);
   });
 
   it('keeps notice 91 of the UTC day in the app and warns each Admin once', async () => {
@@ -187,8 +187,8 @@ describe('sendNoticeMail: the mail of one notice', () => {
       undo();
     }
     expect(deps.mail.sent.map((m) => [m.to, m.tag, m.idempotencyKey])).toEqual([
-      ['usr_001@madar.test', 'quota-warning', `quota-warning-${DAY}-usr_001`],
-      ['usr_005@madar.test', 'quota-warning', `quota-warning-${DAY}-usr_005`],
+      ['usr_001@madar.test', 'quota-warning', `ent_001:quota-warning-${DAY}-usr_001`],
+      ['usr_005@madar.test', 'quota-warning', `ent_001:quota-warning-${DAY}-usr_005`],
     ]);
     expect(mem.outbox.map((r) => [r.kind, r.payload, r.done])).toEqual([
       [QUOTA_WARNING_EFFECT, { userId: 'usr_001', day: DAY }, true],
@@ -268,7 +268,7 @@ describe('the notices that stay in the app', () => {
     expect(mem.log).toEqual([]);
     await sendNoticeMail({ notificationId: 'ntf_5' }, deps);
     await sendNoticeMail({ notificationId: 'ntf_6' }, deps);
-    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['notice-ntf_5', 'notice-ntf_6']);
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['ent_001:notice-ntf_5', 'ent_001:notice-ntf_6']);
   });
 });
 
@@ -320,7 +320,7 @@ describe('the mention mail of a chat waits and skips a read notice (chat design 
   it('sendChatNoticeMail sends the notice mail with the key notice-<id> when the notice is still unread', async () => {
     const { mem, deps } = setup({ notices: [{ id: 'ntf_1', userId: 'usr_002', trigger: 'mention' }] });
     await sendChatNoticeMail({ notificationId: 'ntf_1' }, deps);
-    expect(deps.mail.sent.map((m) => [m.to, m.tag, m.idempotencyKey])).toEqual([['usr_002@madar.test', 'notice', 'notice-ntf_1']]);
+    expect(deps.mail.sent.map((m) => [m.to, m.tag, m.idempotencyKey])).toEqual([['usr_002@madar.test', 'notice', 'ent_001:notice-ntf_1']]);
     expect(mem.log.filter((r) => r.kind === 'notice')).toHaveLength(1);
   });
 
@@ -334,7 +334,7 @@ describe('the mention mail of a chat waits and skips a read notice (chat design 
     undo.push(registerMailEffects());
     const [id] = await writeOutbox(mem.q, [{ kind: CHAT_NOTICE_EFFECT, payload: { notificationId: 'ntf_1' } }]);
     expect(await processOutbox(deps, [id])).toEqual({ done: [id], failed: [] });
-    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['notice-ntf_1']);
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['ent_001:notice-ntf_1']);
     expect(() => registerEffect(CHAT_NOTICE_EFFECT, async () => undefined)).toThrow(/already registered/);
   });
 });

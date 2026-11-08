@@ -79,7 +79,7 @@ describe('the morning email with the open tasks, through the outbox driver', () 
     const { deps, mails } = await office();
     expect(await sendSummary(deps, 'usr_901', DAY)).toBe('sent');
     const [row] = await mails();
-    expect(row).toMatchObject({ to_email: 'many@madar.test', tag: 'summary', idempotency_key: `summary-${DAY}-usr_901` });
+    expect(row).toMatchObject({ to_email: 'many@madar.test', tag: 'summary', idempotency_key: `ent_001:summary-${DAY}-usr_901` });
     const { subject, html, text } = row.mail;
     expect(subject).toBe('Your morning summary from Madar');
     // Eight lines in all, in the order of the groups.

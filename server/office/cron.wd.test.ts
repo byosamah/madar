@@ -35,8 +35,8 @@ describe('the Cron of the office object on local workerd', () => {
     await vi.waitFor(async () => expect(await live.rows("select done_at from job_runs where key = 'heartbeat'")).toEqual([{ done_at: AT.toISOString() }]), { timeout: 10_000 });
     await vi.waitFor(async () => {
       const keys = (await live.net()).mails.map((m) => m.idempotencyKey);
-      expect(keys.some((key) => key.startsWith('notice-'))).toBe(true);
-      expect(keys).toContain(`summary-${DAY}-usr_002`);
+      expect(keys.some((key) => key.includes(':notice-'))).toBe(true);
+      expect(keys).toContain(`ent_001:summary-${DAY}-usr_002`);
     }, { timeout: 10_000 });
   });
 

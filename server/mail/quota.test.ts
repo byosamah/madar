@@ -81,7 +81,7 @@ function setup(at = '2026-10-04T06:00:00Z') {
   const log = memoryMailLog();
   const mail = fakeMail();
   const clock = fixedClock(at);
-  return { log, mail, clock, deps: { db: log.db, mail, clock } };
+  return { log, mail, clock, deps: { db: log.db, mail, clock, config: {} } };
 }
 
 const mailFor = (key: string): Mail => ({ to: 'sara@madar.test', subject: 's', html: '<p>s</p>', text: 's', tag: 'notice', idempotencyKey: key });
@@ -158,7 +158,7 @@ describe('sendCounted()', () => {
     mail.failNext(new Error('Resend could not be reached.'));
     await expect(sendCounted(deps, 'notice', mailFor('notice-ntf_001'), { userId: 'usr_002' })).rejects.toThrow(/reached/);
     await expect(sendCounted(deps, 'notice', mailFor('notice-ntf_001'), { userId: 'usr_002' })).resolves.toEqual({ status: 'sent', id: 'mail_1' });
-    expect(log.rows).toEqual([{ utc_day: '2026-10-04', kind: 'notice', user_id: 'usr_002', ref: 'notice-ntf_001', resend_id: 'mail_1' }]);
+    expect(log.rows).toEqual([{ utc_day: '2026-10-04', kind: 'notice', user_id: 'usr_002', ref: 'ent_001:notice-ntf_001', resend_id: 'mail_1' }]);
   });
 
   it('records the Resend id of each mail it sent', async () => {
@@ -224,7 +224,7 @@ describe('sendCounted() with onFirstRefusal (plan 4.12: the Admin warnings go in
     // The retry of the notice effect answers false, but the warning rows are already in the outbox.
     await expect(sendCounted(deps, 'notice', mailFor('notice-91'), { onFirstRefusal: hook })).resolves.toEqual({ status: 'over', firstRefusal: false });
     expect(seen).toHaveLength(1);
-    expect(log.rows.filter((r) => r.ref === 'quota-warning-usr_001').map((r) => r.resend_id)).toEqual([expect.any(String)]);
+    expect(log.rows.filter((r) => r.ref === 'ent_001:quota-warning-usr_001').map((r) => r.resend_id)).toEqual([expect.any(String)]);
   });
 });
 

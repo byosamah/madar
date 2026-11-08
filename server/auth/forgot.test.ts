@@ -47,7 +47,7 @@ function memoryDb(users: Record<string, { doc: User; auth: string | null }>) {
   return { db: mem.db, mem, rates, relinks };
 }
 
-async function setup(o: { host?: () => RequestHost } = {}) {
+async function setup(o: { host?: () => RequestHost; ent?: string } = {}) {
   const auth = fakeAuth();
   const linked = async (user: User) => ({ doc: user, auth: (await auth.generateLink('invite', user.email)).authUserId });
   const users: Record<string, { doc: User; auth: string | null }> = {
@@ -59,7 +59,7 @@ async function setup(o: { host?: () => RequestHost } = {}) {
   };
   auth.links.length = 0;
   const mem = memoryDb(users);
-  const deps = fakeDeps({ db: mem.db, config: { appUrl: 'https://madar.test' } });
+  const deps = fakeDeps({ db: mem.db, config: { appUrl: 'https://madar.test', ent: o.ent } });
   deps.authAdmin = auth;
   const slept: number[] = [];
   const route = createForgotRoute({ minMs: 0, sleep: async (ms) => void slept.push(ms), host: o.host });
@@ -72,6 +72,13 @@ async function setup(o: { host?: () => RequestHost } = {}) {
 }
 
 describe('POST /auth/forgot', () => {
+  it('puts the enterprise id before the key of the place in the quota and before the Resend key (Madar enterprises)', async () => {
+    const { deps, mem, post } = await setup({ ent: 'ent_002' });
+    expect((await post({ email: 'Faisal.Al.Harbi@madar.test' })).status).toBe(200);
+    expect(mem.mem.log.map((row) => row.ref)).toEqual([expect.stringMatching(/^ent_002:reset:[0-9a-f]{64}$/)]);
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual([mem.mem.log[0].ref]);
+  });
+
   it('gives the same answer for a person, an unknown email, a turned-off person, a person with no sign-in yet and an agent; only the person gets a mail', async () => {
     const { auth, deps, post } = await setup();
     const answers = [];
@@ -84,7 +91,7 @@ describe('POST /auth/forgot', () => {
     expect(auth.links.map((l) => [l.type, l.email])).toEqual([['recovery', 'faisal.al.harbi@madar.test']]);
     expect(deps.mail.sent).toHaveLength(1);
     const [mail] = deps.mail.sent;
-    expect(mail).toMatchObject({ to: 'faisal.al.harbi@madar.test', subject: 'Reset your Madar password', tag: 'reset', idempotencyKey: expect.stringMatching(/^reset:[0-9a-f]{64}$/) });
+    expect(mail).toMatchObject({ to: 'faisal.al.harbi@madar.test', subject: 'Reset your Madar password', tag: 'reset', idempotencyKey: expect.stringMatching(/^ent_001:reset:[0-9a-f]{64}$/) });
     // The key goes to the mail sender and its logs: it never holds the token hash, which is the live sign-in credential.
     expect(mail.idempotencyKey).not.toContain(auth.links[0].tokenHash);
     expect(mail.text).toContain(`https://madar.test/reset?token_hash=${auth.links[0].tokenHash}&type=recovery`);

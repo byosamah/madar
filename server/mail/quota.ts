@@ -1,5 +1,6 @@
-import type { Clock, Db, Mail, MailPort, Query } from '../core/ports';
+import type { Clock, Config, Db, Mail, MailPort, Query } from '../core/ports';
 import { isLite, sqlFor } from '../data/dialect';
+import { entOfConfig, scopedRef } from '../enterprise/scope';
 
 /**
  * The email quota (plan 2 change 9, 5.4; task N2.1). Resend's free plan sends 100 emails a UTC day (00:00 UTC is 03:00 Riyadh),
@@ -121,13 +122,15 @@ export type SendCountedOptions = {
  * A failed send throws and keeps the place: the outbox runs the effect again with the same key.
  */
 export async function sendCounted(
-  deps: { db: Db; mail: MailPort; clock: Clock },
+  deps: { db: Db; mail: MailPort; clock: Clock; config: Pick<Config, 'ent'> },
   kind: QuotaKind,
   mail: Mail,
   o: SendCountedOptions = {},
 ): Promise<SendCounted> {
   const now = deps.clock.now();
-  const ref = mail.idempotencyKey;
+  // The caller passes the plain key. The ref and the Resend key carry the enterprise id, because Resend keeps one key space for the
+  // whole account and the record ids repeat in every enterprise.
+  const ref = scopedRef(entOfConfig(deps.config), mail.idempotencyKey);
   const placed = await deps.db.tx('write', async (q) => {
     if ((await reserve(q, kind, ref, { now, userId: o.userId })) === 'ok') return { ok: true, firstRefusal: false };
     const firstRefusal = NOTICE_KINDS.has(kind) ? await markFirstRefusal(q, { now }) : false;
@@ -135,7 +138,7 @@ export async function sendCounted(
     return { ok: false, firstRefusal };
   });
   if (!placed.ok) return { status: 'over', firstRefusal: placed.firstRefusal };
-  const { id } = await deps.mail.send(mail);
+  const { id } = await deps.mail.send({ ...mail, idempotencyKey: ref });
   await deps.db.statement('write', sqlFor(deps.db, RECORD_SENT_SQL, RECORD_SENT_LITE), [utcDay(now), ref, id]);
   return { status: 'sent', id };
 }

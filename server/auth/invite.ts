@@ -8,6 +8,7 @@ import { isLite, sqlFor, statementQuery } from '../data/dialect';
 import { setLiteAuthLink } from '../data/lite/office';
 import { setAuthUserId } from '../data/officeCache';
 import { QuotaFull, release, reserve, sendCounted } from '../mail/quota';
+import { entOfConfig, scopedRef } from '../enterprise/scope';
 import { isEmailExists } from './admin';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey } from './rateLimit';
@@ -229,7 +230,7 @@ export async function sendInvitation(
   if (payload.sentAt) return 'already';
   /** A row that ends with no mail: with no stored link, no attempt sent a mail, so its place goes back to the day. */
   const skip = async (): Promise<'skipped'> => {
-    if (!payload.tokenHash) await release(statementQuery(deps.db, 'write'), mailKey(payload.inviteId));
+    if (!payload.tokenHash) await release(statementQuery(deps.db, 'write'), scopedRef(entOfConfig(deps.config), mailKey(payload.inviteId)));
     return 'skipped';
   };
   const person = await store.person(payload.userId);
@@ -256,7 +257,7 @@ export async function sendInvitation(
     }
     // The place in today's quota first: a full day makes no link (above).
     const now = deps.clock.now();
-    if ((await deps.db.tx('write', (q) => reserve(q, 'signin', mailKey(payload.inviteId), { now, userId: payload.userId }))) === 'over') {
+    if ((await deps.db.tx('write', (q) => reserve(q, 'signin', scopedRef(entOfConfig(deps.config), mailKey(payload.inviteId)), { now, userId: payload.userId }))) === 'over') {
       throw new QuotaFull(QUOTA_FULL, now);
     }
     link = await linkFor(deps.authAdmin, person.user.email);
