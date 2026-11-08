@@ -1,0 +1,18 @@
+{
+  "quietHours": {
+    "offHint": "Turn this on and Madar sends no push notice and no email outside your work hours. The bell keeps everything. You start with the hours of your office and can change them."
+  },
+  "whatsNew": {
+    "items": {
+      "2026-11-08-160": {
+        "title": "Chat fixes",
+        "body": "Helpers and people named with @ now find the to-do in their Inbox. Quiet hours are off unless you turn them on in Settings. Messages reach you at once. A phone swipe needs a longer drag to archive a chat, and an archived chat keeps its unread mark. A date change no longer lifts a to-do above real messages."
+      }
+    }
+  },
+  "chat": {
+    "archivedUnread": "Archived chats with unread messages: {{count}}",
+    "archivedUnread_one": "1 archived chat has unread messages",
+    "archivedUnread_other": "{{count}} archived chats have unread messages"
+  }
+}

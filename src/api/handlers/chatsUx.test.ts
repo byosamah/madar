@@ -25,8 +25,8 @@ async function groupOfSara() {
   return { t, id };
 }
 
-describe('chats.archive marks the chat read (chats-03, INT-01)', () => {
-  it('drops the unread number of the chat and of the badge at once, and a new message brings its own number back', async () => {
+describe('chats.archive keeps the unread mark (chats-03, INT-01; changed 2026-11-08: "Longer swipe, keep the unread mark")', () => {
+  it('keeps the unread number of the chat in the list, takes the chat out of the badge, and a new message brings the chat back with the whole number', async () => {
     const t = testApi(calls);
     const room = addProjectConversation(t.store.state, 'prj_001', STAMP);
     t.as('usr_001');
@@ -35,16 +35,16 @@ describe('chats.archive marks the chat read (chats-03, INT-01)', () => {
     expect((await t.api.call('chats.unreadCount', {})).unread).toBe(1);
     await t.api.call('chats.archive', { conversationId: room.id, archived: true });
     expect((await t.api.call('chats.unreadCount', {})).unread).toBe(0);
-    expect((await t.api.call('chats.list', {})).find((row) => row.id === room.id)).toMatchObject({ archived: true, unread: 0 });
+    expect((await t.api.call('chats.list', {})).find((row) => row.id === room.id)).toMatchObject({ archived: true, unread: 1 });
     later(60_000);
     t.as('usr_001');
     await t.api.call('chats.send', { conversationId: room.id, body: 'Any news?' });
     t.as('usr_003');
-    expect((await t.api.call('chats.list', {})).find((row) => row.id === room.id)).toMatchObject({ archived: false, unread: 1 });
-    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(1);
+    expect((await t.api.call('chats.list', {})).find((row) => row.id === room.id)).toMatchObject({ archived: false, unread: 2 });
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(2);
   });
 
-  it('marks a task thread read too, and keeps the chat read when it moves back to the Inbox', async () => {
+  it('keeps the thread unread too, and brings it back with its number when it moves back to the Inbox', async () => {
     const t = testApi(calls);
     t.store.state.tasks.tsk_001 = makeTask();
     t.as('usr_002');
@@ -54,7 +54,7 @@ describe('chats.archive marks the chat read (chats-03, INT-01)', () => {
     await t.api.call('chats.archive', { conversationId: 'tsk_001', archived: true });
     expect((await t.api.call('chats.unreadCount', {})).unread).toBe(0);
     await t.api.call('chats.archive', { conversationId: 'tsk_001', archived: false });
-    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(0);
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(1);
     expect(t.store.state.chatReads[chatReadKey('tsk_001', 'usr_003')]?.archivedAt).toBeNull();
   });
 });

@@ -19,9 +19,18 @@ Home (`HomeScreen.tsx`). The first request of Home, the stored answers and the r
   `size="quiet"`, fbk_082) sits beside the project count (`ProjectViewToggle`, only while the list has a project). The phone Projects page keeps the 44 px disc. The column is about 630 px wide, so it holds 2 boxes across.
   `HomeBody` takes `view` and the stable setter as props, so a link change does not render the boxes again.
 
+- The weekly card (`features/week/WeekCard.tsx`, fbk_088, owner 2026-11-08) sits under the title, before `NextCard`. Sunday to Wednesday it asks "What do you
+  plan this week?", Thursday to Saturday "What did you do this week?". It is a card, never a pop-up: nothing opens by itself. Its lines are the to-dos of
+  the person from the Home list `mine` (`weekLines`, `lib/week.ts`; Sunday: open, due this week; Thursday: done since Sunday; an office to-do is a line too, because
+  the server shows a line only to the people who may view the to-do), each kept until the person clears it, plus one box "Anything else". Save is the secondary button (Home keeps one navy button). After Save the card is
+  one quiet line ("Plan sent.", Edit, "See the team's week" for a holder of `checkin.read`); Undo of the toast takes the answer back. The card lives in its
+  own chunk (`weekCardLazy.ts`, `lazyOverlay`); Home only starts the import and the read `checkins.mine` in its first request, so the card
+  adds no request. It draws nothing for a person without `checkin.answer`. The page `/week` (`WeekScreen.tsx`, route right `checkin.read`) shows one row for
+  each person who answered, the plan and the done list side by side, who has not answered, and links to the week before and after (`?week=<Sunday>`).
+
 ## On a phone
 - `HomeScreen` renders five blocks as direct children of one grid, `grid grid-cols-[minmax(0,1fr)] gap-4`: the title, `NextCard`, `TodayPanel`,
-  `MeetingsCard` and `PushAskCard`. Add no `display: contents` wrapper, because the `.screen-enter` rule reads the DOM tree.
+  `MeetingsCard` and `PushAskCard`; the weekly card is a sixth direct child that draws nothing when the person has no question. Add no `display: contents` wrapper, because the `.screen-enter` rule reads the DOM tree.
 - A phone mounts no "Your projects" section and no "See what's new" link: `useCall('projects.list', ..., { enabled: !phone })` sends no
   read. A turn to landscape starts the read and shows the section. The What's new row of the Me hub shows the word "New".
 - A push link `/?task=` still opens the sheet. Home selectors in tests are `[data-screen] > .grid`, not `main .grid`, because the phone top

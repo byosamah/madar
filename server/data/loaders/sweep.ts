@@ -46,6 +46,12 @@ export function readSweep(office: State): SweepCall[] {
       ['reports.office', { period: 'quarter' }, actor],
       // The own push devices (owner, 2026-10-08).
       ['push.mine', {}, actor],
+      // The weekly question (fbk_088): the own answers and the week of the team, of this week and of the week before.
+      ['checkins.mine', {}, actor],
+      ['checkins.week', {}, actor],
+      ['checkins.week', { week: '2026-09-27' }, actor],
+      // The History of the weekly answers (security review of fbk_088): only the holders of "Read the weekly answers" and the author read it.
+      ['events.list', { targetType: 'checkin', limit: 50 }, actor],
     );
   }
   // The Leader and Client filters of the lists that the Dashboard opens (owner, 2026-10-06).
@@ -243,6 +249,9 @@ export function writeSweep(office: State): SweepCall[] {
     ['stages.setDates', { stageId: task.stageId, startDate: '2026-09-01', endDate: '2026-12-01' }, ADMIN],
     ['deadlines.update', { id: Object.values(office.deadlines)[0].id, patch: { name: 'Moved' } }, ADMIN],
     ['tasks.create', { projectId: 'prj_001', title: 'New' }, leader],
+    // The weekly question (fbk_088): the leader keeps a to-do of the own lead (or none) and a line of text.
+    ['checkins.save', { kind: 'plan', items: [], text: 'Sweep plan' }, leader],
+    ...(tasks.find((t) => t.projectId === 'prj_001' && t.ownerId === leader) ? [['checkins.save', { kind: 'review', items: [tasks.find((t) => t.projectId === 'prj_001' && t.ownerId === leader)!.id], text: '' }, leader] as SweepCall] : []),
     ['tasks.update', { id: task.id, patch: { title: 'New title' } }, leader],
     ['tasks.complete', { id: task.id }, ADMIN],
     ['tasks.newVersion', { id: tasks.find((t) => t.status === 'done')!.id, reason: 'Client change' }, ADMIN],
@@ -291,6 +300,7 @@ export function writeSweep(office: State): SweepCall[] {
     ...meetingMinutesWrites(office),
     ...hiddenAccessWrites(office),
     ...hiddenProjectWrites(office),
+    ...weekWrites(office),
   ];
 }
 
@@ -656,6 +666,60 @@ function meetingTraps(state: State): void {
   apply(state, 'meetings.create', { kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-10-05T12:00:00+03:00', attendeeIds: ['usr_003'] }, leader, 'cor_trap_meeting_project');
 }
 
+/**
+ * The weekly answers (fbk_088) on a copy of the sample office. The time of the sweep is Sunday 2026-10-04. The leader of prj_001 answers the plan
+ * and the review of this week, the Admin answers the plan, and a person who left (usr_006) answered the week before. The reads of checkins.mine
+ * and checkins.week give the same answers on the scoped load as on the whole office.
+ */
+function checkinTraps(state: State): void {
+  const leader = state.projects.prj_001.leaderId!;
+  apply(state, 'checkins.save', { kind: 'plan', items: [], text: 'The plan of the leader' }, leader, 'cor_trap_checkin_plan');
+  apply(state, 'checkins.save', { kind: 'review', items: [], text: 'The review of the leader' }, leader, 'cor_trap_checkin_review');
+  apply(state, 'checkins.save', { kind: 'plan', items: [], text: 'The plan of the Admin' }, ADMIN, 'cor_trap_checkin_admin');
+  const at = '2026-09-27T09:00:00.000+03:00';
+  state.checkins = {
+    ...state.checkins,
+    chk_900: { id: 'chk_900', userId: 'usr_006', week: '2026-09-27', kind: 'plan', taskIds: [], text: 'An old plan', createdAt: at, updatedAt: at },
+  };
+}
+
+/** The person of weekPrivateTraps who holds no "Read the weekly answers". She answers the plan herself, so she reads her own History only. */
+export const WEEK_QUIET = 'usr_004';
+
+/**
+ * The private lines and the History of the weekly answers (security review of fbk_088), on a copy of the sample office. WEEK_QUIET holds a role that
+ * turns off "Read the weekly answers", and writes her own plan. usr_006 keeps the to-do of the hidden project and the office to-do that he helps on:
+ * a reader reads the title of a line only when the reader may view that to-do, so the people outside the hidden project and the office to-do read
+ * no title of this answer. The History of both answers shows to the holders of the switch and to the author only. Runs after hiddenProjectTraps.
+ */
+function weekPrivateTraps(state: State): void {
+  state.settings.roles = {
+    ...(state.settings.roles ?? {}),
+    custom: [...(state.settings.roles?.custom ?? []), { id: 'rol_900', name: 'Quiet week', nameAr: 'أسبوع هادئ', rights: [], off: ['checkin.read'] }],
+  };
+  state.users[WEEK_QUIET].roleId = 'rol_900';
+  const hidden = Object.values(state.tasks).find((t) => t.title === HIDDEN_PROJECT_TASK)!;
+  const office = Object.values(state.tasks).find((t) => t.projectId === null && (t.helperIds ?? []).includes('usr_006'))!;
+  apply(state, 'checkins.save', { kind: 'plan', items: [hidden.id, office.id], text: 'The private plan of usr_006' }, 'usr_006', 'cor_trap_checkin_private');
+  apply(state, 'checkins.save', { kind: 'plan', items: [], text: 'The plan of the quiet person' }, WEEK_QUIET, 'cor_trap_checkin_quiet');
+}
+
+/**
+ * The writes on the History of the weekly answers: the Undo of each change by its author, by the quiet person who is no author, and by the Admin,
+ * for the event and for its story. A person who does not read the change gets the same refusal as for an unknown event on both loads.
+ * None on an office without the traps.
+ */
+export function weekWrites(office: State): SweepCall[] {
+  const own = Object.values(office.events).filter((e) => e.targetType === 'checkin' && e.correlationId === 'cor_trap_checkin_private');
+  if (own.length === 0 || office.users[WEEK_QUIET]?.roleId !== 'rol_900') return [];
+  const calls: SweepCall[] = [['checkins.save', { kind: 'review', items: [], text: 'Changed by the author' }, 'usr_006']];
+  for (const event of own) {
+    for (const actor of ['usr_006', WEEK_QUIET, ADMIN]) calls.push(['events.undo', { eventId: event.id }, actor]);
+  }
+  for (const actor of ['usr_006', WEEK_QUIET, ADMIN]) calls.push(['events.undoStory', { correlationId: 'cor_trap_checkin_private' }, actor]);
+  return calls;
+}
+
 /** The titles of the two series of seriesTraps. */
 export const SERIES_PRIVATE_TITLE = 'Private weekly talk';
 export const SERIES_PROJECT_TITLE = 'Daily site check';
@@ -795,11 +859,13 @@ export function trapOffice(seed: State): State {
   const state = structuredClone(seed);
   officeTraps(state);
   meetingTraps(state);
+  checkinTraps(state);
   chatFileTrap(state);
   resourceTrap(state);
   meetingFileTrap(state);
   meetingMinutesTraps(state);
   hiddenProjectTraps(state);
+  weekPrivateTraps(state);
   newestTies(state);
   hiddenProjectTrap(state);
   const leader = state.projects.prj_001.leaderId!;
@@ -827,7 +893,31 @@ export function trapOffice(seed: State): State {
     state.comments[id] = { id, targetType: 'task', targetId: thread.id, authorId, body: id, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };
   }
   state.chatReads[chatReadKey(thread.id, 'usr_006')] = { conversationId: thread.id, userId: 'usr_006', lastReadAt: '2026-10-03T10:00:00.000+03:00' };
+  // A thread of its own: the unread counts of the thread above (cmt_901 to cmt_904) keep their meaning.
+  const apart = Object.values(state.tasks).find((t) => t.projectId !== null && t.id !== thread.id && t.id !== task.id && t.ownerId !== null
+    && !state.projects[t.projectId].access?.hidden && Object.values(state.comments).every((c) => c.targetId !== t.id))!;
+  threadMemberTraps(state, task.id, member, apart.id);
   return state;
+}
+
+/**
+ * Two people who are part of a to-do thread without a comment (chat, 2026-11-08): the helper of the trap task (the helper line above), and
+ * a person named with @ in a message of another to-do (a thread with no other trap comment). The scoped load and the database must give them the thread, as the whole office does.
+ * A quiet line that names a third person makes that person part of nothing.
+ */
+function threadMemberTraps(state: State, helperTaskId: string, helper: string, otherThreadId: string): void {
+  const taskOf = state.tasks[helperTaskId];
+  const leader = state.projects[taskOf.projectId!].leaderId!;
+  const other = state.tasks[otherThreadId];
+  const lead = other.ownerId as string;
+  const people = crew(state).filter((id) => id !== helper && id !== leader && id !== lead && id !== state.projects[other.projectId!].leaderId);
+  const mentioned = (id: string) => `@[${state.users[id].name}](${id})`;
+  const put = (id: string, taskId: string, authorId: string, body: string, at: string, extra: Record<string, unknown> = {}) => {
+    state.comments[id] = { id, targetType: 'task', targetId: taskId, authorId, body, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null, ...extra } as never;
+  };
+  put('cmt_905', helperTaskId, leader, 'Please check the helper line.', '2026-10-03T12:00:00.000+03:00');
+  put('cmt_906', otherThreadId, lead, `${mentioned(people[0])} please look at this.`, '2026-10-03T12:30:00.000+03:00');
+  put('cmt_907', otherThreadId, lead, `${mentioned(people[1])} (reason)`, '2026-10-03T12:40:00.000+03:00', { kind: 'reopened' });
 }
 
 /** The name of the group of findTraps. */

@@ -16,6 +16,11 @@ describe('the MCP side of quiet hours and @everyone', () => {
     expect(INSTRUCTIONS).toContain('You cannot change the quiet hours or the Away mark of your person');
   });
 
+  it('says that quiet hours are OFF unless a person turns them on (owner, 2026-11-08)', () => {
+    expect(INSTRUCTIONS).toContain('Quiet hours: they are off unless a person turns them on');
+    expect(INSTRUCTIONS).not.toContain('each person sets work days');
+  });
+
   it('names the three words, the switch and the audience in INSTRUCTIONS', () => {
     for (const word of ['@everyone', '@all', '@الجميع', 'Mention everyone', 'chat.mentionEveryone']) expect(INSTRUCTIONS, word).toContain(word);
   });

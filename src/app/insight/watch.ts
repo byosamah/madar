@@ -37,6 +37,23 @@ export function watchRoutes(router: AppRouter, track: InsightClient['track']): (
 /** The same failed call is counted once in this time, so a lost network is one note and not a flood. */
 const FAILED_GAP_MS = 5000;
 
+/**
+ * The cause of a failed call, from numbers and fixed words only (chat, 2026-11-08: failed calls happen only on iPhone and the data could
+ * not say why): the HTTP status when there is one, the kind (network, timeout, server, refused), whether the browser said it was offline,
+ * and the path of the call (the own /api of the page, or direct). It never reads the text of the error or a reason: those can hold words
+ * that a person wrote.
+ */
+function causeOf(error: ApiError): { status?: number; kind: 'network' | 'timeout' | 'server' | 'refused'; offline: boolean; via?: 'page' | 'direct' } {
+  const { cause, status, via } = error.details;
+  const kind = cause === 'timeout' || cause === 'network' ? cause : typeof status === 'number' && status < 500 ? 'refused' : 'server';
+  return {
+    ...(typeof status === 'number' ? { status } : {}),
+    kind,
+    offline: typeof navigator !== 'undefined' && navigator.onLine === false,
+    ...(via === 'page' || via === 'direct' ? { via } : {}),
+  };
+}
+
 /** The codes of a server "no" that carry a reason a person must understand. */
 const REFUSAL_CODES: readonly string[] = ['forbidden', 'invalid_input', 'conflict', 'not_found'];
 
@@ -64,7 +81,7 @@ export function watchCalls(queryClient: QueryClient, client: InsightClient, now:
         if (last !== undefined && at - last < FAILED_GAP_MS) return;
         failedAt.set(call, at);
         // An action, so it carries no person (owner, 2026-10-25 and 2026-10-28). Only an $exception record does.
-        client.track('madar_call_failed', { call });
+        client.track('madar_call_failed', { call, ...causeOf(error) });
       } else if (REFUSAL_CODES.includes(error.code) && typeof error.details.reason === 'string') {
         client.track('madar_refused', { call, code: error.code, reason: error.details.reason });
       }

@@ -1,6 +1,7 @@
 import type { State } from '../../../src/api/store';
 import { MEETING_SOON_MS } from '../../../src/api/notify';
-import { addDays, todayISO } from '../../../src/lib/dates';
+import { addDays, officeClock, todayISO } from '../../../src/lib/dates';
+import { weekOf, weekSlotAt } from '../../../src/lib/week';
 import { Load, type LoadCtx } from './build';
 import type { Cond } from './query';
 
@@ -26,6 +27,7 @@ export const JOB_DUE_AHEAD_DAYS = 4;
  * passes the time of its run (LoadCtx.now); without it no meeting is read.
  * It also loads the open payments that fall due on the day of the run, for the due notice of the Daftra link (owner, 2026-10-26). The
  * check of a linked payment and of an internal project stays in runScheduledTriggers; the project comes from the office.
+ * In the window of the weekly question (Sunday from 08:00, Thursday from 14:00) it also loads the answers of that kind for the week (fbk_088).
  */
 export async function loadJobs(lx: Omit<LoadCtx, 'actorId' | 'write'>): Promise<State> {
   const L = new Load({ ...lx, actorId: '', write: true });
@@ -44,6 +46,12 @@ export async function loadJobs(lx: Omit<LoadCtx, 'actorId' | 'write'>): Promise<
   if (lx.now) {
     // The due notice goes out on the due day only, so the load is the open payments of that one day. Both fields are plain doc fields.
     await L.select({ c: 'payments', where: [{ field: 'dueDate', in: [todayISO(lx.now)] }, { field: 'receivedOn', null: true }] });
+  }
+  if (lx.now) {
+    // The weekly question (fbk_088): in the window of the Sunday notice and of the Thursday notice, the answers of the week tell who has answered.
+    const clock = officeClock(lx.now);
+    const slot = weekSlotAt(clock.weekday, clock.hour);
+    if (slot) await L.select({ c: 'checkins', where: [{ col: 'week', in: [weekOf(clock.day)] }, { col: 'kind', in: [slot] }] });
   }
   return L.state();
 }

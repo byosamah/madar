@@ -17,8 +17,13 @@ export function moveTargets(status: TaskStatus, reviews: boolean, needsReview = 
   return BOARD_COLUMNS.filter((column) => column !== status);
 }
 
-/** The column an arrow key moves a card to. The end-side arrow moves forward, so in Arabic ArrowLeft moves forward. */
-export function nextColumn(current: TaskStatus, key: string, rtl: boolean): TaskStatus | null {
+/** The column of a list that an arrow key moves a card to. The end-side arrow moves forward, so in Arabic ArrowLeft moves forward. */
+export function nextId<T extends string>(ids: readonly T[], current: T, key: string, rtl: boolean): T | null {
   const step = arrowStep(key, rtl);
-  return step === 0 ? null : BOARD_COLUMNS[BOARD_COLUMNS.indexOf(current) + step] ?? null;
+  return step === 0 ? null : ids[ids.indexOf(current) + step] ?? null;
+}
+
+/** The status column an arrow key moves a card to. */
+export function nextColumn(current: TaskStatus, key: string, rtl: boolean): TaskStatus | null {
+  return nextId(BOARD_COLUMNS, current, key, rtl);
 }

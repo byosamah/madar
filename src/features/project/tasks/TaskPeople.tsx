@@ -48,7 +48,9 @@ function Picture({ row }: { row: TaskRow }) {
 /**
  * The people at the end of a task row. A person who may change them (`canEditPeople`) presses the picture to change the lead, and a
  * small "+" beside it (it shows on hover or focus, never on a touch screen or under 640 px) opens the helpers to add. No full task panel opens
- * (feedback fbk_006, 2026-10-11). Any other person sees the picture only. The rows keep one width, so the pictures line up.
+ * (feedback fbk_006, 2026-10-11). Any other person sees the picture only. The "+" takes no room in the row (fbk_083, owner 2026-11-08): it
+ * floats just after the picture, over the blank beside the grip, and takes no press while it is hidden. No row reserves a blank for it, so
+ * the pictures of all rows line up at the same end.
  */
 export function TaskPeople({ row }: { row: TaskRow }) {
   const { t } = useTranslation();
@@ -64,12 +66,11 @@ export function TaskPeople({ row }: { row: TaskRow }) {
     return (
       <span className="flex items-center">
         <Picture row={row} />
-        <span aria-hidden className="ms-1 size-6 shrink-0 max-sm:hidden pointer-coarse:hidden" />
       </span>
     );
   }
   return (
-    <span className="group/people flex items-center">
+    <span className="group/people relative flex items-center">
       <button
         type="button"
         aria-label={t('taskPeople.open', { title: row.task.title })}
@@ -87,9 +88,9 @@ export function TaskPeople({ row }: { row: TaskRow }) {
         aria-haspopup="dialog"
         aria-expanded={open?.mode === 'helper'}
         onClick={(event) => setOpen({ mode: 'helper', anchor: event.currentTarget })}
-        className="pressable ms-1 grid size-6 shrink-0 place-items-center rounded-full bg-fill text-ink-2 opacity-0 transition-opacity hover:bg-fill-strong hover:text-ink focus-visible:opacity-100 group-hover/people:opacity-100 max-sm:hidden pointer-coarse:hidden motion-reduce:transition-none"
+        className="pressable pointer-events-none absolute start-full top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full bg-fill text-ink-2 opacity-0 transition-opacity hover:bg-fill-strong hover:text-ink focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover/people:pointer-events-auto group-hover/people:opacity-100 max-sm:hidden pointer-coarse:hidden motion-reduce:transition-none"
       >
-        <AnimatedIcon icon={PlusIcon} size={14} aria-hidden />
+        <AnimatedIcon icon={PlusIcon} size={12} aria-hidden />
       </button>
       {open && (
         <ListGuard onFail={failList}>

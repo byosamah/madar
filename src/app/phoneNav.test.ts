@@ -14,7 +14,7 @@ describe('the phone tabs', () => {
   });
 
   it.each([
-    ['/', 'today'],
+    ['/', 'today'], ['/week', 'today'],
     ['/inbox', 'inbox'], ['/inbox/cnv_1', 'inbox'], ['/notifications', 'inbox'],
     ['/work', 'work'], ['/meetings', 'work'], ['/projects', 'work'], ['/projects/prj_001', 'work'], ['/projects/code/ABC', 'work'],
     ['/me', 'me'], ['/me/profile', 'me'], ['/settings', 'me'], ['/whats-new', 'me'], ['/dashboard', 'me'], ['/tasks', 'me'], ['/admin', 'me'], ['/admin/people', 'me'],

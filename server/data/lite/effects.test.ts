@@ -53,10 +53,10 @@ describe('the mail quota on SQLite (server/mail/quota.ts)', () => {
   it('records the Resend id of a sent mail, and keeps the place of a mail that failed', async () => {
     const { db, deps } = await office();
     expect(await sendCounted(deps, 'notice', MAIL('notice-1'))).toEqual({ status: 'sent', id: 'mail_1' });
-    expect(await db.statement('read', 'select ref, resend_id from mail_log')).toEqual([{ ref: 'notice-1', resend_id: 'mail_1' }]);
+    expect(await db.statement('read', 'select ref, resend_id from mail_log')).toEqual([{ ref: 'ent_001:notice-1', resend_id: 'mail_1' }]);
     deps.mail.failNext(new Error('Resend is down.'));
     await expect(sendCounted(deps, 'notice', MAIL('notice-2'))).rejects.toThrow('Resend is down.');
-    expect(await db.statement('read', "select ref, resend_id from mail_log where ref = 'notice-2'")).toEqual([{ ref: 'notice-2', resend_id: null }]);
+    expect(await db.statement('read', "select ref, resend_id from mail_log where ref = 'ent_001:notice-2'")).toEqual([{ ref: 'ent_001:notice-2', resend_id: null }]);
   });
 });
 
@@ -70,7 +70,7 @@ describe('the mail effects on SQLite (server/mail/notices.ts)', () => {
     await sendNoticeMail({ notificationId: 'ntf_901' }, deps);
     await sendNoticeMail({ notificationId: 'ntf_901' }, deps);
     expect(deps.mail.sent.map((m) => [m.to, m.tag, m.idempotencyKey])).toEqual([
-      [seed.users.usr_002.email, 'notice', 'notice-ntf_901'], [seed.users.usr_002.email, 'notice', 'notice-ntf_901'],
+      [seed.users.usr_002.email, 'notice', 'ent_001:notice-ntf_901'], [seed.users.usr_002.email, 'notice', 'ent_001:notice-ntf_901'],
     ]);
     expect(await db.tx('read', (q) => sentToday(q, { now: NOW }))).toBe(1);
   });
@@ -89,7 +89,7 @@ describe('the mail effects on SQLite (server/mail/notices.ts)', () => {
     await sendQuotaWarning({ userId: 'usr_002', day: '2026-10-04' }, deps);
     expect(deps.mail.sent).toEqual([]);
     await sendQuotaWarning({ userId: 'usr_001', day: '2026-10-04' }, deps);
-    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['quota-warning-2026-10-04-usr_001']);
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['ent_001:quota-warning-2026-10-04-usr_001']);
   });
 
   it('writes an outbox mail once for a key, and refuses the same key with another mail', async () => {

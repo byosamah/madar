@@ -26,7 +26,9 @@ read of the `project.deleted` events (a few rows), and of the member changes of 
 main read. The story loader (`events.undo`, `events.undoStory`) calls `goneProjects` for the projects of its events. The task threads of the Inbox take `ThreadsArgs.seen` (the visible
 ids): `threadsSql`, `memorySource` and `lite/source.ts` keep a thread of a project task only when its project is in `seen`, so
 the cut by `limit` never counts a thread that the handler drops. `hiddenTraps` and `hiddenSweep` (`sweep.ts`) fill each SQL limit
-with rows of a hidden project, and the tests of `loaders.test.ts` check that the visible rows stay.
+with rows of a hidden project, and the tests of `loaders.test.ts` check that the visible rows stay. A helper of the to-do and a person named with @ in
+a message are threads too (chat, 2026-11-08): `threadsSql`, `THREADS_LITE` and `memorySource.threads` add them as candidates, the view clause stays,
+and `threadMembers.test.ts` plus `threadMemberTraps` (`sweep.ts`) pin it.
 
 ## Read indexes
 - `20261007000100_read_indexes.sql` adds the statistics `events_office_task` on `doc->'officeTaskId'` and the indexes

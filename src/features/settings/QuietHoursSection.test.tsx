@@ -3,6 +3,7 @@ import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { initI18n } from '../../i18n';
 import { ar, en } from '../../i18n/trees';
+import type { State } from '../../api/store';
 import { renderApp, renderWithRuntime } from '../../test/render';
 import { QuietHoursSection } from './QuietHoursSection';
 
@@ -11,15 +12,45 @@ afterEach(() => {
   initI18n('en');
 });
 
-type Words = { title: string; switch: string; days: string; quietFrom: string; until: string; saved: string };
+type Words = { title: string; switch: string; days: string; quietFrom: string; until: string; saved: string; offHint: string };
 const W = (en as unknown as { quietHours: Words }).quietHours;
+const WAR = (ar as unknown as { quietHours: Words }).quietHours;
 const sectionOf = async (title = W.title) => (await screen.findByRole('heading', { name: title })).closest('section')!;
 const day = (section: HTMLElement, name: string) => within(section).getByRole('button', { name });
+/** A person who turned quiet hours on with the range of the office. A person with nothing saved has quiet hours OFF (owner, 2026-11-08). */
+const ON = { quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' };
+const turnedOn = (state: State) => {
+  state.users.usr_001.preferences.workHours = { ...ON };
+};
 
 /** Quiet hours (owner, 2026-10-22, fbk_048). Hala (usr_001) is the Admin of the sample office, Faisal (usr_002) is not. */
 describe('the Quiet hours section of Settings', () => {
-  it('shows the switch on, the seven days from Sunday, the two times, and the line of the lock, by default', async () => {
-    await renderWithRuntime(<QuietHoursSection />);
+  it('shows the switch OFF for a person with nothing saved, with no day and no time controls, and a hint on what happens when it is on (owner, 2026-11-08)', async () => {
+    const { store } = await renderWithRuntime(<QuietHoursSection />);
+    const section = await sectionOf();
+    expect(within(section).getByRole('switch', { name: W.switch })).toHaveAttribute('aria-checked', 'false');
+    expect(within(section).queryByRole('button')).toBeNull();
+    expect(within(section).queryByLabelText(W.until)).toBeNull();
+    expect(within(section).getByText('Madar notifies you at any time.')).toBeInTheDocument();
+    expect(within(section).getByText(W.offHint)).toBeInTheDocument();
+    expect(W.offHint).toBe('Turn this on and Madar sends no push notice and no email outside your work hours. The bell keeps everything. You start with the hours of your office and can change them.');
+    expect(store.state.users.usr_001.preferences.workHours).toBeUndefined();
+  });
+
+  it('turns quiet hours on from the first look: the switch saves the hours of the office, shows the days and the times, and drops the hint', async () => {
+    const { store } = await renderWithRuntime(<QuietHoursSection />);
+    const section = await sectionOf();
+    await userEvent.click(within(section).getByRole('switch', { name: W.switch }));
+    await waitFor(() => expect(store.state.users.usr_001.preferences.workHours).toEqual(ON));
+    const days = within(section).getAllByRole('button').map((button) => button.getAttribute('aria-label'));
+    expect(days).toEqual(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
+    expect(within(section).getByLabelText(W.until)).toHaveValue('08:00');
+    expect(within(section).getByLabelText(W.quietFrom)).toHaveValue('17:00');
+    expect(within(section).queryByText(W.offHint)).toBeNull();
+  });
+
+  it('shows the switch on, the seven days from Sunday, the two times, and the line of the lock, for a person who turned it on', async () => {
+    await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf();
     expect(within(section).getByRole('switch', { name: W.switch })).toHaveAttribute('aria-checked', 'true');
     const days = within(section).getAllByRole('button').map((button) => button.getAttribute('aria-label'));
@@ -29,10 +60,11 @@ describe('the Quiet hours section of Settings', () => {
     expect(within(section).getByLabelText(W.until)).toHaveValue('08:00');
     expect(within(section).getByLabelText(W.quietFrom)).toHaveValue('17:00');
     expect(within(section).getByText('Your office keeps notifications on Sunday to Thursday, 8:00 AM to 5:00 PM.')).toBeInTheDocument();
+    expect(within(section).queryByText(W.offHint)).toBeNull();
   });
 
   it('locks the days of the lock, and offers only times outside the lock', async () => {
-    await renderWithRuntime(<QuietHoursSection />);
+    await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf();
     for (const name of ['Sunday', 'Thursday']) expect(day(section, name)).toBeDisabled();
     expect(day(section, 'Friday')).toBeEnabled();
@@ -47,7 +79,7 @@ describe('the Quiet hours section of Settings', () => {
   });
 
   it('saves a day at once, with a toast, and keeps the lock days in the range', async () => {
-    const { store } = await renderWithRuntime(<QuietHoursSection />);
+    const { store } = await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf();
     await userEvent.click(day(section, 'Friday'));
     await waitFor(() => expect(store.state.users.usr_001.preferences.workHours).toEqual({ quiet: true, days: [0, 1, 2, 3, 4, 5], from: '08:00', to: '17:00' }));
@@ -58,7 +90,7 @@ describe('the Quiet hours section of Settings', () => {
   });
 
   it('saves a new start and a new end', async () => {
-    const { store } = await renderWithRuntime(<QuietHoursSection />);
+    const { store } = await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf();
     await userEvent.selectOptions(within(section).getByLabelText(W.until), '07:30');
     await waitFor(() => expect(store.state.users.usr_001.preferences.workHours?.from).toBe('07:30'));
@@ -67,7 +99,7 @@ describe('the Quiet hours section of Settings', () => {
   });
 
   it('turns quiet hours off at once, hides the day and time controls, and turns them on again', async () => {
-    const { store } = await renderWithRuntime(<QuietHoursSection />);
+    const { store } = await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf();
     await userEvent.click(within(section).getByRole('switch', { name: W.switch }));
     await waitFor(() => expect(store.state.users.usr_001.preferences.workHours?.quiet).toBe(false));
@@ -80,6 +112,7 @@ describe('the Quiet hours section of Settings', () => {
 
   it('frees the days and the times while the Admin has the lock off, and drops the line of the lock', async () => {
     const { store } = await renderWithRuntime(<QuietHoursSection />, (state) => {
+      turnedOn(state);
       state.settings.workHours = { days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00', lock: { on: false, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' } };
     });
     const section = await sectionOf();
@@ -93,11 +126,12 @@ describe('the Quiet hours section of Settings', () => {
 
   it('never turns off the last work day', async () => {
     const { store } = await renderWithRuntime(<QuietHoursSection />, (state) => {
+      state.users.usr_001.preferences.workHours = { quiet: true, days: [0], from: '09:00', to: '17:00' };
       state.settings.workHours = { days: [0], from: '09:00', to: '17:00', lock: { on: false, days: [0], from: '09:00', to: '17:00' } };
     });
     const section = await sectionOf();
     expect(day(section, 'Sunday')).toBeDisabled();
-    expect(store.state.users.usr_001.preferences.workHours).toBeUndefined();
+    expect(store.state.users.usr_001.preferences.workHours).toEqual({ quiet: true, days: [0], from: '09:00', to: '17:00' });
   });
 
   it('shows the stored choice of the person, and widens it to the lock the Admin set later', async () => {
@@ -112,7 +146,7 @@ describe('the Quiet hours section of Settings', () => {
   });
 
   it('reads in Arabic, with the days from Sunday and the 12-hour words', async () => {
-    await renderWithRuntime(<div dir="rtl"><QuietHoursSection /></div>);
+    await renderWithRuntime(<div dir="rtl"><QuietHoursSection /></div>, turnedOn);
     const words = initI18n('ar');
     const title = words.t('quietHours.title');
     const section = await sectionOf(title);
@@ -124,10 +158,21 @@ describe('the Quiet hours section of Settings', () => {
   });
 });
 
+describe('the hint of a switch that is off, in Arabic (owner, 2026-11-08)', () => {
+  it('reads the hint and the line in Arabic for a person with nothing saved', async () => {
+    await renderWithRuntime(<div dir="rtl"><QuietHoursSection /></div>);
+    const words = initI18n('ar');
+    const section = await sectionOf(words.t('quietHours.title'));
+    expect(within(section).getByRole('switch', { name: words.t('quietHours.switch') })).toHaveAttribute('aria-checked', 'false');
+    expect(within(section).getByText(words.t('quietHours.offHint'))).toBeInTheDocument();
+    expect(WAR.offHint).toBe('عندما تفعّل هذا المفتاح، لا يرسل لك مدار إشعاراً ولا بريداً خارج ساعات عملك. الجرس يحفظ كل شيء. تبدأ بساعات مكتبك، وتغيّرها متى شئت.');
+  });
+});
+
 /** fbk_049 (Faisal, 2026-10-22): the name said "quiet", the controls set the hours that notify, and the locked days looked off. */
 describe('the section says when Madar notifies you, and when it is quiet', () => {
   it('names the hours that notify, and spells out the quiet time in one line', async () => {
-    await renderWithRuntime(<QuietHoursSection />);
+    await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf('When Madar notifies you');
     expect(within(section).getByRole('switch', { name: 'Notify me only in my work hours' })).toHaveAttribute('aria-checked', 'true');
     expect(within(section).getByRole('group', { name: 'My work days' })).toBeInTheDocument();
@@ -135,7 +180,7 @@ describe('the section says when Madar notifies you, and when it is quiet', () =>
   });
 
   it('keeps the look of a picked day on a day the office locks, with a small lock', async () => {
-    await renderWithRuntime(<QuietHoursSection />);
+    await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf('When Madar notifies you');
     const sunday = day(section, 'Sunday');
     expect(sunday).toHaveAttribute('aria-pressed', 'true');
@@ -145,7 +190,7 @@ describe('the section says when Madar notifies you, and when it is quiet', () =>
   });
 
   it('says "every day" when every day is a work day, and "at any time" with the switch off', async () => {
-    await renderWithRuntime(<QuietHoursSection />);
+    await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf('When Madar notifies you');
     await userEvent.click(day(section, 'Friday'));
     await userEvent.click(day(section, 'Saturday'));
@@ -158,7 +203,7 @@ describe('the section says when Madar notifies you, and when it is quiet', () =>
 /** fbk_051 (Faisal, 2026-10-22): the fields read "From 7:00 AM, To 11:30 PM" over the line "quiet from 11:30 PM to 7:00 AM". */
 describe('the two times read in the order of the quiet line', () => {
   it('shows "Quiet from" (the end of work) first and "Until" (the start of work) second', async () => {
-    await renderWithRuntime(<QuietHoursSection />);
+    await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf();
     const quietFrom = within(section).getByLabelText('Quiet from');
     const until = within(section).getByLabelText('Until');
@@ -169,7 +214,7 @@ describe('the two times read in the order of the quiet line', () => {
   });
 
   it('saves "Quiet from" as the end of the work hours, and "Until" as their start', async () => {
-    const { store } = await renderWithRuntime(<QuietHoursSection />);
+    const { store } = await renderWithRuntime(<QuietHoursSection />, turnedOn);
     const section = await sectionOf();
     await userEvent.selectOptions(within(section).getByLabelText('Quiet from'), '23:30');
     await waitFor(() => expect(store.state.users.usr_001.preferences.workHours?.to).toBe('23:30'));
@@ -178,7 +223,7 @@ describe('the two times read in the order of the quiet line', () => {
   });
 
   it('reads in Arabic', async () => {
-    await renderWithRuntime(<div dir="rtl"><QuietHoursSection /></div>);
+    await renderWithRuntime(<div dir="rtl"><QuietHoursSection /></div>, turnedOn);
     const words = initI18n('ar');
     const section = await sectionOf(words.t('quietHours.title'));
     expect(within(section).getByLabelText('الهدوء من')).toHaveValue('17:00');

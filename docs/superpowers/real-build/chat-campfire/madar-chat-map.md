@@ -180,7 +180,7 @@ Source: `/Users/osamakhalil/dev/madar/.claude/worktrees/deploy-test`, branch mai
 1. A chat message has no edit and no delete. `Message.editedAt` is never set, so the "edited" mark of a chat bubble never shows.
 2. Every new last message scrolls the log to the bottom, also when the person reads older messages (`Thread.tsx` lines 151 to 153).
 3. "New message", then a person, makes an empty direct chat that shows at once in the other person's Inbox, before any message.
-4. A task thread shows only for its lead, the project leader, the maker of an office task and the people who commented. A helper, and a person mentioned for the first time, get no thread row and no "Waits for your reply" (`chats.ts` lines 132 to 135). The `TOOL_DOCS` of `chats.waiting` say more than the code does.
+4. (Changed 2026-11-08: a helper and a person named with @ now have the thread.) A task thread showed only for its lead, the project leader, the maker of an office task and the people who commented. A helper, and a person mentioned for the first time, got no thread row and no "Waits for your reply" (`chats.ts` lines 132 to 135). The `TOOL_DOCS` of `chats.waiting` say more than the code does.
 5. A plain task comment makes no notice and no push (open owner question, `TASKS.md` line 397).
 6. Every Admin gets a push for every project chat message, and counts every project chat as unread (open owner question, `TASKS.md` line 405).
 7. Each message in any chat reloads the chat reads on every signed-in screen. The chat badge is about 75% of the rows read of the exit plan. Track R (the stored unread number) is paused.

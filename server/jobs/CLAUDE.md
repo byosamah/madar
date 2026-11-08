@@ -14,7 +14,9 @@
 - A step or an effect that needs what a person may see runs a read call as that person (`deps.runCall ?? runCall`, see "Rules a change
   must keep" in `server/CLAUDE.md`). `Deps.runCall` is set only by the office object (its own SQLite run).
 - The `triggers` step runs the scheduled triggers (`runScheduledTriggers`, `src/api/notify.ts`): due and overdue reminders, the restart day of a
-  paused project (`resume_due`, to the leader and to the person who paused it) and the reminder of a meeting before its start. It writes the mail
+  paused project (`resume_due`, to the leader and to the person who paused it), the reminder of a meeting before its start and the weekly question
+  (`week_question`: Sunday from 08:00 and Thursday from 14:00 until 17:00, to each active person who has not answered; `loadJobs` reads the answers
+  of that kind and week inside the window only). It writes the mail
   and push outbox rows in its own save (`server/push/CLAUDE.md`).
 - `heartbeat` writes the `job_runs` row "heartbeat". The health check of the office object reads it as `lastJob` (`JOBS_LAST_RUN_SQL`).
 - `summary` sends the morning summary at the start of the work hours of each person. A `job_runs` row `summary:<day>:<person>` closes one

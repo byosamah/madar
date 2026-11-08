@@ -5,6 +5,41 @@ keep each decision that still sets a rule, as a rule. This file is the record of
 Sections follow the guide that held the text. Line numbers and counts in this file are from that day and can be old.
 
 ## 2026-11-08
+- The weekly question (fbk_088, report of Faisal on 2026-11-05: "replace osama's 2 meetings per week idea. a pop-up question that appears on sunday
+  (what are you planning to do this week) and on thursday (what did you do this week) for everyone, so moataz can get a report"). Moataz Al Mulla is the
+  General Manager. The owner decided: both questions, with the words "What do you plan this week?" (Sunday) and "What did you do this week?"
+  (Thursday); a card at the top of Home and not a pop-up (the owner picked the card, so no sheet opens by itself); everyone may read every answer (the
+  owner picked "Everyone"), and the author alone writes the own answer. The lead of the build set the defaults: every active person answers (an Admin
+  too, never an agent); one push at 08:00 on Sunday and one at 14:00 on Thursday (Riyadh time, inside the lock hours of the office) to a person who has not
+  answered; no email. The card starts with the to-dos of the person (Sunday: open, due this week; Thursday: done since Sunday), each one kept until the person
+  clears it, and one box "Anything else". The build adds two basic switches ("Answer the weekly question", "Read the weekly answers"), a page `/week` with
+  the plan and the done list of each person side by side and the people who have not answered, and two MCP tools for the weekly report of Moataz. The
+  build stores only the ids of the to-dos of an answer; a reader sees the title of a to-do only when that reader may view the to-do, and a
+  History line of an answer shows only to a holder of "Read the weekly answers" or to its author (security review 2026-11-08).
+- Chat fixes (owner report 2026-11-08, from Moataz and others): "some of them see them sorted some not, some take a lot of time to reach
+  the chat to them some not, and there's an old conversations go down until they disappear ... i send a message for moataz on to-do ... we
+  tried on mobile reach the message, but we didn't reach!" The investigation found: Moataz was only a helper of tsk_479 and only named
+  with @ in tsk_632, so neither thread was in his Inbox; 9 of 11 people kept the default quiet hours; a phone swipe of 80 px archived and
+  marked read; a date line lifted a to-do thread. Owner answers:
+  - Thread members: "Add helpers and @mentioned people". A person is part of a to-do thread as its lead, the project leader (or the maker of an
+    office to-do), a commenter, a helper, or a person named with @ in a message of the thread. The view rule stays. A helper or a named person
+    who has read nothing sees every message of the thread as unread (the lead's note: no read mark means all unread).
+  - Quiet hours: "No quiet hours unless a person turns them on". A person with no saved hours is no longer quiet, so a push, an email and a
+    held push no longer wait for Sunday to Thursday, 8:00 to 17:00. A person who saved hours keeps them exactly (Faisal: on, every day 07:00 to
+    23:30; Anas: off). The Admin lock keeps its meaning. This reverses the owner decision of 2026-10-22 (fbk_048) about the default only. The
+    Settings switch shows off for a person with nothing saved, with a hint on what happens when it is on.
+  - Phone swipe: "Longer swipe, keep the unread mark". The swipe that archives a row needs 160 px (it was 80 px). An archive no longer marks the
+    chat read and no longer reads its mention notices, so an unread chat keeps its number in the archived list, and Undo brings it back with the
+    number. The lead's rule for the rest: an archived chat does not count in the Inbox badge, the "Archived (n)" row shows how many archived
+    chats have unread messages, and a new message brings an archived chat back with its whole unread number.
+  - Date lines: "only real messages lift it". A quiet line of a to-do thread (due date, start date, shift, reopening) no longer sets the time or the
+    preview of the thread row; only a message does, as the quiet log lines of a group. The lead's rule: a thread with only quiet lines keeps its
+    newest line as its time, so it still sorts. The archive test follows the same time.
+  - Kind filter (the lead of the build, no owner words): when a chat opens through a link (a bell notice, a push, an @ link, Search) and the saved
+    kind (`madar.chatKind`) would hide its row, the list switches to All, once for each chat. No new control.
+  - Failed calls on iPhone (the lead of the build, diagnostic only): the PostHog event `madar_call_failed` also records the cause: the HTTP status,
+    the kind (network, timeout, server, refused), whether the browser was offline, and the path (the page forwarder `/api` or direct). No text of a
+    message, no name and no file.
 - Who reviews a to-do (fbk_087, owner, from the report of Faisal about tsk_624): the person who does the work never approves it. Faisal
   made an office to-do, did the work, named Moataz as lead and sent it to review; Madar named the maker (Faisal) as reviewer, so Faisal saw
   "Your review" and Moataz got no notice. The owner's words: "the maker not means he's the leader or the reviewer, the leader or the
@@ -18,6 +53,36 @@ Sections follow the guide that held the text. Line numbers and counts in this fi
   (decided by the lead of the build for these edge cases). Madar stores the sender (`Task.reviewSentBy`). A to-do already in review with
   no stored sender (tsk_624) keeps the old rule until it is sent again. The old rule that a leader without `task.review.lead` is no
   reviewer now holds only for those old to-dos.
+- A continuous project has no current stage (fbk_084, owner): the report said that the header of a project with no deadline shows "Development" and a
+  bar that fills from left to right, while the work runs in Development, Marketing and Workshops at once (MAZJ) or in the lanes Now, Next, Later and
+  Maybe (Kutla). The owner chose the study option B and said "Continuous is enough": the existing Continuous switch (no end date) also means that
+  the stages run together, with no new switch. The one fact of the header is "Open to-dos". Rules: the desk header says "Continuous, 12 open" and its
+  menu lists each stage with its open count (no numbers, no ticks, no "Current stage" tag, no step bar; the health dot stays); the phone line "Stage 1 of 3"
+  becomes "12 open"; the Projects rows and the Home and Projects boxes say "Continuous, 12 open" in place of the stage name and the bar; the Overview
+  Standing panel lists the open count of each stage and has no "Moved back" note. The order rules switch off for the project: no reason for a move to an
+  earlier stage, no `stage_changed` notice, no `project.stage_changed` event (so no line in Activity), and no new stage move in the office report. Stage
+  prerequisites (an order that a person sets) keep working. The default stage of a new to-do keeps the old rule. The hint of the switch is "No deadline. The
+  stages run together." The saved `currentStageId` of such a project is not updated any more; `currentStage` stays in the contract (it names the earliest
+  stage with an open to-do). Old `project.stage_changed` events stay in the History and in the count of a report period. After the release the lead marks
+  Kutla (prj_017) Continuous. A project whose stages go in order (TFP Maker) keeps everything.
+- The board in the project page (fbk_085, owner; this closes tsk_443 "one look" for the View button): step 1 for every project. A visible "View" button
+  beside Filter on the To-dos tab, the same button as the View button of the Work page (a round toggle on a phone); the View choice leaves the Filter box.
+  A board card names its stage in one quiet line. The Done column shows the last 7 days with the note "Last 7 days", as the Work board does (the screen cuts
+  the rows it already holds, so there is no new read). A card of the list says "3 open, 4 done" on a desk. Step 2, a continuous project only: the columns are the
+  stages, each with the header "Marketing, 6 open"; a card shows its status as a shape sign and an ink word; a drag between columns, or "Move to stage" in the
+  card menu, is one `tasks.update` with `patch.stageId`, allowed only for a person who may change the details of that to-do (`TaskRow.canEditDetails`, the rule
+  `task.details`; the drag and the menu hide for others); a done to-do shows as one quiet line at the foot of its column ("4 done"); on a 390 px phone one column
+  fills the width and a stage button at the top replaces the dots. An ordered project keeps the status columns.
+
+- Home Today cuts text (fbk_083, owner, from the report of Osama; study of 2026-11-08). The owner's answers: to-do titles show up to two
+  lines in every list that uses the row ("option A"); each small fact of the meta line stays whole and wraps only between facts, with the
+  fbk_036 wrap kept for a phrase that is alone on its line; in Today (a list with `showProject`) the project shows as "Name only" and the tile
+  leaves the row; the helper line text ("Helper · Lead: ...") leaves the row ("no need for it since the images clear, the leader is clear"),
+  and its words stay for a screen reader; the empty "add helper" slot takes no room until it shows; the drag grip and the face stacks stay.
+  The builder drew the faces of a task that the person helps on in those lists, since the helper line was the only sign of it there.
+- A move to In review with nobody to review (tsk_692, owner: "Refuse the move"): a hand move to In review by a person for whom
+  `reviewersAfterSend` names nobody (the project leader who leads the to-do, the maker who leads an office to-do) is refused with the reason
+  `no_reviewer`. The words tell the person to mark it Done.
 
 ## 2026-11-05
 - Resources (fbk_078, owner, from the report of Faisal): the office keeps shared files, such as building codes and office policies, on one page. Place:

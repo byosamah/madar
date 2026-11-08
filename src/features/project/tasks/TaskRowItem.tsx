@@ -9,7 +9,6 @@ import type { TaskRow } from '../../../api/contract/views';
 import { useToast } from '../../../app/toasts';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
-import { ProjectTile } from '../../../components/ProjectTile';
 import { spring } from '../../../design/motion';
 import { todayISO } from '../../../lib/dates';
 import { whenOf } from '../../../lib/due';
@@ -30,15 +29,16 @@ import { shownName } from '../../../lib/projectLabel';
 const NAME_MARK = '\u0001';
 
 /**
- * "Helper · Lead: <name>". The name sits in its own box, so a narrow line wraps before the name, and a name too long for the
- * whole line is cut at its own end. One truncated Arabic line cut the start of a Latin name instead (audit 2026-10-03, F-7).
+ * "Helper · Lead: <name>", for a screen reader only (fbk_083, owner 2026-11-08: "the images are clear, the leader is clear"). The faces
+ * and the ring of the lead say it to the eye, so the text leaves the line and gives the title room. The name sits in its own box, so a
+ * Latin name inside an Arabic line keeps its order (audit 2026-10-03, F-7).
  */
 function HelperLine({ name, context }: { name: string; context: string | undefined }) {
   const { t } = useTranslation();
   const [before, after = ''] = t('tasks.helperLine', { name: NAME_MARK, context }).split(NAME_MARK);
   return (
-    <span dir="auto" className="min-w-0">
-      {before}<bdi className="inline-block max-w-full truncate align-bottom">{name}</bdi>{after}
+    <span dir="auto" className="sr-only">
+      {before}<bdi>{name}</bdi>{after}
     </span>
   );
 }
@@ -161,7 +161,8 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
         )}
         <button type="button" onClick={() => onOpen(row)} className="min-w-0 flex-1 py-2 text-start">
           <span className="flex items-center gap-2">
-            <span dir="auto" className={`block min-w-0 truncate text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
+            {/* No `block` here: line-clamp sets its own display, and `block` came later in the CSS and switched the clamp off (measured in Chrome, fbk_083). */}
+            <span dir="auto" className={`min-w-0 line-clamp-2 break-words text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
             {versionOf(task) > 1 && <VersionBadge version={versionOf(task)} className="shrink-0" />}
           </span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
@@ -193,9 +194,10 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
             <span aria-hidden className="tabular absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[10px] font-semibold leading-none text-panel">{unread > MAX_UNREAD_SHOWN ? `${MAX_UNREAD_SHOWN}+` : unread}</span>
           )}
         </button>
-        {showProject && row.project
-          ? <span className="pe-2"><ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={22} /></span>
-          : <span className="pe-1"><TaskPeople row={row} /></span>}
+        {/* A list that shows the project (Today, My Work) writes its name in the meta line and draws no tile (fbk_083, owner 2026-11-08, "Name
+            only"). It draws the faces only for a task that has no project, and for a task that the person helps on: the lead in its ring is
+            the only sign of it, since the helper line is no longer text. */}
+        {(!showProject || !row.project || helping) && <span className="pe-1"><TaskPeople row={row} /></span>}
         {drag?.grip}
       </div>
     </motion.li>

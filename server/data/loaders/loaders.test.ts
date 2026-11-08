@@ -6,7 +6,7 @@ import { isReferenced } from '../../../src/api/references';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
 import { chatReadKey, memberKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
-import { mentionMarkup } from '../../../src/lib/text';
+import { mentionedUserIds, mentionMarkup } from '../../../src/lib/text';
 import { snapshotOf } from '../officeCache';
 import { Load } from './build';
 import { THREAD_COMMENT_FIELDS, THREAD_TASK_FIELDS } from './chat';
@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS, INBOX_UPDATE_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, HIDDEN_CHOSEN, HIDDEN_OUTSIDER, HIDDEN_LIMIT_PROJECT, HIDDEN_WORD, hiddenSweep, HIDDEN_MEETING, hiddenTraps, VISIBLE_HIT, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, HIDDEN_CHOSEN, HIDDEN_OUTSIDER, HIDDEN_LIMIT_PROJECT, HIDDEN_WORD, hiddenSweep, HIDDEN_MEETING, hiddenTraps, VISIBLE_HIT, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, WEEK_QUIET, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -86,6 +86,46 @@ describe('the sweep: every read call on the sample office for every person and r
     const traps = trapOffice(seed);
     for (const [name, input, actor, prepared] of [...readSweep(traps), ...writeSweep(traps)]) await same(traps, name, input, actor, { prepared });
   }, 30_000);
+});
+
+describe('the weekly answers on the scoped load (security review of fbk_088)', () => {
+  type WeekRows = { rows: { user: { id: string }; plan: { items: { title: string }[] } | null }[] };
+  const titlesOf = async (traps: State, actor: string, of = 'usr_006') => {
+    const run = await same(traps, 'checkins.week', {}, actor);
+    return (run.outcome.output as WeekRows).rows.find((row) => row.user.id === of)?.plan?.items.map((line) => line.title);
+  };
+  const historyOf = async (traps: State, actor: string) => {
+    const run = await same(traps, 'events.list', { targetType: 'checkin', limit: 50 }, actor);
+    return (run.outcome.output as { event: { actingForId: string } }[]).map((line) => line.event.actingForId).sort();
+  };
+
+  it('builds a line only for the people who view the to-do: the hidden project and the office to-do read as missing for the rest', async () => {
+    const traps = trapOffice(seed);
+    // usr_006 keeps the to-do of the hidden project (he leads it) and the office to-do (he helps). usr_005 leads the hidden project and the office to-do.
+    expect(await titlesOf(traps, 'usr_006')).toHaveLength(2);
+    expect(await titlesOf(traps, 'usr_005')).toHaveLength(2);
+    for (const outsider of ['usr_003', 'usr_002']) expect(await titlesOf(traps, outsider), outsider).toEqual([]);
+    const outside = (await same(traps, 'checkins.week', {}, 'usr_003')).outcome.output as WeekRows;
+    expect(JSON.stringify(outside)).not.toMatch(/Hidden portfolio|Renew the trade licence/);
+    // The own answers follow the same rule.
+    const mine = await same(traps, 'checkins.mine', {}, 'usr_006');
+    expect((mine.outcome.output as { plan: { items: unknown[] } }).plan.items).toHaveLength(2);
+  });
+
+  it('shows the History of an answer to the holders of the switch and to its author only', async () => {
+    const traps = trapOffice(seed);
+    // The five answers of the traps: the leader (plan, review), the Admin, usr_006 and the quiet person. The quiet person reads her own only.
+    expect(await historyOf(traps, WEEK_QUIET)).toEqual([WEEK_QUIET]);
+    expect((await historyOf(traps, ADMIN)).length).toBe(5);
+    expect(await historyOf(traps, 'usr_006')).toHaveLength(5);
+    const first = Object.values(traps.events).find((e) => e.correlationId === 'cor_trap_checkin_private')!;
+    const missing = await same(traps, 'events.undo', { eventId: 'evt_99999' }, WEEK_QUIET);
+    const hidden = await same(traps, 'events.undo', { eventId: first.id }, WEEK_QUIET);
+    expect(hidden.outcome.error?.code).toBe('not_found');
+    expect(hidden.outcome.error?.message.replace(first.id, '#')).toBe(missing.outcome.error?.message.replace('evt_99999', '#'));
+    const story = await same(traps, 'events.undoStory', { correlationId: 'cor_trap_checkin_private' }, WEEK_QUIET);
+    expect(story.outcome.error?.code).toBe('not_found');
+  });
 });
 
 describe('the reads of track find on the scoped load', () => {
@@ -370,8 +410,9 @@ describe('the 18 places of AM 6', () => {
       await same(state, 'chats.markRead', { conversationId: task.id }, actor);
       if (actor === 'usr_006') {
         // The only message after the mark is cmt_903. The lines before and after it count for nothing, also the line that the person wrote.
-        const row = (list.outcome.output as { id: string; unread: number; previewKind: string | null }[]).find((item) => item.id === task.id);
-        expect(row).toMatchObject({ unread: 1, previewKind: 'shifted' });
+        // The newest message (cmt_903) is also the preview of the row: a line never sets it (chat, 2026-11-08).
+        const row = (list.outcome.output as { id: string; unread: number; previewKind: string | null; preview: string }[]).find((item) => item.id === task.id);
+        expect(row).toMatchObject({ unread: 1, previewKind: null, preview: 'Note cmt_903' });
       }
     }
   });
@@ -433,10 +474,48 @@ describe('the 18 places of AM 6', () => {
     expect(docs(chat, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_901', true]]);
     const thread = await same(state, 'chats.markRead', { conversationId: task.id }, 'usr_001');
     expect(docs(thread, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_902', true]]);
+    // An archive keeps the unread mark: it reads no notice and writes none (owner, 2026-11-08).
     const archived = await same(state, 'chats.archive', { conversationId: room.id, archived: true }, 'usr_001');
-    expect(docs(archived, 'notifications').map((d) => d.id)).toEqual(['ntf_901']);
+    expect(docs(archived, 'notifications')).toEqual([]);
+    expect(docs(archived, 'chat_reads')).toHaveLength(1);
     const back = await same(state, 'chats.archive', { conversationId: room.id, archived: false }, 'usr_001');
     expect(docs(back, 'notifications')).toEqual([]);
+  });
+
+  it('the badge skips an archived chat and an archived thread while the list keeps their unread numbers, and a new message brings them back (owner, 2026-11-08)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const leader = state.projects.prj_001.leaderId as string;
+    const task = tasksOfProject(state, 'prj_001').find((t) => t.ownerId === ADMIN) ?? tasksOfProject(state, 'prj_001')[0];
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    apply(state, 'chats.markRead', { conversationId: room.id }, ADMIN, { now: at(1) });
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A note.' }, ADMIN, { now: at(2) });
+    apply(state, 'chats.markRead', { conversationId: task.id }, ADMIN, { now: at(3) });
+    // The Admin counts the messages of a project chat only when they name the Admin (item 23): the messages here name the Admin.
+    const named = mentionMarkup(state.users[ADMIN].name, ADMIN);
+    apply(state, 'chats.send', { conversationId: room.id, body: `${named} please check the slab.` }, leader, { now: at(4) });
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'And the door.' }, leader, { now: at(5) });
+    const rowsOf = async () => (await same(state, 'chats.list', {}, ADMIN, { now: at(10) })).outcome.output as { id: string; unread: number; archived: boolean }[];
+    const badgeOf = async () => ((await same(state, 'chats.unreadCount', {}, ADMIN, { now: at(10) })).outcome.output as { unread: number }).unread;
+    const before = await rowsOf();
+    const total = before.reduce((sum, row) => sum + row.unread, 0);
+    expect(before.find((row) => row.id === room.id)?.unread).toBe(1);
+    expect(before.find((row) => row.id === task.id)?.unread).toBe(1);
+    expect(await badgeOf()).toBe(total);
+    for (const id of [room.id, task.id]) apply(state, 'chats.archive', { conversationId: id, archived: true }, ADMIN, { now: at(6) });
+    const archived = await rowsOf();
+    expect(archived.find((row) => row.id === room.id)).toMatchObject({ archived: true, unread: 1 });
+    expect(archived.find((row) => row.id === task.id)).toMatchObject({ archived: true, unread: 1 });
+    expect(await badgeOf()).toBe(total - 2);
+    // Undo: both come back with their unread numbers.
+    for (const id of [room.id, task.id]) apply(state, 'chats.archive', { conversationId: id, archived: false }, ADMIN, { now: at(7) });
+    expect(await badgeOf()).toBe(total);
+    // A new message brings an archived chat back with its whole unread number.
+    apply(state, 'chats.archive', { conversationId: room.id, archived: true }, ADMIN, { now: at(8) });
+    expect(await badgeOf()).toBe(total - 1);
+    apply(state, 'chats.send', { conversationId: room.id, body: `${named} one more.` }, leader, { now: at(9) });
+    expect(await badgeOf()).toBe(total + 1);
+    expect((await rowsOf()).find((row) => row.id === room.id)).toMatchObject({ archived: false, unread: 2 });
   });
 
   it('chats.waiting: the loader gives the handler the same answer, for a project mention and a named task thread (fbk_011, owner 2026-10-18)', async () => {
@@ -1021,7 +1100,7 @@ describe('the jobs loader (plan 4.6, for track N3)', () => {
     const wholeBefore = structuredClone(whole);
     const count = runScheduledTriggers(whole, NOW);
 
-    const loaded = await loadJobs({ src: memorySource(state), office: snapshotOf(state, 1) });
+    const loaded = await loadJobs({ src: memorySource(state), office: snapshotOf(state, 1), now: NOW });
     expect(Object.keys(loaded.notifications)).toEqual([]);
     const scoped = structuredClone(loaded);
     const dedupeUsed = (k: string) => Object.values(state.notifications).some((n) => n.dedupeKey === k);
@@ -1029,7 +1108,8 @@ describe('the jobs loader (plan 4.6, for track N3)', () => {
     expect(changesOf(loaded, scoped)).toEqual(changesOf(wholeBefore, whole));
 
     const made = Object.values(whole.notifications).filter((n) => !state.notifications[n.id]);
-    expect(new Set(made.map((n) => n.trigger))).toEqual(new Set(['due_tomorrow', 'overdue', 'resume_due']));
+    // The time of the run is Sunday 09:00, so the weekly question goes too (fbk_088).
+    expect(new Set(made.map((n) => n.trigger))).toEqual(new Set(['due_tomorrow', 'overdue', 'resume_due', 'week_question']));
     expect(made.some((n) => n.dedupeKey === `${key}:${late.ownerId}`)).toBe(false);
   });
 });
@@ -1121,7 +1201,7 @@ describe('office tasks (owner, 2026-10-06)', () => {
     const whole = structuredClone(traps);
     const wholeBefore = structuredClone(whole);
     const count = runScheduledTriggers(whole, NOW);
-    const loaded = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1) });
+    const loaded = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1), now: NOW });
     const scoped = structuredClone(loaded);
     const dedupeUsed = (k: string) => Object.values(traps.notifications).some((n) => n.dedupeKey === k);
     expect(runScheduledTriggers(scoped, NOW, { dedupeUsed })).toBe(count);
@@ -1129,7 +1209,7 @@ describe('office tasks (owner, 2026-10-06)', () => {
     const paper = Object.values(traps.tasks).find((t) => t.projectId === null && t.ownerId === null)!;
     // The task with no lead has nobody to remind; the licence task waits in review. A lead makes the reminder go.
     apply(traps, 'tasks.take', { taskId: paper.id }, paper.createdBy);
-    const again = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1) });
+    const again = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1), now: NOW });
     runScheduledTriggers(again, NOW, { dedupeUsed });
     expect(Object.values(again.notifications).filter((n) => n.targetId === paper.id).map((n) => [n.userId, n.trigger])).toEqual([[paper.createdBy, 'overdue']]);
   });
@@ -1569,7 +1649,12 @@ describe('the chat badge and the bell (performance audit DB-6, DB-M1, DB-M2)', (
       const { loaded } = await runBoth(state, 'chats.unreadCount', {}, actor, { now: NOW, correlationId: 'cor_test' });
       expect(Object.keys(loaded.messages), actor).toEqual([]);
       for (const keys of keysOf(loaded.tasks)) expect(keys.every((key) => (THREAD_TASK_FIELDS as readonly string[]).includes(key)), `${actor} ${keys}`).toBe(true);
-      for (const keys of keysOf(loaded.comments)) expect(keys.every((key) => (THREAD_COMMENT_FIELDS as readonly string[]).includes(key)), `${actor} ${keys}`).toBe(true);
+      // The one exception is the body of a message that names the person with @: it makes the person part of the thread (chat, 2026-11-08).
+      for (const comment of Object.values(loaded.comments)) {
+        const keys = Object.keys(comment);
+        const allowed = [...THREAD_COMMENT_FIELDS, ...(keys.includes('body') && mentionedUserIds(comment.body).length > 0 ? ['body'] : [])] as readonly string[];
+        expect(keys.every((key) => allowed.includes(key)), `${actor} ${keys}`).toBe(true);
+      }
     }
     // The list keeps the newest message of each chat and the whole rows, for its previews.
     const { loaded } = await runBoth(state, 'chats.list', {}, ADMIN, { now: NOW, correlationId: 'cor_test' });

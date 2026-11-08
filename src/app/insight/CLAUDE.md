@@ -15,6 +15,11 @@ The owner sees how the team uses Madar, which errors they hit and replays of the
 - Names (owner, 2026-10-25 and 2026-10-28): only an `$exception` record carries `personId` and `personName` (added in `before_send`). An
   action carries none: screen views, clicks, slow steps, refusals, failed calls (`madar_call_failed`) and sheets. `eventFields.test.ts`
   pins the fields of every event that `src/app/insight/` captures; a new event needs its line there.
+- `madar_call_failed` carries the call name and the cause (chat, 2026-11-08; the failed calls happen only on iPhone): `status` (the HTTP status,
+  when there is one), `kind` (`network`, `timeout`, `server` or `refused`; a 4xx status is `refused`, an entry with no status is `server`),
+  `offline` (`navigator.onLine === false`) and `via` (`page` for the own `/api` of the page, `direct` for the function address). `causeOf`
+  (`watch.ts`) reads numbers and fixed words of `ApiError.details` only (`remote/errors.ts` puts `status`, `cause` and `via` there). It never
+  reads the message or a reason text, so no word that a person wrote can leave.
 - `posthogOptions` (`client.ts`) holds the privacy rules and `client.test.ts` pins them. `before_send` runs `scrubEvent` (`scrub.ts`), which
   fails closed (a record it cannot read is dropped). `src/lib/urlScrub.ts` keeps the pure parts, shared with the server.
 - Put `PRIVATE` (`privateMark.ts`, `ph-no-capture`) on the smallest element that holds a chat message, an amount of money, or a file picture or

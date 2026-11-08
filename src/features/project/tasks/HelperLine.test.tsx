@@ -12,18 +12,20 @@ const helpingInArabic = (state: State) => {
 };
 const rowOf = async (title: string) => (await screen.findByText(title)).closest('li') as HTMLElement;
 
-// One truncated right-to-left line cut the start of the Latin lead name ("...eh") on a phone (audit 2026-10-03, F-7).
+// One truncated right-to-left line cut the start of a Latin lead name ("...eh") on a phone (audit 2026-10-03, F-7). The line is now text for a
+// screen reader only (fbk_083), so nothing draws or cuts it; the name stays in its own box, so a screen reader and the order of a mixed
+// Arabic and Latin line stay right.
 describe('the helper line of a task row', () => {
-  it.each(['/projects/prj_001?tab=tasks', '/work'])('on %s keeps the lead name in its own box and lets the line wrap', async (path) => {
+  it.each(['/projects/prj_001?tab=tasks', '/work'])('on %s keeps the lead name in its own box, in a line for a screen reader only', async (path) => {
     await renderApp(path, helpingInArabic);
     const row = await rowOf('Stair details');
     const name = within(row).getByText('Yousef Saleh', { selector: 'bdi' });
     const line = name.parentElement as HTMLElement;
     expect(line.textContent).toBe('مساعدة · المسؤول الرئيسي: Yousef Saleh');
-    // The line wraps. Only a name too long for the whole line is cut, and then at its own end.
-    expect(line).not.toHaveClass('truncate');
-    expect(name).toHaveClass('truncate');
-    expect(name).toHaveClass('max-w-full');
+    expect(line).toHaveClass('sr-only');
+    expect(line).toHaveAttribute('dir', 'auto');
+    // The name is no longer cut, since the line draws nothing.
+    expect(name).not.toHaveClass('truncate');
   });
 });
 

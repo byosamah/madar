@@ -27,11 +27,13 @@ describe('Home on a phone', () => {
       withMeeting(state, { id: 'mtg_001', title: 'Review the facade', startsAt: `${TODAY}T14:00:00.000+03:00`, endsAt: `${TODAY}T15:00:00.000+03:00` });
     });
     await screen.findByRole('region', { name: 'Meetings today' });
+    // The weekly card (fbk_088) is a block of its own under the title: on Wednesday it asks for the plan.
+    await screen.findByRole('region', { name: 'What do you plan this week?' });
     const grid = document.querySelector('[data-screen] > .grid')!;
     expect(grid.className).toContain('grid-cols-[minmax(0,1fr)]');
     expect(grid.className).toContain('gap-4');
     expect(Array.from(grid.children).map((block) => block.querySelector('h1, h2')?.textContent))
-      .toEqual([expect.stringMatching(/^Good morning/), 'Next for you', 'Today', 'Meetings today']);
+      .toEqual([expect.stringMatching(/^Good morning/), 'What do you plan this week?', 'Next for you', 'Today', 'Meetings today']);
   });
 
   it("has no project list, no All projects link and no What's new link", async () => {

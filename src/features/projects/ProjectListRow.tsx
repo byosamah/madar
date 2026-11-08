@@ -30,6 +30,32 @@ export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
 }
 
 /**
+ * The stage column of a row or a box: the stage name with its steps. A continuous project has no current stage, so it says
+ * "Continuous, N open" and draws no steps (fbk_084, owner 2026-11-08). One part for both, so the first load keeps one copy.
+ */
+function StageLine({ summary, className }: { summary: ProjectSummary; className: string }) {
+  const { t } = useTranslation();
+  const { currentStage, stages, project } = summary;
+  const index = stages.findIndex((stage) => stage.id === currentStage.id);
+  return (
+    <>
+      <bdi dir="auto" className="truncate text-footnote font-medium text-ink">{project.continuous ? t('projects.continuousOpen', { count: summary.openTasks }) : currentStage.name}</bdi>
+      {!project.continuous && (
+        <ProgressLine
+          index={index}
+          total={stages.length}
+          complete={project.status === 'completed'}
+          glow={false}
+          tone={signOfProject(summary)}
+          label={t('projects.stageCount', { n: index + 1, total: stages.length })}
+          className={className}
+        />
+      )}
+    </>
+  );
+}
+
+/**
  * The context menu of one row. Its items read the router (useCardMenu calls useHref), so this part renders again on each link
  * change. The row around it does not, also when a task panel opens over the list (performance audit 2026-10-07, RND-M1).
  */
@@ -51,7 +77,6 @@ export const ProjectListRow = memo(function ProjectListRow({ summary, source }: 
   const { project } = summary;
   const menu = useContextMenu();
   const prefetch = usePrefetchCall();
-  const index = summary.stages.findIndex((stage) => stage.id === summary.currentStage.id);
   return (
     <motion.li
       {...menu.handlers}
@@ -84,16 +109,7 @@ export const ProjectListRow = memo(function ProjectListRow({ summary, source }: 
             The stage is a column of its own: its name with the stage steps under it (colleague's comment 1, 2026-10-01). */}
         <span className="col-start-2 flex min-w-0 flex-col gap-2 @xl:col-start-auto @4xl:contents">
           <span data-stage-column className="flex min-w-0 flex-col gap-1.5">
-            <bdi dir="auto" className="truncate text-footnote font-medium text-ink">{summary.currentStage.name}</bdi>
-            <ProgressLine
-              index={index}
-              total={summary.stages.length}
-              complete={project.status === 'completed'}
-              glow={false}
-              tone={signOfProject(summary)}
-              label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
-              className="w-full max-w-48 @4xl:max-w-none"
-            />
+            <StageLine summary={summary} className="w-full max-w-48 @4xl:max-w-none" />
           </span>
           {/* The team as pictures only, the leader first, bigger and with a ring (colleague's comment 2; 34 px and the ink ring, owner 2026-10-26, fbk_060). The row shows three pictures at most, then "+N" (owner, 2026-10-18). With a leader, the stack shows two team members after the leader. Beside the deadline until the row is wide. */}
           <span className="flex min-w-0 items-center justify-between gap-3 @4xl:contents">
@@ -128,7 +144,6 @@ export const ProjectBox = memo(function ProjectBox({ summary, source }: { summar
   const { project } = summary;
   const menu = useContextMenu();
   const prefetch = usePrefetchCall();
-  const index = summary.stages.findIndex((stage) => stage.id === summary.currentStage.id);
   return (
     <motion.li
       {...menu.handlers}
@@ -161,16 +176,7 @@ export const ProjectBox = memo(function ProjectBox({ summary, source }: { summar
           {!summary.client && isInternalProject(project) && <span className="block truncate text-footnote text-ink-2">{t('project.internal')}</span>}
         </span>
         <span data-stage-column className="mt-auto flex min-w-0 flex-col gap-1.5">
-          <bdi dir="auto" className="truncate text-footnote font-medium text-ink">{summary.currentStage.name}</bdi>
-          <ProgressLine
-            index={index}
-            total={summary.stages.length}
-            complete={project.status === 'completed'}
-            glow={false}
-            tone={signOfProject(summary)}
-            label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
-            className="w-full"
-          />
+          <StageLine summary={summary} className="w-full" />
         </span>
         {/* The deadline and the team share one row. A narrow box wraps them, the deadline first. */}
         <span data-box-last className="flex min-h-7 min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">

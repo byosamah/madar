@@ -497,7 +497,6 @@
     "versionBadge": "إ{{n}}",
     "versionLabel": "الإصدار {{n}}",
     "startsOn": "تبدأ {{date}}",
-    "view": "عرض المهام",
     "views": {
       "list": "قائمة",
       "board": "لوحة"

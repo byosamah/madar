@@ -11,6 +11,7 @@ const read = (path: string) => readFileSync(path, 'utf8');
 
 const LAZY_PARTS: { file: string; module: string; part: string }[] = [
   { file: 'src/features/home/HomeScreen.tsx', module: 'project/tasks/TaskSheet', part: 'the task panel (FL-1)' },
+  { file: 'src/features/home/HomeScreen.tsx', module: 'week/WeekCard', part: 'the weekly card (fbk_088)' },
   { file: 'src/app/AppShell.tsx', module: 'focus/FocusMode', part: 'Focus mode (FL-4)' },
   { file: 'src/app/PersonMenu.tsx', module: 'feedback/FeedbackSheet', part: 'the feedback sheet (FL-4)' },
   { file: 'src/app/PersonMenu.tsx', module: 'PersonMenuPanel', part: 'the person menu panel' },
@@ -34,6 +35,7 @@ describe('parts that load on their first use', () => {
     expect(overlays).toMatch(/import\('\.\.\/features\/auth\/SessionExpiredSheet'\)/);
     expect(overlays).toMatch(/import\('\.\/PersonMenuPanel'\)/);
     expect(read('src/features/focus/FocusMode.tsx')).toMatch(/import\('\.\/FocusChatPane'\)/);
+    expect(read('src/features/week/weekCardLazy.ts')).toMatch(/import\('\.\/WeekCard'\)/);
     expect(read('src/features/home/HomeTaskSheet.tsx')).toMatch(/import\('\.\.\/project\/tasks\/TaskSheet'\)/);
     expect(read('src/components/Menu.tsx')).toMatch(/import\('\.\/MenuSheet'\)/);
   });

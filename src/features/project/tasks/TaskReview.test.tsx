@@ -12,8 +12,8 @@ const saraWaits = (state: State) => {
 };
 
 async function showBoard() {
-  await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('radio', { name: 'Board' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'View' }));
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'View' })).getByRole('radio', { name: 'Board' }));
   await userEvent.keyboard('{Escape}');
 }
 

@@ -17,7 +17,6 @@
       "more": "More"
     },
     "tasks": {
-      "view": "View: {{view}}",
       "doneOf": "{{done}} of {{total}} done"
     },
     "tracker": {

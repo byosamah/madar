@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Meeting, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
+import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Checkin, type Event, type FileRec, type Meeting, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
@@ -62,10 +62,14 @@ function lastMeetingCopy(state: State, meetingId: string): Meeting | undefined {
 }
 
 /**
- * True when the person sees the change: every change but one of an office task that the person does not see. viewer: another
- * person than the one of the call, for example the owner of a notice.
+ * True when the person sees the change: every change but one of an office task that the person does not see, one of a meeting that the person
+ * is not in, and one of a weekly answer that the person may not read. viewer: another person than the one of the call, for example the owner of
+ * a notice. events.list, events.undo and events.undoStory all ask this rule, so they agree.
  */
 export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = ctx.authority): boolean {
+  // A change of a weekly answer shows to the holders of "Read the weekly answers" and to its author only (fbk_088, security review). The
+  // author is the person whom the change acts for, so the agent of the author counts as the author. Its loader condition is checkinEventConds.
+  if (event.targetType === 'checkin' && event.actingForId !== viewer.id && !can(ensureRights(ctx.state, viewer), 'checkin.read')) return false;
   // A change of a meeting with no project shows to the people of that meeting only. The Admin has no extra view (owner, 2026-10-19).
   // A meeting that is gone shows its changes to nobody, so the History tells nothing of it. An Undo also reads the last copy of a
   // deleted meeting (meeting.deleted keeps it), so the people of that meeting take the delete back (owner, 2026-10-23).
@@ -447,6 +451,13 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if ((event.verb === 'meeting.created' || event.verb === 'meeting.added') && isOwnChange(ctx, event)) return need('meeting.plan', resource);
       if (!mayEditMeeting(ctx.authority, resource)) throw forbidden('You cannot do this.', { action: 'meeting.editOwn' });
       return;
+    }
+    case 'checkin': {
+      // The Undo of a weekly answer belongs to its author, the person or the agent of the person (fbk_088). Nobody else takes it back, the Admin
+      // too: the answer is the words of one person. The live answer tells the author, else the whole answer that the event keeps.
+      const answer = ctx.state.checkins?.[event.targetId] ?? (event.after as Checkin | null) ?? (event.before as Checkin | null);
+      if (!answer || answer.userId !== ctx.authority.id) throw forbidden('You can undo your own weekly answer only.');
+      return need('checkin.answer');
     }
     case 'subCompany':
       // An agent never makes, changes or deletes a sub-company (MCP deny list), so it never takes such a change back either:

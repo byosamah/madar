@@ -42,10 +42,14 @@ import type { SqlHost } from './host';
  * Version 13 (CWE-863, the address that the person saw): the column redirect_uri of agent_approvals. Null for an approval from before the
  * step. Its step is in LITE_STEPS (supabase/migrations/20261028000100_platform_agent_redirect.sql).
  *
- * Version 14 (Madar enterprises): the server table enterprise, one row at most: the id, the state and the limits of the enterprise that this
+ * Version 14 (the weekly question, fbk_088): the table checkins with its key columns and the unique index checkins_one, and the index
+ * events_target_type (target_type, seq) for the reads of events.list with a target_type filter. Its step is in
+ * LITE_STEPS (supabase/migrations/20261108000100_checkins.sql).
+ *
+ * Version 15 (Madar enterprises): the server table enterprise, one row at most: the id, the state and the limits of the enterprise that this
  * object serves. It is an office object table only: Postgres has no such table, and an export leaves it out (EXPORT_SKIP). Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 14;
+export const LITE_SCHEMA_VERSION = 15;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -53,6 +57,7 @@ export type LiteIndex = { table: string; name: string; columns: string; unique?:
 export const LITE_INDEXES: readonly LiteIndex[] = [
   { table: 'push_devices', name: 'push_devices_endpoint', columns: 'endpoint', unique: true },
   { table: 'push_devices', name: 'push_devices_user', columns: 'user_id' },
+  { table: 'checkins', name: 'checkins_one', columns: 'week, user_id, kind', unique: true },
   { table: 'meetings', name: 'meetings_starts', columns: 'starts_at' },
   { table: 'meetings', name: 'meetings_project_starts', columns: 'project_id, starts_at' },
   { table: 'meetings', name: 'meetings_to_settle', columns: 'ends_at', where: "status = 'scheduled' and settled_at is null" },
@@ -82,6 +87,8 @@ export const LITE_INDEXES: readonly LiteIndex[] = [
   { table: 'events', name: 'events_created_at', columns: 'created_at' },
   { table: 'events', name: 'events_project_created', columns: 'project_id, created_at' },
   { table: 'events', name: 'events_target_id', columns: 'target_id' },
+  // The newest events of one target kind (events.list with a target_type filter, such as the weekly question): no sort in a temporary b-tree.
+  { table: 'events', name: 'events_target_type', columns: 'target_type, seq' },
 ];
 
 const NOW = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
@@ -137,7 +144,7 @@ const DAFTRA_SQL: readonly string[] = [
 ];
 const DAFTRA_INDEXES: readonly LiteIndex[] = [{ table: 'daftra_invoices', name: 'daftra_invoices_client', columns: 'account, daftra_client_id' }];
 
-/** The identity of the enterprise of this object (version 14, Madar enterprises). limits is JSON text: { people, storageBytes }, null for no limit. */
+/** The identity of the enterprise of this object (version 15, Madar enterprises). limits is JSON text: { people, storageBytes }, null for no limit. */
 const ENTERPRISE_SQL = 'create table enterprise (id text primary key, state text not null, limits text not null, created_at text not null)';
 
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
@@ -209,9 +216,11 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 10 adds the index chat_reads_conversation (chat presence design C4), as in liteSchemaSql.
  * Version 11 adds the two server tables of the Daftra link and the index daftra_invoices_client, as in liteSchemaSql.
  * Version 12 adds the server table agent_confirms and its two indexes (the email code guard of an agent), as in liteSchemaSql.
- * Version 14 adds the table enterprise (Madar enterprises), as in liteSchemaSql.
  * Version 13 adds the column redirect_uri to agent_approvals (the address that the person saw, CWE-863). SQLite puts the new column before
  * the table constraint, so the table text of a stepped office equals the text of a new office, which names the column before its key.
+ * Version 14 adds the table checkins (fbk_088) with the key columns of query.ts and its unique index, and the index events_target_type
+ * (target_type, seq) for events.list with a target_type filter, as in liteSchemaSql.
+ * Version 15 adds the table enterprise (Madar enterprises), as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -232,7 +241,12 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   11: [...DAFTRA_SQL, ...DAFTRA_INDEXES.map(indexSql)],
   12: [AGENT_CONFIRMS_SQL, ...CONFIRM_INDEXES.map(indexSql)],
   13: ['alter table agent_approvals add column redirect_uri text'],
-  14: [ENTERPRISE_SQL],
+  14: [
+    'create table checkins (id text primary key, doc text not null, user_id text, week text, kind text)',
+    'create unique index checkins_one on checkins (week, user_id, kind)',
+    'create index events_target_type on events (target_type, seq)',
+  ],
+  15: [ENTERPRISE_SQL],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

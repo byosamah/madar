@@ -70,3 +70,18 @@ export const withArchivedTower = (state: State) => {
     conversationId: room.id, userId: 'usr_001', lastReadAt: '2026-09-30T09:00:00.000+03:00', archivedAt: '2099-01-01T00:00:00.000+03:00',
   };
 };
+
+/**
+ * Hala (usr_001) archived the group "Site crew" with one unread message of Faisal (usr_002), and archived nothing else (owner, 2026-11-08:
+ * an archive keeps the unread mark). The archive time is far ahead, so the group stays archived. Returns nothing; the group id is "cnv_" + the next number.
+ */
+export const withArchivedUnreadGroup = (state: State) => {
+  const group = addGroupConversation(state, 'Site crew', 'usr_001', ['usr_001', 'usr_002', 'usr_003'], '2026-09-29T09:00:00.000+03:00');
+  state.messages.msg_9101 = {
+    id: 'msg_9101', conversationId: group.id, authorId: 'usr_002', actingForId: 'usr_002', body: 'The slab drawing is ready.', mentions: [], fileIds: [],
+    createdAt: '2026-09-30T08:00:00.000+03:00', editedAt: null,
+  };
+  state.chatReads[chatReadKey(group.id, 'usr_001')] = {
+    conversationId: group.id, userId: 'usr_001', lastReadAt: '2026-09-29T09:00:00.000+03:00', archivedAt: '2099-01-01T00:00:00.000+03:00',
+  };
+};

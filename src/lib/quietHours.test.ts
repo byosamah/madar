@@ -28,10 +28,10 @@ describe('the default office work hours', () => {
 });
 
 describe('the work hours of a person', () => {
-  it('come from the office when the person chose nothing', () => {
-    expect(workHoursOf(undefined, undefined)).toEqual({ quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' });
+  it('are OFF when the person chose nothing, with the range of the office to start from (owner, 2026-11-08)', () => {
+    expect(workHoursOf(undefined, undefined)).toEqual({ quiet: false, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' });
     const office = { workHours: { days: [0, 1, 2], from: '08:00', to: '15:00', lock: { on: false, days: [0], from: '09:00', to: '10:00' } } };
-    expect(workHoursOf({}, office)).toEqual({ quiet: true, days: [0, 1, 2], from: '08:00', to: '15:00' });
+    expect(workHoursOf({}, office)).toEqual({ quiet: false, days: [0, 1, 2], from: '08:00', to: '15:00' });
   });
 
   it('come from the choice of the person when there is one', () => {
@@ -41,7 +41,33 @@ describe('the work hours of a person', () => {
 });
 
 describe('isQuiet', () => {
-  const nobody = { prefs: undefined, settings: undefined };
+  /** A person who turned quiet hours on with the range of the office. A person who chose nothing is never quiet (owner, 2026-11-08). */
+  const nobody = { prefs: { workHours: { quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' } }, settings: undefined };
+
+  it('is never true for a person with no saved hours: every push goes at once, also on a Friday night (owner, 2026-11-08)', () => {
+    for (const [day, time] of [[FRI, '11:00'], [WED, '23:45'], [SAT, '03:00'], [WED, '07:59'], [SUN, '17:00']] as const) {
+      expect(isQuiet(undefined, undefined, riyadh(day, time)), `${day} ${time}`).toBe(false);
+      expect(isQuiet({}, undefined, riyadh(day, time)), `${day} ${time}`).toBe(false);
+      expect(isQuiet({ workHours: undefined }, { workHours: { lock: { on: true } } }, riyadh(day, time)), `${day} ${time}`).toBe(false);
+    }
+  });
+
+  it('keeps the saved hours of a person exactly: quiet on stays on, quiet off stays off', () => {
+    const faisal = { workHours: { quiet: true, days: [0, 1, 2, 3, 4, 5, 6], from: '07:00', to: '23:30' } };
+    expect(isQuiet(faisal, undefined, riyadh(WED, '23:45'))).toBe(true);
+    expect(isQuiet(faisal, undefined, riyadh(WED, '06:30'))).toBe(true);
+    expect(isQuiet(faisal, undefined, riyadh(FRI, '12:00'))).toBe(false);
+    const anas = { workHours: { quiet: false, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' } };
+    expect(isQuiet(anas, undefined, riyadh(WED, '23:45'))).toBe(false);
+  });
+
+  it('keeps the lock of the Admin: a person who turned quiet on is never quiet inside the lock, a person with no hours is never quiet at all', () => {
+    const settings = { workHours: { days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00', lock: { on: true, days: [0, 1, 2, 3, 4, 5], from: '08:00', to: '18:00' } } };
+    const on = { workHours: { quiet: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' } };
+    expect(isQuiet(on, settings, riyadh(FRI, '10:00'))).toBe(false);
+    expect(isQuiet(on, settings, riyadh(SAT, '10:00'))).toBe(true);
+    expect(isQuiet(undefined, settings, riyadh(SAT, '10:00'))).toBe(false);
+  });
 
   it('is false inside the default work hours on a work day', () => {
     expect(isQuiet(nobody.prefs, nobody.settings, riyadh(SUN, '10:00'))).toBe(false);
@@ -86,10 +112,12 @@ describe('isQuiet', () => {
     expect(isQuiet(prefs, undefined, riyadh(WED, '20:00'))).toBe(true);
   });
 
-  it('follows the office default for a person with no choice', () => {
+  it('follows the office range for a person who turned quiet hours on with the range of the office', () => {
     const office = { workHours: { days: [0, 1, 2, 3, 4], from: '08:00', to: '16:00', lock: { on: false, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' } } };
-    expect(isQuiet(undefined, office, riyadh(WED, '08:15'))).toBe(false);
-    expect(isQuiet(undefined, office, riyadh(WED, '16:15'))).toBe(true);
+    const on = { workHours: { ...workHoursOf(undefined, office), quiet: true } };
+    expect(isQuiet(on, office, riyadh(WED, '08:15'))).toBe(false);
+    expect(isQuiet(on, office, riyadh(WED, '16:15'))).toBe(true);
+    expect(isQuiet(undefined, office, riyadh(WED, '16:15'))).toBe(false);
   });
 
   describe('the lock', () => {

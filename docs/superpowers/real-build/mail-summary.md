@@ -17,7 +17,7 @@ those three fields: a template reads only the fields of its data type.
   `summaryStartOn` in `src/lib/quietHours.ts`, which calls `workStartOn`). The Postgres path and the office object path share
   this one step.
 - A job_runs row `summary:<day>:<person>` closes one person for one day; the old row `summary:<day>` still closes the whole day.
-  A person with quiet hours off uses the stored range, else the office default. The idempotency key is `summary-<day>-<person>`.
+  A person with quiet hours off uses the stored range, else the office range (a person with nothing saved has quiet hours off since 2026-11-08). The idempotency key is `summary-<day>-<person>`.
 - The mail goes when something is past due or due today, or a review waits: a task due later this week alone makes no mail.
 
 ## Which tasks

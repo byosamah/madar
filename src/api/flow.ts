@@ -236,10 +236,14 @@ function logStageBack(ctx: Ctx, projectId: string, reason: string): void {
  * The tag follows the tasks. When it moves to an earlier stage, the call needs a reason (ask is true), which the Overview shows
  * until the tag moves forward again. A call that cannot move the tag back, or a change by Undo, passes ask false.
  * "logInTracker" also logs a move back in the Tracker. It does nothing when the tag does not move back.
+ * A continuous project (its stages run together) has no tag to watch: the call returns at once and "finish" does nothing.
  */
 export function watchStage(ctx: Ctx, projectId: string | null): { finish(options?: { reason?: string; ask?: boolean; logInTracker?: boolean }): void } {
   // An office task has no project, so it never moves a stage tag (owner, 2026-10-06).
   if (projectId === null) return { finish: () => undefined };
+  // A continuous project has no current stage: its stages run together (fbk_084, owner 2026-11-08). It asks no reason, writes no
+  // stage event and sends no notice. Stage prerequisites are a separate rule and keep working.
+  if (ctx.state.projects[projectId]?.continuous) return { finish: () => undefined };
   const before = stageTag(ctx.state, projectId);
   return {
     finish({ reason, ask = true, logInTracker = false } = {}) {
@@ -273,7 +277,7 @@ export function watchStage(ctx: Ctx, projectId: string | null): { finish(options
 export function resyncStage(ctx: Ctx, projectId: string): void {
   const project = ctx.state.projects[projectId];
   const after = stageTag(ctx.state, projectId);
-  if (!project || !after || project.currentStageId === after.id) return;
+  if (!project || project.continuous || !after || project.currentStageId === after.id) return;
   const changes: Partial<Project> = { currentStageId: after.id, healthOverride: null };
   if (project.stageBack) changes.stageBack = null;
   applyPatch(ctx, project, changes, { projectId, verb: 'project.stage_changed', targetType: 'project', targetId: projectId });

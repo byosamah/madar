@@ -12,8 +12,9 @@ const RADIO = 'flex min-h-11 items-center gap-3 text-body text-ink';
  * choice box and with the same radio look as the view choice of the project To-dos tab. On a phone (phone design D) it is one round
  * toggle of 44 px: a press switches List and Board, with no sheet and no radio. The kanban icon shows in both states, and the Board
  * state has the stronger fill with a ring (`aria-pressed`). It shows only in the To-dos view.
+ * The To-dos tab of a project uses the same button beside its Filter button (`inline`, fbk_085): one look in both places.
  */
-export function WorkViewButton({ view, onView, onPrepare }: { view: WorkView; onView: (next: WorkView) => void; onPrepare?: () => void }) {
+export function WorkViewButton({ view, onView, onPrepare, inline = false }: { view: WorkView; onView: (next: WorkView) => void; onPrepare?: () => void; inline?: boolean }) {
   const { t } = useTranslation();
   const phone = useIsPhone();
   if (phone) {
@@ -32,7 +33,7 @@ export function WorkViewButton({ view, onView, onPrepare }: { view: WorkView; on
     );
   }
   return (
-    <div className="ms-auto" onPointerDown={onPrepare}>
+    <div className={inline ? undefined : 'ms-auto'} onPointerDown={onPrepare}>
       <FilterButton label={t('workView.label')} count={0} icon={FolderKanbanIcon}>
         <fieldset className="flex flex-col">
           <legend className="sr-only">{t('workView.label')}</legend>

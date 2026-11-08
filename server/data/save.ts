@@ -467,6 +467,12 @@ export function diffState(before: State, after: State): Diff {
         pendingComments.push({ id: side.id as string, row, deleted: !rec, targetType: side.targetType as string, targetId: side.targetId as string });
         return;
       }
+      case 'checkins':
+        // The weekly answers (fbk_088) are read by everyone who holds "Read the weekly answers", so a change is an office signal with the kind
+        // "checkins". It names no person and no text.
+        pub('checkins');
+        markOffice();
+        return;
       case 'pushDevices':
         // A push device is private (owner, 2026-10-08): it adds no kind, so the save sends no signal that names it, and no
         // office signal. The row is still written.

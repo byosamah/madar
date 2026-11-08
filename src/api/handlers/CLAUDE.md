@@ -29,7 +29,11 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   fails with `continuous_has_no_end`. A continuous project never turns Late from a stage end date (`health.ts`). The gap "a
   stage with no end date" skips it in the same three places, so the count equals the list: `dashboard.get`
   (`projectsStageNoEnd`), the `projects.list` filter `stage_no_end` (also `server/data/loaders/overview.ts`), and the line of
-  `reports.office`. Test: `projectContinuous.test.ts`.
+  `reports.office`. Test: `projectContinuous.test.ts`. A continuous project also means that its stages run together (fbk_084, owner
+  2026-11-08): it has no current stage, so `watchStage` and `resyncStage` (`flow.ts`) return at once. No reason for a move to an earlier stage, no
+  `project.stage_changed` event, no `stage_changed` notice, and the saved `currentStageId` and `stageBack` stay as they were. Stage prerequisites
+  still block. `TaskRow.canEditDetails` (`mayChangeTask(viewer, 'details')`) tells the board of such a project who may move a card to a stage.
+  Test: `continuousStages.test.ts`.
 - **Internal projects** (`Project.kind`, set only by `projects.create`, never changed). Helpers: `src/api/internalProject.ts`,
   `INTERNAL_PREFIX` and `isInternalCode` in `lib/projectCode.ts`. The fields of a client project (`clientId`, `geo`,
   `areaM2`, `subCompanyId`, `contractStartDate`, `location`, a typed code) fail with `internal_project`; an empty value passes
@@ -150,6 +154,11 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   `reviewersOfTask`; the SQL twin is `SUMMARY_COUNTS_SQL` (`reviewerSql`; a test of `server/it/email.it.test.ts` compares both). A change
   of this rule changes the SQL, `mayReviewTask`, `tickLandsInReview`, the words (`office.needsReviewHint`, `taskSheet.needsReviewHint`)
   and the MCP text in one commit.
+- **A move to In review with nobody to review (tsk_692, owner 2026-11-08, "Refuse the move").** `tasks.move` to `in_review` is refused with
+  the reason `no_reviewer` (`errors.reasons.no_reviewer`, words in `real/quick-1108.*`) when the to-do needs review (`needsReview`), is not in
+  review yet, and `reviewersAfterSend(state, task, ctx.authority.id)` names nobody: the lead is the project leader (project to-do), or the lead is
+  the maker (office to-do). The words tell the person to mark it Done. A to-do that needs no review, and a move to the same status, keep the old
+  path. A tick needs no check: `tickLandsInReview` already lands it on Done.
 - **Helpers send to review (fbk_087).** A helper with `task.work` (`mayHelperWork`, `taskGates.ts`) moves an open to-do that needs review
   to `in_review` (`tasks.move` or `tasks.complete`) and does nothing else (`helperMaySend` in `tasks.ts`; Done, other statuses and fields
   stay closed). `viewerCan.sendToReview` is true when a tick by the viewer lands in review: the button says "Send to review", and a helper
@@ -172,14 +181,20 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   project feed leave `task.arranged` out.
 - **Quiet lines of a task thread** (`lineKindOf`, `lib/commentLine.ts`). A comment is a message or a quiet line (`due_date`,
   `start_date`, `shifted`, `reopened`). A line is never unread and never waits for a reply: `taskUnread` and `waitingThread`
-  read the messages only, and the loader does the same (`MESSAGES_ONLY`, `server/data/loaders/chat.ts`). `tasks.newVersion`
+  read the messages only, and the loader does the same (`MESSAGES_ONLY`, `server/data/loaders/chat.ts`). A line never sets the time or the
+  preview of the thread row either (`threadLast`, `chats.ts`; owner, 2026-11-08: "only real messages lift it"): the newest MESSAGE does, as
+  the quiet log lines of a group never change its `lastAt`. A thread of lines only keeps its newest line, so it still sorts, and the archive
+  test (`isArchived`) reads the same time. The SQL twins (`threadsSql`, `THREADS_LITE`, `memorySource.threads`) take `last` from the newest
+  message with the newest line as the fallback, and the loader reads the newest message of each thread (`threadsMiddle`). `tasks.newVersion`
   writes the `reopened` line, so `comments` is in its `WRITE_KINDS` line.
 - **Unread number on a to-do row** (`TaskRow.unreadCount`, fbk_071, owner 2026-10-27). The chat icon of a row shows a number only for
   the comments that the person has not read, and none when all are read. Only `tasks.list` gives it (`tasks.get` leaves it out: the
   panel has no icon); the field is optional and `commentCount` stays. The rule is one (`src/api/taskUnread.ts`): `newCommentsOf`,
-  `inTaskThread` (the lead, the leader of the project, the maker of an office task, or a person who commented) and `threadUnread`
+  `inTaskThread` (the lead, the leader of the project, the maker of an office task, a helper, a person named with @ in a message, or a person who commented; chat, owner 2026-11-08) and `threadUnread`
   (a thread marked unread counts at least 1). The Inbox (`taskThreads`, `taskUnread` in `chats.ts`) and the row both call it, so the two
-  numbers never differ. A person who is no part of the thread gets 0. One difference: the Inbox keeps only the newest
+  numbers never differ. A person who is no part of the thread gets 0. A helper or a named person who has read nothing sees every message of the thread as unread.
+  The twins of the rule are `threadsSql` (Postgres), `THREADS_LITE` and `memorySource.threads`; the body test is the condition `{ field: 'body', names }`
+  (`query.ts`). The loader brings the newest message that names the person (`threadsMiddle`, `chat.ts`), because the handler reads its body. One difference: the Inbox keeps only the newest
   `TASK_THREAD_LIMIT` threads, and the row has no cap. The list builds one lookup of the comments for the call (`ViewIndex.taskCommentsOf`),
   never a scan for each row (`viewCost.test.ts`). The loader (`taskRowsUnread`, `server/data/loaders/chat.ts`) reads the marks and the
   own comments of all rows in one round and counts in a second round, and it puts a count only for a thread that the person is part of: a
@@ -204,8 +219,11 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   sends no push and no mail. `reactions.toggle` writes no event and no notice. In a direct chat or a group the signal of
   these calls goes to the members only.
 - `ChatRead.markedUnread` is optional, so there is no `STATE_VERSION` step. `writeReadMark` drops it (`chats.markRead`,
-  `chats.send`, an archive). `chats.markRead` and `chats.archive` also mark the unread mention and reply notices of that chat
-  read (`readMentionNotices`), so their `WRITE_KINDS` lines hold `notifications`. `chats.markUnread` has `WRITE_KINDS`
+  `chats.send`). `chats.markRead` also marks the unread mention and reply notices of that chat read (`readMentionNotices`), so its
+  `WRITE_KINDS` line holds `notifications`. `chats.archive` reads nothing and clears no notice since 2026-11-08 (owner: "Longer swipe, keep
+  the unread mark"): its `WRITE_KINDS` line is `['chatReads']`. An archived chat or thread keeps its unread number in `chats.list`, and
+  `totalUnread` (the badge) skips it while `isArchived` holds. The badge loader (`archivedNewest`, `chat.ts`) reads the time of the newest
+  message of the archived chats only. The Inbox shows the count of archived chats with unread messages on the "Archived (n)" row. `chats.markUnread` has `WRITE_KINDS`
   `['chatReads']`. `chats.waiting` stays in the contract and on the MCP allow list; no screen reads it.
 - `Conversation.log` (the quiet lines of a group) keeps the newest `GROUP_LOG_MAX`. A line is no message: no unread count, no
   preview, no push. `actingMaker` is the maker while active, else the first active person (`ChatRow.makerId`).
@@ -315,6 +333,39 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
 - The Daftra link: `server/daftra/CLAUDE.md`. `markReceived` and `update` keep their rules for a linked payment; the screens hide
   the button. `payment.received_daftra` has no Undo (`daftra_final`).
 
+## Weekly question (fbk_088)
+- Owner decision 2026-11-08. Sunday: "What do you plan this week?" (the plan). Thursday: "What did you do this week?" (the review). Every active
+  person answers, an Admin too, never an agent. The answer is a `Checkin` (`chk_`): `userId`, `week` (the Sunday that starts the week, office
+  time), `kind` (`plan` or `review`), `taskIds` (the ids of the kept to-dos, never a title), `text`, two stamps. At most one answer for each
+  person, week and kind (the unique index `checkins_one`). A call answers with a `CheckinView`: the same record with `items`, the lines `{ taskId, title }`
+  that this reader may see.
+- Three calls (`handlers/checkins.ts`). `checkins.mine { week? }` gives the own plan and review of a week (null for a missing one), with no
+  switch. `checkins.save { kind, items: TaskId[], text }` writes the own answer of the CURRENT week and needs `checkin.answer`; a second save
+  changes the same answer; the same lines and text write no event. `checkins.week { week? }` gives every answer of a week, one row for each person
+  who answered, and the people who have not (`missing.plan`; `missing.review` stays empty until the Thursday of that week), and needs
+  `checkin.read`. Both switches are basic (on for every role). A week that has not begun is refused (`week_future`).
+- Everyone who holds `checkin.read` reads every answer (owner: "Everyone"). So the leak rules are about the lines and about the History, not about the
+  readers. Rule 1, the lines: the record keeps ids only, so no title is in a record, an event or a History row. Each read builds the lines when it reads
+  (`viewOf`, `handlers/checkins.ts`): the title is the one the live to-do has now, and a line stands only when the reader may view the to-do
+  (`mayViewTask`, the reader's own rights; an agent reads as its person). A to-do that the reader may not view, or that is gone, gives no line, and no
+  count of lines is in the answer. So a project that is hidden after the answer hides its titles at once, and an office to-do or a to-do of a hidden
+  project may be saved and shows only to the people who view it. The save still refuses a to-do that is not the own to-do of the person
+  (`not_your_task`) and an answer with no line and no text (`empty_answer`). The card offers every to-do of the person, office to-dos too.
+  An author who can no longer view a kept to-do does not see its line in the own form, so a new save drops it.
+- Rule 2, the History: the events `checkin.created` and `checkin.updated` show only to a holder of `checkin.read` and to the author (the event
+  acts for that person, so the agent of the author counts). `seesEvent` (`history.ts`) holds the one rule for `events.list`, `events.undo` and
+  `events.undoStory`; a person who may not see the event gets the answer for an unknown event, before any other rule. The loader of `events.list`
+  (`eventsList`, `loaders/overview.ts`) adds the same condition in SQL, so the limit counts only the rows the person reads.
+- A save writes the events `checkin.created` and `checkin.updated` (project null). The Undo belongs to the author alone, the person or the agent
+  of the person, and needs `checkin.answer`; the Admin cannot undo the answer of another person (`assertMayUndo`, `history.ts`).
+- The reminder is the trigger `week_question` (in the app and in push, never in email, no copy for an Admin, no bell badge). `runScheduledTriggers`
+  sends it from 08:00 on Sunday (plan) and from 14:00 on Thursday (review) until 17:00 (`weekSlotAt`, `lib/week.ts`), to each active person who holds
+  `checkin.answer` and has no answer of that kind for the week. The target is `week` with the id `plan:<Sunday>` or `review:<Sunday>`, the dedupe key
+  holds the same, and the notice opens Home. `loadJobs` reads the answers of the week only inside the window.
+- MCP: `checkins.week` (right `checkin.read`, AI switch `ai.readWork`) is the read for the weekly report of the General Manager, and `checkins.save`
+  (right `checkin.answer`, AI switch `ai.myState`) saves the own answer only when the person asks. `checkins.mine` stays on the deny list.
+- Screens: the card on Home and the page `/week`, see `src/features/home/CLAUDE.md`.
+
 ## Push devices
 - `push.register`, `push.remove` and `push.mine` are for a person, for the person: an agent gets `forbidden`, and all three stay
   on the MCP deny list. They write no event and no History row, and the save sends no change signal. `WRITE_KINDS` is `[]` for
@@ -325,7 +376,9 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
 
 ## Quiet hours
 - One pure rule: `isQuiet`, `workHoursOf`, `workStartOn`, `coversLock` in `src/lib/quietHours.ts` (the defaults are
-  `DEFAULT_OFFICE_WORK_HOURS`). `me.updatePreferences` takes `workHours` for the person only (an agent gets `forbidden`), and
+  `DEFAULT_OFFICE_WORK_HOURS`). A person with no saved `workHours` has quiet hours OFF (owner, 2026-11-08; before that the default was on, and 9 of 11 people
+  kept it, so their pushes waited outside Sunday to Thursday, 8 to 5). The office range is only the range that the switch starts with. The morning summary
+  still goes at the start of that range (`workStartOn`). `me.updatePreferences` takes `workHours` for the person only (an agent gets `forbidden`), and
   a range with quiet on must hold the lock (`work_hours_lock`). `settings.update` takes the default range
   (`work_hours_default_lock`). A stored range that no longer holds a moved lock is not changed: `isQuiet` adds the lock at read
   time. An agent may not undo a change of the work hours (`changesEmail` in `history.ts`). Both calls stay on the MCP deny list.

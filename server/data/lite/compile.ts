@@ -88,6 +88,10 @@ export function whereOf(s: Select | CountSelect, values: unknown[], skip: readon
       const path = `$.${fieldName(one.field)}`;
       if ('null' in one) return `(json_type(t.doc, '${path}') is null or json_type(t.doc, '${path}') = 'null')`;
       const text = fieldText(path);
+      if ('names' in one) {
+        values.push(`](${one.names})`);
+        return `(instr(${text}, '@[') > 0 and instr(${text}, ?) > 0)`;
+      }
       if ('notIn' in one) return `(${text} is null or ${listSql(text, one.notIn, values, true)})`;
       return listSql(text, one.in, values);
     }

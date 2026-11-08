@@ -6,7 +6,7 @@ import { mayAssignTask, mayChangeTask, mayDeleteTask, mayTickChecklist, type Tas
 import { makeUser } from '../test/factories';
 
 /**
- * One test group for each of the 123 switches of role rights version 2 (design section 8): the switch on passes, the switch off
+ * One test group for each of the 125 switches of role rights version 2 (design section 8): the switch on passes, the switch off
  * refuses, and the switch opens its own scope only. A lead switch does not open a project the person only works on. A team switch
  * does not open a project the person is not on. The person in each case holds the switch (with the switches it needs) and nothing else.
  */
@@ -126,6 +126,9 @@ const SPECS: Readonly<Record<string, Spec>> = {
   'search.use': plain('search.use'),
   'gaps.view': plain('gaps.view'),
   'report.office': plain('report.office'),
+  // The weekly question (fbk_088): two basic switches, each one asks its own action.
+  'checkin.answer': plain('checkin.answer'),
+  'checkin.read': plain('checkin.read'),
   'ai.connect': plain('ai.connect'),
   'ai.readWork': plain('ai.readWork'),
   'ai.readChats': plain('ai.readChats'),

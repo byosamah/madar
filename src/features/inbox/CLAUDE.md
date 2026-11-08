@@ -31,7 +31,8 @@ in a chat: `src/features/files/CLAUDE.md`. The chat inside Focus mode: `src/feat
   `EditingContext`) and a post comment with `CommentItem.tsx`. A reason line stays a `CommentItem` line. The comments stay in the scroll of
   the panel: no Newest button, no "New" line.
 - The bell says "X replied to you" for a mention notice with `reply: true` (`NotificationsScreen.tsx`, keys `notices.replied*`).
-- A reason of a date move, a reopening or a Madar shift is a quiet line, never a bubble (`features/comments/ReasonLine.tsx`). The sentence
+- A reason of a date move, a reopening or a Madar shift is a quiet line, never a bubble (`features/comments/ReasonLine.tsx`). It never lifts a
+  to-do thread in the list and never replaces its preview: only a message does (owner, 2026-11-08). The sentence
   keeps the name and the reason between FSI and PDI. The quiet lines of a group (`Conversation.log`, `ChatThread.lines`) are no messages:
   never unread, no push.
 - `MentionField` opens above the Inbox box (`placement="above"`) and ranks names that start with the typed letters first (`rankedMatches`,
@@ -43,11 +44,16 @@ in a chat: `src/features/files/CLAUDE.md`. The chat inside Focus mode: `src/feat
 - The Arabic word of the To-dos kind is one word, «المهام» (`chatFilter.todos`), so the four chips fit one row at 390 px. A longer word sends
   the last chip to a second row. `tests/e2e/inboxPhone.spec.ts` measures the row. The same key names the option of the desk menu.
 - The kind menu (`ChatList.tsx`, All, Projects, To-dos, People; a phone has `ChatKindChips`) lasts through `usePersistentChoice`
-  (`madar.chatKind`). Search and "Archived (n)" look only in the chosen kind. A search in the main list looks in every chat. A group matches
+  (`madar.chatKind`). A link that opens a chat (a bell notice, a push, an @ link, Search) switches the list to All when the saved kind would hide
+  the row of that chat: `ChatList` does it once for each chat id, when the row is in the list, so a kind that the person picks later with the chat
+  open stays (the lead's decision, chat 2026-11-08). Search and "Archived (n)" look only in the chosen kind. A search in the main list looks in every chat. A group matches
   by its name. The line "unread messages are in other chats" with "Show all" (`inboxLine.*`) shows only for a kind other than All with no
   search word and no archived list. It has no red and no badge.
 - `chats.archive` writes no event, so the Undo of an archive calls it again with the other value (`archive.ts`, `useArchive`).
-  A swipe on a row archives it on a phone or under a finger.
+  A swipe on a row archives it on a phone or under a finger, after a drag of more than `SWIPE_PX` (160 px, `swipe.ts`; it was 80 px until 2026-11-08).
+  An archive keeps the unread mark (owner, 2026-11-08): the row keeps its number, Undo brings it back with the number, and a new message brings the chat back
+  with the whole number. The Inbox badge (`chats.unreadCount`) and the line of hidden unread messages skip an archived chat. The "Archived (n)" row shows a
+  small number: how many archived chats have unread messages (`chat.archivedUnread` for a screen reader).
 - The Inbox does not call `chats.waiting` (the API keeps the rule for agents). The menu of a chat has "Mark as unread" instead
   (`chatMenuItems`): it shows only for a chat with nothing unread that is not archived. The Undo of its toast calls `chats.markRead`
   (`markUnread.ts`, kept in `InboxScreen` so the toast stays when the open chat closes).

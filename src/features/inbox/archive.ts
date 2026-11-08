@@ -8,7 +8,7 @@ import { useLeaveChat } from './chatBack';
 /**
  * Archives a chat, or moves it back to the Inbox, and says so with a short toast that has Undo (UX audit 2026-10-19, chats-04 and
  * INT-14). chats.archive writes no History event, so events.undo cannot take it back: the Undo of the toast calls chats.archive again
- * with the other value. The archive marks the chat read, so Undo moves the chat back and does not bring the unread number back.
+ * with the other value. The archive keeps the unread mark (owner, 2026-11-08), so Undo brings the chat back with its unread number.
  * On a phone, the archive of the open chat closes it by one Back step (Direction D).
  */
 export function useArchive(): (conversationId: string, archived: boolean) => void {

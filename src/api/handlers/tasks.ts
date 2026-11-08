@@ -9,7 +9,7 @@ import { isInternalId } from '../internalProject';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { assertHasLead, assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
-import { mayReviewTask, notifyIn, reviewersOfTask, tickLandsInReview } from '../notify';
+import { mayReviewTask, notifyIn, reviewersAfterSend, reviewersOfTask, tickLandsInReview } from '../notify';
 import { peopleFilter } from '../pause';
 import { sentToReviewOn } from '../review';
 import { can, leadTookTask, mayViewTask, principalOf } from '../permissions';
@@ -754,6 +754,11 @@ export const tasksMove = defineCall({
     if (helperSends ? input.status !== 'in_review' : false) throw forbidden('You cannot do this.', { action: 'task.work' });
     if (!helperSends) assertMayWork(ctx, task);
     const result = input.status === 'done' ? landingStatus(ctx, task) : input.status;
+    // A hand move to In review needs a reviewer, as a tick does (tsk_692, owner 2026-11-08): when nobody else can check the to-do, the
+    // person marks it Done. A to-do that needs no review, and a to-do already in review, keep their old path.
+    if (result === 'in_review' && task.status !== 'in_review' && task.needsReview && reviewersAfterSend(ctx.state, task, ctx.authority.id).length === 0) {
+      throw invalid('status', 'Nobody else can review this to-do. Mark it Done.', 'no_reviewer');
+    }
     if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
     else {
       // A reviewer sends a task in review back only by Send back, with a note that tells the owner why. The owner may still pull

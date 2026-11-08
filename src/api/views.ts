@@ -419,9 +419,24 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
   return { ...summary, members, deadlines: [...index.deadlinesOf(project.id)], chatId, folders: structuredClone(foldersFor(state, viewer, project.folders)) };
 }
 
+/**
+ * A change of a weekly answer holds the ids of the kept to-dos (the Undo needs them), and a reader may not view every one of those to-dos
+ * (fbk_088, security review). So no event view of a weekly answer carries them: the History names no to-do, and the lines of the answer come
+ * from `checkins.mine` and `checkins.week` only.
+ */
+function withoutKeptTasks(event: Event): Event {
+  if (event.targetType !== 'checkin') return event;
+  const strip = (side: unknown): unknown => {
+    if (side === null || typeof side !== 'object' || !('taskIds' in side)) return side;
+    const { taskIds: _kept, ...rest } = side as Record<string, unknown>;
+    return rest;
+  };
+  return { ...event, before: strip(event.before), after: strip(event.after) };
+}
+
 /** viewer: the person who reads the change. A person without the switch "Locked folders" gets no locked folder out of a folder list (fbk_074). */
 export function eventViewOf(state: State, event: Event, viewer?: User): EventView {
-  return { event: viewer ? eventForViewer(state, viewer, event) : event, actor: cardOf(state, event.actorId) };
+  return { event: withoutKeptTasks(viewer ? eventForViewer(state, viewer, event) : event), actor: cardOf(state, event.actorId) };
 }
 
 /** What an open task waits for. A done task waits for nothing, and a task with no prerequisites skips the scan. An office task waits for nothing. */
@@ -454,6 +469,7 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User,
     overdue: isOverdue(task, today),
     canMove: mayChangeTask(viewer, 'work', resource),
     canEditPeople: mayAssignTask(viewer, resource),
+    canEditDetails: mayChangeTask(viewer, 'details', resource),
     waitingFor: waitingOf(state, task, index),
   };
 }

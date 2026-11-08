@@ -46,6 +46,13 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   the act, so it rolls back with it. The job deletes rows older than one day.
 - `INTERNAL_LOADER_OF` (`loaders/index.ts`) holds the loader of `payments.daftraPaid`, the one call that only the job runs;
   `loadFor` reads it after `LOADER_OF`. The Daftra tables: `server/daftra/CLAUDE.md`.
+- `checkins` (the weekly answers, fbk_088, `20261108000100_checkins.sql`) is no office list: about 30 rows a week, so the whole-office read of each request does
+  not grow. Key columns `user_id`, `week`, `kind` and the unique index `checkins_one (week, user_id, kind)`; SQLite step 14. A loader reads the rows of one
+  week (`checkins.week`) or of one person in one week (`checkins.mine`, `checkins.save`); an answer keeps task ids only, so `checkins.mine` and
+  `checkins.week` then read the to-dos that the rows name, with only the fields of the view rule and the title (`loaders/checkins.ts`, a read never saves),
+  and `checkins.save` reads them by key. `events.list` adds the condition of the History rule for the events of the target `checkin` (the holders of
+  `checkin.read` and the author). `loadJobs` reads the
+  answers of one kind only inside the window of the reminder. A save is an office signal with the kind `checkins`.
 - `meetings` is no office list. A handler that checks a right on a row the caller may not see (`meetings.extend`: the true last
   meeting of a series) needs a loader without `meetingConds`; with it, the shadow run finds `forbidden` on the scoped load and
   `not_found` on the whole office. `events.list` adds the test "no `officeMeetingId`, or one of the private meetings of the
@@ -181,7 +188,10 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   `LITE_SCHEMA_VERSION` and `PINNED_SHA256` (`lite/schema.test.ts`), and makes the same objects as a new office
   (`schema.test.ts` checks it). A migration with a SQLite twin adds its step in the same commit. A step that a released office
   already ran never changes in place.
-- Schema version 14 (Madar enterprises) adds the table `enterprise` (the identity row of the object: id, state, limits, created_at). It has no
+- The thread list of the office path (`THREADS_LITE`, `lite/source.ts`) scans the task comments once for "commented in" and "named in"
+  (`select distinct target_id ... where ... or ...`). Each extra scan, and a GROUP BY form of it, adds the rows of every task comment to
+  the rows pins (`server/office/test/pins.ts`). A read that scans a thread for a name runs only for the threads that need it (`threadsExtra`).
+- Schema version 15 (Madar enterprises) adds the table `enterprise` (the identity row of the object: id, state, limits, created_at). It has no
   Postgres twin, and `EXPORT_SKIP` (`server/office/ops.ts`) leaves it out of an export, so a backup of one enterprise never writes its identity into
   another object. `serverTableSql(names)` gives the create statements of named server tables (the platform object copies four of them, empty).
 - The sign-in tables (`auth_users`, `auth_links`, `auth_sessions`, `oauth_clients`, `oauth_requests`) have no step, because no

@@ -37,8 +37,9 @@ export interface Source {
   referencing(c: TableCollection, path: string, id: string, except: string | null): Promise<Row[]>;
   /**
    * The task threads of the Inbox (chats.ts, taskThreads): the tasks that have a comment and that the person leads (owner),
-   * leads the project of (led), or commented on (as a person of "me"). The newest "limit" by the stamp of their last comment,
-   * with ties, each with that stamp and the stamp of the newest comment by "me". Newest first, then by task id from the end.
+   * helps on, leads the project of (led), is named in with @ in a message, or commented on (as a person of "me"). The newest "limit"
+   * by the stamp of their last message (the last quiet line only for a thread with no message), with ties, each with that stamp and the
+   * stamp of the newest comment by "me". Newest first, then by task id from the end.
    */
   /*
    * An office task (no project) is a thread of its lead, its maker (createdBy in "me") and a person of "me" who commented, while

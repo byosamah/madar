@@ -5,7 +5,7 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
 
 ## Madar enterprises
 - Each enterprise has its own office object, named with its id (`ent_001` is VADOs' Companies). The class stays `Office`, binding `OFFICE`. The
-  Worker finds the object through the router (`server/enterprise/CLAUDE.md`). The table `enterprise` (schema version 14) holds the identity
+  Worker finds the object through the router (`server/enterprise/CLAUDE.md`). The table `enterprise` (schema version 15) holds the identity
   row; the gate (`parts.gate`) checks `ent` first in every method: `batch`, `runEffects`, `cron`, `signin`, `mailRoute`, `mailWork`, `mcp`
   and `status` (`health` and `ops` skip it). A wrong `ent` gives `unauthenticated` with the text of a bad token, an object with no row gives
   `not_found`, and a paused object refuses all but `signin`, `mailRoute`, `mailWork`, `status` and `health`.

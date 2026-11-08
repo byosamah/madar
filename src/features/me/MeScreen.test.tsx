@@ -86,10 +86,18 @@ describe('the Me hub (prototype, phone)', () => {
     expect(screen.queryByRole('link', { name: /Agents/ })).toBeNull();
   });
 
-  it('shows the quiet range and the notice line', async () => {
-    await hub();
+  it('shows the quiet range of a person who turned quiet hours on, and the notice line', async () => {
+    await hub((state) => {
+      state.users.usr_001.preferences.workHours = { quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' };
+    });
     expect(await screen.findByText('Sunday to Thursday, outside 8:00 AM to 5:00 PM')).toBeInTheDocument();
     expect(screen.getByText('In the app')).toBeInTheDocument();
+  });
+
+  it('says Off under the quiet row for a person with nothing saved (owner, 2026-11-08)', async () => {
+    await hub();
+    expect(await screen.findByRole('link', { name: /When Madar notifies you/ })).toHaveTextContent('Off');
+    expect(screen.queryByText('Sunday to Thursday, outside 8:00 AM to 5:00 PM')).toBeNull();
   });
 
   it('shows What reaches me to the Admin only', async () => {

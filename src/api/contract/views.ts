@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { NOTIFY_LEVELS } from './limits';
+import { CHECKIN_LIMITS, NOTIFY_LEVELS } from './limits';
 import {
-  Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, FolderId, Gender, GeoPoint, HealthValue,
+  Checkin, Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, FolderId, Gender, GeoPoint, HealthValue,
   MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectFolder, ProjectTemplateId, ResourceFolder, Team,
   ProjectId, ProjectShape, ProjectStatus, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerId, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
@@ -196,6 +196,11 @@ export const TaskRow = z.object({
    * of the row opens its small pop-up only then (feedback fbk_006, 2026-10-11). Optional, so older answers still parse.
    */
   canEditPeople: z.boolean().optional(),
+  /**
+   * The viewer may change the details of this task (title, description, stage, flag): the rule of `tasks.update` for those fields
+   * (`task.details`). The board of a continuous project moves a card to another stage only then (fbk_085). Optional, so older answers still parse.
+   */
+  canEditDetails: z.boolean().optional(),
   /** What an open task waits for: the tasks it needs and the stages its stage needs, while they are not done. Empty for a done task. */
   waitingFor: z.object({
     tasks: z.array(z.object({ id: TaskId, title: z.string() })),
@@ -575,3 +580,36 @@ export const OfficeReport = z.object({
   guide: z.string().max(20_000).optional(),
 });
 export type OfficeReport = z.infer<typeof OfficeReport>;
+
+/**
+ * One line of a weekly answer as a reader gets it: a to-do that the author kept, with the title it has now. The server builds the line when it
+ * reads the answer, and only when the reader may view that to-do. A to-do that the reader may not view, and a to-do that is gone, give no line.
+ */
+export const CheckinItem = z.object({ taskId: TaskId, title: z.string().min(1).max(CHECKIN_LIMITS.titleMax) });
+export type CheckinItem = z.infer<typeof CheckinItem>;
+
+/** A weekly answer as a reader gets it: the record without its ids, and the lines that this reader may see. */
+export const CheckinView = Checkin.omit({ taskIds: true }).extend({ items: z.array(CheckinItem).max(CHECKIN_LIMITS.itemsMax) });
+export type CheckinView = z.infer<typeof CheckinView>;
+
+/**
+ * The own answers of one week (fbk_088): the plan and the review of the person who asks. `week` is the Sunday of the week. A person with no
+ * answer of a kind gets null for it. Only the person's own rows are in it, so it holds nothing of anyone else.
+ */
+export const CheckinMine = z.object({ week: Day, plan: CheckinView.nullable(), review: CheckinView.nullable() });
+export type CheckinMine = z.infer<typeof CheckinMine>;
+
+/**
+ * The week of the team (fbk_088, owner 2026-11-08: everyone reads every answer). One row for each person who answered something, in the
+ * name order of the person, with the plan and the review side by side. `missing` names the active people who have not answered yet: the
+ * review list stays empty until the review is due (Thursday of that week, or any later day). `previous` is the Sunday before, `next` the
+ * Sunday after, or null for the week that holds today.
+ */
+export const WeekView = z.object({
+  week: Day,
+  previous: Day,
+  next: Day.nullable(),
+  rows: z.array(z.object({ user: UserCard, plan: CheckinView.nullable(), review: CheckinView.nullable() })),
+  missing: z.object({ plan: z.array(UserCard), review: z.array(UserCard) }),
+});
+export type WeekView = z.infer<typeof WeekView>;

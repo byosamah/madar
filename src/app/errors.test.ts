@@ -22,6 +22,14 @@ describe('errorMessage', () => {
     expect(errorMessage(refusal, ar.t.bind(ar))).toBe('هذه المهمة قيد المراجعة. اضغط «أعدها للتعديل» واكتب ملاحظة للمسؤول الرئيسي عنها.');
   });
 
+  it('tells the person to mark the to-do Done when nobody else can review it (tsk_692, owner 2026-11-08)', () => {
+    const refusal = invalid('status', 'x', 'no_reviewer');
+    const en = initI18n('en');
+    expect(errorMessage(refusal, en.t.bind(en))).toBe('No other person can review this to-do. Mark it Done.');
+    const ar = initI18n('ar');
+    expect(errorMessage(refusal, ar.t.bind(ar))).toBe('لا أحد غيرك يراجع هذه المهمة. اجعلها «منجزة».');
+  });
+
   it('has a text in both languages for every error code and every server reason (plan, T0.3)', () => {
     for (const language of ['en', 'ar'] as const) {
       const i18n = initI18n(language);

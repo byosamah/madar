@@ -131,8 +131,16 @@ function taskUnread(state: State, taskId: string, comments: Comment[], viewerId:
 type TaskThread = { task: Task; project: Project | null; comments: Comment[] };
 
 /**
- * Tasks I own, lead or commented on, that have at least one comment, with their comments in time order. The comments are
- * grouped by task in one pass. Reading follows the rule of comments.list, so a thread never shows what the comments call would refuse.
+ * The item that sets the time and the preview of a thread: its newest MESSAGE (owner, 2026-11-08: "only real messages lift it"). A quiet
+ * line of a reason (a due date move, a start date move, a shift of Madar, a reopening) never lifts a thread, the same as the quiet log
+ * lines of a group. A thread that holds only quiet lines keeps its newest line, so it still sorts. "comments" are in time order.
+ */
+const threadLast = (thread: TaskThread): Comment => thread.comments.findLast((c) => !isLine(c)) ?? thread.comments[thread.comments.length - 1];
+const threadLastAt = (thread: TaskThread): string => threadLast(thread).createdAt;
+
+/**
+ * Tasks I own, lead, help on, am named in with @, or commented on, that have at least one comment, with their comments in time order.
+ * The rule is inTaskThread (taskUnread.ts; chat, 2026-11-08). The comments are grouped by task in one pass. Reading follows the rule of comments.list, so a thread never shows what the comments call would refuse.
  * An office task is a thread of its lead, its maker (who holds the leader's place) and a person who commented, while that person
  * sees the task (owner, 2026-10-06).
  * Only the newest TASK_THREAD_LIMIT threads count, for the list and for the unread number alike (plan 4.13, A5).
@@ -160,15 +168,15 @@ function taskThreads(state: State, viewer: User): TaskThread[] {
     comments.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
     threads.push({ task, project, comments });
   }
-  const lastAt = (thread: TaskThread) => thread.comments[thread.comments.length - 1].createdAt;
-  threads.sort((a, b) => lastAt(b).localeCompare(lastAt(a)) || b.task.id.localeCompare(a.task.id));
+  threads.sort((a, b) => threadLastAt(b).localeCompare(threadLastAt(a)) || b.task.id.localeCompare(a.task.id));
   return threads.slice(0, TASK_THREAD_LIMIT);
 }
 
 function taskRows(state: State, viewer: User): ChatRow[] {
-  return taskThreads(state, viewer).map(({ task, project, comments }) => {
-    const last = comments[comments.length - 1];
-    // The newest item may be a quiet line of a reason: the row then shows its short line, from the kind and the reason (fbk_027).
+  return taskThreads(state, viewer).map((thread) => {
+    const { task, project, comments } = thread;
+    const last = threadLast(thread);
+    // The item is a quiet line of a reason only when the thread holds nothing else: the row then shows its short line, from the kind and the reason (fbk_027).
     const kind = lineKindOf(last);
     return {
       kind: 'task', id: task.id, title: task.title, project: project ? projectRef(project) : null, person: null,
@@ -205,9 +213,16 @@ function messageViewOf(state: State, message: Message, viewer: User): MessageVie
   };
 }
 
+/**
+ * The Inbox badge (chats.unreadCount). A chat or a thread that the person archived does not count while it stays archived (owner,
+ * 2026-11-08): the person cannot see it in the main list, and an archive keeps its unread number. The archived row shows its own count.
+ */
 function totalUnread(state: State, viewer: User): number {
-  const chats = listedConversations(state, viewer).reduce((sum, c) => sum + unreadIn(state, c.id, viewer.id), 0);
-  return chats + taskThreads(state, viewer).reduce((sum, t) => sum + taskUnread(state, t.task.id, t.comments, viewer.id), 0);
+  const chats = listedConversations(state, viewer).reduce((sum, c) => {
+    const lastAt = messagesOf(state, c.id).at(-1)?.createdAt ?? c.createdAt;
+    return isArchived(state.chatReads[chatReadKey(c.id, viewer.id)], lastAt) ? sum : sum + unreadIn(state, c.id, viewer.id);
+  }, 0);
+  return chats + taskThreads(state, viewer).reduce((sum, t) => (isArchived(state.chatReads[chatReadKey(t.task.id, viewer.id)], threadLastAt(t)) ? sum : sum + taskUnread(state, t.task.id, t.comments, viewer.id)), 0);
 }
 
 /**
@@ -507,8 +522,10 @@ export const chatsArchive = defineCall({
   /**
    * Archives a chat or a task thread for the person, or moves it back to the Inbox (owner, 2026-10-18). Only the person's own read
    * mark changes, and no event is written. The checks are those of chats.markRead, so a hidden chat answers the same way.
-   * An archive also marks the chat read up to now (UX audit 2026-10-19, INT-01): the Inbox badge never counts a chat that the person
-   * cannot find in the list. A new message brings the chat back with its own unread number. Moving back keeps the read mark.
+   * An archive keeps the unread mark (owner, 2026-11-08: "Longer swipe, keep the unread mark"): it reads nothing and clears no notice,
+   * so an unread chat keeps its unread number in the archived list, and Undo brings it back with that number. Until 2026-11-08 an
+   * archive marked the chat read (UX audit 2026-10-19, INT-01); the badge now skips an archived chat instead (totalUnread). A new
+   * message brings the chat back with its whole unread number. Moving back keeps the read mark.
    */
   input: z.object({ conversationId: z.union([ConversationId, TaskId]), archived: z.boolean() }),
   output: z.object({ archived: z.boolean() }),
@@ -516,10 +533,6 @@ export const chatsArchive = defineCall({
     const id = input.conversationId;
     if (id.startsWith('tsk_')) requireTaskThread(ctx, id);
     else requireConversation(ctx, id);
-    if (input.archived) {
-      writeReadMark(ctx, id, undefined);
-      readMentionNotices(ctx, id);
-    }
     const key = chatReadKey(id, ctx.authority.id);
     const read = ctx.state.chatReads[key];
     // Every other field of the mark stays, the "Notify me" choice too (chat design item 21).

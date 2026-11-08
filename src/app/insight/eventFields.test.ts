@@ -14,7 +14,7 @@ import { watchCalls, watchRoutes } from './watch';
  */
 const FIELDS: Record<string, string[]> = {
   $pageview: ['$current_url', 'screen', 'tab'],
-  madar_call_failed: ['call'],
+  madar_call_failed: ['call', 'status', 'kind', 'offline', 'via'],
   madar_refused: ['call', 'code', 'reason'],
   madar_slow_request: ['calls', 'ms'],
   madar_sheet: ['sheet', 'step'],

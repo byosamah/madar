@@ -24,16 +24,28 @@ const EMPTY = emptyState('');
 const textOrder = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const rowsOf = (rows: Rec[]): DocRow[] => rows.map((row) => ({ ord: Number(row.ord), doc: row.doc as Rec }));
 
-/** The task threads of a person (Source.threads): every candidate thread, cut and sorted in JavaScript as memorySource does. */
-export const THREADS_LITE = `with mine as (select distinct target_id from comments where target_type = 'task' and json_extract(doc, '$.authorId') in (select value from json_each(?3))),
+/**
+ * The task threads of a person (Source.threads): every candidate thread, cut and sorted in JavaScript as memorySource does. One scan of the
+ * task comments ("who") finds both the threads that the person commented in and the threads that a message names the person in: two scans
+ * would read every task comment twice. Keep the "select distinct ... where ... or ..." form: the same scan as a GROUP BY read twice as many
+ * rows (rows pins, proof.md "Thread members: rows read on the office path").
+ */
+export const THREADS_LITE = `with who as (select distinct target_id from comments where target_type = 'task'
+  and (json_extract(doc, '$.authorId') in (select value from json_each(?3))
+    or ((json_type(doc, '$.dates') is null or json_type(doc, '$.dates') = 'null') and (json_type(doc, '$.kind') is null or json_type(doc, '$.kind') = 'null')
+      and instr(json_extract(doc, '$.body'), '@[') > 0 and instr(json_extract(doc, '$.body'), '](' || ?1 || ')') > 0))),
 cand as (select k.id from tasks k
-  where (k.owner_id = ?1 or k.project_id in (select value from json_each(?2)) or k.id in (select target_id from mine)
+  where (k.owner_id = ?1 or k.project_id in (select value from json_each(?2))
+      or (json_type(k.doc, '$.helperIds') = 'array' and exists (select 1 from json_each(k.doc, '$.helperIds') h where h.value = ?1))
+      or k.id in (select target_id from who)
       or (k.project_id is null and json_extract(k.doc, '$.createdBy') in (select value from json_each(?3))))
     and (k.project_id in (select value from json_each(?5)) or (k.project_id is null and (?4 or k.owner_id = ?1
       or (json_type(k.doc, '$.helperIds') = 'array' and exists (select 1 from json_each(k.doc, '$.helperIds') h where h.value = ?1))
       or json_extract(k.doc, '$.createdBy') in (select value from json_each(?3)))))),
 threads as (
-  select c.target_id as id, max(c.created_at) as last,
+  select c.target_id as id,
+         coalesce(max(case when (json_type(c.doc, '$.dates') is null or json_type(c.doc, '$.dates') = 'null')
+                         and (json_type(c.doc, '$.kind') is null or json_type(c.doc, '$.kind') = 'null') then c.created_at end), max(c.created_at)) as last,
          max(case when json_extract(c.doc, '$.authorId') in (select value from json_each(?3)) then c.created_at end) as mine
   from comments c where c.target_type = 'task' and c.target_id in (select id from cand)
   group by c.target_id)

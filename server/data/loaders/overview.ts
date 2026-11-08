@@ -216,6 +216,9 @@ export async function eventsList(L: Load, input: Input): Promise<void> {
   // So no person skips this test, and the limit counts only the changes that the person reads. The meetings of the person come whole.
   const mine = (await privateMeetingsOf(L)).map((meeting) => meeting.id);
   where.push({ or: [{ field: 'officeMeetingId', null: true }, { field: 'officeMeetingId', in: mine }] });
+  // A change of a weekly answer shows only to a holder of "Read the weekly answers" and to its author (the person whom the change acts for), so the
+  // limit counts only the changes the person reads (fbk_088, security review). The handler asks the same rule in seesEvent (history.ts).
+  if (!can(L.authority, 'checkin.read')) where.push({ or: [{ col: 'target_type', notIn: ['checkin'] }, { field: 'actingForId', in: [L.authority.id] }] });
   // A change of a project that the person does not see is not in the list, so the limit counts only the changes the person reads
   // (hidden projects, owner 2026-10-22). A deleted project shows its changes to the people who saw it (viewsGoneProject).
   where.push(...await eventProjectConds(L));

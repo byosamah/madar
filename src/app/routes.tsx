@@ -60,6 +60,8 @@ function routeTable(remote: boolean): Entry[] {
         { path: 'me', screen: 'me', deskTo: '/settings' },
         { path: 'me/:section', screen: 'meSection', deskTo: '/settings' },
         { path: 'whats-new', screen: 'whatsNew' },
+        // The week of the team: the weekly answers (fbk_088).
+        { path: 'week', screen: 'week', right: 'checkin.read' },
         // One route for the list and each section, so a change of section keeps the side list (owner, 2026-10-05, item 4).
         { path: 'admin/:section?', screen: 'admin' },
         { path: '*', element: <NotFound /> },

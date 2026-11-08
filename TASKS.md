@@ -1473,7 +1473,34 @@ Study: 4 read-only Sonnet agents (cause, what exists, options). Branch `rb/revie
   (fixed: `DASHBOARD_TASK_FIELDS`; then 104 and 76 rule tests passed). The smoke found the old toast words in two browser tests (fixed).
 - [x] Release: test copy, then production by Claude after the owner picked "Gates, test copy, then to production". Done 2026-11-08:
   production at ea14943a. Record: proof.md.
+- [x] The four reports are closed (done, 2026-11-08; Faisal got the notices of fbk_086 and fbk_087). Worktrees bugs-1108 and review-rule removed.
 - [ ] tsk_624 itself keeps the old rule until it is sent again (no stored sender). Moataz can approve it now.
+- [x] A hand move to In review by a person who needs no review is refused with the reason no_reviewer (owner: "Refuse the move",
+  2026-11-08; Madar to-do tsk_692), in the second release below.
+- [ ] The first load holds 969,111 B of 972,000 B (2,889 B left) and 295,862 B of 296,000 B in gzip (138 B left) after the second release.
+  The gzip room is the tight one: the next first-load change must make room first.
+- [x] Second release (owner picked three batches and "go production when the gates pass", 2026-11-08; branch `rb/release-1108b`):
+  fbk_083 (two-line to-do titles, Today shows the project name only, no helper text), fbk_084 (Continuous means the stages run together:
+  "Continuous, 12 open", no move-back reason, no stage_changed notice), fbk_085 (a View button beside Filter, the stage on each board card, Done
+  for 7 days, stage columns on a Continuous project; closes tsk_443), fbk_088 (a Sunday plan card and a Thursday review card on Home, the Week
+  page, everyone reads every answer, a push at 08:00 Sunday and 14:00 Thursday, MCP checkins.week and checkins.save), and the chat fixes
+  (helpers and people named with @ have the to-do thread; quiet hours off unless a person turns them on; a longer swipe that keeps the unread
+  mark; a date line no longer lifts a thread; a chat link shows its row; the failed-call event records its cause). What's new 157 to 160.
+- [x] Gates of the second release: typecheck; npm test 13,187 passed; the three builds; test:db 3,663; test:it 373; test:mcp 670 (conformance
+  5 of 32, 27 expected); test:lite 3,663; test:office 40. The first run found 4 red gates (a test that called as a person who left the office,
+  two loader counts made stale by new trap comments, an SQLite sort with no index, and the office rows pins of the thread rule); fixed in
+  489db34f, then all passed. Security review fixes of the weekly question: the History of an answer shows only to its readers, and an answer
+  stores to-do ids and shows a title only to a reader who may view the to-do.
+- [x] Second release: production at f032c057 on 2026-11-08 (record: proof.md). Kutla is Continuous; tsk_443 and tsk_692 are done.
+- [ ] fbk_089 (vacation mode): not started (owner picked the other batches first). Study in the session of 2026-11-08.
+- [ ] Unread number for a new member of a to-do thread: a helper or a person named with @ who has read nothing sees every older message of
+  the thread as unread. Owner may want a start point (for example from the first mention).
+- [ ] Thread members, rows read on the office path (chat fix 2026-11-08): store the ids of the people named in a comment at write time
+  (a new field next to `Comment.mentions`, which holds only @everyone ids), so the thread rule reads them with no scan of the comment text,
+  before the office path serves production. Today the thread list finds a named person with one scan of the task comments (`THREADS_LITE`),
+  and `tasks.list` with `review_for_me` reads the comments of each to-do the person neither leads nor helps on (5,329 rows against 3,817 before;
+  ceiling 5,862). proof.md, "Thread members: rows read on the office path". Production runs on Supabase (Postgres filters in the database).
+
 - [ ] A hand move to In review by a person who needs no review (for example the project leader who leads the to-do) still waits with no
   named reviewer; only a backup can approve it. Decide: refuse the move, or keep it.
 - [ ] The first load holds 971,290 B of 972,000 B (710 B left) and 295,724 B of 296,000 B in gzip (276 B left). The next first-load change
@@ -1507,26 +1534,3 @@ order; builders run on Sonnet 5.5. Each track merges into `rb/enterprises`; the 
 - [ ] At the merge to main: renumber the What's new ids of track ent-c (it took 157 and 158; madar-b0 holds 157 to 160 for rb/quick-1108, rb/stages, rb/weekly and rb/chat-1108): take 161 or higher, and check main again at the merge. Renumber the SQLite steps 14 and 15 to 15 and 16: rb/weekly takes step 14 on main (madar-b0, 2026-11-08). Update LITE_SCHEMA_VERSION, LITE_STEPS, PINNED_SHA256 and the contract line "Schema steps".
 - [ ] The full merge gate on `rb/enterprises`, screenshots, then main
 - [ ] Plan E: the move of VADOs' Companies (owner OK at each production step)
-||||||| f99b353f
-- [ ] Proposed (owner to decide): PostHog's free managed proxy on a subdomain of vado.sa, so ad blockers stop no PostHog data. It uses a DNS
-  record and no Cloudflare request quota (the reason the insight design refused a Pages Functions proxy).
-
-## Madar enterprises, plan B: the enterprise core (branch `rb/ent-b`; owner: "let opus 5.5 approve the plan", 2026-11-08)
-- [x] The ids and tags, the claim `ent` in the own tokens, the table `enterprise` (schema version 14) and the gate in every object method,
-  the platform object (directory, owners, meters), the router and the listed cache, sign-in by email, tagged links, keys, refresh tokens
-  and socket tickets, the MCP address `/mcp/<address>`, the ops by enterprise id, the Cron fan-out, two enterprises on the local stack,
-  and the leak tests of two enterprises. The guides: `server/enterprise/CLAUDE.md` and the guides of each part.
-- [ ] Lead step, spike S1: deploy the test Worker (it has the service binding `SELF` and `MADAR_CRON_TRANSPORT = "self"`), run
-  `npx tsx scripts/proof/cron-fanout/probe.ts --to <page address> --kind self|api --count 3|5|15 --outside 0|20|40`, read one real Cron run in
-  `wrangler tail`, write the numbers in proof.md ("S1: Cron fan-out"), and set `MADAR_CRON_TRANSPORT` from the rule there. If neither
-  transport works, ask the owner: the Cron then runs one enterprise in each 15-minute run.
-- [ ] Lead step: start `npm run dev:office` once and check by hand that `admin@madar.test` (ent_001) and `admin@globex.test` (ent_002) both sign
-  in and see their own projects. Plan B changes no screen, so it has no screenshots.
-- [ ] Plan C owns `storageBytes` of the status row (plan B sends 0), the platform calls and page, create, pause and resume, the limits, the
-  names and the logo, the day cap rule of `platform.meter` (plan B always allows), and the paused rule of each sign-in step.
-- [ ] Plan D owns the mail pool (`platform.mailReserve` answers `ok` until then), the file prefix, logs and PostHog, the backups for each
-  enterprise, the prototype, What's new and the sweep of VADO-only text. Plan B adds no visible word and no What's new line.
-- [ ] The Google callback and the Daftra step on the office path stay with plan A. Plan B did not touch them.
-- [ ] The test copy keeps the old object named `office` until it is seeded into `ent_001` (`npx tsx scripts/office/seed.ts`
-  with `--to` the test copy): the Worker now names its objects with the enterprise id, and an object named `office` has no identity row.
-- [ ] `npm run test:mcp` (with the conformance run) and `npm run test:it` did not run in the track: the lead runs them once, with the full gate.

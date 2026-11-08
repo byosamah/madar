@@ -10,6 +10,7 @@ import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
 import { isWorkingDay } from '../lib/workdays';
+import { weekSlotAt } from '../lib/week';
 import type { Ctx } from './registry';
 
 export type NotifyInput = {
@@ -330,6 +331,19 @@ export function runScheduledTriggers(state: State, at: Date, options: NotifyOpti
     count += notify(state, null, stamp, {
       userIds: accounting, trigger: 'payment_due', targetType: 'project', targetId: project.id, dedupeKey: `payment_due:${payment.id}:${payment.dueDate}`,
       dueDate: payment.dueDate, payment: { id: payment.id, name: payment.name },
+    }, options).length;
+  }
+  // The weekly question (fbk_088, owner 2026-11-08): on Sunday from 08:00 and on Thursday from 14:00, every active person who holds "Answer the weekly
+  // question" and has not answered gets one notice, in the app and in push. The key holds the question and the week, so the person is asked once.
+  const slot = weekSlotAt(clock.weekday, clock.hour);
+  if (slot) {
+    const week = weekStartOf(today);
+    const answered = new Set(Object.values(state.checkins ?? {}).filter((one) => one.week === week && one.kind === slot).map((one) => one.userId));
+    const asked = Object.values(state.users)
+      .filter((user) => user.kind === 'human' && user.active && !answered.has(user.id) && can(withRights(state, user), 'checkin.answer'))
+      .map((user) => user.id);
+    count += notify(state, null, stamp, {
+      userIds: asked, trigger: 'week_question', targetType: 'week', targetId: `${slot}:${week}`, dedupeKey: `week_question:${slot}:${week}`,
     }, options).length;
   }
   return count;

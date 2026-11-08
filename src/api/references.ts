@@ -163,7 +163,7 @@ export function jsonPathOf(path: string): string {
 const OWN_COLLECTION: Partial<Record<EventTarget, RefCollection>> = {
   project: 'projects', member: 'members', stage: 'stages', deadline: 'deadlines', task: 'tasks', update: 'updates', comment: 'comments',
   file: 'files', client: 'clients', user: 'users', stageTemplate: 'stageTemplates', taskTemplate: 'taskTemplates', tracker: 'tracker',
-  payment: 'payments', feedback: 'feedback', team: 'teams', projectTemplate: 'projectTemplates', subCompany: 'subCompanies', meeting: 'meetings',
+  payment: 'payments', feedback: 'feedback', team: 'teams', projectTemplate: 'projectTemplates', subCompany: 'subCompanies', meeting: 'meetings', checkin: 'checkins',
 };
 
 /** True when a record other than the target itself still holds the target's id in one of its reference fields. */

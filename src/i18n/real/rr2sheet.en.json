@@ -319,13 +319,21 @@
         "label": "Office report",
         "hint": "The report of a week, a month, a quarter or a year. Today only an AI assistant reads it for you."
       },
+      "checkinAnswer": {
+        "label": "Answer the weekly question",
+        "hint": "Say what you plan on Sunday and what you did on Thursday."
+      },
+      "checkinRead": {
+        "label": "Read the weekly answers",
+        "hint": "Read the plans and the reviews of the team on the Week page."
+      },
       "aiConnect": {
         "label": "Connect AI assistants",
         "hint": "Connect an AI app to Madar. Off stops the connected assistants of this role at once."
       },
       "aiReadWork": {
         "label": "AI reads work data",
-        "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, teams, office settings, the bell, the Dashboard, the History and Search."
+        "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, teams, office settings, the bell, the Dashboard, the History, Search and the weekly answers."
       },
       "aiReadChats": {
         "label": "AI reads chats",
@@ -377,7 +385,7 @@
       },
       "aiMyState": {
         "label": "AI changes my own marks and settings",
-        "hint": "Mark notices and chats read or unread, archive a chat, and set Notify me. Change the own profile, settings and AI apps of the person. Only when the person asks."
+        "hint": "Mark notices and chats read or unread, archive a chat, and set Notify me. Change the own profile, settings and AI apps of the person. Save the weekly answer of the person. Only when the person asks."
       },
       "aiUndo": {
         "label": "AI undoes changes",

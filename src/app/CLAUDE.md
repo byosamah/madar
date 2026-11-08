@@ -101,6 +101,8 @@ screens are in `src/CLAUDE.md`. The remote sign-in, realtime and storage ports a
 - A press on a tab of the bar starts the main read of its screen on pointerdown, never on hover: `usePressReads` and `PRESS_READS`
   (`pressReads.ts`). The Projects line follows the reach of the cached session (`projectsDefaultShow`). A change to one of these reads
   changes its line there too. `PressReads.test.tsx` holds the keys. Home shows from the cache and starts nothing.
+- Home starts `checkins.mine` (`{ week: weekStartOf(today) }`, fbk_088; the card reads the same key) with `meetings.list` in its first request, and starts the import of the weekly card chunk beside it.
+  Neither is in `homeKeys`: the card is not part of the instant first frame of Home.
 - `usePrefetchCall` (`prefetch.ts`) starts a read early under the exact key of `useCall`, in the remote build only. Call it in an effect or an
   event, never in render.
 - Home keeps the last role it saw for each auth user (`madar.homeRole.<auth user id>`, `features/home/roleHint.ts`). The session answer

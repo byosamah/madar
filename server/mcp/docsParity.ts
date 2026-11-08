@@ -8,7 +8,7 @@
  * The email code guard (owner, 2026-10-26; guard.ts): the sentence that ends the text of each guarded act. The first call fails with
  * confirm_needed and emails a 6-digit code to your person. The second call has the same arguments and confirmCode.
  */
-const CODE_RULE = 'The first call fails with confirm_needed and emails your person a 6-digit code. Ask for it, then call again with the same arguments and confirmCode.';
+const CODE_RULE = 'Needs a code: see Codes in madar.readFirst (confirm_needed, then confirmCode).';
 
 export const PARITY_DOCS: Record<string, { title: string; description: string }> = {
   // Project set-up.
@@ -175,7 +175,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'notifications.markRead': {
     title: 'Mark notices read',
-    description: 'Marks notices of your person as read: ids (from notifications.list). It changes what your person sees in the bell. A read by you is not a read by your person. Do it only when your person asks.',
+    description: 'Marks notices of your person as read: ids (from notifications.list). It changes what your person sees in the bell. A read by you is not a read by your person. Only when your person asks.',
   },
   'notifications.markAllRead': {
     title: 'Mark every notice read',
@@ -195,7 +195,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'chats.markUnread': {
     title: 'Mark a chat unread',
-    description: 'Marks a chat or a task thread (conversationId or a task ID) as unread for your person, as a reminder. An archived chat comes back to the Inbox. Do it only when your person asks.',
+    description: 'Marks a chat or a task thread (conversationId or a task ID) as unread for your person, as a reminder. An archived chat comes back to the Inbox. Only when your person asks.',
   },
   'chats.unreadCount': {
     title: 'Count the unread chats',
@@ -203,11 +203,11 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'chats.archive': {
     title: 'Archive a chat',
-    description: 'Archives a chat or a task thread for your person (archived true), or moves it back to the Inbox (archived false). An archive marks the chat read. A new message brings it back. Do it only when your person asks.',
+    description: 'Archives a chat or a task thread for your person (archived true), or moves it back to the Inbox (archived false). An archive keeps the unread mark and leaves the badge. A new message brings it back. Only when your person asks.',
   },
   'chats.setNotify': {
     title: 'Set Notify me for a chat',
-    description: 'Sets the Notify me choice of your person for one chat (conversationId): all pushes every message, named pushes only a message that names your person. A task thread has no choice. Do it only when your person asks.',
+    description: 'Sets the Notify me choice of your person for one chat (conversationId): all pushes every message, named pushes only a message that names your person. A task thread has no choice. Only when your person asks.',
   },
   // Templates of projects and stages.
   'stageTemplates.list': {
@@ -299,7 +299,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'users.create': {
     title: 'Add a person',
-    description: 'Adds a person and sends the invitation email: name, email, discipline, optionally nameAr, systemRole (member by default), roleId (a custom role of a Member), gender and language. Needs people.invite. Only an Admin makes an Admin. A real person gets a real email: ask your person for every field, and wait for yes. Needs a code. ' + CODE_RULE,
+    description: 'Adds a person and sends the invitation email: name, email, discipline, optionally nameAr, systemRole (member by default), roleId (a custom role of a Member), gender and language. Needs people.invite. Only an Admin makes an Admin. A real person gets a real email: ask your person for every field, and wait for yes. ' + CODE_RULE,
   },
   'users.update': {
     title: 'Change a person',
@@ -307,15 +307,15 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'users.deactivate': {
     title: 'Turn a person off',
-    description: 'Turns a person off (id): they cannot sign in, and their AI apps stop. Needs people.turnOff. Not your own person. Ask your person first. users.reactivate turns the person on again. Needs a code. ' + CODE_RULE,
+    description: 'Turns a person off (id): they cannot sign in, and their AI apps stop. Needs people.turnOff. Not your own person. Ask your person first. users.reactivate turns the person on again. ' + CODE_RULE,
   },
   'users.reactivate': {
     title: 'Turn a person on again',
-    description: 'Turns a turned-off person on again (id), with their account and history. Needs people.turnOff. A removed person does not come back. Ask your person first. Needs a code. ' + CODE_RULE,
+    description: 'Turns a turned-off person on again (id), with their account and history. Needs people.turnOff. A removed person does not come back. Ask your person first. ' + CODE_RULE,
   },
   'users.remove': {
     title: 'Remove a person from the list',
-    description: 'Removes a turned-off person from every list for good (id): the people list, the pickers and the teams. Their history keeps the name. The AI apps of the person go too. Needs people.remove. Turn the person off first. Nothing brings the person back. Ask your person first. Needs a code. ' + CODE_RULE,
+    description: 'Removes a turned-off person from every list for good (id): the people list, the pickers and the teams. Their history keeps the name. The AI apps of the person go too. Needs people.remove. Turn the person off first. Nothing brings the person back. Ask your person first. ' + CODE_RULE,
   },
   'users.invites': {
     title: 'See who is invited',
@@ -363,14 +363,14 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'roles.create': {
     title: 'Make a role',
-    description: 'Makes a custom role for Members: name, nameAr and rights (switch IDs: the list is in madar.readFirst). A role holds the standard Member switches, the ones you list in rights, and not the ones you list in off. Needs the Admin. The role changes nobody until a person gets it. Ask your person first. Needs a code. ' + CODE_RULE,
+    description: 'Makes a custom role for Members: name, nameAr and rights (switch IDs: the list is in madar.readFirst). A role holds the standard Member switches, the ones you list in rights, and not the ones you list in off. Needs the Admin. The role changes nobody until a person gets it. Ask your person first. ' + CODE_RULE,
   },
   'roles.update': {
     title: 'Change a role',
-    description: 'Changes a role: role (management, accounting, member, or a custom role ID), and any of name, nameAr, rights, off (switch IDs: the list is in madar.readFirst). It changes what every person with the role may do, and what their AI assistants may do. Needs the Admin. An agent cannot undo it. Ask your person first, and say what changes. Needs a code. ' + CODE_RULE,
+    description: 'Changes a role: role (management, accounting, member, or a custom role ID), and any of name, nameAr, rights, off (switch IDs: the list is in madar.readFirst). It changes what every person with the role may do, and what their AI assistants may do. Needs the Admin. An agent cannot undo it. Ask your person first, and say what changes. ' + CODE_RULE,
   },
   'roles.delete': {
     title: 'Delete a role',
-    description: 'Deletes a custom role (id). Its people move to moveTo (management, accounting, member or another role); the call fails when people hold the role and you send none. Needs the Admin. An agent cannot undo it. Ask your person first. Needs a code. ' + CODE_RULE,
+    description: 'Deletes a custom role (id). Its people move to moveTo (management, accounting, member or another role); the call fails when people hold the role and you send none. Needs the Admin. An agent cannot undo it. Ask your person first. ' + CODE_RULE,
   },
 };

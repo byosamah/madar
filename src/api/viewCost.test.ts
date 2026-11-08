@@ -192,16 +192,19 @@ describe('the output of the read views stays the same (pins)', () => {
     const answers = people.flatMap((id) => [
       runCall(office, id, 'tasks.list', {}), runCall(office, id, 'tasks.list', { filter: 'mine' }), runCall(office, id, 'tasks.list', { projectId: 'prj_001' }),
     ]);
-    // The row has one new field (fbk_071). Without it the answers are the old ones: the pin of before the field stands.
-    const withoutUnread = JSON.parse(JSON.stringify(answers, (key, value) => (key === 'unreadCount' ? undefined : value)));
+    // The row has two new fields (fbk_071 unreadCount, fbk_085 canEditDetails). Without them the answers are the old ones: the pin of before the fields stands.
+    const withoutUnread = JSON.parse(JSON.stringify(answers, (key, value) => (key === 'unreadCount' || key === 'canEditDetails' ? undefined : value)));
     expect(digest(withoutUnread)).toBe('bbb89cb24534d52c');
-    expect(digest(answers)).toBe('2c07c4f14258ec7b');
+    expect(digest(answers)).toBe('62f914477e96bf8a');
   });
 
   it('tasks.get for every to-do', () => {
     const answers = people.map((id) => Object.keys(office.tasks).map((taskId) => runCall(office, id, 'tasks.get', { id: taskId })));
     // fbk_087 (2026-11-08): the new flag viewerCan.sendToReview (true in 37 of the 1,440 answers) is the only change. Before: a7f0bd1d2ac1ffd0.
-    expect(digest(answers)).toBe('12c69a388794d7a1');
+    // fbk_085 (2026-11-08): the new row flag canEditDetails. Without it the answers are the old ones: the pin of before the flag stands.
+    const withoutFlag = JSON.parse(JSON.stringify(answers, (key, value) => (key === 'canEditDetails' ? undefined : value)));
+    expect(digest(withoutFlag)).toBe('12c69a388794d7a1');
+    expect(digest(answers)).toBe('888d1b2f3460df90');
   });
 
   it('projects.get for every project', () => {

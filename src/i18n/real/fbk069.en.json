@@ -4,7 +4,7 @@
   },
   "projectForm": {
     "continuous": "Continuous project",
-    "continuousHint": "No deadline. The project goes on."
+    "continuousHint": "No deadline. The stages run together."
   },
   "errors": {
     "reasons": {

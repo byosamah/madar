@@ -138,6 +138,10 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'push.mine': [{}],
     'push.register': [{ endpoint: 'https://fcm.googleapis.com/fcm/send/sample-token', label: 'Chrome on Mac' }],
     'push.remove': [{ endpoint: 'https://fcm.googleapis.com/fcm/send/sample-token' }],
+    // The weekly question (fbk_088): the Admin answers the plan with a line of text, then reads the own answers and the week of the team.
+    'checkins.save': [{ kind: 'plan', items: [], text: 'Sweep plan' }],
+    'checkins.mine': [{}],
+    'checkins.week': [{}],
     'feedback.screenshot': [{ id: 'fbk_001', index: 0 }],
     'feedback.setStatus': [{ id: 'fbk_001', status: 'done' }],
     'taskTemplates.list': [{}],

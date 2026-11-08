@@ -19,10 +19,14 @@ const MORNING = new Date('2026-10-04T06:00:00Z');
 const EVENING = new Date('2026-10-04T16:00:00Z');
 const STAMP = '2026-10-04T09:00:00.000+03:00';
 
-async function office(at: Date, edit: (seed: State) => void = () => undefined) {
+/** The hours of a person who turned quiet hours on with the range of the office (a person who saved nothing is never quiet, owner 2026-11-08). */
+const QUIET_ON = { quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' };
+
+async function office(at: Date, edit: (seed: State) => void = () => undefined, o: { plain?: boolean } = {}) {
   const lite = await freshLite();
   const seed = await buildSeed('2026-10-04', async () => undefined);
   seed.notifications.ntf_901 = { id: 'ntf_901', userId: 'usr_002', trigger: 'task_assigned', actorId: 'usr_001', targetType: 'task', targetId: 'tsk_001', read: false, createdAt: STAMP, dedupeKey: null };
+  if (!o.plain) seed.users.usr_002 = { ...seed.users.usr_002, preferences: { ...seed.users.usr_002.preferences, workHours: QUIET_ON } };
   edit(seed);
   await lite.db.tx('write', (q) => liteWriteState(q, seed));
   const deps = fakeDeps({ db: lite.db });
@@ -37,6 +41,14 @@ describe('the notice mail in quiet hours (SQLite)', () => {
     expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['ent_001:notice-ntf_901']);
   });
 
+  it('sends the mail at any hour to a person who saved no hours: in the evening and on Friday (owner, 2026-11-08)', async () => {
+    for (const at of [EVENING, new Date('2026-10-09T06:00:00Z')]) {
+      const { deps } = await office(at, () => undefined, { plain: true });
+      await sendNoticeMail({ notificationId: 'ntf_901' }, deps);
+      expect(deps.mail.sent.map((m) => m.idempotencyKey), at.toISOString()).toEqual(['ent_001:notice-ntf_901']);
+    }
+  });
+
   it('sends no mail in quiet hours, takes no place of the quota, and sends none later either', async () => {
     const { deps, db } = await office(EVENING);
     await sendNoticeMail({ notificationId: 'ntf_901' }, deps);
@@ -45,7 +57,7 @@ describe('the notice mail in quiet hours (SQLite)', () => {
     expect(await db.statement('read', 'select count(*) as n from mail_log')).toEqual([{ n: 0 }]);
   });
 
-  it('sends no mail on Friday, in the office default hours', async () => {
+  it('sends no mail on Friday, in the office range, to a person who turned quiet hours on', async () => {
     const { deps } = await office(new Date('2026-10-09T06:00:00Z'));
     await sendNoticeMail({ notificationId: 'ntf_901' }, deps);
     expect(deps.mail.sent).toEqual([]);
@@ -89,8 +101,15 @@ describe('the notice mail in quiet hours (the Postgres statements)', () => {
     return { mem, deps };
   }
 
-  it('reads the work hours with the statement of the notice (no statement of their own), and reserves no place when the person is quiet', async () => {
+  it('sends the mail to a person with no saved hours (owner, 2026-11-08)', async () => {
     const { mem, deps } = setup(undefined);
+    await sendNoticeMail({ notificationId: 'ntf_1' }, deps);
+    expect(deps.mail.sent).toHaveLength(1);
+    expect(mem.log).toHaveLength(1);
+  });
+
+  it('reads the work hours with the statement of the notice (no statement of their own), and reserves no place when the person is quiet', async () => {
+    const { mem, deps } = setup({ quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' });
     await sendNoticeMail({ notificationId: 'ntf_1' }, deps);
     expect(deps.mail.sent).toEqual([]);
     expect(mem.log).toEqual([]);
@@ -105,7 +124,7 @@ describe('the notice mail in quiet hours (the Postgres statements)', () => {
   });
 
   it('follows the office work hours of the same statement', async () => {
-    const { mem, deps } = setup(undefined);
+    const { mem, deps } = setup({ quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' });
     const original = mem.db.statement;
     mem.db.statement = (async (mode: 'read' | 'write', text: string, values?: unknown[]) => {
       const rows = (await original(mode, text, values)) as { office?: unknown }[];

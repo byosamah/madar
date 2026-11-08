@@ -42,7 +42,7 @@ pure handlers, an additive contract, a table for a new collection, a test count 
   author, organizer) and needs its switch. `project.code` passes only where `project.details` passes.
 - **Add a switch:**
   1. Add it to the catalog JSON and to `rightsCatalog.ts` (id, scope, `basic`, `needs`, the defaults of each built-in role,
-     `mcpTools` of an AI switch). Update the counts in `rightsCatalog.test.ts`.
+     `mcpTools` of an AI switch). Update the counts in `rightsCatalog.test.ts`. A power with one switch, no scope and no AI tools uses the short form `one(id, basic, needs?)`: the first load of the real build holds this file.
   2. Keep `MAX_OFF_RIGHTS` at or above the number of basic switches, and `MAX_STORED_RIGHTS` above the switches that a role
      can hold (`contract/entities.ts`). No test pins the two caps. A role save over a cap fails in zod.
   3. Add the label and the hint to `roleRights.powers.<power>` in `src/i18n/real/rr2sheet.*.json`. The English texts and
@@ -178,6 +178,9 @@ pure handlers, an additive contract, a table for a new collection, a test count 
   `inbox.trigger.<t>` (with `_female` in Arabic), the pins in `entities.test.ts`, `notify.test.ts` and
   `NotificationsSection.test.tsx`, a line in `server/push/words.ts` for a new `inbox.*` sentence, and the list in
   `server/mail/CLAUDE.md`. No migration: the column is text.
+- The weekly question (fbk_088) is the in-app trigger `week_question` with the notice target `week` (id `plan:<Sunday>` or `review:<Sunday>`): its words are
+  `inbox.trigger.week_question` (plan) and `inbox.trigger.week_question_review` in `real/weekly.*.json`, and the bell link is Home. It is not an
+  `ACTION_TRIGGERS` notice and makes no Admin copy.
 - `IN_APP_ONLY_TRIGGERS` send no email: `emailOn` is false, `notifications.updateSettings` refuses their email switch with
   reason `in_app_only`, and Settings shows none. `ADMIN_ONLY_TRIGGERS`: `visibleTriggers` shows the switch only with the right.
   `ACTION_TRIGGERS` count on the bell.

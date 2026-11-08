@@ -1,5 +1,5 @@
 import type {
-  ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Meeting, Message, Notification, Payment, Project, ProjectMember, ProjectTemplate, PushDevice,
+  ChatRead, Checkin, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Meeting, Message, Notification, Payment, Project, ProjectMember, ProjectTemplate, PushDevice,
   Settings, Stage, StageTemplate, SubCompany, Task, TaskTemplate, Team, TrackerEntry, Update, User,
 } from './contract/entities';
 import { DEFAULT_STALE_DAYS } from './contract/limits';
@@ -64,6 +64,11 @@ export type State = {
    * have none, so reads go through pushDevicesOf. No version step: the collection starts empty and needs no backfill.
    */
   pushDevices?: Record<string, PushDevice>;
+  /**
+   * The weekly answers (fbk_088). Offices saved before this feature have none, so reads go through checkinsOf. No version step: the
+   * collection starts empty and needs no backfill.
+   */
+  checkins?: Record<string, Checkin>;
   settings: Settings;
   counters: Record<string, number>;
   /**
@@ -163,6 +168,12 @@ export function subCompaniesOf(state: State): Record<string, SubCompany> {
 export function meetingsOf(state: State): Record<string, Meeting> {
   state.meetings ??= {};
   return state.meetings;
+}
+
+/** The weekly answers. An old office has none, so this makes the collection when it is missing. */
+export function checkinsOf(state: State): Record<string, Checkin> {
+  state.checkins ??= {};
+  return state.checkins;
 }
 
 export { chatReadKey, memberKey } from './rowKeys';

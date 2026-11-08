@@ -213,6 +213,9 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
       link = meetingLink(meeting.id);
       startsAt = meeting.startsAt;
     }
+  } else if (n.targetType === 'week') {
+    // The weekly question (fbk_088) opens Home, where the card waits. It names no project and no person.
+    link = '/';
   } else if (n.targetType === 'feedback') {
     if (gone) {
       // A former Admin reads nothing of the report: no words, no sender and no link (owner, 2026-10-07). The same for a report

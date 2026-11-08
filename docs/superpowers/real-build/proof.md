@@ -3180,6 +3180,56 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   madar.vado.sa serves `bootstrap-DsjVwWMM.js`, and its first-load `index-Dv5fBnds.js` holds the class of the quiet toggle.
 - Open: tsk_624 keeps the old rule until it is sent again; the reports stay open until the owner says to close them (TASKS.md).
 
+## Thread members: rows read on the office path (2026-11-08)
+- Why: the chat fix of 2026-11-08 (owner decision) makes helpers and people named with @ part of a to-do thread. Comments store only the
+  @everyone ids (`Comment.mentions`), so the office path finds a named person by a scan of the comment text (`names`, `instr` in
+  `server/data/lite/compile.ts` and `THREADS_LITE`). The first gate run of the release branch failed the rows pins of test:office (year office:
+  12,000 task comments in 96 threads, 864 to-dos; usr_005 owns 12 threads of 126 comments).
+- Statements first. Three reads grew: (1) the thread list found the named threads with a second scan of all task comments (+12,000 rows);
+  (2) round 2 of the Inbox read the newest message that names the person on every thread, and the newest message of every thread (about
+  1,500 rows each: every comment of the 12 threads); (3) `tasks.list` did the naming read on every listed to-do (about 1,500 rows).
+- Cuts (no change of the stored shape of comments): the thread list asks for "commented in" and "named in" with ONE scan, in the shape of the
+  old query (`select distinct target_id ... where ... or ...`). A GROUP BY form of the same scan read twice as many rows (+12,000) with the same
+  plan lines; the distinct form keeps the old cost. The naming read runs only for threads where the person has no comment and neither leads,
+  helps on nor leads the project (`threadsExtra`, round 3, with the count). The newest-message read runs only for a thread whose newest comment
+  is a quiet line. `tasks.list` asks for the naming read only for the to-dos that the person neither leads nor helps on.
+- Rows read on the year office (before the fix of the gate / after): chats.unreadCount usr_005 29,891 / 16,366 (ceiling 16,994, unchanged);
+  usr_001 29,916 / 16,391 (16,968); chats.list usr_001 29,937 / 16,412 (16,990); chats.waiting usr_005 35,483 / 23,482 (24,837); usr_001 56,006 /
+  44,005 (48,725); tasks.list mine usr_005 5,257 / 3,745 (4,120); tasks.list review_for_me usr_002 5,329 / 5,329 (ceiling raised from 4,199 to 5,862,
+  measured plus 10%). The 1,512 rows over the old 3,817 are the naming read of the 12 to-dos that usr_002 neither leads nor helps on. A second
+  round to skip the to-dos with an own comment would save them, but it costs one round trip for each tasks.list on Supabase, where production runs.
+- Open: store the ids of the named people at write time, so the thread rule needs no scan (TASKS.md, "Open reports fbk_081 to 089").
+- Postgres: no new index. `events.list` with a `target_type` filter reads `events_seq` backward and filters (readIndexes.it.test.ts passes);
+  the SQLite twin needed `events_target_type (target_type, seq)` in step 14 (checkins, not released) because SQLite sorted a temporary b-tree.
+
+### Release record: production at f032c057 (2026-11-08, fbk_083, fbk_084, fbk_085, fbk_088, tsk_692 and the chat fixes)
+- Why: the owner picked three batches of the open reports ("go production when the gates pass") and the chat report of the same day (sort
+  differs, late messages, a to-do message that Moataz could not reach). Four Sonnet builders on rb/quick-1108, rb/stages, rb/weekly and
+  rb/chat-1108; the lead stacked them on rb/release-1108b (23 commits on main 0ee64009).
+- What shipped: two-line to-do titles, the project name only in Today, no helper text (fbk_083); a move to In review with no reviewer is
+  refused (tsk_692); a Continuous project shows "Continuous, N open" and drops the order rules (fbk_084); a View button, the stage on each board
+  card, Done for 7 days, and stage columns on a Continuous project (fbk_085, closes tsk_443); the weekly question (fbk_088: table checkins,
+  migration 20261108000100_checkins.sql, SQLite step 14, calls checkins.mine, checkins.week, checkins.save, trigger week_question, MCP tools);
+  the chat fixes (helpers and people named with @ have the to-do thread; quiet hours off unless a person turns them on; a 160 px swipe that keeps
+  the unread mark; a date line no longer lifts a thread; a chat link shows its row; madar_call_failed records its cause). What's new 157 to 160.
+- Security review fixes of the weekly question: the History of an answer shows only to its readers, the event view leaves out the to-do ids,
+  and an answer stores to-do ids and shows a title only to a reader who may view the to-do.
+- Gates: the first full run found 4 red gates (a test that called as a person who left the office, two loader counts made stale by new trap
+  comments, an SQLite sort with no index on events by target type, and the office rows pins of the new thread rule: chats.unreadCount 29,891
+  rows against a ceiling of 16,994). Fix 489db34f cut the reads (one scan for commented or named, the naming reads only where needed) and
+  raised one ceiling (tasks.list review_for_me 4,199 to 5,862; section "Thread members: rows read on the office path"). Then: typecheck;
+  npm test 13,187 passed; the three builds (first load 969,111 B of 972,000 B, 295,862 B of 296,000 B gzip); test:db 3,663; test:it 373;
+  test:mcp 670 (conformance 5 of 32, 27 expected); test:lite 3,663; test:office 40; the smoke 135 of 140 at a load of 29, and the 5 screen
+  sweeps that timed out passed alone at a lower load (about 40 s each).
+- `scripts/deploy/all.sh test` (record f032c057; the checkins migration applied on madar-test), then `echo production | scripts/deploy/all.sh
+  production` by Claude after the owner's "go production when the gates pass", 2026-11-08 about 15:00 UTC; the migration applied on production.
+  No hand check of screens on the test copy: the profile on screen in Dia had no session there; the check fetched the live scripts instead
+  (the first load holds checkins.mine and line-clamp-2). Live checks: health from supabase, 165 calls; database, lock and asyncContext ok; /mcp
+  with no token 401; madar.vado.sa serves bootstrap-DVjYHoV9.js, and its first load holds checkins.mine.
+- After the release, through the Madar MCP (story sty_zqwehitzaar7okkbdi3il6): Kutla (prj_017) is Continuous (owner yes); tsk_443 and tsk_692
+  are done (the lead who leads the project lands on Done with no review, the new rule in production).
+
+
 ## Madar enterprises: core spikes S2 and S3
 Probe: `scripts/proof/ent-core/` (`node scripts/proof/ent-core/run.mjs`, local workerd, sandbox off, it never deploys). Run on 2026-11-08.
 - S3, how an object knows its own name: **yes**. An object made with `idFromName('ent_001')` reports `ctx.id.name` equal to `ent_001` in

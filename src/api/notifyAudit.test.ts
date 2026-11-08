@@ -9,7 +9,8 @@ beforeEach(() => {
   state = makeWorld();
 });
 
-const at = (day: string) => new Date(`${day}T06:00:00Z`);
+// 06:00 in the office, before the weekly question goes out on Sunday at 08:00 (fbk_088): these tests count the other notices.
+const at = (day: string) => new Date(`${day}T03:00:00Z`);
 const sent = (trigger: string) => Object.values(state.notifications).filter((n) => n.trigger === trigger);
 
 describe('The due reminder goes out on the last working day before the due day (audit 2026-10-03, API-11)', () => {

@@ -1,6 +1,6 @@
 import type { ZodObject } from 'zod';
 import {
-  ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Meeting, Message, Notification, Payment, Project, ProjectMember,
+  ChatRead, Checkin, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Meeting, Message, Notification, Payment, Project, ProjectMember,
   ProjectTemplate, PushDevice, Settings, Stage, StageTemplate, SubCompany, Task, TaskTemplate, Team, TrackerEntry, Update, User,
 } from '../../src/api/contract/entities';
 import { chatReadKey, memberKey, type State } from '../../src/api/store';
@@ -52,6 +52,8 @@ const TABLE_OF: { [C in TableCollection]: Omit<TableSpec, 'collection' | 'office
   pushDevices: { table: 'push_devices', key: byId, schema: PushDevice },
   // The meetings (fbk_022). Not an office list: the loaders read the window of one call, and a meeting with no project reaches only its people.
   meetings: { table: 'meetings', key: byId, schema: Meeting },
+  // The weekly answers (fbk_088). Not an office list: the loaders read the rows of one week, or of one person in one week.
+  checkins: { table: 'checkins', key: byId, schema: Checkin },
   settings: { table: 'settings', key: () => 'office', schema: Settings },
   projects: {
     table: 'projects', key: byId, schema: Project,

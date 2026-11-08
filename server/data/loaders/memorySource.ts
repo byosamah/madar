@@ -1,4 +1,6 @@
 import { valuesAt } from '../../../src/api/references';
+import { isLine, type CommentKindFields } from '../../../src/lib/commentLine';
+import { mentionedUserIds } from '../../../src/lib/text';
 import type { State } from '../../../src/api/store';
 import { tableOf, type TableCollection } from '../tables';
 import { assertOrder, columnOf, isAscending, matchesNothing, type Cond, type Row, type Select } from './query';
@@ -73,6 +75,7 @@ export function memorySource(state: State): Source {
     if ('field' in cond) {
       const value = fieldText(doc[cond.field]);
       if ('null' in cond) return value === null;
+      if ('names' in cond) return typeof doc[cond.field] === 'string' && mentionedUserIds(doc[cond.field] as string).includes(cond.names);
       if ('notIn' in cond) return value === null || !cond.notIn.includes(value);
       return value !== null && cond.in.includes(value);
     }
@@ -188,15 +191,21 @@ export function memorySource(state: State): Source {
         const task = state.tasks[id];
         if (!task) continue;
         const mine = comments.filter((comment) => o.me.includes(String(comment.authorId))).map((comment) => String(comment.createdAt));
+        // A helper of the to-do, and a person named with @ in a message (not in a quiet line), are part of the thread (chat, 2026-11-08).
+        const helper = (task.helperIds ?? []).includes(o.owner);
+        const named = comments.some((comment) => !isLine(comment as CommentKindFields) && mentionedUserIds(String(comment.body)).includes(o.owner));
+        const part = mine.length > 0 || helper || named;
         if (task.projectId === null) {
           const made = o.me.includes(task.createdBy);
-          const sees = o.admin || task.ownerId === o.owner || (task.helperIds ?? []).includes(o.owner) || made;
-          if (!sees || (task.ownerId !== o.owner && !made && mine.length === 0)) continue;
+          const sees = o.admin || task.ownerId === o.owner || helper || made;
+          if (!sees || (task.ownerId !== o.owner && !made && !part)) continue;
         } else {
           if (!state.projects[task.projectId] || !o.seen.includes(task.projectId)) continue;
-          if (task.ownerId !== o.owner && !o.led.includes(task.projectId) && mine.length === 0) continue;
+          if (task.ownerId !== o.owner && !o.led.includes(task.projectId) && !part) continue;
         }
-        const last = comments.map((comment) => String(comment.createdAt)).reduce((a, b) => (b > a ? b : a));
+        // The time of a thread is the time of its newest message; a thread of quiet lines only keeps its newest line (chat, 2026-11-08).
+        const messages = comments.filter((comment) => !isLine(comment as CommentKindFields));
+        const last = (messages.length > 0 ? messages : comments).map((comment) => String(comment.createdAt)).reduce((a, b) => (b > a ? b : a));
         found.push({ id, last, mine: mine.length > 0 ? mine.reduce((a, b) => (b > a ? b : a)) : null });
       }
       found.sort((a, b) => before(b.last, a.last) || before(b.id, a.id));

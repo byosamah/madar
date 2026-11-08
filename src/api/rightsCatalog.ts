@@ -1,5 +1,5 @@
 /**
- * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 94 powers, 123 switches. It is a plain copy of
+ * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 96 powers, 125 switches. It is a plain copy of
  * docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json, without the words (the labels and the hints are word keys of the
  * screens). A test (rightsCatalog.test.ts) checks that this file and the JSON agree. permissions.ts is in the first load of the real
  * build, so this file takes no value from zod or from the schema files.
@@ -35,7 +35,7 @@ export type CatalogPower = {
 
 export type CatalogSection = { readonly key: string; readonly powers: readonly CatalogPower[] };
 
-/** The 123 switch ids, in the order of the sections of the role sheet. */
+/** The 125 switch ids, in the order of the sections of the role sheet. */
 export const CATALOG_RIGHT_IDS = [
   'project.create', 'client.create', 'project.details.lead', 'project.details.all', 'project.team.lead', 'project.team.all',
   'project.stages.lead', 'project.stages.all', 'project.deadlines.lead', 'project.deadlines.all', 'project.template.lead',
@@ -53,30 +53,26 @@ export const CATALOG_RIGHT_IDS = [
   'tracker.deleteAny.all', 'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove',
   'clients.change', 'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive',
   'payment.daftraLink', 'templates.projectCreate', 'templates.projectAny', 'templates.taskSave.lead', 'templates.taskSave.all', 'templates.taskAny',
-  'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office', 'ai.connect',
+  'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office', 'checkin.answer', 'checkin.read', 'ai.connect',
   'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts', 'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects',
   'ai.projectSetup', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.admin', 'ai.myState', 'ai.undo', 'ai.undoOthers.lead', 'ai.undoOthers.all', 'feedback.send',
   'feedback.manage', 'office.settings',
 ] as const;
 export type CatalogRightId = (typeof CATALOG_RIGHT_IDS)[number];
 
+/**
+ * A power with one switch, no scope and no AI tools (it may need other switches): the id of the power is the id of the switch. This is the short form of the many powers
+ * of that shape (the first load of the real build holds this file, so each power costs bytes).
+ */
+const one = (id: CatalogRightId, basic: boolean, needs: readonly CatalogRightId[] = []): CatalogPower => ({ power: id, switches: [{ id, scope: null, basic, needs }] });
+
 /** The sections, the powers and the switches of each power. */
 export const CATALOG_SECTIONS: readonly CatalogSection[] = [
   {
     key: 'projects',
     powers: [
-      {
-        power: 'project.create',
-        switches: [
-          { id: 'project.create', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'client.create',
-        switches: [
-          { id: 'client.create', scope: null, basic: true, needs: [] },
-        ],
-      },
+      one('project.create', true),
+      one('client.create', true),
       {
         power: 'project.details',
         switches: [
@@ -133,12 +129,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'project.health.all', scope: 'all', basic: false, needs: ['project.health.lead'] },
         ],
       },
-      {
-        power: 'project.code',
-        switches: [
-          { id: 'project.code', scope: null, basic: false, needs: [] },
-        ],
-      },
+      one('project.code', false),
       {
         power: 'project.delete',
         switches: [
@@ -146,12 +137,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'project.delete.all', scope: 'all', basic: false, newPower: true, needs: ['project.delete.lead'] },
         ],
       },
-      {
-        power: 'project.seeAll',
-        switches: [
-          { id: 'project.seeAll', scope: null, basic: true, needs: [] },
-        ],
-      },
+      one('project.seeAll', true),
       {
         power: 'project.access',
         switches: [
@@ -178,48 +164,13 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'task.add.all', scope: 'all', basic: false, needs: ['task.add.team'] },
         ],
       },
-      {
-        power: 'task.assign',
-        switches: [
-          { id: 'task.assign', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'task.take',
-        switches: [
-          { id: 'task.take', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'task.help',
-        switches: [
-          { id: 'task.help', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'task.work',
-        switches: [
-          { id: 'task.work', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'task.details',
-        switches: [
-          { id: 'task.details', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'task.dates',
-        switches: [
-          { id: 'task.dates', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'task.deleteOwn',
-        switches: [
-          { id: 'task.deleteOwn', scope: null, basic: true, needs: [] },
-        ],
-      },
+      one('task.assign', true),
+      one('task.take', true),
+      one('task.help', true),
+      one('task.work', true),
+      one('task.details', true),
+      one('task.dates', true),
+      one('task.deleteOwn', true),
       {
         power: 'task.any',
         switches: [
@@ -234,12 +185,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'task.review.all', scope: 'all', basic: false, needs: ['task.review.lead'] },
         ],
       },
-      {
-        power: 'task.officeAll',
-        switches: [
-          { id: 'task.officeAll', scope: null, basic: false, needs: [] },
-        ],
-      },
+      one('task.officeAll', false),
     ],
   },
   {
@@ -253,18 +199,8 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'meeting.plan.all', scope: 'all', basic: false, needs: ['meeting.plan.team'] },
         ],
       },
-      {
-        power: 'meeting.editOwn',
-        switches: [
-          { id: 'meeting.editOwn', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'meeting.minutesOwn',
-        switches: [
-          { id: 'meeting.minutesOwn', scope: null, basic: true, needs: [] },
-        ],
-      },
+      one('meeting.editOwn', true),
+      one('meeting.minutesOwn', true),
       {
         power: 'meeting.any',
         switches: [
@@ -298,12 +234,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'comment.create.all', scope: 'all', basic: false, needs: ['comment.create.team'] },
         ],
       },
-      {
-        power: 'post.editOwn',
-        switches: [
-          { id: 'post.editOwn', scope: null, basic: true, needs: [] },
-        ],
-      },
+      one('post.editOwn', true),
       {
         power: 'project.links',
         switches: [
@@ -330,18 +261,8 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'file.deliver.all', scope: 'all', basic: false, needs: ['file.deliver.team'] },
         ],
       },
-      {
-        power: 'file.share',
-        switches: [
-          { id: 'file.share', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'file.deleteOwn',
-        switches: [
-          { id: 'file.deleteOwn', scope: null, basic: true, needs: [] },
-        ],
-      },
+      one('file.share', true),
+      one('file.deleteOwn', true),
       {
         power: 'file.deleteAny',
         switches: [
@@ -366,24 +287,9 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
   {
     key: 'chat',
     powers: [
-      {
-        power: 'chat.direct',
-        switches: [
-          { id: 'chat.direct', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'chat.groupCreate',
-        switches: [
-          { id: 'chat.groupCreate', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'chat.groupChange',
-        switches: [
-          { id: 'chat.groupChange', scope: null, basic: true, needs: [] },
-        ],
-      },
+      one('chat.direct', true),
+      one('chat.groupCreate', true),
+      one('chat.groupChange', true),
       {
         power: 'chat.project',
         switches: [
@@ -391,12 +297,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'chat.project.all', scope: 'all', basic: false, needs: ['chat.project.team'] },
         ],
       },
-      {
-        power: 'chat.mentionEveryone',
-        switches: [
-          { id: 'chat.mentionEveryone', scope: null, basic: true, needs: [] },
-        ],
-      },
+      one('chat.mentionEveryone', true),
     ],
   },
   {
@@ -409,24 +310,9 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'tracker.log.all', scope: 'all', basic: false, needs: ['tracker.log.team'] },
         ],
       },
-      {
-        power: 'tracker.reply',
-        switches: [
-          { id: 'tracker.reply', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'tracker.export',
-        switches: [
-          { id: 'tracker.export', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'tracker.deleteOwn',
-        switches: [
-          { id: 'tracker.deleteOwn', scope: null, basic: true, needs: [] },
-        ],
-      },
+      one('tracker.reply', true),
+      one('tracker.export', true),
+      one('tracker.deleteOwn', true),
       {
         power: 'tracker.deleteAny',
         switches: [
@@ -439,77 +325,22 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
   {
     key: 'people',
     powers: [
-      {
-        power: 'people.invite',
-        switches: [
-          { id: 'people.invite', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'people.change',
-        switches: [
-          { id: 'people.change', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'people.teams',
-        switches: [
-          { id: 'people.teams', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'people.turnOff',
-        switches: [
-          { id: 'people.turnOff', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'people.remove',
-        switches: [
-          { id: 'people.remove', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'clients.change',
-        switches: [
-          { id: 'clients.change', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'subCompanies.manage',
-        switches: [
-          { id: 'subCompanies.manage', scope: null, basic: false, needs: [] },
-        ],
-      },
+      one('people.invite', false),
+      one('people.change', false),
+      one('people.teams', false),
+      one('people.turnOff', false),
+      one('people.remove', false),
+      one('clients.change', false),
+      one('subCompanies.manage', false),
     ],
   },
   {
     key: 'money',
     powers: [
-      {
-        power: 'payment.view',
-        switches: [
-          { id: 'payment.view', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'payment.add',
-        switches: [
-          { id: 'payment.add', scope: null, basic: false, needs: ['payment.view'] },
-        ],
-      },
-      {
-        power: 'payment.change',
-        switches: [
-          { id: 'payment.change', scope: null, basic: false, needs: ['payment.view'] },
-        ],
-      },
-      {
-        power: 'payment.receive',
-        switches: [
-          { id: 'payment.receive', scope: null, basic: false, needs: ['payment.view'] },
-        ],
-      },
+      one('payment.view', false),
+      one('payment.add', false, ['payment.view']),
+      one('payment.change', false, ['payment.view']),
+      one('payment.receive', false, ['payment.view']),
       {
         power: 'payment.daftraLink',
         switches: [
@@ -521,18 +352,8 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
   {
     key: 'templates',
     powers: [
-      {
-        power: 'templates.projectCreate',
-        switches: [
-          { id: 'templates.projectCreate', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'templates.projectAny',
-        switches: [
-          { id: 'templates.projectAny', scope: null, basic: false, needs: [] },
-        ],
-      },
+      one('templates.projectCreate', false),
+      one('templates.projectAny', false),
       {
         power: 'templates.taskSave',
         switches: [
@@ -540,66 +361,28 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'templates.taskSave.all', scope: 'all', basic: false, needs: ['templates.taskSave.lead'] },
         ],
       },
-      {
-        power: 'templates.taskAny',
-        switches: [
-          { id: 'templates.taskAny', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'templates.updateProjects',
-        switches: [
-          { id: 'templates.updateProjects', scope: null, basic: false, needs: [] },
-        ],
-      },
+      one('templates.taskAny', false),
+      one('templates.updateProjects', false),
     ],
   },
   {
     key: 'dashboard',
     powers: [
-      {
-        power: 'dashboard.view',
-        switches: [
-          { id: 'dashboard.view', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'workload.view',
-        switches: [
-          { id: 'workload.view', scope: null, basic: true, needs: ['dashboard.view'] },
-        ],
-      },
-      {
-        power: 'search.use',
-        switches: [
-          { id: 'search.use', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'gaps.view',
-        switches: [
-          { id: 'gaps.view', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'report.office',
-        switches: [
-          { id: 'report.office', scope: null, basic: false, needs: [] },
-        ],
-      },
+      one('dashboard.view', true),
+      one('workload.view', true, ['dashboard.view']),
+      one('search.use', true),
+      one('gaps.view', false),
+      one('report.office', false),
+      one('checkin.answer', true),
+      one('checkin.read', true),
     ],
   },
   {
     key: 'ai',
     powers: [
+      one('ai.connect', true),
       {
-        power: 'ai.connect',
-        switches: [
-          { id: 'ai.connect', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'ai.readWork', mcpTools: ['projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'meetings.list', 'meetings.get', 'tracker.list', 'deadlines.list', 'files.list', 'users.list', 'subCompanies.list', 'pictures.get', 'dashboard.get', 'events.list', 'search.query', 'notifications.list', 'notifications.count', 'users.get', 'teams.list', 'settings.get'],
+        power: 'ai.readWork', mcpTools: ['projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'meetings.list', 'meetings.get', 'tracker.list', 'deadlines.list', 'files.list', 'users.list', 'subCompanies.list', 'pictures.get', 'dashboard.get', 'events.list', 'search.query', 'notifications.list', 'notifications.count', 'users.get', 'teams.list', 'settings.get', 'checkins.week'],
         switches: [
           { id: 'ai.readWork', scope: null, basic: true, needs: ['ai.connect'] },
         ],
@@ -677,7 +460,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.myState', mcpTools: ['notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread', 'notifications.updateSettings', 'chats.markRead', 'chats.markUnread', 'chats.archive', 'chats.setNotify', 'me.updateProfile', 'me.updatePreferences', 'agents.list', 'agents.remove'],
+        power: 'ai.myState', mcpTools: ['notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread', 'notifications.updateSettings', 'chats.markRead', 'chats.markUnread', 'chats.archive', 'chats.setNotify', 'me.updateProfile', 'me.updatePreferences', 'agents.list', 'agents.remove', 'checkins.save'],
         switches: [
           { id: 'ai.myState', scope: null, basic: true, needs: ['ai.connect'] },
         ],
@@ -700,29 +483,14 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
   {
     key: 'office',
     powers: [
-      {
-        power: 'feedback.send',
-        switches: [
-          { id: 'feedback.send', scope: null, basic: true, needs: [] },
-        ],
-      },
-      {
-        power: 'feedback.manage',
-        switches: [
-          { id: 'feedback.manage', scope: null, basic: false, needs: [] },
-        ],
-      },
-      {
-        power: 'office.settings',
-        switches: [
-          { id: 'office.settings', scope: null, basic: false, needs: [] },
-        ],
-      },
+      one('feedback.send', true),
+      one('feedback.manage', false),
+      one('office.settings', false),
     ],
   },
 ];
 
-/** The 68 switches that a Member holds by default: every scope of today's powers except `all`, and the two new view switches. */
+/** The 70 switches that a Member holds by default: every scope of today's powers except `all`, and the two new view switches. */
 export const BASIC_ON: readonly CatalogRightId[] = [
   'project.create', 'client.create', 'project.details.lead', 'project.team.lead', 'project.stages.lead',
   'project.deadlines.lead', 'project.template.lead', 'project.archive.lead', 'project.leader.lead', 'project.health.lead',
@@ -732,7 +500,7 @@ export const BASIC_ON: readonly CatalogRightId[] = [
   'post.editOwn', 'project.links.team', 'file.upload.team', 'file.deliver.team', 'file.share', 'file.deleteOwn',
   'file.deleteAny.lead', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.project.team', 'chat.mentionEveryone', 'tracker.log.team',
   'tracker.reply', 'tracker.export', 'tracker.deleteOwn', 'tracker.deleteAny.lead', 'templates.taskSave.lead',
-  'dashboard.view', 'workload.view', 'search.use', 'ai.connect', 'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts',
+  'dashboard.view', 'workload.view', 'search.use', 'checkin.answer', 'checkin.read', 'ai.connect', 'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts',
   'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.myState', 'ai.undo',
   'ai.undoOthers.lead', 'feedback.send',
 ];

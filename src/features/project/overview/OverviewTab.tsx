@@ -17,6 +17,7 @@ import { diffDays, formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../../lib/due';
 import { actorContext, counted } from '../../../lib/grammar';
 import { currentWork, needsAttention, stageStanding } from '../../../lib/overview';
+import { stageCounts } from '../../../lib/stageCounts';
 import { currentStageIndex } from '../../../lib/stageFlow';
 import { PAYMENT_PANEL, TASK_PANEL, usePanelLink } from '../panelLink';
 import { SECTION_LABEL } from '../sectionLabel';
@@ -52,8 +53,48 @@ function TaskLine({ row, onOpen, showOwner = true }: { row: TaskRow; onOpen: (id
   );
 }
 
+/** The Standing panel of a continuous project: the health, and the open to-dos of each stage, in the order of the stages. */
+function StandingTogether({ detail, rows, ready, phone }: TabProps & { rows: TaskRow[]; ready: boolean; phone: boolean }) {
+  const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const { project, health, healthSetBy } = detail;
+  const counts = stageCounts(detail.stages, rows.map((row) => row.task));
+  return (
+    <section aria-labelledby="overview-standing" className="panel flex flex-col gap-4 p-5">
+      <h2 id="overview-standing" className={SECTION_LABEL}>{t('overview.standing')}</h2>
+      {/* A phone shows the health in its header. */}
+      {!phone && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-footnote text-ink-2">{t('overview.stagesOpen')}</p>
+          {health ? <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign> : <ProjectSign project={project} staleDays={detail.staleDays} />}
+        </div>
+      )}
+      {phone && <p className="text-footnote text-ink-2">{t('overview.stagesOpen')}</p>}
+      <ul className="flex flex-col">
+        {counts.map(({ stage, open }) => (
+          <li key={stage.id} className="flex min-h-9 items-center justify-between gap-3 text-subheadline">
+            <bdi dir="auto" className="min-w-0 truncate text-ink">{stage.name}</bdi>
+            {ready && <span className="tabular shrink-0 text-ink-2">{t('projects.openShort', { count: open })}</span>}
+          </li>
+        ))}
+      </ul>
+      {phone && detail.nextDeadline && (
+        <dl>
+          <dt className="text-footnote text-ink-2">{t('phoneProject.overview.nextDeadline')}</dt>
+          <dd><NextDeadlineLabel deadline={detail.nextDeadline} /></dd>
+        </dl>
+      )}
+      {health?.overridden && health.reason && (
+        <p className="rounded-xl bg-fill px-3 py-2 text-footnote text-ink-2">
+          <bdi>{healthSetBy ? t('overview.healthNote', { name: nameOf(healthSetBy), context: actorContext(healthSetBy) }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
+        </p>
+      )}
+    </section>
+  );
+}
+
 /** Where the project stands: the stage, how far the stage is, the stage's end and the health (owner's request, 2026-10-01). */
-function Standing({ detail, rows, phone = false }: TabProps & { rows: TaskRow[]; phone?: boolean }) {
+function Standing({ detail, rows, ready, phone = false }: TabProps & { rows: TaskRow[]; ready: boolean; phone?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
@@ -62,6 +103,8 @@ function Standing({ detail, rows, phone = false }: TabProps & { rows: TaskRow[];
   const standing = stageStanding(rows, currentStage, todayISO());
   // A stage end date never makes a continuous project late (fbk_069): the date shows plain, with no count of days.
   const late = !project.continuous && standing.daysLeft !== null && standing.daysLeft < 0;
+  // A continuous project has no current stage (fbk_084): the panel shows the health and the open to-dos of each stage.
+  if (project.continuous) return <StandingTogether detail={detail} rows={rows} ready={ready} phone={phone} />;
   return (
     <section aria-labelledby="overview-standing" className="panel flex flex-col gap-4 p-5">
       <h2 id="overview-standing" className={SECTION_LABEL}>{t('overview.standing')}</h2>
@@ -341,7 +384,7 @@ export function OverviewTab({ detail }: TabProps) {
   // A phone shows the stage name, the count and the steps in its header, so its Standing panel keeps the facts only.
   const standing = tasks.data ? (
     <>
-      <Standing detail={detail} rows={rows} phone={phone} />
+      <Standing detail={detail} rows={rows} ready={tasks.data !== undefined} phone={phone} />
       <Attention projectId={detail.project.id} rows={rows} tracker={tracker.data} onOpen={open} seesPayments={detail.viewerCan.payments} />
     </>
   ) : <div aria-busy="true" className="panel min-h-64" />;

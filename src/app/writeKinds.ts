@@ -102,7 +102,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'chats.editMessage': ['messages', 'notifications'],
   'chats.deleteMessage': ['messages', 'notifications'],
   'chats.markRead': ['chatReads', 'notifications'],
-  'chats.archive': ['chatReads', 'notifications'],
+  'chats.archive': ['chatReads'],
   'chats.markUnread': ['chatReads'],
   'chats.setNotify': ['chatReads'],
   'chats.openDirect': ['chatReads', 'conversations'],
@@ -150,6 +150,8 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'meetings.extend': ['events', 'meetings'],
   // The minutes write the event and the Tracker line (or the meeting), and the call settles a meeting first when the job did not (wave 2).
   'meetings.saveMinutes': ['events', 'meetings', 'tracker'],
+  // The weekly answer (fbk_088) writes its row and its event, and tells the office with the kind "checkins".
+  'checkins.save': ['checkins', 'events'],
   // A push device is private and sends no change signal (server/data/save.ts), so no list reloads for it (owner, 2026-10-08).
   'push.register': [],
   'push.remove': [],

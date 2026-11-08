@@ -51,7 +51,7 @@ Each rule here has a test. A new notice type also goes into this list (`src/api/
 - A notice from @everyone (`Notification.everyone`): skipped the same way. Test: `everyoneMail.test.ts`.
 - The in-app only notices (`IN_APP_ONLY_TRIGGERS`, `emailOn`): the two notices of requests and bugs, the notice of a new group,
   the two notices of a meeting (`meeting_invited`, `meeting_soon`), the notices of a new helper and a deleted task
-  (`helper_joined`, `task_deleted`) and the due day of a payment (`payment_due`). A meeting sends no mail: calendar apps remind by
+  (`helper_joined`, `task_deleted`), the due day of a payment (`payment_due`) and the weekly question (`week_question`). A meeting sends no mail: calendar apps remind by
   themselves. `MailData.notice` takes only an `EmailTrigger`, and the mail tests iterate `EMAIL_TRIGGERS`.
 
 ## Content
