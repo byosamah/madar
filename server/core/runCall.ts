@@ -14,6 +14,7 @@ import { requestHost } from './after';
 import { AFTER_ANSWER_KINDS, CHAT_WAIT_MS, outboxRowsOf, processOutbox, WAITED_KINDS, writeOutbox, type OutboxRow } from './effects';
 import { digestOf, replay, sqlKeys, type KeyStore, type StoredResult } from './idempotency';
 import { busyOf, logLockHold, takeOfficeLock } from './lock';
+import { assertPeopleWithinLimit } from './peopleLimit';
 import type { Deps, Query } from './ports';
 import { serverCallMap, type CallEntry, type ServerEntry, type SharedEntry } from './serverCallMap';
 import { checkStory, newStoryId, resolveStory, sqlStories, statementStories, type StoryStore } from './story';
@@ -283,6 +284,9 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
         }
       }
       const saved = await t.save(before, state, { story: { storyId: story.storyId, actorId } });
+      // The people limit holds for every call, not only for the ones that name it: an Undo of a turn-off or of a remove turns people on
+      // again. No facts (the Postgres path) or no limit: no check. A failure rolls the whole call back.
+      await assertPeopleWithinLimit(t.q, deps.enterprise?.limits().people ?? null, before, state);
       const rows = await outboxRowsOf(entry.name, output, saved, t.q, now);
       // The ids come back in the order of the rows (writeOutbox), so each id keeps the kind of its row.
       const effects = (await t.outbox(rows)).map((id, i) => ({ id, kind: rows[i].kind }));

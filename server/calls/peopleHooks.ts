@@ -1,8 +1,9 @@
-import { ApiError, invalid } from '../../src/api/errors';
+import { invalid } from '../../src/api/errors';
 import { can } from '../../src/api/permissions';
 import { withRights } from '../../src/api/rights';
 import type { HookQuery, ServerHooks } from '../../src/api/registry';
 import type { Deps } from '../core/ports';
+import { PEOPLE_COUNT_LITE, assertRoomForPerson } from '../core/peopleLimit';
 import { liteDbOf } from '../data/lite/db';
 import { readLiteOffice } from '../data/lite/office';
 import { normalizeEmail } from '../enterprise/ids';
@@ -69,18 +70,7 @@ async function targetOf(deps: Deps, id: string): Promise<Target | undefined> {
   return row;
 }
 
-/** The humans who count against the people limit: active, not removed. An invited person is active, so it counts. */
-export const PEOPLE_COUNT_LITE =
-  "select count(*) as n from users where json_extract(doc, '$.kind') = 'human' and json_extract(doc, '$.active') = 1 and coalesce(json_extract(doc, '$.removed'), 0) = 0";
-
-/** Refuses one more human above the limit. null is no limit. It runs inside the lock, so two creates cannot both take the last place. */
-export async function assertRoomForPerson(q: HookQuery, limit: number | null): Promise<void> {
-  if (limit === null) return;
-  const [row] = await q<{ n: number }>(PEOPLE_COUNT_LITE);
-  if (Number(row?.n ?? 0) + 1 > limit) {
-    throw new ApiError('conflict', 'Your company reached its limit of people. Ask the Madar team to raise it.', { reason: 'people_limit', limit });
-  }
-}
+export { PEOPLE_COUNT_LITE, assertRoomForPerson };
 
 /** The people limit of this object, or null: no facts (the Postgres path) and ENT_VADO with no limit both mean none. */
 const peopleLimitOf = (deps: Deps): number | null => deps.enterprise?.limits().people ?? null;

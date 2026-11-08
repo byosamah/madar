@@ -54,8 +54,11 @@ design is `docs/superpowers/specs/2026-11-08-madar-enterprises-design.md`. The s
   platform row second (`update` sends the object only the fields that changed). `pause` refuses an enterprise that holds an owner and needs the typed name.
 - The object RPCs of plan C: `init`, `setState`, `setLimits`, `setIdentity`, `setPlatformOwners`, `person`, `reinvite`, `brand`
   (`lifecycle.ts` holds the work). `writeOwners` (`platform/owners.ts`, the ops route `platform-owners`) writes the master list and the copy in each object.
-- Limits: `facts.ts` (`EnterpriseFacts`, `Deps.enterprise`) holds the id, state, limits and owners in memory. The people limit is the `prepare` of
-  `users.create` and `users.reactivate` (`server/calls/peopleHooks.ts`). The storage limit is `assertStorageRoom` in `files.uploadStart`, with a running
+- Limits: `facts.ts` (`EnterpriseFacts`, `Deps.enterprise`) holds the id, state, limits and owners in memory. The people limit has two steps. The `prepare` of
+  `users.create` and `users.reactivate` (`server/calls/peopleHooks.ts`) gives the early, calm refusal. The real check is in the write step of
+  `runCall` (`assertPeopleWithinLimit`, `server/core/peopleLimit.ts`): after the save and inside the lock, for every write call, it refuses with
+  `people_limit` when the call turned more people on than off and the count is above the limit, so an Undo or an Undo story of a turn-off or of a
+  remove cannot go above the limit. A call that adds nobody never fails there. No facts (the Postgres path) means no check. The storage limit is `assertStorageRoom` in `files.uploadStart`, with a running
   total in `enterprise_use` (`storage.ts`). The email directory is the preflight and settle of the people hooks (`server/calls/peopleHooks.ts`,
   `directory.ts`, `NetApi.directoryReserve`). The settle step makes the directory equal to the rows: after the commit it re-reads the rows, and
   the row of the target counts as a holder. It frees the reserved email when no row holds it, and the old email after a first answer only
