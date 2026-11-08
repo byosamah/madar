@@ -6,12 +6,13 @@
     "items": {
       "2026-11-08-160": {
         "title": "Chat fixes",
-        "body": "Helpers and people named with @ now find the to-do in their Inbox. Quiet hours are off unless you turn them on in Settings. Messages reach you at once."
+        "body": "Helpers and people named with @ now find the to-do in their Inbox. Quiet hours are off unless you turn them on in Settings. Messages reach you at once. A phone swipe needs a longer drag to archive a chat, and an archived chat keeps its unread mark. A date change no longer lifts a to-do above real messages."
       }
     }
   },
   "chat": {
-    "archivedUnread_one": "{{count}} archived chat has unread messages",
+    "archivedUnread": "Archived chats with unread messages: {{count}}",
+    "archivedUnread_one": "1 archived chat has unread messages",
     "archivedUnread_other": "{{count}} archived chats have unread messages"
   }
 }
