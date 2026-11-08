@@ -76,8 +76,8 @@ export const filesUploadStart: ServerCall<'files.uploadStart'> = async (input, c
   const limit = fileLimit(deps, input);
   if (input.size > limit) throw fileTooLarge('size', limit);
   // The storage limit of the enterprise (plan C): a size equal to the room passes, one byte more fails.
-  // The file, its small picture and the open uploads of other starts count against the room.
-  await assertStorageRoom(deps, input.size + (input.thumb?.size ?? 0), { now });
+  // The file, its small picture and the open uploads of the same person count against the room. The check in the save of the file is the real guard.
+  await assertStorageRoom(deps, input.size + (input.thumb?.size ?? 0), { now, actorId: userId });
   if (input.thumb && !isPictureType(input.thumb.mimeType)) throw invalid('thumb', 'The small picture must be a PNG, JPEG, GIF, WebP or AVIF picture.');
 
   const id = newUploadId();

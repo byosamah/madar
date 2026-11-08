@@ -32,20 +32,24 @@ export async function storageUsed(db: Pick<Db, 'statement'>): Promise<number> {
   return Number(row?.storage_bytes ?? 0);
 }
 
-/** The bytes of the open uploads of files: not used, not ended. The screenshots of reports (keys under feedback/) are not counted, as the running total does not count them. */
-const OPEN_INTENTS_LITE = "select coalesce(sum(size), 0) as n from upload_intents where used_at is null and expires_at > ?1 and key not like 'feedback/%'";
+/**
+ * The bytes of the open uploads of ONE person: not used, not ended. The screenshots of reports (keys under feedback/) are not counted, as the
+ * running total does not count them. Only the uploads of the person who starts count, so one person cannot block the starts of the others.
+ */
+const OPEN_INTENTS_LITE = "select coalesce(sum(size), 0) as n from upload_intents where actor_id = ?2 and used_at is null and expires_at > ?1 and key not like 'feedback/%'";
 
 /**
  * Refuses a file that goes above the limit: a size equal to the room passes, one byte more fails. size is the file and its small picture.
- * With now, the bytes of the open uploads count too (the start of an upload), so many starts one after the other cannot hold more room than
- * exists. null, and an object with no facts (the Postgres path), never refuse.
+ * With now and actorId (the start of an upload), the bytes of the open uploads of that same person count too, so one person cannot hold more room
+ * than exists. The open uploads of other people do not count here: the check inside the lock at the save (assertStorageRoomInLock) is the real
+ * guard. null, and an object with no facts (the Postgres path), never refuse.
  */
-export async function assertStorageRoom(deps: Pick<Deps, 'db' | 'enterprise'>, size: number, o: { now?: Date } = {}): Promise<void> {
+export async function assertStorageRoom(deps: Pick<Deps, 'db' | 'enterprise'>, size: number, o: { now?: Date; actorId?: string } = {}): Promise<void> {
   const limit = deps.enterprise?.limits().storageBytes ?? null;
   if (limit === null) return;
   let open = 0;
-  if (o.now) {
-    const [row] = await deps.db.statement<{ n: number }>('read', OPEN_INTENTS_LITE, [o.now.toISOString()]);
+  if (o.now && o.actorId) {
+    const [row] = await deps.db.statement<{ n: number }>('read', OPEN_INTENTS_LITE, [o.now.toISOString(), o.actorId]);
     open = Number(row?.n ?? 0);
   }
   if ((await storageUsed(deps.db)) + open + size > limit) throw storageLimitError(limit);
