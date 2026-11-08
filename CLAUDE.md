@@ -38,6 +38,7 @@ opens a file in that folder. Read the guide of a part before you change that par
 | Browser push | `server/push/CLAUDE.md` | the push line, VAPID, who gets one, devices, keys, the service worker |
 | Pages Functions | `functions/CLAUDE.md` | the /api and /mcp forwarders on Cloudflare Pages |
 | Daftra link | `server/daftra/CLAUDE.md` | one Daftra account for each sub-company, the GET-only client, the cache, the paid check of the job step |
+| Platform site | `src/platform/CLAUDE.md` | the site Madar enterprises: sign-in, session, client, words, build, bundle check, what it may import |
 | Enterprises | `server/enterprise/CLAUDE.md` | the enterprise id, routing, the platform object, the mail pool, the file prefix, the backups for each enterprise, the sweep of VADO text |
 
 **Keep the guides true.** When you learn a fact about one part, write it in that part's guide, not here. When a change
@@ -108,6 +109,8 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 ## Commands
 - `npm run dev` - the prototype on Vite. `npm run build` - the prototype build (check-rtl, tsc, vite, check-bundles).
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
+- `npm run build:platform` - the site Madar enterprises into `dist-platform/` (check-rtl, both tsc, `vite.platform.config.ts`, `check-bundles.ts platform`). It writes
+  nothing in `dist/`. Still run one build at a time.
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
 - `npm test` - the `unit` and `server` projects. Run it alone: next to a build or Playwright, screen tests time out. With
@@ -179,7 +182,10 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 - `src/api` never imports `server/` or `src/app/`.
 - Madar enterprises: each enterprise has its own office object, and record ids (`usr_001`, `prj_001`) repeat in each one. A shared
   store, key, topic, log line, cache or mail key never uses a bare record id: it carries the enterprise id (`server/enterprise/CLAUDE.md`).
-  A platform power is never a right in `can()`: it lives in the platform object and its owner check.
+  A platform power is never a right in `can()`: it lives in the platform object, and a platform account (its own sign-in on the platform site) holds it.
+- The companies' app holds no platform part (design 12, D9). Madar enterprises is a separate site (`src/platform/CLAUDE.md`, `npm run build:platform`, the Pages
+  project `madar-platform`) with its own accounts. VADO is one of the companies. The bundles of the companies hold none of `PLATFORM_MARKERS`
+  (`scripts/check-bundles.ts`), and the company forwarder gives 404 for `/api/platform`.
 - On Supabase almost every API call starts a new worker. A screen change that saves a call saves more than a server
   change: count the calls of each change (`server/CLAUDE.md`).
 - Never write to the database outside `runCall`. Handlers stay synchronous and pure. Outside work goes through the outbox.

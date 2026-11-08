@@ -41,17 +41,18 @@ describe('the enterprise name and logo in Settings', () => {
 describe('session.get in an enterprise', () => {
   const run = (state = makeWorld(), extra: Partial<ExecuteBase> = {}) => executeParsed(peopleCalls['session.get'], 'session.get', {}, state, base('usr_001', extra), undefined) as Record<string, unknown>;
 
-  it('gives the enterprise with the name and the logo of the Settings, and the platform owner flag', () => {
+  it('gives the enterprise with the name and the logo of the Settings, and never a platform owner value (design 12, D9)', () => {
     const state = makeWorld();
     state.settings.enterpriseName = 'Acme Co';
     state.settings.enterpriseNameAr = 'أكمي';
     state.settings.enterpriseLogo = LOGO;
-    expect(run(state, { enterprise: { id: 'ent_002', platformOwner: true } })).toMatchObject({
-      enterprise: { id: 'ent_002', name: 'Acme Co', nameAr: 'أكمي', logo: LOGO }, platformOwner: true,
-    });
+    // A platform owner is not a person of a company. Even a context that still says true gives no value.
+    const out = run(state, { enterprise: { id: 'ent_002', platformOwner: true } });
+    expect(out).toMatchObject({ enterprise: { id: 'ent_002', name: 'Acme Co', nameAr: 'أكمي', logo: LOGO } });
+    expect(out).not.toHaveProperty('platformOwner');
   });
 
-  it('falls back to Madar and leaves the flag out for a person who is no owner', () => {
+  it('falls back to Madar for a company with no saved name', () => {
     const out = run(makeWorld(), { enterprise: { id: 'ent_002', platformOwner: false } });
     expect(out.enterprise).toEqual({ id: 'ent_002', name: 'Madar', nameAr: 'مدار', logo: null });
     expect(out).not.toHaveProperty('platformOwner');

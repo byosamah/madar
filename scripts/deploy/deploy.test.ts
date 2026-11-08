@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const TEST = 'qdgwpnesxppnqsaabqzd';
 const PRODUCTION = 'oprkvdjudjxxhvodkzgs';
-const SCRIPTS = ['lib.sh', 'db.sh', 'config.sh', 'functions.sh', 'worker.sh', 'pages.sh', 'checks.sh', 'all.sh'];
+const SCRIPTS = ['lib.sh', 'db.sh', 'config.sh', 'functions.sh', 'worker.sh', 'pages.sh', 'pages-platform.sh', 'checks.sh', 'all.sh'];
 /** The node helpers that the shell steps run (owner, 2026-10-16). */
 const HELPERS = ['token-scope.sh', 'headers.ts', 'config-check.ts', 'wranglerServer.ts', 'serverHost.ts'];
 const HOOK_MIGRATION = 'create function public.madar_access_token_hook(event jsonb) returns jsonb language sql as $$ select event $$;\n';
@@ -75,11 +75,12 @@ beforeEach(() => {
   writeFileSync(log, '');
   const bin = join(root, 'node_modules/.bin');
   stub(bin, 'supabase', 'if [ -n "${SUPABASE_DB_PASSWORD:-}" ]; then echo "supabase has SUPABASE_DB_PASSWORD" >> "$STUB_LOG"; fi');
-  stub(bin, 'wrangler', 'echo "wrangler account $CLOUDFLARE_ACCOUNT_ID" >> "$STUB_LOG"');
+  // `pages project list` prints the projects that STUB_PROJECTS names (none by default): pages-platform.sh looks for madar-platform in it.
+  stub(bin, 'wrangler', 'echo "wrangler account $CLOUDFLARE_ACCOUNT_ID" >> "$STUB_LOG"; case "$*" in "pages project list") printf \'%s\\n\' "${STUB_PROJECTS:-}" ;; esac');
   stub(bin, 'tsx');
   stubs = join(root, 'stubs');
   // npm run build:server writes the Worker bundle too (dist-server/worker.js), which worker.sh --prebuilt wants.
-  stub(stubs, 'npm', 'case "$*" in *build:remote*) mkdir -p dist && echo "<html></html>" > dist/index.html ;; *build:server*) mkdir -p dist-server && echo "export default {};" > dist-server/worker.js ;; esac');
+  stub(stubs, 'npm', 'case "$*" in *build:remote*) mkdir -p dist && echo "<html></html>" > dist/index.html ;; *build:platform*) mkdir -p dist-platform && echo "<html></html>" > dist-platform/index.html ;; *build:server*) mkdir -p dist-server && echo "export default {};" > dist-server/worker.js ;; esac');
   // The checks after a deploy (checks.sh) ask with -i for the headers; functions.sh asks for the body of the Supabase health.
   writeFileSync(join(stubs, 'curl'), CURL_STUB, { mode: 0o755 });
   stub(stubs, 'sleep');
@@ -238,10 +239,14 @@ describe('all.sh production', () => {
       'npm run build:remote -- production',
       'wrangler pages deploy dist --project-name madar --branch main',
       'wrangler account d76d34779c63849f5acdf3d6af3751cd',
+      // The platform site (design 12, D7): the project does not exist in this stub, so the step lists the projects and skips.
+      'wrangler pages project list',
+      'wrangler account d76d34779c63849f5acdf3d6af3751cd',
       'curl -sS --max-time 20 -i https://madar.vado.sa/api/health',
       "curl -sS --max-time 20 -i -X POST -H Content-Type: application/json --data {} https://madar.vado.sa/mcp",
     ]);
     expect(result.out).toContain('Skip: [env.production] of wrangler.server.toml has no Hyperdrive id yet');
+    expect(result.out).toContain('Skipped: the Pages project madar-platform does not exist yet');
     expect(result.calls.join('\n')).not.toContain(TEST);
     expect(result.calls.join('\n')).not.toContain('pg-prod-secret');
   });
@@ -523,6 +528,67 @@ describe('pages.sh', () => {
     expect(result.out).toContain('VITE_SUPABASE_PUBLISHABLE_KEY');
     expect(result.calls).toEqual([]);
     expect(existsSync(join(root, 'dist/_headers'))).toBe(false);
+  });
+});
+
+describe('pages-platform.sh (the site Madar enterprises, design 12, D7)', () => {
+  const PROJECTS = { STUB_PROJECTS: '│ madar │ madar.vado.sa │\n│ madar-platform │ madar-platform.pages.dev │' };
+
+  it('skips with one clear line and ends with 0 while the Pages project does not exist, and builds and uploads nothing', () => {
+    for (const projects of ['', '│ madar │ madar.vado.sa │', '│ madar-platform-old │ x │', '│ my-madar-platform │ x │']) {
+      writeFileSync(log, '');
+      const result = run('pages-platform.sh', ['test'], { env: { STUB_PROJECTS: projects } });
+      expect(result.code, result.out).toBe(0);
+      expect(result.out).toContain('Skipped: the Pages project madar-platform does not exist yet');
+      expect(result.calls.filter((call) => !call.startsWith('wrangler account'))).toEqual(['wrangler pages project list']);
+      expect(existsSync(join(root, 'dist-platform'))).toBe(false);
+    }
+  });
+
+  it('builds the site, compiles the function into _worker.js, writes _routes.json, and uploads to the preview branch for test', () => {
+    const result = run('pages-platform.sh', ['test'], { env: PROJECTS });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls).toEqual([
+      'wrangler pages project list',
+      'wrangler account d76d34779c63849f5acdf3d6af3751cd',
+      'npm run build:platform',
+      'wrangler pages functions build functions-platform --outfile dist-platform/_worker.js',
+      'wrangler account d76d34779c63849f5acdf3d6af3751cd',
+      'wrangler pages deploy dist-platform --project-name madar-platform --branch preview',
+      'wrangler account d76d34779c63849f5acdf3d6af3751cd',
+    ]);
+    expect(JSON.parse(readFileSync(join(root, 'dist-platform/_routes.json'), 'utf8'))).toEqual({ version: 1, include: ['/api/platform', '/api/platform/*'], exclude: [] });
+  });
+
+  it('uploads to the main branch for production, only after the typed word and with the commit of the test copy', () => {
+    readyForConfigPush();
+    commitAll();
+    deployTest();
+    const refused = run('pages-platform.sh', ['production'], { input: 'yes\n', env: PROJECTS });
+    expect(refused.code).toBe(1);
+    expect(refused.calls).toEqual([]);
+    const result = run('pages-platform.sh', ['production'], { input: 'production\n', env: PROJECTS });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls).toContain('wrangler pages deploy dist-platform --project-name madar-platform --branch main');
+  });
+
+  it('stops when wrangler cannot list the projects, so a lost sign-in is no silent skip', () => {
+    const result = run('pages-platform.sh', ['test'], { env: { ...PROJECTS, STUB_FAIL: 'pages project list' } });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('could not list the Pages projects');
+    expect(result.calls).toEqual(['wrangler pages project list']);
+  });
+
+  it('stops without a target', () => {
+    expect(run('pages-platform.sh', [], { env: PROJECTS }).code).toBe(2);
+  });
+
+  it('runs in all.sh test after the screens and before the checks', () => {
+    const result = run('all.sh', ['test'], { env: { ...TOKENS, ...PROJECTS } });
+    expect(result.code, result.out).toBe(0);
+    const at = (call: string) => result.calls.indexOf(call);
+    expect(at('wrangler pages deploy dist-platform --project-name madar-platform --branch preview')).toBeGreaterThan(at('wrangler pages deploy dist --project-name madar --branch preview'));
+    expect(result.calls.findIndex((call) => call.includes('/api/health') && call.startsWith('curl -sS'))).toBeGreaterThan(at('wrangler pages deploy dist-platform --project-name madar-platform --branch preview'));
   });
 });
 

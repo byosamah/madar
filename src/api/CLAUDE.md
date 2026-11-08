@@ -8,7 +8,7 @@ Folder guides: `contract/CLAUDE.md` (fields and limits), `handlers/CLAUDE.md` (t
 pure handlers, an additive contract, a table for a new collection, a test count that only grows.
 
 ## Files
-- `registry.ts`: `defineCall({ input, output, run, prepare?, readOnly?, prototypeOnly? })`. `execute.ts` runs a call. `Ctx.enterprise` (`{ id, platformOwner }`) is set by `runCall` `baseOf` only (the office object gives the id of its facts; the Postgres path has no facts and gives `ENT_VADO` with `platformOwner` false; the prototype sets none); `session.get` shows it as `enterprise` and `platformOwner`, and `settings.get` adds `usage` when the server gave the numbers. The platform calls are not shared calls: `contract/platform.ts`.
+- `registry.ts`: `defineCall({ input, output, run, prepare?, readOnly?, prototypeOnly? })`. `execute.ts` runs a call. `Ctx.enterprise` (`{ id, platformOwner }`) is set by `runCall` `baseOf` only (the office object gives the id of its facts; the Postgres path has no facts and gives `ENT_VADO`; the prototype sets `platformOwner` false); `session.get` shows `enterprise` and never sets `platformOwner` (design 12, D9: the field stays optional in the contract), and `settings.get` adds `usage` when the server gave the numbers. The platform calls are not shared calls: `contract/platform.ts`. Only the site Madar enterprises (`src/platform/`) calls them, and the prototype has no fake of them (design 12, D12).
   `errors.ts`: `ApiError` and its codes.
 - `handlers/*.ts`: one file for each area. `handlers/serverFakes.ts`: the prototype fakes of the server-only calls.
 - `calls.ts` joins the handlers and the fakes. `sharedCalls.ts`: the calls the server runs (all but `SERVER_EXCLUDED`).
@@ -276,16 +276,13 @@ pure handlers, an additive contract, a table for a new collection, a test count 
   The state key is `state:<ent>` and a blob key is `<ent>:<key>`. `ent_001` (`VADO_ENTERPRISE`, `vadoEnterprise.ts`; a test pins it to
   `ENT_VADO`) still reads the old keys `state` and the blob keys with no prefix, and its first save moves the state to the new key.
   `clear()` removes the data of its own enterprise only, so a reset of one enterprise never wipes the other.
-- `fakeDirectory.ts` (pure) holds the fake directory: `ent_001` VADOs' Companies (owner `usr_001`) and `ent_002` Oasis Builders, in
-  IndexedDB `madar-directory`, key `directory`. `platformFake.ts` fakes the eight `platform.*` calls on that directory and nothing
-  else: it takes no store and no state of an office. It follows the rules of the server (`address_taken`, `email_taken` with no other
-  enterprise named, `owner_enterprise`, `name_mismatch`, `enterprise_paused`, `already_accepted`). Every call answers `not_found`
-  unless Preview as is in the mode Platform owner. `fakePlatform` stays as the closed fallback for a test with no runtime.
-- Choice of plan D, task 8: the prototype fills `session.enterprise` and `session.platformOwner` through the `createApi` option
-  `enterprise` (a getter that gives the same `ctx.enterprise` the office object gives), not in a wrapper around the handler. `bootstrap`
-  puts `platform` (the fake calls) and `directory` in the runtime, and `usePlatform` prefers `runtime.platform` to `fakePlatform`.
+- `fakeDirectory.ts` (pure) holds the fake directory: `ent_001` VADOs' Companies and `ent_002` Oasis Builders, in IndexedDB
+  `madar-directory`, key `directory`. It is the list of the two fake companies that Preview as offers. The prototype has no platform part (design 12,
+  D12): no fake of the `platform.*` calls, no owner list, no Platform owner choice. VADO is one company among the others.
+- Choice of plan D, task 8: the prototype fills `session.enterprise` through the `createApi` option `enterprise` (a getter that gives the same
+  `ctx.enterprise` the office object gives, with `platformOwner` false), not in a wrapper around the handler. `bootstrap` puts `directory` in the runtime.
 - `src/data/sampleSecondEnterprise.ts` builds the small neutral office of every fake enterprise except `ent_001` (one Admin, two
-  members, one client, one project, three to-dos). A company that the owner makes on the platform page opens with this office and its
+  members, one client, one project, three to-dos). A company that the owner makes on the platform site opens with this office and its
   own name from the directory. `session.resetSampleData` of such a company resets to this office, never to the VADO sample.
 
 ## Tests

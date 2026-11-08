@@ -4,14 +4,14 @@ import { ADDRESS_NAME, ENT_VADO } from '../../server/enterprise/ids';
 import { VADO_ENTERPRISE } from './vadoEnterprise';
 
 describe('the fake directory', () => {
-  it('has the two enterprises and one owner', () => {
+  it('has the two companies and no platform owner (design 12, D12)', () => {
     const directory = defaultDirectory('2026-11-08');
     expect(FakeDirectory.safeParse(directory).success).toBe(true);
     expect(directory.enterprises.map((row) => [row.id, row.name, row.nameAr, row.address, row.state])).toEqual([
       ['ent_001', "VADOs' Companies", 'شركات فادو', 'vados', 'active'],
       ['ent_002', 'Oasis Builders', 'واحة للإنشاءات', 'oasis', 'active'],
     ]);
-    expect(directory.owners).toEqual([{ ent: 'ent_001', userId: 'usr_001' }]);
+    expect(directory).not.toHaveProperty('owners');
     expect(directory.enterprises.every((row) => row.logo === null)).toBe(true);
   });
 

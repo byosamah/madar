@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/deploy/all.sh <test|production>: every deploy step in order (plan 5.9): migrations, settings, secrets, functions, the
-# Worker, screens, then the quick checks through the page host (owner, 2026-10-16). A copy whose host word is office (exit
+# Worker, screens, the platform site, then the quick checks through the page host (owner, 2026-10-16). A copy whose host word is office (exit
 # wave 4) runs only the Worker secrets, the Worker, the screens and the checks.
 # Production runs only from the Mac, and only after the typed word production (plan, section 10, decision 9). It asks once,
 # before any step, and the steps do not ask again. A MADAR_DEPLOY_CONFIRMED from the shell never counts here: only the typed word.
@@ -35,6 +35,8 @@ else
   "$DIR/worker.sh" "$TARGET" --prebuilt
 fi
 "$DIR/pages.sh" "$TARGET"
+# The site Madar enterprises (design 12, D7) is a second Pages project. It skips with one clear line while the owner has not made the project.
+"$DIR/pages-platform.sh" "$TARGET"
 "$DIR/checks.sh" "$TARGET"
 if [ "$TARGET" = test ]; then
   record_test_commit "$TESTED"

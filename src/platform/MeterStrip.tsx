@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useLang } from '../../app/lang';
-import { LoadFailed } from '../../components/LoadFailed';
-import { formatNumber } from '../../lib/dates';
+import { useLang } from '../app/lang';
+import { LoadFailed } from '../components/LoadFailed';
+import { formatNumber } from '../lib/dates';
 import { usePlatform } from './usePlatform';
 
 const BARS = ['requests', 'rowsRead', 'rowsWritten', 'mails'] as const;

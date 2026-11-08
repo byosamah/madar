@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
 import { PictureError, pictureOf } from '../../lib/picture';
-import { FormError } from '../auth/AuthPage';
+import { FormError } from '../../components/FormError';
 import { EnterpriseLogo } from './EnterpriseLogo';
 
 /**

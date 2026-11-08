@@ -82,7 +82,9 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
      no-cache`. `media-src` names the file store, so a chat video plays from its signed link (owner, 2026-11-03). The push services need no `connect-src`: the browser, not the page, talks to them. The page's own `/api`
      needs none either. `script-src` holds `'wasm-unsafe-eval'`. Its first user, the Arabic text plugin of the map, is gone
      (2026-10-28, tsk_486): drop it after a check that no other file of the build runs WebAssembly.
-  7. `checks.sh`: through the page host, `GET /api/health` gives 200 with `x-madar-server` of the host in
+  7. `pages-platform.sh`: the site Madar enterprises on the second Pages project `madar-platform` (see "The platform site"). It skips
+     with one clear line, and ends with 0, while that project does not exist. Wrangler that cannot list the projects stops the step.
+  8. `checks.sh`: through the page host, `GET /api/health` gives 200 with `x-madar-server` of the host in
      `config/server-host.json`; with `JOBS_SECRET` (curl reads it on stdin, `-K -`) database, lock and asyncContext are ok;
      `POST /mcp` with no token gives 401 from the same host. It only reads, so it asks no typed word. A failed check stops
      `all.sh test` before it records the commit.
@@ -171,6 +173,23 @@ step: the file store does not follow the server host. No copy from R2 back to St
   `pagesFunctionsInvocationsAdaptiveGroups` (dimensions `scriptName`, `status`, `datetimeHour`) with
   `scripts/proof/do-socket/gql.mjs`; a stop is the status `exceededResources`, and a deleted Worker shows as `__unknown__`. Run
   `npx wrangler whoami` first when the query gives 401: it renews the OAuth token. Never take its "Upgrade" button.
+
+## The platform site
+Madar enterprises is a separate site (design 12, D7): the Pages project `madar-platform`, its own build (`npm run build:platform`, folder
+`dist-platform`), its own sign-in and its own accounts. VADO is one of the companies, and no company address reaches it.
+- Hosts: `preview.madar-platform.pages.dev` (test), `madar-platform.pages.dev` and, later, `platform.madar.vado.sa` (production). The table
+  is `PLATFORM_HOSTS` in `server/core/serverHost.ts`. The DNS record of the own address is an owner step, like every vado.sa record.
+- `pages-platform.sh <test|production>` builds, compiles the one function of `functions-platform/` into `dist-platform/_worker.js`
+  (`wrangler pages functions build`), writes `_routes.json` (only `/api/platform` and the paths under it run the function), and uploads
+  `dist-platform`: branch `preview` for test, `main` for production. It needs no `config/remote.<env>.env` and no Supabase value: the site
+  talks to its own `/api/platform`. The headers come from `config/headers.platform` (the own origin only).
+- Owner steps (each with his OK, outside the repo): make the project (`npx wrangler pages project create madar-platform
+  --production-branch main`), then add the service bindings in the Cloudflare dashboard: `MADAR_SERVER_TEST` (preview environment) to
+  `madar-server-test` and `MADAR_SERVER_PRODUCTION` (production environment) to `madar-server-production`, the same two bindings as the
+  project `madar`. Without the binding the function answers 404 and logs one warning line. A platform account is made on the Mac with
+  `scripts/office/platform-account.ts` (see `server/enterprise/CLAUDE.md`). The own address needs the custom domain on the project
+  and the DNS record.
+- The site works only for a copy whose host word is `office` (the platform routes live on the office path of the Worker).
 
 ## Other scripts
 - First Admin: `npx tsx scripts/first-admin.ts --env test|production|local --email --name --language --gender`.

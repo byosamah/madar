@@ -3,7 +3,6 @@ import { bootstrap, startScheduler } from './bootstrap';
 import { createStore, set } from 'idb-keyval';
 import { defaultDirectory, memoryDirectory } from '../api/fakeDirectory';
 import { idbPersister, memoryPersister } from '../api/persist';
-import { setPlatformOwnerMode } from './fakeEnterprise';
 import { emptyState, STATE_VERSION, Store } from '../api/store';
 import { addDays, setNow } from '../lib/dates';
 import { NOW, TODAY } from '../test/factories';
@@ -334,23 +333,15 @@ describe('the fake enterprises of the prototype (Madar enterprises, design 5.19)
     expect((await bootstrap({ directory: directory(), latencyMs: 0 })).store.persister.ent).toBe('ent_001');
   });
 
-  it('shows the platform owner flag only in the owner mode and only for the owner of the directory', async () => {
+  it('has no platform part: no platform owner value in the session, no platform calls in the runtime (design 12, D9 and D12)', async () => {
     setNow(NOW);
+    window.localStorage.setItem('madar.fakePlatform', '1');
     const runtime = await bootstrap({ persister: memoryPersister(), directory: directory(), latencyMs: 0 });
     expect((await runtime.api.call('session.get', {})).platformOwner).toBeUndefined();
-    setPlatformOwnerMode(true);
-    expect((await runtime.api.call('session.get', {})).platformOwner).toBe(true);
     await runtime.api.call('session.previewAs', { userId: 'usr_002' });
     expect((await runtime.api.call('session.get', {})).platformOwner).toBeUndefined();
-  });
-
-  it('fills the platform calls of the runtime from the directory and the owner mode', async () => {
-    setNow(NOW);
-    const runtime = await bootstrap({ persister: memoryPersister(), directory: directory(), latencyMs: 0 });
-    await expect(runtime.platform!['platform.me']({})).rejects.toMatchObject({ code: 'not_found' });
-    setPlatformOwnerMode(true);
-    expect(await runtime.platform!['platform.me']({})).toMatchObject({ owner: true, ent: 'ent_001' });
-    expect(await runtime.platform!['platform.enterprises.list']({})).toHaveLength(2);
+    expect(runtime).not.toHaveProperty('platform');
+    expect(runtime).not.toHaveProperty('platformConfig');
   });
 
   it('resets the sample data of the second enterprise to its own small office', async () => {

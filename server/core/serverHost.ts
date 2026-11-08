@@ -44,6 +44,17 @@ export const PAGE_HOSTS: Readonly<Record<string, Copy>> = {
   'preview.madar-46r.pages.dev': 'test',
 };
 
+/**
+ * The page hosts of the Pages project madar-platform (design 12, D7): the site Madar enterprises, with its own sign-in. They are not hosts of a company page,
+ * so no company address reaches the platform and no platform address reaches a company. The test copy has the preview address of the project. Production has
+ * the project address and the own address `platform.madar.vado.sa` (a DNS record that the owner adds later).
+ */
+export const PLATFORM_HOSTS: Readonly<Record<string, Copy>> = {
+  'preview.madar-platform.pages.dev': 'test',
+  'madar-platform.pages.dev': 'production',
+  'platform.madar.vado.sa': 'production',
+};
+
 export type CopyHosts = {
   /** The Supabase project: the database, Auth, Realtime and (today) Storage. */
   supabaseUrl: string;
@@ -101,6 +112,11 @@ export function serverHostOf(copy: Copy, s: ServerHostSetting = SERVER_HOST_SETT
 /** The copy of a page host, or undefined for any other host. */
 export function copyOfPageHost(hostname: string): Copy | undefined {
   return Object.hasOwn(PAGE_HOSTS, hostname) ? PAGE_HOSTS[hostname] : undefined;
+}
+
+/** The copy of a platform page host, or undefined for any other host (also a company page host). */
+export function copyOfPlatformHost(hostname: string): Copy | undefined {
+  return Object.hasOwn(PLATFORM_HOSTS, hostname) ? PLATFORM_HOSTS[hostname] : undefined;
 }
 
 /** The copy of a Supabase project URL (SUPABASE_URL of the server), or undefined for a local or other URL. */

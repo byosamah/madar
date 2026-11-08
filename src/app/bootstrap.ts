@@ -4,7 +4,6 @@ import { typingRecipients } from '../api/chatState';
 import { runScheduledTriggers } from '../api/notify';
 import { defaultDirectory, memoryDirectory, openDirectory, SECOND_ENTERPRISE, type DirectoryHandle } from '../api/fakeDirectory';
 import { memoryPersister, openPersister, type Persister } from '../api/persist';
-import { createPlatformFake, platformApiOf } from '../api/platformFake';
 import { VADO_ENTERPRISE } from '../api/vadoEnterprise';
 import { STATE_VERSION, Store } from '../api/store';
 import { migrateState } from '../data/migrate';
@@ -19,7 +18,7 @@ import { settleFuture, shiftState } from '../data/shift';
 import { diffDays, now, todayISO } from '../lib/dates';
 import { dueToSettle, seriesToExtend } from '../api/handlers/meetings';
 import { alwaysSignedIn } from './auth';
-import { activeFakeEnterprise, platformOwnerMode } from './fakeEnterprise';
+import { activeFakeEnterprise } from './fakeEnterprise';
 import { prototypeLive } from './live/prototypeLive';
 import type { ChangeSource, Runtime } from './runtime';
 
@@ -85,11 +84,8 @@ export async function bootstrap(
     sampleOffice: ent === VADO_ENTERPRISE ? sampleOffice : async (at) => settleFuture(buildSecondEnterprise(todayISO(at), namesOf(directory, ent)), at),
     latencyMs: options.latencyMs,
     failureRate: () => (store.state.session.simulateErrors ? 0.2 : 0),
-    // session.get shows the fake enterprise, and the platform owner flag when the owner view is on and the person is a platform owner.
-    enterprise: () => ({
-      id: ent,
-      platformOwner: platformOwnerMode() && directory.read().owners.some((owner) => owner.ent === ent && owner.userId === store.state.session.currentUserId),
-    }),
+    // session.get shows the fake company. The prototype has no platform owner (design 12, D9 and D12).
+    enterprise: () => ({ id: ent, platformOwner: false }),
   });
   // Status and typing between the tabs of this browser (chat presence design). A tab shows a typing line only for a chat where its
   // person is a member, with the same rule as the server (typingRecipients), so a tab that previews an outsider shows nothing.
@@ -99,8 +95,7 @@ export async function bootstrap(
     subscribeMe: (listener) => store.subscribe(listener),
     accepts: (signal) => typingRecipients(store.state, signal.conversationId, signal.userId)?.includes(me()) === true,
   });
-  const platform = platformApiOf(createPlatformFake(directory, now, { ownerMode: platformOwnerMode }));
-  return { store, api, auth: alwaysSignedIn(), changes: storeChangeSource(store), mode: 'prototype', live, platform, directory };
+  return { store, api, auth: alwaysSignedIn(), changes: storeChangeSource(store), mode: 'prototype', live, directory };
 }
 
 /**

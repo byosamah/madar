@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { calls } from '../api/calls';
 import { createApi } from '../api/client';
@@ -12,7 +12,6 @@ import { initI18n } from '../i18n';
 import { setNow } from '../lib/dates';
 import { NOW, TODAY } from '../test/factories';
 import { PreviewAs } from './PreviewAs';
-import { platformOwnerMode, setPlatformOwnerMode } from './fakeEnterprise';
 import { createQueryClient, RuntimeProvider } from './runtime';
 import { ToastProvider } from './toasts';
 
@@ -24,7 +23,7 @@ async function show(options: { ent?: string; language?: 'en' | 'ar'; withDirecto
   const store = new Store(state, memoryPersister(ent));
   const api = createApi(calls, {
     store, latencyMs: 0,
-    enterprise: () => ({ id: ent, platformOwner: platformOwnerMode() && directory.read().owners.some((one) => one.ent === ent && one.userId === store.state.session.currentUserId) }),
+    enterprise: () => ({ id: ent, platformOwner: false }),
   });
   initI18n(language);
   const view = render(
@@ -65,35 +64,18 @@ describe('Preview as, with the fake enterprises (Madar enterprises, design 5.19)
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('turns the owner view off when the enterprise changes', async () => {
-    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, reload: vi.fn() } as unknown as Location);
-    setPlatformOwnerMode(true);
-    await show();
-    await userEvent.selectOptions(await screen.findByRole('combobox', { name: /Company/ }), 'ent_002');
-    expect(platformOwnerMode()).toBe(false);
-  });
-
-  it('shows Platform owner only for ent_001', async () => {
+  it('has no Platform owner choice in any company (design 12, D12), and turns on no owner view', async () => {
     const first = await show();
     const people = (await screen.findAllByRole('combobox')).find((one) => one.id === 'preview')!;
-    expect(Array.from((people as HTMLSelectElement).options).some((option) => option.textContent?.startsWith('Platform owner'))).toBe(true);
+    expect(Array.from((people as HTMLSelectElement).options).some((option) => /platform/i.test(option.textContent ?? ''))).toBe(false);
+    expect((await first.api.call('session.get', {})).platformOwner).toBeUndefined();
+    await userEvent.selectOptions(people, 'usr_002');
+    expect((await first.api.call('session.get', {})).platformOwner).toBeUndefined();
     first.unmount();
     await show({ ent: 'ent_002' });
     const second = (await screen.findAllByRole('combobox')).find((one) => one.id === 'preview')!;
-    expect(Array.from((second as HTMLSelectElement).options).some((option) => option.textContent?.includes('Platform owner'))).toBe(false);
-  });
-
-  it('turns the mode on with Platform owner, and off with any person', async () => {
-    const { api } = await show();
-    const people = (await screen.findAllByRole('combobox')).find((one) => one.id === 'preview')!;
-    await userEvent.selectOptions(people, 'platform-owner');
-    expect(platformOwnerMode()).toBe(true);
-    await waitFor(async () => expect((await api.call('session.get', {})).platformOwner).toBe(true));
-    expect((await api.call('session.get', {})).user.id).toBe('usr_001');
-    await waitFor(() => expect(people).toHaveValue('platform-owner'));
-    await userEvent.selectOptions(people, 'usr_002');
-    expect(platformOwnerMode()).toBe(false);
-    await waitFor(async () => expect((await api.call('session.get', {})).platformOwner).toBeUndefined());
+    expect(Array.from((second as HTMLSelectElement).options).some((option) => /platform/i.test(option.textContent ?? ''))).toBe(false);
+    expect(window.localStorage.getItem('madar.fakePlatform')).toBeNull();
   });
 
   it('shows only the people select when the runtime has no directory', async () => {

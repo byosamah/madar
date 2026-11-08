@@ -29,6 +29,7 @@ import {
  *   Frankfurt with forceFunctionRegion, and logs the case. That serves the tabs that a build for the Worker opened before a switch
  *   back. Supabase then sees the address of the Pages Function, not of the person (the forgot limit counts them together).
  * - A 101 answer of the Worker (the live socket, exit wave 3) goes back as it is.
+ * - /api/platform and every path under it get 404 here: the platform routes belong to the project madar-platform (design 12, D9).
  * - The word office (exit wave 4) also goes to the binding: the Worker of the copy serves it from its office object.
  * - /api/office and every path under it (the office ops of exit wave 4: export, import, peek, drop) go to the binding whatever the
  *   word says, and nowhere else. No Supabase function has them, so with no binding they answer 404 (production before wave 6).
@@ -47,6 +48,9 @@ export async function proxyApi(request: Request, env: PagesEnv = {}, o: ProxyOpt
   if (!copy || !inside) return new Response(NOT_FOUND, { status: 404 });
   const suffix = url.pathname.slice(PREFIX.length);
   if (unsafeSuffix(suffix)) return new Response(NOT_FOUND, { status: 404 });
+  // Madar enterprises is a separate site (design 12, D9): the platform routes have their own Pages project and its own forwarder
+  // (pagesPlatformProxy.ts). A company address never reaches them, whatever token the request carries.
+  if (suffix === '/platform' || suffix.startsWith('/platform/')) return new Response(NOT_FOUND, { status: 404 });
 
   const headers = forwardHeaders(request);
   const hosts = COPY_HOSTS[copy];

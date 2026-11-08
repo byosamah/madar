@@ -43,7 +43,7 @@ export type ApiOptions = {
   random?: () => number;
   /** The prototype: the sample office for session.resetSampleData (src/data/sampleOffice.ts). */
   sampleOffice?: PrepareCtx['sampleOffice'];
-  /** The prototype (Madar enterprises): the fake enterprise that this store belongs to, and whether the person is a platform owner now. session.get shows both. */
+  /** The prototype (Madar enterprises): the fake company that this store belongs to. session.get shows it. */
   enterprise?: () => Ctx['enterprise'];
 };
 

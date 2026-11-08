@@ -7,7 +7,7 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
 - `app/`: the shell, routes, runtime hooks, boot, and `app/remote/` (Supabase client, sign-in port, realtime channel). `features/<area>/`: one
   folder for each screen area. `components/`: shared parts. `lib/`: pure helpers (dates, due, stages). `data/`: the sample office of the
   prototype. `test/`: render helpers, factories, setup.
-- Guides of the whole of `src/`: `api/` (the contract and the fake API), `i18n/` (words, What's new), `design/` (tokens, fonts).
+- Guides of the whole of `src/`: `api/` (the contract and the fake API), `i18n/` (words, What's new), `design/` (tokens, fonts), `platform/` (the site Madar enterprises).
 - Guides that load only in their folder: `app/` (routes, shell, boot, data pipeline, phone shell), `app/insight/` (PostHog), `components/`,
   `features/map/`, `features/inbox/` (chat, presence, emoji), `features/files/` (attachments, Download all, picture preview),
   `features/meetings/`, `features/project/`, `features/projects/`, `features/resources/` (the office files, fbk_078), `features/settings/` (Admin, rights sheet, push, Google Calendar,
@@ -15,7 +15,7 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
 - Push in the screens: `features/settings/CLAUDE.md`. Download all: `features/files/CLAUDE.md`. The bubble handlers
   (`BubbleActionsContext`): `features/inbox/CLAUDE.md`.
 
-## Two builds from one source
+## Two builds from one source (the companies' app)
 - `VITE_MADAR_API` (`fake` default, `remote`) is fixed at build time. Use `PROTOTYPE` and `REMOTE` from `app/mode.ts`. `REMOTE` does not
   fold in a module that must keep a library out of the prototype: write `import.meta.env.VITE_MADAR_API === 'remote'` there.
 - `main.tsx` loads only one bootstrap. The remote build splits each screen into its own chunk. A route names its screen and never imports
@@ -38,12 +38,22 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
   import can cut code out of the index chunk into many small chunks. One loader file shared by the task rows and the Files tab took the
   first load from 30 to 48 files (2026-10-27). Run `build:remote` after a cleanup that adds a shared file. To find the cause, build each
   commit from `git archive` and compare the chunk names of the first load.
-- The page Madar enterprises (2026-11-08) showed three causes of that red line. (1) A lazy page imported `NotFound` from `RouteError.tsx`: use a guard of
-  `useRight.tsx` (`RequirePlatformOwner`). (2) A lazy page imported one color from `SubCompanyLogo.tsx`: take it from `lib/logoPlate.ts`. (3) The faces of
-  the first screen imported `safePicture` from `lib/picture.ts`, which holds the canvas code that makes a picture: take it from `lib/safePicture.ts`, so the
-  canvas code stays out of the first load. A lazy page that needs the error makers of `api/remote/errors.ts` gets them from the runtime
-  (`platformConfig.errors`), because an import splits that file out of the first-load chunk. The prototype build drops `createPlatformClient` with the
-  `REMOTE` flag (`usePlatform.tsx`).
+- Three causes of that red line that the page of the first build showed (2026-11-08), and that hold for any lazy page: (1) A lazy page imported `NotFound`
+  from `RouteError.tsx`: use a guard of `useRight.tsx`. (2) A lazy page imported one color from `SubCompanyLogo.tsx`: take it from `lib/logoPlate.ts`.
+  (3) The faces of the first screen imported `safePicture` from `lib/picture.ts`, which holds the canvas code that makes a picture: take it from
+  `lib/safePicture.ts`, so the canvas code stays out of the first load. A lazy page that needs the error makers of `api/remote/errors.ts` gets them from
+  the runtime, because an import splits that file out of the first-load chunk.
+
+## The third build: the site Madar enterprises
+- Madar enterprises is a separate platform (design 12, 2026-11-08). Its site is a third build from the same repo: `platform.html`, source
+  `src/platform/`, `vite.platform.config.ts`, `npm run build:platform`, output `dist-platform/`. It has its own sign-in and its own accounts
+  (`src/platform/CLAUDE.md`). VADO is one of the companies.
+- The companies' app (the prototype and the real build) holds no platform part: no menu line, no Me tab line, no `/enterprises` route (an old link
+  shows the normal not-found page), no platform client, no platform fake, no Platform owner choice in Preview as, no `platformOwner` value in
+  `session.get` (the field stays optional in the contract and is never set). `scripts/check-bundles.ts` refuses `PLATFORM_MARKERS` in the remote
+  and the prototype bundles, and `check-bundles.ts platform` refuses company code in the platform bundle.
+- A shared part that both builds use (`components/*`, `lib/*`, `app/{errors,lang,toasts,appearance}`, and `features/enterprises/{EnterpriseLogo,
+  LogoPicker,limits}`) must import no runtime, route or company screen. `src/platform/imports.test.ts` follows the imports and fails on one.
 
 ## The API address
 - `build:remote` sets `VITE_API_URL` from `config/server-host.json` (`scripts/build-remote.ts`, `remotePublicEnv`): the page's own `/api` when the

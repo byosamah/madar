@@ -1,16 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { errorMessage, fieldError } from '../../app/errors';
-import { useToast } from '../../app/toasts';
-import { Button } from '../../components/Button';
-import { SelectField, TextField } from '../../components/Fields';
-import { Sheet } from '../../components/Sheet';
-import { FormError } from '../auth/AuthPage';
-import { bytesOfGb, peopleOf } from './limits';
-import { LogoPicker } from './LogoPicker';
+import { errorMessage, fieldError } from '../app/errors';
+import { useToast } from '../app/toasts';
+import { Button } from '../components/Button';
+import { SelectField, TextField } from '../components/Fields';
+import { Sheet } from '../components/Sheet';
+import { FormError } from '../components/FormError';
+import { bytesOfGb, peopleOf } from '../features/enterprises/limits';
+import { LogoPicker } from '../features/enterprises/LogoPicker';
 import { usePlatform } from './usePlatform';
-import type { EnterpriseView } from '../../api/contract/platform';
+import type { EnterpriseView } from '../api/contract/platform';
 
 /** The address name as the rule says: lower case letters, digits and hyphens. A typed capital becomes a small letter. */
 const addressOf = (text: string) => text.toLowerCase().replace(/[^a-z0-9-]/g, '');

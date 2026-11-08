@@ -14,10 +14,15 @@ import { fileURLToPath } from 'node:url';
  * the same over a release that changes only app code.
  * prototype: no Supabase code, no _headers file, one script file, and none of the links of the remote build, so the
  * artifact stays a static page with the fake API.
+ * remote and prototype (design 12, D9 and D12): no platform code. Madar enterprises is a separate site (npm run build:platform), so the companies' bundles hold
+ * none of PLATFORM_MARKERS.
+ * platform (design 12, D7): the build of the site Madar enterprises (dist-platform). It holds platform code and nothing of the companies: no Supabase, no zod
+ * schemas, no sample office, no call name of the companies (COMPANY_MARKERS), no PostHog, no service worker. Its headers file allows the own origin only. Its
+ * first load stays under the PLATFORM_FIRST_LOAD_* limits of its own.
  * server: no sample office and no settleFuture in the function bundles, which run on the real office (cleanup 2026-10-06).
  * It prints every search, so a search with no match is visible.
  */
-export type BundleKind = 'remote' | 'prototype' | 'server';
+export type BundleKind = 'remote' | 'prototype' | 'server' | 'platform';
 export type BundleCheck = { ok: boolean; lines: string[] };
 export type BundleOptions = {
   /**
@@ -53,6 +58,24 @@ export const SEED_MARKERS = ['Hala Nasser', 'Faisal Al-Harbi', 'Corniche Office 
 export const FIRST_LOAD_MAX_BYTES = 972_000;
 export const FIRST_LOAD_MAX_GZIP = 296_000;
 export const FIRST_LOAD_MAX_FILES = 35;
+
+/**
+ * Text that only the code of the site Madar enterprises holds (design 12, D9): a platform call name, and the key of the platform session. The bundles
+ * of the companies (the real screens and the prototype) never hold it. A test checks that the contract still holds the first marker.
+ */
+export const PLATFORM_MARKERS = ['platform.enterprises.create', 'madar.platform.session'] as const;
+
+/**
+ * The limits of the first load of the site Madar enterprises (build:platform): the entry script, its modulepreload links and their static imports.
+ * Each one sits about 3 percent above the real size after the first build (2026-11-08: one script of 579,497 B raw and 180,056 B gzip). A change that adds code fails here: lazy-load it, or raise the limit in
+ * the same commit with the reason.
+ */
+export const PLATFORM_FIRST_LOAD_MAX_BYTES = 597_000;
+export const PLATFORM_FIRST_LOAD_MAX_GZIP = 185_500;
+export const PLATFORM_FIRST_LOAD_MAX_FILES = 4;
+
+/** Text that only the companies' API holds (call names). The platform site never holds one: it has no company screen and no company client. */
+export const COMPANY_MARKERS = ['tasks.list', 'projects.list', 'chats.send'] as const;
 
 /** Text that only the chart package (recharts), the zod schemas and the word files hold. A test checks the word files. */
 export const CHART_MARKER = 'recharts-wrapper';
@@ -156,14 +179,18 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
   const scripts = new Map(texts.filter((f) => /^assets\/[^/]+\.js$/.test(f.name)).map((f) => [f.name.slice('assets/'.length), f.text]));
 
   const seedHits = () => texts.filter((f) => SEED_MARKERS.some((m) => f.text.includes(m))).map((f) => f.name);
+  const platformHits = () => texts.filter((f) => PLATFORM_MARKERS.some((m) => f.text.includes(m))).map((f) => f.name);
   if (kind === 'server') {
     report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, seedHits());
     report("'settleFuture'", texts.filter((f) => f.text.includes('settleFuture')).map((f) => f.name));
     // The build stamps the release version into the MCP serverInfo (vite.server.config.ts, owner 2026-10-12). A placeholder left in
     // a bundle means a fixed "1.0.0", and a client keeps its old tool list.
     report("the unstamped version '__MADAR_SERVER_VERSION__'", texts.filter((f) => f.text.includes('__MADAR_SERVER_VERSION__')).map((f) => f.name));
+  } else if (kind === 'platform') {
+    checkPlatform();
   } else if (kind === 'remote') {
     report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, seedHits());
+    report(`platform code of Madar enterprises (${PLATFORM_MARKERS.map((m) => `'${m}'`).join(', ')})`, platformHits());
     if (!index) {
       ok = false;
       lines.push(`FAIL: ${dir} has no index.html.`);
@@ -178,6 +205,7 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
       } else lines.push('skip: no first-load options given, so the first-load rules did not run.');
     }
   } else {
+    report(`platform code of Madar enterprises (${PLATFORM_MARKERS.map((m) => `'${m}'`).join(', ')})`, platformHits());
     report("'supabase' (any case)", texts.filter((f) => /supabase/i.test(f.text)).map((f) => f.name));
     report("a '_headers' file", names.filter((name) => name === '_headers' || name.endsWith('/_headers')));
     // Browser push (owner, 2026-10-08): the prototype never registers the worker, and vite.config.ts drops the file.
@@ -193,6 +221,48 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     rule('the prototype index.html starts no early load', early.length === 0 ? [] : [`it holds ${early.join(', ')} links`], 'no modulepreload, preload or preconnect link');
   }
   return { ok, lines };
+
+  /** The site Madar enterprises (design 12, D7): its own rules. */
+  function checkPlatform(): void {
+    if (!index) {
+      ok = false;
+      lines.push(`FAIL: ${dir} has no index.html.`);
+      return;
+    }
+    report("a relative './assets/' path in index.html", /(src|href)=["']\.\/assets\//.test(index.text) ? ['index.html'] : []);
+    // The code of the site is there: a build of the wrong entry would pass every "no match" rule below.
+    const has = (marker: string) => texts.filter((f) => f.text.includes(marker)).map((f) => f.name);
+    rule('platform code of Madar enterprises', PLATFORM_MARKERS.filter((marker) => has(marker).length === 0).map((marker) => `no file holds '${marker}'`), `found '${PLATFORM_MARKERS[0]}' and '${PLATFORM_MARKERS[1]}'`);
+    const any = (label: string, markers: readonly string[]) => report(label, texts.filter((f) => markers.some((marker) => f.text.includes(marker))).map((f) => f.name));
+    report("'supabase' (any case)", texts.filter((f) => /supabase/i.test(f.text)).map((f) => f.name));
+    any(`zod schemas ('${ZOD_MARKER}')`, [ZOD_MARKER]);
+    any(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, SEED_MARKERS);
+    any(`the screens of the companies (${COMPANY_MARKERS.map((m) => `'${m}'`).join(', ')})`, COMPANY_MARKERS);
+    any('the PostHog library or host', POSTHOG_MARKERS);
+    any("a registration of '/sw.js'", ['/sw.js']);
+    any(`chart code ('${CHART_MARKER}')`, [CHART_MARKER]);
+    any("map library ('maplibregl-')", [MAP_LIBRARY_MARKER]);
+    any("emoji data ('grinning face')", [EMOJI_MARKER]);
+    any('words of the companies screens', [WORD_MARKERS.en, WORD_MARKERS.ar]);
+    // The headers file: the own origin only (config/headers.platform).
+    const headers = texts.find((f) => f.name === '_headers');
+    const csp = headers?.text.split('\n').find((line) => line.trim().startsWith('Content-Security-Policy:'));
+    const headerProblems = !headers ? ['dist has no _headers'] : !csp ? ['the headers hold no Content-Security-Policy'] : [
+      ...(/(https?|wss?):/.test(csp) ? ['the Content-Security-Policy allows another host'] : []),
+      ...["default-src 'self'", "script-src 'self'", "connect-src 'self'", "frame-ancestors 'none'"].filter((part) => !csp.includes(part)).map((part) => `the Content-Security-Policy lacks ${part}`),
+    ];
+    rule('the headers of the platform site', headerProblems, "the Content-Security-Policy allows 'self' only");
+    // The first load: the entry script, its modulepreload links and their static imports.
+    const entries = tags.filter((tag) => tag.name === 'script' && tag.attrs.type === 'module').map((tag) => assetOf(tag.attrs.src));
+    const linked = [...entries, ...rels('modulepreload').map((tag) => assetOf(tag.attrs.href))].filter((name): name is string => name !== undefined);
+    rule('index.html starts one entry script that is in assets/', [...(entries.length !== 1 ? [`it starts ${entries.length}`] : []), ...linked.filter((name) => !scripts.has(name)).map((name) => `${name} is missing`)], `${linked.length} scripts`);
+    const closure = closureOf(linked.filter((name) => scripts.has(name)), scripts);
+    const bytes = closure.reduce((sum, name) => sum + Buffer.byteLength(scripts.get(name) ?? ''), 0);
+    const gzipBytes = closure.reduce((sum, name) => sum + gzipSync(scripts.get(name) ?? '', { level: 9 }).length, 0);
+    rule(`the first-load scripts stay at ${PLATFORM_FIRST_LOAD_MAX_BYTES} B or less`, bytes > PLATFORM_FIRST_LOAD_MAX_BYTES ? [`${closure.length} files hold ${bytes} B`] : [], `${closure.length} files, ${bytes} B`);
+    rule(`the first-load scripts gzip to ${PLATFORM_FIRST_LOAD_MAX_GZIP} B or less`, gzipBytes > PLATFORM_FIRST_LOAD_MAX_GZIP ? [`${closure.length} files gzip to ${gzipBytes} B`] : [], `${closure.length} files, ${gzipBytes} B`);
+    rule(`the first load starts ${PLATFORM_FIRST_LOAD_MAX_FILES} files or fewer`, closure.length > PLATFORM_FIRST_LOAD_MAX_FILES ? [`${closure.length} files`] : [], `${closure.length} files`);
+  }
 
   /** BND-1, BND-6, BND-7: the scripts that index.html starts, and what they hold. */
   function checkFirstLoad(): void {
@@ -309,13 +379,13 @@ export function originsOf(env: Record<string, string | undefined>): string[] {
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   const kind = process.argv[2];
-  if (kind !== 'remote' && kind !== 'prototype' && kind !== 'server') {
-    console.error('Usage: node scripts/check-bundles.ts <remote|prototype|server> [dist folder]');
+  if (kind !== 'remote' && kind !== 'prototype' && kind !== 'server' && kind !== 'platform') {
+    console.error('Usage: node scripts/check-bundles.ts <remote|prototype|server|platform> [dist folder]');
     process.exit(2);
   }
   const root = fileURLToPath(new URL('..', import.meta.url));
   // The server check reads both outputs of npm run build:server: the Supabase functions and the Workers fallback.
-  const folders = process.argv[3] ? [process.argv[3]] : kind === 'server' ? [join(root, 'supabase/functions/_build'), join(root, 'dist-server')] : [join(root, 'dist')];
+  const folders = process.argv[3] ? [process.argv[3]] : kind === 'server' ? [join(root, 'supabase/functions/_build'), join(root, 'dist-server')] : kind === 'platform' ? [join(root, 'dist-platform')] : [join(root, 'dist')];
   // npm run build:remote exports the public values of config/remote.<env>.env before this check, so the origins are known.
   const options: BundleOptions = { firstLoad: { origins: originsOf(process.env), fontsDir: join(root, 'src/design/fonts') } };
   const results = folders.map((folder) => checkBundles(kind, folder, options));

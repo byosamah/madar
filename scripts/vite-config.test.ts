@@ -88,6 +88,12 @@ describe('the Vitest projects', () => {
   });
 });
 
+describe('the build scripts', () => {
+  it('build the site Madar enterprises with its own script (design 12, D7)', () => {
+    expect(scripts['build:platform']).toBe('tsx scripts/build-platform.ts');
+  });
+});
+
 describe('the test scripts', () => {
   it('turn on the project they run', () => {
     // Each one takes the heavy lock first (owner, 2026-10-20; scripts/dev/heavy-lock.test.ts).

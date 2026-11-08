@@ -1,0 +1,14 @@
+# The security headers of the site Madar enterprises on Cloudflare Pages (project madar-platform, design 12, D7).
+# scripts/build-platform.ts copies this file to dist-platform/_headers. Lines that start with # stay out of the copy.
+# The site talks to its own origin only (/api/platform, handed to the Worker by functions-platform), so every source is 'self'.
+# style-src keeps 'unsafe-inline', because vaul adds a <style> element. img-src keeps data: (the logo of an enterprise) and blob: (the picture
+# reader of the logo picker). There is no worker, no frame, no font host and no analytics script.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  X-Robots-Tag: noindex, nofollow
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

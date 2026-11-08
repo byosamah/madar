@@ -1,0 +1,21 @@
+{
+  "platformSite": {
+    "signIn": {
+      "title": "Sign in",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "wrong": "The email or the password is wrong.",
+      "tooMany": "Too many tries. Wait a few minutes. Then try again.",
+      "offline": "The connection failed. Check it and try again.",
+      "failed": "The sign-in failed. Try again.",
+      "ended": "Your session ended. Sign in again.",
+      "off": "This account is off."
+    },
+    "signOut": "Sign out",
+    "theme": {
+      "toDark": "Dark mode",
+      "toLight": "Light mode"
+    }
+  }
+}
