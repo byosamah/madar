@@ -23,7 +23,13 @@ export const READ_PINS: readonly ReadPin[] = [
   // 12 threads). Before: 2,222 and 2,305 rows read (ceilings 2,444 and 2,536). After the cuts of tsk_481 (a to-do with no comment reads nothing, and one
   // read of the own comments of a row where there were two): 3,745 and 3,817, plus 10%. The reason and the numbers are in proof.md, "tasks.list unread number".
   { name: 'tasks.list', input: { filter: 'mine' }, actorId: 'usr_005', rowsRead: 4_120 },
-  { name: 'tasks.list', input: { filter: 'review_for_me' }, actorId: 'usr_002', rowsRead: 4_199 },
+  // review_for_me as usr_002 (2026-11-08, the thread rule of the chat fix): 3,817 before, 5,329 after, ceiling 5,862 (5,329 plus 10%). The to-dos
+  // of this list are mostly ones that usr_002 neither leads nor helps on, so the read for a message that names the person (the "names" read of
+  // taskRowsUnread) scans all the comments of each of them: 12 threads of 126 comments, about 1,500 rows. It runs in the first round with
+  // the read of the own comments, because a second round would cost a round trip on Supabase, where production runs. The "mine" list
+  // is led by its owner, so it asks for nothing and stays at 3,745. Comments store only @everyone ids (Comment.mentions), so the names
+  // are found in the text. Open item: store the ids of the named people at write time (TASKS.md, "Open reports fbk_081 to 089").
+  { name: 'tasks.list', input: { filter: 'review_for_me' }, actorId: 'usr_002', rowsRead: 5_862 },
   { name: 'projects.list', input: { status: 'all' }, actorId: 'usr_001', rowsRead: 2_028 },
   { name: 'dashboard.get', input: {}, actorId: 'usr_001', rowsRead: 4_510 },
   // search.query reads the chat messages and the task comments too (chat design 2026-10-19, item 16): the office path scans both with instr. The ceilings

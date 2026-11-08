@@ -5,6 +5,8 @@ import { type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
 import { mentionMarkup } from '../../../src/lib/text';
 import { runBoth } from './compare';
+import { memorySource } from './memorySource';
+import type { Source } from './source';
 import { HIDDEN_PROJECT, HIDDEN_VIEWER } from './sweep';
 
 /**
@@ -100,6 +102,48 @@ describe('a helper and a person named with @ have the thread, and the scoped loa
     add(lead, 'Only message.');
     const list = await rows(state, helper);
     expect(list.filter((row) => row.kind === 'task').map((row) => row.id)).toContain(task.id);
+  });
+});
+
+/** The reads that ask for a message that names the person (the "names" condition of a comment read), and the target ids they ask for. */
+async function namingReads(state: State, name: SharedCallName, actor: string): Promise<string[][]> {
+  const inner = memorySource(state);
+  const asked: string[][] = [];
+  const source: Source = {
+    ...inner,
+    select: async (s) => {
+      if (s.c === 'comments' && s.where.some((one) => 'field' in one && 'names' in one)) {
+        const ids = s.where.flatMap((one) => ('col' in one && one.col === 'target_id' && 'in' in one ? one.in : []));
+        asked.push([...ids] as string[]);
+      }
+      return inner.select(s);
+    },
+  };
+  await runBoth(state, name, {}, actor, { now: NOW, correlationId: 'cor_test', source });
+  return asked;
+}
+
+describe('the reads of the thread rule stay small (chat, 2026-11-08; the rows pins of the office path)', () => {
+  it('asks for the naming message only on a thread where the person has no other reason to be part of it', async () => {
+    const { state, task, lead, leader, helper, named, add } = office();
+    // Three to-dos in one project would need more setup: this one thread has a lead, a leader, a commenter, a helper and a named person.
+    state.tasks[task.id].helperIds = [helper];
+    add(lead, `${mentionMarkup(state.users[named].name, named)} please check the door.`);
+    add(leader, 'A reply.');
+    const commenter = Object.values(state.users).find((u) => u.kind === 'human' && u.active && u.systemRole !== 'admin' && ![lead, leader, helper, named].includes(u.id))!.id;
+    add(commenter, 'I commented.');
+    for (const call of ['chats.list', 'chats.unreadCount', 'tasks.list'] as const) {
+      // The lead, the leader and a helper are part of the thread with no read of the comments for a name. So is a commenter, except on
+      // tasks.list, which learns of the own comments in the same round (a second round for it would cost more than the rows it saves).
+      for (const person of call === 'tasks.list' ? [lead, leader, helper] : [lead, leader, helper, commenter]) {
+        const asked = (await namingReads(state, call, person)).flat();
+        expect(asked, `${call} ${person}`).not.toContain(task.id);
+      }
+      // The person who is only named still gets the thread (the read is asked, and the answer is the one of the whole office).
+      expect((await namingReads(state, call, named)).flat(), `${call} named`).toContain(task.id);
+    }
+    const list = await rows(state, named);
+    expect(list.find((row) => row.id === task.id)).toMatchObject({ kind: 'task' });
   });
 });
 

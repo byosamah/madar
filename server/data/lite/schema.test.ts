@@ -8,14 +8,17 @@ import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, SIGNIN_TABLES, applyLiteSchema, 
 import { freshLite } from './testDb';
 
 /** The sha256 of the schema text of LITE_SCHEMA_VERSION. A change of the schema needs a new version and a new value here. */
-const PINNED_SHA256 = 'bcd760bed5a496b2927f15c9682f0c68d5d9df439431dc4e9c36283ae17f6277';
+const PINNED_SHA256 = 'a02a887c53523c32319c8e230be6080a423eed1327d594479f864cd9376c5550';
 
 const tablesOf = (raw: DatabaseSync) =>
   (raw.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name").all() as { name: string }[]).map((r) => r.name);
 const columnsOf = (raw: DatabaseSync, table: string) =>
   (raw.prepare('select name from pragma_table_info(?)').all(table) as { name: string }[]).map((r) => r.name);
-/** Takes the table of version 14 away (the weekly question, fbk_088): the steps of a version below 14 make it again. Its unique index goes with it. */
-const dropCheckins = (raw: DatabaseSync) => raw.exec('drop table checkins');
+/**
+ * Takes the objects of version 14 away (the weekly question, fbk_088): the table checkins (its unique index goes with it) and the index
+ * events_target_type. The steps of a version below 14 make them again.
+ */
+const dropCheckins = (raw: DatabaseSync) => raw.exec('drop table checkins; drop index events_target_type');
 /** Takes the column of version 13 away (the address that the person saw, CWE-863): the steps of a version below 13 make it again. */
 const dropRedirect = (raw: DatabaseSync) => {
   raw.exec('alter table agent_approvals drop column redirect_uri');
@@ -244,10 +247,16 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     const fresh = objects();
     expect(fresh.map((row) => (row as { name: string }).name)).toEqual(['checkins', 'checkins_one', 'sqlite_autoindex_checkins_1']);
     expect(columnsOf(raw, 'checkins')).toEqual(['id', 'doc', 'user_id', 'week', 'kind']);
+    // The index of the events.list reads with a target_type filter (no temporary b-tree for "order by seq desc").
+    const eventIndex = () => raw.prepare("select name, sql from sqlite_master where name = 'events_target_type'").all();
+    const freshIndex = eventIndex();
+    expect(freshIndex).toHaveLength(1);
     dropCheckins(raw);
+    expect(eventIndex()).toEqual([]);
     raw.exec('update schema_version set version = 13');
     expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [14] });
     expect(objects()).toEqual(fresh);
+    expect(eventIndex()).toEqual(freshIndex);
   });
 
   it('keeps one answer for each person, week and kind (the weekly question, fbk_088)', async () => {

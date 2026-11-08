@@ -1482,3 +1482,8 @@ Study: 4 read-only Sonnet agents (cause, what exists, options). Branch `rb/revie
 - [ ] Not started (owner reports): fbk_083 (Home Today cuts text), fbk_084 (the header of a continuous project), fbk_085 (a board in the
   project To-dos tab), fbk_088 (a Sunday plan and Thursday done question, a report for Moataz), fbk_089 (vacation mode). Study in the
   session of 2026-11-08 (options with file:line).
+- [ ] Thread members, rows read on the office path (chat fix 2026-11-08): store the ids of the people named in a comment at write time
+  (a new field next to `Comment.mentions`, which holds only @everyone ids), so the thread rule reads them with no scan of the comment text,
+  before the office path serves production. Today the thread list finds a named person with one scan of the task comments (`THREADS_LITE`),
+  and `tasks.list` with `review_for_me` reads the comments of each to-do the person neither leads nor helps on (5,329 rows against 3,817 before;
+  ceiling 5,862). proof.md, "Thread members: rows read on the office path". Production runs on Supabase (Postgres filters in the database).

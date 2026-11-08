@@ -188,6 +188,9 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   `LITE_SCHEMA_VERSION` and `PINNED_SHA256` (`lite/schema.test.ts`), and makes the same objects as a new office
   (`schema.test.ts` checks it). A migration with a SQLite twin adds its step in the same commit. A step that a released office
   already ran never changes in place.
+- The thread list of the office path (`THREADS_LITE`, `lite/source.ts`) scans the task comments once for "commented in" and "named in"
+  (`select distinct target_id ... where ... or ...`). Each extra scan, and a GROUP BY form of it, adds the rows of every task comment to
+  the rows pins (`server/office/test/pins.ts`). A read that scans a thread for a name runs only for the threads that need it (`threadsExtra`).
 - The sign-in tables (`auth_users`, `auth_links`, `auth_sessions`, `oauth_clients`, `oauth_requests`) have no step, because no
   office object below version 3 exists outside the tests. An invitation text must repeat its exact term
   `kind in ('auth.invite', 'auth.email')`: `kind = 'auth.invite'` alone scans the outbox (the partial index `outbox_signin`).

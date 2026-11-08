@@ -126,12 +126,14 @@ function threadsAsk(L: Load, userId: string): ThreadsArgs | undefined {
 }
 
 /**
- * Round 2 of the task threads, from the thread list of round 1: each thread's task, its read mark, its newest comment, U's newest
- * comment of any kind (a person who only wrote a line of a reason is part of the thread), U's newest message, which gives the
- * bound of the unread count in round 3, the newest message that names U with @, and the newest message of the thread. Nothing for an empty list.
+ * Round 2 of the task threads, from the thread list of round 1: each thread's task, its read mark, its newest comment, and U's newest
+ * comment of any kind (a person who only wrote a line of a reason is part of the thread), and U's newest message, which gives the
+ * bound of the unread count in round 3. Nothing for an empty list. The reads that the thread rule of 2026-11-08 adds (the newest
+ * message that names U, the newest message of a thread whose newest comment is a quiet line) are in threadsExtra, in round 3, and
+ * only for the threads that need them: each one reads every comment of the threads it asks for.
  */
 function threadsMiddle(userId: string, me: readonly string[], threads: readonly ThreadRow[], mode: Mode) {
-  if (threads.length === 0) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined] as const;
+  if (threads.length === 0) return [undefined, undefined, undefined, undefined, undefined] as const;
   const ids = threads.map((thread) => thread.id);
   const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1, ...(mode.badge ? { pick: THREAD_COMMENT_FIELDS } : {}) };
   const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
@@ -144,12 +146,34 @@ function threadsMiddle(userId: string, me: readonly string[], threads: readonly 
     // The unread comments come after U's own last message in the order of the thread (stamp, then id), as taskUnread reads them.
     // A line that U wrote is no reply, so the bound is the newest message of U (fbk_027).
     { select: { c: 'comments', where: [...onThreads, { field: 'authorId', in: me }, ...MESSAGES_ONLY], ...newest } },
-    // The newest message that names U: it is why U is part of a thread that U has no comment in (inTaskThread, chat 2026-11-08). The
-    // rule reads its body, so the badge picks the body too.
-    { select: { c: 'comments', where: [...onThreads, { field: 'body', names: userId }, ...MESSAGES_ONLY], ...newest, ...(mode.badge ? { pick: [...THREAD_COMMENT_FIELDS, 'body'] } : {}) } },
-    // The newest MESSAGE sets the time and the preview of a thread; a quiet line never does (chat, 2026-11-08). The newest comment above is
-    // the fallback for a thread that holds only quiet lines.
-    { select: { c: 'comments', where: [...onThreads, ...MESSAGES_ONLY], ...newest } },
+  ] as const;
+}
+
+/**
+ * The reads of the thread rule of 2026-11-08, for round 3, with the answers of round 2 (the tasks, U's own comments, the newest comment):
+ * 1. The newest message that names U with @. It is why U is part of a thread that U has no comment in (inTaskThread). A thread that U
+ *    leads, helps on or commented in is U's with no such message, so only the other threads ask for it. The rule reads its body, so the
+ *    badge picks the body too.
+ * 2. The newest MESSAGE of a thread. It sets the time and the preview of a thread; a quiet line never does. When the newest comment is a
+ *    message, it is that message already, so only a thread whose newest comment is a quiet line asks.
+ * Each read scans every comment of the threads it asks for (the office path reads each row), so a thread that does not need it stays out.
+ */
+function threadsExtra(L: Load, userId: string, me: readonly string[], threads: readonly ThreadRow[], latest: readonly Comment[], mode: Mode) {
+  const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1, ...(mode.badge ? { pick: THREAD_COMMENT_FIELDS } : {}) };
+  const onThreads = (ids: readonly string[]) => [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
+  const part = (thread: ThreadRow) => {
+    if (thread.mine !== null) return true;
+    const task = L.get<Task>('tasks', thread.id);
+    if (!task) return true;
+    const project = task.projectId === null ? null : L.office.projects[task.projectId];
+    if (project === undefined) return true;
+    return task.ownerId === userId || (task.helperIds ?? []).includes(userId) || (project ? project.leaderId === userId : me.includes(task.createdBy));
+  };
+  const naming = threads.filter((thread) => !part(thread)).map((thread) => thread.id);
+  const lines = latest.filter(isLine).map((comment) => comment.targetId);
+  return [
+    naming.length === 0 ? undefined : { select: { c: 'comments' as const, where: [...onThreads(naming), { field: 'body', names: userId }, ...MESSAGES_ONLY], ...newest, ...(mode.badge ? { pick: [...THREAD_COMMENT_FIELDS, 'body'] } : {}) } },
+    lines.length === 0 ? undefined : { select: { c: 'comments' as const, where: [...onThreads(lines), ...MESSAGES_ONLY], ...newest } },
   ] as const;
 }
 
@@ -195,14 +219,16 @@ export async function taskRowsUnread(L: Load, tasks: readonly Task[]): Promise<v
   if (ids.length === 0) return;
   const onTasks = (list: readonly string[]) => [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: list }] as const;
   const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1 };
+  const strangers = ids.filter((id) => known.get(id) === false);
   // ONE read of the own comments for each to-do: U's newest comment of any kind. It tells whether U commented (a person who wrote only a
   // line of a reason is part of the thread), and, when it is a message, it is the bound of the count: a line that U wrote is no reply
   // (fbk_027). A scan of a long thread that U never wrote in is the dear part, so it runs once, never once for "commented" and once for the bound.
   const answers = await L.batch([
     { byKey: { c: 'chatReads', keys: ids.map((id) => chatReadKey(id, userId)) } },
     { select: { c: 'comments', where: [...onTasks(ids), { field: 'authorId', in: me }], ...newest, pick: [...THREAD_COMMENT_FIELDS] } },
-    // A message that names U with @ makes the thread U's too (chat, 2026-11-08): one read, the newest such message of each to-do.
-    { select: { c: 'comments', where: [...onTasks(ids), { field: 'body', names: userId }, ...MESSAGES_ONLY], ...newest, pick: THREAD_COMMENT_FIELDS } },
+    // A message that names U with @ makes the thread U's too (chat, 2026-11-08): one read, the newest such message of each to-do that U
+    // is not part of by its lead, its leader or its helpers (the other to-dos need no scan of their comments).
+    strangers.length === 0 ? undefined : { select: { c: 'comments', where: [...onTasks(strangers), { field: 'body', names: userId }, ...MESSAGES_ONLY], ...newest, pick: THREAD_COMMENT_FIELDS } },
   ] as const);
   const named = new Set(((answers[2] ?? []) as Comment[]).map((comment) => comment.targetId));
   const lastAny = new Map(((answers[1] ?? []) as Comment[]).map((comment) => [comment.targetId, comment]));
@@ -247,10 +273,11 @@ async function everyChat(L: Load, mode: Mode): Promise<void> {
   const [, , found] = await L.batch([reads, newest, ask ? { threads: ask } : undefined] as const);
   const threads = found ?? [];
   const [plain, named] = chatsCounts(L, userId, conversations, mode);
-  const [tasks, marks, latest, mine, ownRead, namedRead, lastMessage] = threadsMiddle(userId, ask?.me ?? [], threads, mode);
-  const answers = await L.batch([plain, named, tasks, marks, latest, mine, ownRead, namedRead, lastMessage, archivedNewest(L, userId, conversations, mode)] as const);
+  const [tasks, marks, latest, mine, ownRead] = threadsMiddle(userId, ask?.me ?? [], threads, mode);
+  const answers = await L.batch([plain, named, tasks, marks, latest, mine, ownRead, archivedNewest(L, userId, conversations, mode)] as const);
   const count = threadsCount(L, userId, ask?.me ?? [], threads, (answers[6] ?? []) as Comment[], mode);
-  await L.batch([count] as const);
+  const [naming, lastMessage] = threadsExtra(L, userId, ask?.me ?? [], threads, (answers[4] ?? []) as Comment[], mode);
+  await L.batch([count, naming, lastMessage] as const);
 }
 
 /** chats.list: every chat and task thread of U, with the previews. */

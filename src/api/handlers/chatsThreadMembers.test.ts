@@ -3,6 +3,7 @@ import { chatCalls } from './chats';
 import { contentCalls } from './content';
 import { projectCalls } from './projects';
 import { taskCalls } from './tasks';
+import { taskRowUnread } from '../taskUnread';
 import { mentionMarkup } from '../../lib/text';
 import { makeTask, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -183,9 +184,26 @@ describe('the view rule stays: a named person or a helper who may not view the t
   it('gives a person who left the office no thread, also when named', async () => {
     const t = world({ helperIds: ['usr_004'] });
     await say(t, 'usr_002', named('Omar Other', 'usr_004'));
+    // Before the person leaves, the thread shows (the helper line and the name both make the person part of it).
+    expect(await threadOf(t, 'usr_004')).toMatchObject({ kind: 'task', id: 'tsk_001' });
     t.store.state.users.usr_004.active = false;
-    expect(await threadOf(t, 'usr_004')).toBeUndefined();
-    expect(await badge(t, 'usr_004')).toBe(0);
+    // The prototype answers an empty list. The server refuses every call of a turned-off account before the call runs. Both give no thread.
+    const gives = async <T>(read: () => Promise<T>): Promise<T | undefined> => {
+      try {
+        return await read();
+      } catch (error) {
+        expect(error).toMatchObject({ code: 'unauthenticated' });
+        return undefined;
+      }
+    };
+    expect(await gives(() => threadOf(t, 'usr_004'))).toBeUndefined();
+    expect(await gives(() => badge(t, 'usr_004'))).toBeFalsy();
+    // The rule itself, in every mode: the number of the to-do row for a turned-off person is 0, named or not. The same person active has 1.
+    const state = t.store.state;
+    const task = state.tasks.tsk_001;
+    expect(taskRowUnread(state, task, state.users.usr_004, () => Object.values(state.comments).filter((c) => c.targetId === 'tsk_001'))).toBe(0);
+    state.users.usr_004.active = true;
+    expect(taskRowUnread(state, task, state.users.usr_004, () => Object.values(state.comments).filter((c) => c.targetId === 'tsk_001'))).toBe(1);
   });
 
   it('opens no thread by id for a named person who may not view it (chats.markRead and chats.archive answer not_found)', async () => {

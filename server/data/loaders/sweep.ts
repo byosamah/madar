@@ -893,13 +893,16 @@ export function trapOffice(seed: State): State {
     state.comments[id] = { id, targetType: 'task', targetId: thread.id, authorId, body: id, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };
   }
   state.chatReads[chatReadKey(thread.id, 'usr_006')] = { conversationId: thread.id, userId: 'usr_006', lastReadAt: '2026-10-03T10:00:00.000+03:00' };
-  threadMemberTraps(state, task.id, member, thread.id);
+  // A thread of its own: the unread counts of the thread above (cmt_901 to cmt_904) keep their meaning.
+  const apart = Object.values(state.tasks).find((t) => t.projectId !== null && t.id !== thread.id && t.id !== task.id && t.ownerId !== null
+    && !state.projects[t.projectId].access?.hidden && Object.values(state.comments).every((c) => c.targetId !== t.id))!;
+  threadMemberTraps(state, task.id, member, apart.id);
   return state;
 }
 
 /**
  * Two people who are part of a to-do thread without a comment (chat, 2026-11-08): the helper of the trap task (the helper line above), and
- * a person named with @ in a message of another to-do. The scoped load and the database must give them the thread, as the whole office does.
+ * a person named with @ in a message of another to-do (a thread with no other trap comment). The scoped load and the database must give them the thread, as the whole office does.
  * A quiet line that names a third person makes that person part of nothing.
  */
 function threadMemberTraps(state: State, helperTaskId: string, helper: string, otherThreadId: string): void {
