@@ -9,7 +9,7 @@ import { feedbackScreenshotHooks, feedbackSendHooks, feedbackUploadStart } from 
 import { filesLink, filesUploadHooks, filesUploadStart, projectsDeleteHooks } from './files';
 import { googleConnect, googleConnectStart, googleDisconnect, googleStatus } from './google';
 import { usersInvites, usersResendInvite } from './people';
-import { usersCreateHooks, usersRemoveHooks, usersUpdateHooks } from './peopleHooks';
+import { usersCreateHooks, usersReactivateHooks, usersRemoveHooks, usersUpdateHooks } from './peopleHooks';
 import { storyStart } from './story';
 import { liveTicket } from './live';
 import { chatsTyping } from './typing';
@@ -54,4 +54,6 @@ export const SERVER_HOOKS: Partial<Record<SharedCallName, ServerHooks<unknown, u
   'users.create': usersCreateHooks,
   'users.update': usersUpdateHooks,
   'users.remove': usersRemoveHooks,
+  // The people limit of the enterprise (design 5.9).
+  'users.reactivate': usersReactivateHooks,
 };
