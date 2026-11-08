@@ -61,3 +61,15 @@ that passes `request` and `env`. The logic and its tests live in `server/http/` 
   either way.
 - Check a change with `npx wrangler pages functions build --outdir <scratch folder>`. It builds only code files, so this
   CLAUDE.md never reaches the build.
+
+## The platform forwarder (the project `madar-platform`)
+- The site Madar enterprises (design 12, D7) is a second Pages project with its own forwarder. Its folder is `functions-platform/` (not
+  `functions/`, so the project `madar` never uploads it): one file `api/platform/[[path]].ts`, a one-line wrapper. The logic and its tests are
+  in `server/http/pagesPlatformProxy.ts` and `pagesPlatformProxy.test.ts`. `scripts/deploy/pages-platform.sh` compiles it into `_worker.js`.
+- It passes only `/api/platform` and the paths under it (the platform calls, `/auth/token`, `/auth/logout`) to the Worker of the copy through
+  the service binding (`MADAR_SERVER_TEST` on `preview.madar-platform.pages.dev`, `MADAR_SERVER_PRODUCTION` on the production hosts), with
+  the same header rules as the other forwarders (no `cf-*`, no forwarded address, `x-madar-client-address` from `cf-connecting-ip`). Any
+  other host (a company host too) and any other path get 404. A missing binding gets 404 and one warning line. There is no Supabase
+  fallback: the platform routes exist on the office path only.
+- The company forwarder (`/api`) answers 404 for `/api/platform` and every path under it on the company hosts (`pagesApiProxy.ts`), so a
+  company address holds no door to the platform, whatever token a request carries. `PLATFORM_HOSTS` and `PAGE_HOSTS` share no host.
