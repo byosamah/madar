@@ -1491,6 +1491,7 @@ Study: 4 read-only Sonnet agents (cause, what exists, options). Branch `rb/revie
   two loader counts made stale by new trap comments, an SQLite sort with no index, and the office rows pins of the thread rule); fixed in
   489db34f, then all passed. Security review fixes of the weekly question: the History of an answer shows only to its readers, and an answer
   stores to-do ids and shows a title only to a reader who may view the to-do.
+- [x] Second release: production at f032c057 on 2026-11-08 (record: proof.md). Kutla is Continuous; tsk_443 and tsk_692 are done.
 - [ ] fbk_089 (vacation mode): not started (owner picked the other batches first). Study in the session of 2026-11-08.
 - [ ] Unread number for a new member of a to-do thread: a helper or a person named with @ who has read nothing sees every older message of
   the thread as unread. Owner may want a start point (for example from the first mention).
