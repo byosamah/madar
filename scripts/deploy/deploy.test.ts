@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,7 +76,7 @@ beforeEach(() => {
   const bin = join(root, 'node_modules/.bin');
   stub(bin, 'supabase', 'if [ -n "${SUPABASE_DB_PASSWORD:-}" ]; then echo "supabase has SUPABASE_DB_PASSWORD" >> "$STUB_LOG"; fi');
   // `pages project list` prints the projects that STUB_PROJECTS names (none by default): pages-platform.sh looks for madar-platform in it.
-  stub(bin, 'wrangler', 'echo "wrangler account $CLOUDFLARE_ACCOUNT_ID" >> "$STUB_LOG"; case "$*" in "pages project list") printf \'%s\\n\' "${STUB_PROJECTS:-}" ;; esac');
+  stub(bin, 'wrangler', 'echo "wrangler account $CLOUDFLARE_ACCOUNT_ID" >> "$STUB_LOG"; echo "$1 $2 $(pwd -P)" >> "$STUB_ROOT/stub.cwd"; case "$*" in "pages project list") printf \'%s\\n\' "${STUB_PROJECTS:-}" ;; esac');
   stub(bin, 'tsx');
   stubs = join(root, 'stubs');
   // npm run build:server writes the Worker bundle too (dist-server/worker.js), which worker.sh --prebuilt wants.
@@ -126,7 +126,7 @@ function git(args: string[], cwd = root): string {
 /** Commits every file of the copy and gives the commit. The first call makes the copy a git checkout; the stubs and their log stay out. */
 function commitAll(message = 'deploy test'): string {
   if (!existsSync(join(root, '.git'))) {
-    writeFileSync(join(root, '.gitignore'), `${readFileSync(join(repo, '.gitignore'), 'utf8')}\nstub.log\nstubs/\ncurl-input\n`);
+    writeFileSync(join(root, '.gitignore'), `${readFileSync(join(repo, '.gitignore'), 'utf8')}\nstub.log\nstub.cwd\nstubs/\ncurl-input\n`);
     git(['init', '-q']);
   }
   git(['add', '-A']);
@@ -532,7 +532,7 @@ describe('pages.sh', () => {
 });
 
 describe('pages-platform.sh (the site Madar enterprises, design 12, D7)', () => {
-  const PROJECTS = { STUB_PROJECTS: '│ madar │ madar.vado.sa │\n│ madar-platform │ madar-platform.pages.dev │' };
+  const PROJECTS = { STUB_PROJECTS: '│ madar │ madar.vado.sa │\n│ madar-platform │ madar-platform-d6c.pages.dev │' };
 
   it('skips with one clear line and ends with 0 while the Pages project does not exist, and builds and uploads nothing', () => {
     for (const projects of ['', '│ madar │ madar.vado.sa │', '│ madar-platform-old │ x │', '│ my-madar-platform │ x │']) {
@@ -552,12 +552,24 @@ describe('pages-platform.sh (the site Madar enterprises, design 12, D7)', () => 
       'wrangler pages project list',
       'wrangler account d76d34779c63849f5acdf3d6af3751cd',
       'npm run build:platform',
-      'wrangler pages functions build functions-platform --outfile dist-platform/_worker.js',
+      'wrangler pages functions build functions-platform --outdir dist-platform/_worker.js',
       'wrangler account d76d34779c63849f5acdf3d6af3751cd',
-      'wrangler pages deploy dist-platform --project-name madar-platform --branch preview',
+      'wrangler pages deploy --project-name madar-platform --branch preview',
       'wrangler account d76d34779c63849f5acdf3d6af3751cd',
     ]);
     expect(JSON.parse(readFileSync(join(root, 'dist-platform/_routes.json'), 'utf8'))).toEqual({ version: 1, include: ['/api/platform', '/api/platform/*'], exclude: [] });
+  });
+
+  it('deploys from the folder of config/pages-platform/wrangler.toml, so the config file and not the dashboard sets the bindings', () => {
+    const result = run('pages-platform.sh', ['test'], { env: PROJECTS });
+    expect(result.code, result.out).toBe(0);
+    // The stub wrangler logs the folder it ran in. The deploy runs in the folder of the config file and names no directory.
+    expect(readFileSync(join(root, 'stub.cwd'), 'utf8').split('\n').filter(Boolean)).toEqual(
+      expect.arrayContaining([`pages deploy ${realpathSync(join(root, 'config/pages-platform'))}`]),
+    );
+    const script = readFileSync(join(repo, 'scripts/deploy/pages-platform.sh'), 'utf8');
+    expect(script).toContain('config/pages-platform');
+    expect(script).not.toMatch(/pages deploy dist-platform/);
   });
 
   it('uploads to the main branch for production, only after the typed word and with the commit of the test copy', () => {
@@ -569,7 +581,7 @@ describe('pages-platform.sh (the site Madar enterprises, design 12, D7)', () => 
     expect(refused.calls).toEqual([]);
     const result = run('pages-platform.sh', ['production'], { input: 'production\n', env: PROJECTS });
     expect(result.code, result.out).toBe(0);
-    expect(result.calls).toContain('wrangler pages deploy dist-platform --project-name madar-platform --branch main');
+    expect(result.calls).toContain('wrangler pages deploy --project-name madar-platform --branch main');
   });
 
   it('stops when wrangler cannot list the projects, so a lost sign-in is no silent skip', () => {
@@ -587,8 +599,8 @@ describe('pages-platform.sh (the site Madar enterprises, design 12, D7)', () => 
     const result = run('all.sh', ['test'], { env: { ...TOKENS, ...PROJECTS } });
     expect(result.code, result.out).toBe(0);
     const at = (call: string) => result.calls.indexOf(call);
-    expect(at('wrangler pages deploy dist-platform --project-name madar-platform --branch preview')).toBeGreaterThan(at('wrangler pages deploy dist --project-name madar --branch preview'));
-    expect(result.calls.findIndex((call) => call.includes('/api/health') && call.startsWith('curl -sS'))).toBeGreaterThan(at('wrangler pages deploy dist-platform --project-name madar-platform --branch preview'));
+    expect(at('wrangler pages deploy --project-name madar-platform --branch preview')).toBeGreaterThan(at('wrangler pages deploy dist --project-name madar --branch preview'));
+    expect(result.calls.findIndex((call) => call.includes('/api/health') && call.startsWith('curl -sS'))).toBeGreaterThan(at('wrangler pages deploy --project-name madar-platform --branch preview'));
   });
 });
 

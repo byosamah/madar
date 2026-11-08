@@ -6,24 +6,17 @@
 //   npx tsx scripts/office/platform-account.ts --to <page address> --email <email> --on
 //
 // The password comes from a hidden prompt, twice. It has at least 12 characters. The script never prints it, and it sends it once, over HTTPS,
-// with the ops secret in the header. The page address is the platform site (preview.madar-platform.pages.dev) or a company page of the same
+// with the ops secret in the header. The page address is the platform site (preview.madar-platform-d6c.pages.dev) or a company page of the same
 // copy: the ops route sits on the company address of the copy (the platform site passes only /api/platform on). For production the script
 // needs --production, and the owner's OK comes first. The ops secret comes from secrets/<copy>.env (or from the environment for the local
 // office) and is never printed.
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { COPY_HOSTS, copyOfPageHost, type Copy } from '../../server/core/serverHost';
+import { COPY_HOSTS, copyOfPageHost, copyOfPlatformHost, type Copy } from '../../server/core/serverHost';
 import { OPS_SECRET_HEADER } from '../../server/entries/officeWorker';
 import { PLATFORM_PASSWORD_MIN } from '../../server/enterprise/platform/accounts';
 import { copyValuesOf, flagOf } from './import';
 import { opsOf, type OfficeOps } from './ops';
-
-/** The addresses of the platform site and the copy of each (the shared names of plan F). They are not company page hosts. */
-const PLATFORM_PAGE_COPIES: Readonly<Record<string, Copy>> = {
-  'preview.madar-platform.pages.dev': 'test',
-  'madar-platform.pages.dev': 'production',
-  'platform.madar.vado.sa': 'production',
-};
 
 export type PlatformAccountAction = 'create' | 'password' | 'off' | 'on';
 export type PlatformAccountArgs = { to: string; email: string; name?: string; action: PlatformAccountAction; production: boolean };
@@ -61,7 +54,7 @@ export function platformTargetOf(to: string, production: boolean): { copy: Copy 
   const url = new URL(to);
   if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') return { copy: 'local', base: url.origin };
   if (url.protocol !== 'https:') throw new Error('Use an https address: the password travels in the request.');
-  const copy = Object.hasOwn(PLATFORM_PAGE_COPIES, url.hostname) ? PLATFORM_PAGE_COPIES[url.hostname] : copyOfPageHost(url.hostname);
+  const copy = copyOfPlatformHost(url.hostname) ?? copyOfPageHost(url.hostname);
   if (!copy) throw new Error(`${url.host} is not a Madar copy.`);
   if (copy === 'production' && !production) throw new Error('Production needs --production, and the owner says yes first.');
   return { copy, base: COPY_HOSTS[copy].page };

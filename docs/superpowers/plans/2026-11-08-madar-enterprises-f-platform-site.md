@@ -47,8 +47,8 @@ project (`madar-platform`) serves it with one forwarder that passes only `/api/p
   Removed: `isOwner`, `setOwners`, `ownersOf`; `OfficeStub.setPlatformOwners` and `person`.
 - Ops route: `POST /api/office/platform-accounts` (ops secret header), body as `platformAccounts` input. Removed:
   `POST /api/office/platform-owners` and `scripts/office/platform-owners.ts`.
-- Hosts: `PLATFORM_HOSTS` in `server/core/serverHost.ts`: `'preview.madar-platform.pages.dev': 'test'`,
-  `'madar-platform.pages.dev': 'production'`, `'platform.madar.vado.sa': 'production'`. They are not company page hosts.
+- Hosts: `PLATFORM_HOSTS` in `server/core/serverHost.ts`: `'preview.madar-platform-d6c.pages.dev': 'test'`,
+  `'madar-platform-d6c.pages.dev': 'production'`, `'platform.madar.vado.sa': 'production'`. They are not company page hosts.
 - The site: entry `platform.html`, source `src/platform/`, config `vite.platform.config.ts`, output `dist-platform/`, Pages project
   `madar-platform`, forwarder folder `functions-platform/` (one file `api/platform/[[path]].ts`, logic in
   `server/http/pagesPlatformProxy.ts`), deploy script `scripts/deploy/pages-platform.sh <test|production>` (branch `preview` for test,
@@ -123,10 +123,10 @@ client headers).
 if words moved, the root `CLAUDE.md` (the commands line of `build:platform`, and the rule "the companies' app holds no platform part").
 
 ## Lead and owner steps (after both tracks merge and the gate is green)
-1. Owner OK: make the Pages project `madar-platform` with the service bindings `MADAR_SERVER_TEST` (preview) and
-   `MADAR_SERVER_PRODUCTION` (production).
-2. The owner runs `all.sh test` (it deploys both sites); the lead checks `preview.madar-platform.pages.dev`.
-3. The owner runs `npx tsx scripts/office/platform-account.ts --to https://preview.madar-platform.pages.dev --email <his> --name
+1. Done (2026-11-08): the Pages project `madar-platform` exists at `madar-platform-d6c.pages.dev`. The service bindings `MADAR_SERVER_TEST`
+   (preview) and `MADAR_SERVER_PRODUCTION` (production) come from `config/pages-platform/wrangler.toml` at each deploy.
+2. The owner runs `all.sh test` (it deploys both sites); the lead checks `preview.madar-platform-d6c.pages.dev`.
+3. The owner runs `npx tsx scripts/office/platform-account.ts --to https://preview.madar-platform-d6c.pages.dev --email <his> --name
    <his>` and types the password.
 4. Screenshots of the platform site (sign-in and the list, EN and AR, light and dark, 390 px and desk) and of the companies' person
    menu and Me tab without the line.

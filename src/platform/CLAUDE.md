@@ -9,7 +9,7 @@ and `server/enterprise/CLAUDE.md` first.
   direction check, both type checks, `vite build -c vite.platform.config.ts` and `check-bundles.ts platform`. The output is `dist-platform/`
   with the page as `index.html` and `_headers` from `config/headers.platform` (the own origin only). There is no public folder: no manifest,
   no service worker, no app icons. The page says `noindex`.
-- The Pages project is `madar-platform` (test `preview.madar-platform.pages.dev`; production `madar-platform.pages.dev`, later
+- The Pages project is `madar-platform` (test `preview.madar-platform-d6c.pages.dev`; production `madar-platform-d6c.pages.dev`, later
   `platform.madar.vado.sa`). Its one Pages Function (`functions-platform/api/platform/[[path]].ts`, logic in
   `server/http/pagesPlatformProxy.ts`) hands `/api/platform*` to the Worker of the copy. The deploy and the owner steps:
   `scripts/deploy/CLAUDE.md`, "The platform site".

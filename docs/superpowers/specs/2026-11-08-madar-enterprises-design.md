@@ -426,7 +426,7 @@ platform parts of 5.19. The rest of the design stays: each company keeps its own
 
 Owner answers (AskUserQuestion, 2026-11-08):
 - **D7. Its own address.** Madar enterprises is a separate site: its own Cloudflare Pages project `madar-platform`, its own small
-  build, its own sign-in page and its own screens. Test: `preview.madar-platform.pages.dev`. Production: `madar-platform.pages.dev`,
+  build, its own sign-in page and its own screens. Test: `preview.madar-platform-d6c.pages.dev`. Production: `madar-platform-d6c.pages.dev`,
   then `platform.madar.vado.sa` (a DNS record that the owner adds), and later an address on the product domain madar.sa.
 - **D8. Its own accounts.** Platform accounts belong to no company. They live in the platform object (email, name, password hash,
   state, sessions). The owner gets one with its own email and password; more platform people can come later. His VADO account

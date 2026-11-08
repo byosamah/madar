@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # scripts/deploy/pages-platform.sh <test|production>: the site Madar enterprises on the Cloudflare Pages project madar-platform
 # (design 12, D7). It builds dist-platform (npm run build:platform), compiles the one Pages Function of functions-platform into
-# dist-platform/_worker.js, writes dist-platform/_routes.json (only /api/platform and the paths under it run the function), and uploads
+# dist-platform/_worker.js/ (a folder with index.js: --outfile of this wrangler writes a multipart text that Pages cannot bundle), writes dist-platform/_routes.json (only /api/platform and the paths under it run the function), and uploads
 # dist-platform: the branch preview for test, main for production. The headers file comes from the build (config/headers.platform).
-# The project and its service bindings are an owner step (scripts/deploy/CLAUDE.md, "The platform site"). When the project does not
+# The service bindings come from config/pages-platform/wrangler.toml (env.preview and env.production). Wrangler reads a config file from its
+# working folder, and pages deploy has no config flag, so the deploy runs in config/pages-platform and takes the output folder from
+# pages_build_output_dir. The project itself is an owner step (scripts/deploy/CLAUDE.md, "The platform site"). When the project does not
 # exist yet, this script prints one clear line and ends with 0, so all.sh goes on. Wrangler signs in as pages.sh does.
 . "$(dirname "$0")/lib.sh"
 deploy_target "${1:-}"
@@ -19,14 +21,16 @@ if ! listing="$("$BIN/wrangler" pages project list 2>&1)"; then
   exit 1
 fi
 if ! printf '%s\n' "$listing" | grep -Eq "(^|[^A-Za-z0-9-])$PROJECT([^A-Za-z0-9-]|\$)"; then
-  echo "Skipped: the Pages project $PROJECT does not exist yet, so the platform site is not deployed. The owner makes the project and its service bindings first (scripts/deploy/CLAUDE.md, \"The platform site\")."
+  echo "Skipped: the Pages project $PROJECT does not exist yet, so the platform site is not deployed. The owner makes the project first (scripts/deploy/CLAUDE.md, \"The platform site\")."
   exit 0
 fi
 
 npm run build:platform
-"$BIN/wrangler" pages functions build functions-platform --outfile dist-platform/_worker.js
+"$BIN/wrangler" pages functions build functions-platform --outdir dist-platform/_worker.js
 printf '{\n  "version": 1,\n  "include": ["/api/platform", "/api/platform/*"],\n  "exclude": []\n}\n' > dist-platform/_routes.json
 
 branch=preview
 [ "$TARGET" = production ] && branch=main
-"$BIN/wrangler" pages deploy dist-platform --project-name "$PROJECT" --branch "$branch"
+# In this folder wrangler reads wrangler.toml (the bindings) and finds no functions/ folder, so it uploads the _worker.js that was built above.
+cd "$ROOT/config/pages-platform"
+"$BIN/wrangler" pages deploy --project-name "$PROJECT" --branch "$branch"

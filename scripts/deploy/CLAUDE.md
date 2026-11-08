@@ -177,18 +177,27 @@ step: the file store does not follow the server host. No copy from R2 back to St
 ## The platform site
 Madar enterprises is a separate site (design 12, D7): the Pages project `madar-platform`, its own build (`npm run build:platform`, folder
 `dist-platform`), its own sign-in and its own accounts. VADO is one of the companies, and no company address reaches it.
-- Hosts: `preview.madar-platform.pages.dev` (test), `madar-platform.pages.dev` and, later, `platform.madar.vado.sa` (production). The table
-  is `PLATFORM_HOSTS` in `server/core/serverHost.ts`. The DNS record of the own address is an owner step, like every vado.sa record.
-- `pages-platform.sh <test|production>` builds, compiles the one function of `functions-platform/` into `dist-platform/_worker.js`
-  (`wrangler pages functions build`), writes `_routes.json` (only `/api/platform` and the paths under it run the function), and uploads
-  `dist-platform`: branch `preview` for test, `main` for production. It needs no `config/remote.<env>.env` and no Supabase value: the site
-  talks to its own `/api/platform`. The headers come from `config/headers.platform` (the own origin only).
-- Owner steps (each with his OK, outside the repo): make the project (`npx wrangler pages project create madar-platform
-  --production-branch main`), then add the service bindings in the Cloudflare dashboard: `MADAR_SERVER_TEST` (preview environment) to
-  `madar-server-test` and `MADAR_SERVER_PRODUCTION` (production environment) to `madar-server-production`, the same two bindings as the
-  project `madar`. Without the binding the function answers 404 and logs one warning line. A platform account is made on the Mac with
-  `scripts/office/platform-account.ts` (see `server/enterprise/CLAUDE.md`). The own address needs the custom domain on the project
-  and the DNS record.
+- The project exists (the lead made it, 2026-11-08). Cloudflare gave it the address `madar-platform-d6c.pages.dev`, because the pages.dev names
+  are global (the project `madar` has `madar-46r` for the same reason). `madar-platform.pages.dev` is not ours.
+- Hosts: `preview.madar-platform-d6c.pages.dev` (test), `madar-platform-d6c.pages.dev` and, later, `platform.madar.vado.sa` (production). The
+  table is `PLATFORM_HOSTS` in `server/core/serverHost.ts`, and `scripts/office/platform-account.ts` reads that one list. The DNS record of
+  the own address is an owner step, like every vado.sa record, and so is the custom domain on the project.
+- `config/pages-platform/wrangler.toml` is the config of this project only (never a `wrangler.toml` at the repo root: the project `madar`
+  deploys from the root). It holds the name, `pages_build_output_dir = "../../dist-platform"`, the compatibility date, and the service
+  bindings: `MADAR_SERVER_TEST` to `madar-server-test` in `env.preview`, and `MADAR_SERVER_PRODUCTION` to `madar-server-production` in
+  `env.production`. No flag is needed: the function uses only the fetch API. At deploy time Cloudflare reads the file and it becomes the source
+  of truth, so the dashboard shows these fields and does not edit them. A key that is not inherited (the services) must be set in the
+  environment that needs it, as the file does. Docs: https://developers.cloudflare.com/pages/functions/wrangler-configuration/ . Test:
+  `pagesPlatformConfig.test.ts` (reads the file with wrangler itself).
+- `pages-platform.sh <test|production>` builds, compiles the one function of `functions-platform/` into `dist-platform/_worker.js/index.js`
+  (`wrangler pages functions build --outdir`; the old `--outfile` of this wrangler writes a multipart text that `pages deploy` cannot bundle),
+  writes `_routes.json` (only `/api/platform` and the paths under it run the function), and runs `wrangler pages deploy` in the folder
+  `config/pages-platform`. `pages deploy` has no config flag: wrangler reads `wrangler.toml` from its working folder, and it takes the output
+  folder from `pages_build_output_dir`. Branch `preview` for test, `main` for production. It needs no `config/remote.<env>.env` and no Supabase
+  value: the site talks to its own `/api/platform`. The headers come from `config/headers.platform` (the own origin only).
+- Owner steps (each with his OK, outside the repo): the DNS record and the custom domain of `platform.madar.vado.sa`. The bindings need no
+  step: the next deploy sets them from the config file. Without a binding the function answers 404 and logs one warning line. A platform
+  account is made on the Mac with `scripts/office/platform-account.ts` (see `server/enterprise/CLAUDE.md`).
 - The site works only for a copy whose host word is `office` (the platform routes live on the office path of the Worker).
 
 ## Other scripts

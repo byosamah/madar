@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { httpOf, nodeWorld } from '../../server/office/test/nodeWorld';
 import { OPS_SECRET_HEADER } from '../../server/entries/officeWorker';
+import { COPY_HOSTS, PLATFORM_HOSTS } from '../../server/core/serverHost';
 import { checkedPassword, platformAccountArgs, platformTargetOf, runPlatformAccount, type PlatformAccountIo } from './platform-account';
 import type { OfficeOps } from './ops';
 
@@ -8,13 +10,13 @@ const GOOD = 'a long platform password';
 
 describe('the arguments', () => {
   it('make an account with --name, and read the page address and the email', () => {
-    expect(platformAccountArgs(['--to', 'https://preview.madar-platform.pages.dev', '--email', ' me@x.test ', '--name', 'Osama'])).toEqual({
-      to: 'https://preview.madar-platform.pages.dev', email: 'me@x.test', name: 'Osama', action: 'create', production: false,
+    expect(platformAccountArgs(['--to', 'https://preview.madar-platform-d6c.pages.dev', '--email', ' me@x.test ', '--name', 'Osama'])).toEqual({
+      to: 'https://preview.madar-platform-d6c.pages.dev', email: 'me@x.test', name: 'Osama', action: 'create', production: false,
     });
   });
 
   it('read --password, --off and --on as the action', () => {
-    const base = ['--to', 'https://preview.madar-platform.pages.dev', '--email', 'me@x.test'];
+    const base = ['--to', 'https://preview.madar-platform-d6c.pages.dev', '--email', 'me@x.test'];
     expect(platformAccountArgs([...base, '--password']).action).toBe('password');
     expect(platformAccountArgs([...base, '--off']).action).toBe('off');
     expect(platformAccountArgs([...base, '--on', '--production']).production).toBe(true);
@@ -60,16 +62,23 @@ describe('the password', () => {
 
 describe('the target', () => {
   it('maps the platform site to the company address of its copy', () => {
-    expect(platformTargetOf('https://preview.madar-platform.pages.dev', false)).toEqual({ copy: 'test', base: 'https://preview.madar-46r.pages.dev' });
+    expect(platformTargetOf('https://preview.madar-platform-d6c.pages.dev', false)).toEqual({ copy: 'test', base: 'https://preview.madar-46r.pages.dev' });
     expect(platformTargetOf('https://preview.madar-46r.pages.dev', false)).toEqual({ copy: 'test', base: 'https://preview.madar-46r.pages.dev' });
     expect(platformTargetOf('http://127.0.0.1:8787', false)).toEqual({ copy: 'local', base: 'http://127.0.0.1:8787' });
   });
 
+  it('takes the platform hosts from the one list PLATFORM_HOSTS, so no second copy of the hosts exists', () => {
+    for (const [host, copy] of Object.entries(PLATFORM_HOSTS)) {
+      expect(platformTargetOf(`https://${host}`, true), host).toEqual({ copy, base: COPY_HOSTS[copy].page });
+    }
+    expect(readFileSync(new URL('./platform-account.ts', import.meta.url), 'utf8')).not.toMatch(/pages\.dev'/);
+  });
+
   it('refuses production without --production, a plain http address, and a host that is no copy', () => {
     expect(() => platformTargetOf('https://platform.madar.vado.sa', false)).toThrow('--production');
-    expect(() => platformTargetOf('https://madar-platform.pages.dev', false)).toThrow('--production');
+    expect(() => platformTargetOf('https://madar-platform-d6c.pages.dev', false)).toThrow('--production');
     expect(platformTargetOf('https://platform.madar.vado.sa', true)).toEqual({ copy: 'production', base: 'https://madar.vado.sa' });
-    expect(() => platformTargetOf('http://preview.madar-platform.pages.dev', false)).toThrow('https');
+    expect(() => platformTargetOf('http://preview.madar-platform-d6c.pages.dev', false)).toThrow('https');
     expect(() => platformTargetOf('https://example.com', false)).toThrow('not a Madar copy');
   });
 });
@@ -92,7 +101,7 @@ describe('the run', () => {
     const io: PlatformAccountIo = { prompt: async (label) => (prompts.push(label), typed.shift() ?? ''), ops: () => ops, log: (line) => lines.push(line) };
     return { t, io, sent, lines, prompts };
   }
-  const BASE = ['--to', 'https://preview.madar-platform.pages.dev', '--email', 'boss@platform.test'];
+  const BASE = ['--to', 'https://preview.madar-platform-d6c.pages.dev', '--email', 'boss@platform.test'];
 
   it('makes an account, asks for the password twice, sends it once, and prints no password', async () => {
     const { t, io, sent, lines, prompts } = await setup([GOOD, GOOD]);
