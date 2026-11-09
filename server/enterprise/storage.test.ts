@@ -98,7 +98,7 @@ describe('recount, the daily step and the import', () => {
     const before = stateWith(file('fil_001', [100, 50]));
     const t = await saved(before);
     t.raw.exec('update enterprise_use set storage_bytes = 0');
-    await importFinish(t.db, { counters: [], officeSeq: 0, version: 0, personSeq: [], mailLog: [], usageMonth: [], usageWarnings: [], jobRuns: [] }, [], new Date());
+    await importFinish(t.db, { counters: [], officeSeq: 0, version: 0, personSeq: [], mailLog: [], usageMonth: [], usageWarnings: [], jobRuns: [], googleConnections: [], googleEvents: [], googleCalendars: [], daftraClients: [], daftraInvoices: [] }, [], new Date());
     expect(t.total()).toBe(150);
   });
 });

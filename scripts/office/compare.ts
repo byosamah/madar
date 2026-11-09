@@ -28,6 +28,12 @@ export function sourceDigests(source: OfficeSource): Record<string, TableDigest>
   out.job_runs = sorted(source.server.jobRuns.map((j) => ({ key: j.key, done_at: j.done_at })));
   out.usage_month = sorted(source.server.usageMonth.map((u) => ({ month: u.month, calls: u.calls, bytes_read: u.bytes_read })));
   out.mail_log = sorted(source.server.mailLog.map((m) => ({ utc_day: m.utc_day, ref: m.ref })));
+  // Plan E, Task 2b: the whole row of each Google and Daftra table, so a lost or changed value (the sealed token too) shows as a difference.
+  out.google_connections = sorted(source.server.googleConnections.map((r) => ({ ...r })));
+  out.google_events = sorted(source.server.googleEvents.map((r) => ({ ...r })));
+  out.google_calendars = sorted(source.server.googleCalendars.map((r) => ({ ...r })));
+  out.daftra_clients = sorted(source.server.daftraClients.map((r) => ({ ...r })));
+  out.daftra_invoices = sorted(source.server.daftraInvoices.map((r) => ({ ...r, draft: bool(r.draft) })));
   // The rule of importSigninRows: a link to a person who is not in the office stays out.
   out.auth_users = sorted(source.signin.map((s) => ({
     id: s.id, email: s.email.trim().toLowerCase(), password_hash: s.password_hash, user_id: s.user_id !== null && source.users.has(s.user_id) ? s.user_id : null,
@@ -47,6 +53,10 @@ export function exportDigests(folder: string, o: { days: readonly string[] }): R
   out.job_runs = sorted(readTable(folder, 'job_runs').map((r) => ({ key: r.key, done_at: r.done_at })));
   out.usage_month = sorted(readTable(folder, 'usage_month').map((r) => ({ month: r.month, calls: Number(r.calls), bytes_read: Number(r.bytes_read) })));
   out.mail_log = sorted(readTable(folder, 'mail_log').filter((r) => o.days.includes(String(r.utc_day))).map((r) => ({ utc_day: r.utc_day, ref: r.ref })));
+  // An export line carries the rowid of the object too: the digest leaves it out, as the source has none.
+  const whole = (table: string) => readTable(folder, table).map(({ _rowid, ...row }) => row);
+  for (const table of ['google_connections', 'google_events', 'google_calendars', 'daftra_clients']) out[table] = sorted(whole(table));
+  out.daftra_invoices = sorted(whole('daftra_invoices').map((r) => ({ ...r, draft: bool(r.draft) })));
   out.auth_users = sorted(readTable(folder, 'auth_users').map((r) => ({
     id: r.id, email: r.email, password_hash: r.password_hash ?? null, user_id: r.user_id ?? null, banned: bool(r.banned), password_set: bool(r.password_set),
     email_confirmed: bool(r.email_confirmed),

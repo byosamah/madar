@@ -34,6 +34,28 @@ describe('the check of an import (scripts/office/compare.ts)', () => {
     expect(Object.keys(sourceDigests(source))).toEqual(expect.arrayContaining(['tasks', 'events', 'counters', 'person_seq', 'office_seq', 'auth_users', 'job_runs']));
   });
 
+  it('compares the Google and Daftra rows of the source with the object, and names the table of a lost or changed row', async () => {
+    const seed = await buildSeed(NODE_TODAY, async () => undefined);
+    const server = {
+      googleConnections: [{ id: 'gcn_001', user_id: 'usr_002', sealed_token: 'v1.sealed', calendar_id: 'cal', state: 'ok' as const, connected_at: '2026-10-21T08:00:00.000Z', last_error: null, last_error_at: null, changed_at: '2026-10-22T09:30:00.000Z' }],
+      googleEvents: [{ user_id: 'usr_002', meeting_id: 'mtg_001', event_id: 'e1', synced_rev: 4, synced_at: '2026-10-25T07:00:00.000Z' }],
+      googleCalendars: [{ user_id: 'usr_002', calendar_id: 'cal', changed_at: '2026-10-21T08:00:00.000Z' }],
+      daftraClients: [{ account: 'vado', client_id: 'cli_001', daftra_id: '5521', daftra_name: 'Al Noor', matched_by: 'usr_004', matched_at: '2026-10-27T11:00:00.000Z' }],
+      daftraInvoices: [{ account: 'vado', id: '9001', daftra_client_id: '5521', no: '000412', total_halalas: 1_250_000, issued_on: '2026-10-20', created_at: '2026-10-20T06:00:00.000Z', payment_status: 2, paid_on: null, draft: true, seen_at: '2026-10-29T05:00:00.000Z' }],
+    };
+    const source = stateSource(seed, { server });
+    const t = await nodeOffice({ seed: false });
+    await importOffice(partsOps(t.parts), source, { mode: 'empty' });
+    const folder = mkdtempSync(join(tmpdir(), 'madar-compare-test-'));
+    await exportOffice(partsOps(t.parts), { copy: 'local', folder });
+    expect(compareImport(source, folder).problems).toEqual([]);
+    expect(Object.keys(sourceDigests(source))).toEqual(expect.arrayContaining(['google_connections', 'google_events', 'google_calendars', 'daftra_clients', 'daftra_invoices']));
+    const changed = stateSource(seed, { server: { ...server, googleConnections: [{ ...server.googleConnections[0], sealed_token: 'v1.other' }], daftraClients: [] } });
+    const problems = compareImport(changed, folder).problems.join(' ');
+    expect(problems).toMatch(/google_connections: /);
+    expect(problems).toMatch(/daftra_clients: /);
+  });
+
   it('names the table when the office lost a record', async () => {
     const { source, folder } = await imported();
     const file = join(folder, 'tables', 'comments.ndjson');

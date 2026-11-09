@@ -87,7 +87,10 @@ The office object runs the Madar office on SQLite in a Cloudflare Durable Object
 - The import (`import.ts`): begin (mode `empty`, `resume`, or `replace` with `testToolsOn` only) takes the hold of an import. Each part
   (`IMPORT_PART_ROWS` rows at most, one records table) is one transaction. A part whose first row is there is skipped, so a client may send it
   again. The finish writes the server rows and the sign-in rows, adds the meters, and raises the version above the object and the source, so
-  no held office list looks current. Then every socket closes. A replace also deletes the snapshot and raises the version.
+  no held office list looks current. The server rows are `ServerRows`: counters, person numbers, mail log, usage, job runs, and (plan E) the Google and
+  Daftra tables. `IMPORT_SERVER_TABLES` names each server table that travels, and `IMPORT_SERVER_SKIP` names each one that stays out, with its reason
+  (`import.test.ts` fails for a server table in neither list). The push devices are a records table and travel in the parts. A finish from an older
+  client has none of the Google and Daftra lists, and the shape fills them with none. Then every socket closes. A replace also deletes the snapshot and raises the version.
 - The ops routes of the Worker (`POST /api/office/export|import|peek|drop?office=<name>`) sit before CORS and Hono. Each one checks its secret
   header with `sameSecret` first: `x-madar-export-secret` (`MADAR_EXPORT_SECRET`, the nightly GitHub export) for `export`,
   `x-madar-ops-secret` (`MADAR_OPS_SECRET`, the Mac) for the others. A copy with no secret answers 401. Then the name (no `?office=` means

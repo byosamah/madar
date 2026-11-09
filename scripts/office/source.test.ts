@@ -61,6 +61,48 @@ describe('the sources of an import (scripts/office/source.ts)', () => {
     expect(source.server).toMatchObject({ version: 12, officeSeq: 340, personSeq: [{ user_id: 'usr_001', seq: 41 }], jobRuns: [{ key: 'summary:2026-10-04', done_at: '2026-10-04T04:31:00.000Z' }] });
   });
 
+  it('reads the Google, Daftra rows of Postgres as the object holds them: ISO times, a day as text, a bigint as a number, a boolean draft', async () => {
+    const rows: Record<string, Record<string, unknown>[]> = {
+      [PG_SERVER_SQL.googleConnections]: [{
+        id: 'gcn_001', user_id: 'usr_002', sealed_token: 'v1.sealed', calendar_id: 'cal@group.calendar.google.com', state: 'ok',
+        connected_at: new Date('2026-10-21T08:00:00Z'), last_error: null, last_error_at: null, changed_at: new Date('2026-10-22T09:30:00Z'),
+      }],
+      [PG_SERVER_SQL.googleEvents]: [{ user_id: 'usr_002', meeting_id: 'mtg_001', event_id: 'e1', synced_rev: 4, synced_at: new Date('2026-10-25T07:00:00Z') }],
+      [PG_SERVER_SQL.googleCalendars]: [{ user_id: 'usr_002', calendar_id: 'cal@group.calendar.google.com', changed_at: new Date('2026-10-21T08:00:00Z') }],
+      [PG_SERVER_SQL.daftraClients]: [{ account: 'vado', client_id: 'cli_001', daftra_id: '5521', daftra_name: 'Al Noor', matched_by: 'usr_004', matched_at: new Date('2026-10-27T11:00:00Z') }],
+      [PG_SERVER_SQL.daftraInvoices]: [{
+        account: 'vado', id: '9001', daftra_client_id: '5521', no: '000412', total_halalas: '1250000', issued_on: '2026-10-20', created_at: new Date('2026-10-20T06:00:00Z'),
+        payment_status: 2, paid_on: '2026-10-28', draft: false, seen_at: new Date('2026-10-29T05:00:00Z'),
+      }],
+    };
+    const source = await pgSource(async (text) => rows[text] ?? []);
+    expect(source.server.googleConnections).toEqual([{
+      id: 'gcn_001', user_id: 'usr_002', sealed_token: 'v1.sealed', calendar_id: 'cal@group.calendar.google.com', state: 'ok',
+      connected_at: '2026-10-21T08:00:00.000Z', last_error: null, last_error_at: null, changed_at: '2026-10-22T09:30:00.000Z',
+    }]);
+    expect(source.server.googleEvents[0]).toEqual({ user_id: 'usr_002', meeting_id: 'mtg_001', event_id: 'e1', synced_rev: 4, synced_at: '2026-10-25T07:00:00.000Z' });
+    expect(source.server.googleCalendars[0].changed_at).toBe('2026-10-21T08:00:00.000Z');
+    expect(source.server.daftraClients[0].matched_at).toBe('2026-10-27T11:00:00.000Z');
+    expect(source.server.daftraInvoices[0]).toMatchObject({ total_halalas: 1_250_000, issued_on: '2026-10-20', paid_on: '2026-10-28', draft: false, seen_at: '2026-10-29T05:00:00.000Z' });
+  });
+
+  it('reads the Google, Daftra and push rows of an export folder back as the object held them', async () => {
+    const t = await nodeOffice();
+    t.raw.exec("insert into google_connections (id, user_id, sealed_token, calendar_id, state, connected_at, changed_at) values ('gcn_001', 'usr_002', 'v1.sealed', 'cal', 'ok', '2026-10-21T08:00:00.000Z', '2026-10-22T09:30:00.000Z')");
+    t.raw.exec("insert into google_events values ('usr_002', 'mtg_001', 'e1', 4, '2026-10-25T07:00:00.000Z')");
+    t.raw.exec("insert into google_calendars values ('usr_002', 'cal', '2026-10-21T08:00:00.000Z')");
+    t.raw.exec("insert into daftra_clients values ('vado', 'cli_001', '5521', 'Al Noor', 'usr_004', '2026-10-27T11:00:00.000Z')");
+    t.raw.exec("insert into daftra_invoices values ('vado', '9001', '5521', '000412', 1250000, '2026-10-20', '2026-10-20T06:00:00.000Z', 2, null, 1, '2026-10-29T05:00:00.000Z')");
+    const folder = mkdtempSync(join(tmpdir(), 'madar-source-test-'));
+    await exportOffice(partsOps(t.parts), { copy: 'local', folder });
+    const back = exportSource(folder, { today: NODE_TODAY });
+    expect(back.server.googleConnections).toMatchObject([{ id: 'gcn_001', sealed_token: 'v1.sealed', state: 'ok', last_error: null }]);
+    expect(back.server.googleEvents).toHaveLength(1);
+    expect(back.server.googleCalendars).toHaveLength(1);
+    expect(back.server.daftraClients).toHaveLength(1);
+    expect(back.server.daftraInvoices).toMatchObject([{ id: '9001', total_halalas: 1_250_000, paid_on: null, draft: true }]);
+  });
+
   it('rolls the snapshot back when a read of Postgres fails', async () => {
     const texts: string[] = [];
     await expect(pgSource(async (text) => {

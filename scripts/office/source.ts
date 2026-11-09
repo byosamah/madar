@@ -6,7 +6,7 @@ import type { Query } from '../../server/core/ports';
 import { rowOf } from '../../server/data/rows';
 import { TABLES, rowsOf } from '../../server/data/tables';
 import { loadWhole } from '../../server/data/whole';
-import type { ImportRow, ServerRows } from '../../server/office/import';
+import type { GoogleConnectionRow, ImportRow, ServerRows } from '../../server/office/import';
 import type { ExportManifest } from '../backup/officeExport';
 
 /**
@@ -20,7 +20,10 @@ export type ImportTable = { table: string; rows: ImportRow[] };
 export type OfficeSource = { tables: ImportTable[]; server: ServerRows; signin: SigninExportRow[]; records: number; users: ReadonlySet<string> };
 export type PgQuery = (text: string, values?: unknown[]) => Promise<Record<string, unknown>[]>;
 
-const NO_SERVER_ROWS: Omit<ServerRows, 'counters' | 'officeSeq' | 'version'> = { personSeq: [], mailLog: [], usageMonth: [], usageWarnings: [], jobRuns: [] };
+const NO_SERVER_ROWS: Omit<ServerRows, 'counters' | 'officeSeq' | 'version'> = {
+  personSeq: [], mailLog: [], usageMonth: [], usageWarnings: [], jobRuns: [],
+  googleConnections: [], googleEvents: [], googleCalendars: [], daftraClients: [], daftraInvoices: [],
+};
 
 function sourceOf(state: State, server: ServerRows, signin: SigninExportRow[]): OfficeSource {
   // A State with no settings record (an office that never had one) gives no settings row: the schema of the object makes it.
@@ -57,6 +60,12 @@ export const PG_SERVER_SQL = {
   usageMonth: 'select month, calls::text as calls, bytes_read::text as bytes_read, backup_bytes::text as backup_bytes, signals_failed, signals_failed_at from usage_month',
   usageWarnings: 'select month, metric, sent_at from usage_warnings',
   jobRuns: 'select key, done_at from job_runs',
+  // Plan E, Task 2b. A day and a bigint come as text, so the Mac's zone and the number type of pg change nothing.
+  googleConnections: 'select id, user_id, sealed_token, calendar_id, state, connected_at, last_error, last_error_at, changed_at from google_connections',
+  googleEvents: 'select user_id, meeting_id, event_id, synced_rev, synced_at from google_events',
+  googleCalendars: 'select user_id, calendar_id, changed_at from google_calendars',
+  daftraClients: 'select account, client_id, daftra_id, daftra_name, matched_by, matched_at from daftra_clients',
+  daftraInvoices: 'select account, id, daftra_client_id, no, total_halalas::text as total_halalas, issued_on::text as issued_on, created_at, payment_status, paid_on::text as paid_on, draft, seen_at from daftra_invoices',
 } as const;
 
 /**
@@ -85,6 +94,24 @@ export async function pgSource(query: PgQuery): Promise<OfficeSource> {
       })),
       usageWarnings: (await query(PG_SERVER_SQL.usageWarnings)).map((r) => ({ month: String(r.month), metric: String(r.metric), sent_at: iso(r.sent_at) })),
       jobRuns: (await query(PG_SERVER_SQL.jobRuns)).map((r) => ({ key: String(r.key), done_at: iso(r.done_at) })),
+      googleConnections: (await query(PG_SERVER_SQL.googleConnections)).map((r) => ({
+        id: String(r.id), user_id: String(r.user_id), sealed_token: textOrNull(r.sealed_token), calendar_id: textOrNull(r.calendar_id),
+        state: String(r.state) as GoogleConnectionRow['state'], connected_at: iso(r.connected_at), last_error: textOrNull(r.last_error),
+        last_error_at: isoOrNull(r.last_error_at), changed_at: iso(r.changed_at),
+      })),
+      googleEvents: (await query(PG_SERVER_SQL.googleEvents)).map((r) => ({
+        user_id: String(r.user_id), meeting_id: String(r.meeting_id), event_id: String(r.event_id), synced_rev: num(r.synced_rev), synced_at: iso(r.synced_at),
+      })),
+      googleCalendars: (await query(PG_SERVER_SQL.googleCalendars)).map((r) => ({ user_id: String(r.user_id), calendar_id: String(r.calendar_id), changed_at: iso(r.changed_at) })),
+      daftraClients: (await query(PG_SERVER_SQL.daftraClients)).map((r) => ({
+        account: String(r.account), client_id: String(r.client_id), daftra_id: String(r.daftra_id), daftra_name: String(r.daftra_name),
+        matched_by: String(r.matched_by), matched_at: iso(r.matched_at),
+      })),
+      daftraInvoices: (await query(PG_SERVER_SQL.daftraInvoices)).map((r) => ({
+        account: String(r.account), id: String(r.id), daftra_client_id: String(r.daftra_client_id), no: String(r.no), total_halalas: num(r.total_halalas),
+        issued_on: String(r.issued_on), created_at: iso(r.created_at), payment_status: num(r.payment_status), paid_on: textOrNull(r.paid_on),
+        draft: r.draft === true, seen_at: iso(r.seen_at),
+      })),
     };
     const signin = (await query(SIGNIN_EXPORT_SQL)).map((r) => ({
       id: String(r.id), email: String(r.email), password_hash: textOrNull(r.password_hash), email_confirmed: r.email_confirmed === true,
@@ -138,6 +165,24 @@ export function exportSource(folder: string, o: { today: string }): OfficeSource
     })),
     usageWarnings: readTable(folder, 'usage_warnings').map((r) => ({ month: String(r.month), metric: String(r.metric), sent_at: String(r.sent_at) })),
     jobRuns: readTable(folder, 'job_runs').map((r) => ({ key: String(r.key), done_at: String(r.done_at) })),
+    googleConnections: readTable(folder, 'google_connections').map((r) => ({
+      id: String(r.id), user_id: String(r.user_id), sealed_token: textOrNull(r.sealed_token), calendar_id: textOrNull(r.calendar_id),
+      state: String(r.state) as GoogleConnectionRow['state'], connected_at: String(r.connected_at), last_error: textOrNull(r.last_error),
+      last_error_at: textOrNull(r.last_error_at), changed_at: String(r.changed_at),
+    })),
+    googleEvents: readTable(folder, 'google_events').map((r) => ({
+      user_id: String(r.user_id), meeting_id: String(r.meeting_id), event_id: String(r.event_id), synced_rev: num(r.synced_rev), synced_at: String(r.synced_at),
+    })),
+    googleCalendars: readTable(folder, 'google_calendars').map((r) => ({ user_id: String(r.user_id), calendar_id: String(r.calendar_id), changed_at: String(r.changed_at) })),
+    daftraClients: readTable(folder, 'daftra_clients').map((r) => ({
+      account: String(r.account), client_id: String(r.client_id), daftra_id: String(r.daftra_id), daftra_name: String(r.daftra_name),
+      matched_by: String(r.matched_by), matched_at: String(r.matched_at),
+    })),
+    daftraInvoices: readTable(folder, 'daftra_invoices').map((r) => ({
+      account: String(r.account), id: String(r.id), daftra_client_id: String(r.daftra_client_id), no: String(r.no), total_halalas: num(r.total_halalas),
+      issued_on: String(r.issued_on), created_at: String(r.created_at), payment_status: num(r.payment_status), paid_on: textOrNull(r.paid_on),
+      draft: num(r.draft) === 1, seen_at: String(r.seen_at),
+    })),
   };
   // A restore brings the people and their passwords; the sessions, links and OAuth rows stay out: each person signs in again.
   const signin: SigninExportRow[] = readTable(folder, 'auth_users').map((r) => ({

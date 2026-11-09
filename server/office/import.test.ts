@@ -5,7 +5,9 @@ import { readLiteOffice } from '../data/lite/office';
 import { liteLoadWhole } from '../data/lite/whole';
 import { rowOf } from '../data/rows';
 import { TABLES, rowsOf } from '../data/tables';
-import { IMPORT_PART_ROWS, type ImportStep, type ServerRows } from './import';
+import { IMPORT_PART_ROWS, IMPORT_SERVER_SKIP, IMPORT_SERVER_TABLES, ServerRowsShape, type GoogleConnectionRow, type ImportStep, type ServerRows } from './import';
+import { SERVER_TABLES } from '../data/tables';
+import { PG_SERVER_SQL } from '../../scripts/office/source';
 import { NODE_TODAY, nodeOffice } from './test/nodeOffice';
 import { ENT_VADO } from '../enterprise/ids';
 
@@ -22,6 +24,7 @@ function serverOf(state: State, more: Partial<ServerRows> = {}): ServerRows {
     officeSeq: 3,
     version: 7,
     personSeq: [], mailLog: [], usageMonth: [], usageWarnings: [], jobRuns: [],
+    googleConnections: [], googleEvents: [], googleCalendars: [], daftraClients: [], daftraInvoices: [],
     ...more,
   };
 }
@@ -162,5 +165,95 @@ describe('the import steps of the office object (server/office/import.ts)', () =
     expect(t.raw.prepare('select count(*) as n from tasks').get()).toEqual({ n: 0 });
     await expect(post(t, { step: 'part', id: 'f'.repeat(32), table: 'tasks', rows: [row] })).rejects.toThrow(/^409.*ended/);
     await post(t, { step: 'abort', id });
+  });
+});
+
+/** The server rows of the Google link, the Daftra link and the push devices (plan E, Task 2b): without them the team connects again. */
+const GOOGLE_CONNECTION: GoogleConnectionRow = {
+  id: 'gcn_001', user_id: 'usr_002', sealed_token: 'v1.sealed-token-of-hala', calendar_id: 'cal-hala@group.calendar.google.com', state: 'ok',
+  connected_at: '2026-10-21T08:00:00.000Z', last_error: null, last_error_at: null, changed_at: '2026-10-22T09:30:00.000Z',
+};
+const GOOGLE_BROKEN: GoogleConnectionRow = {
+  id: 'gcn_002', user_id: 'usr_003', sealed_token: null, calendar_id: null, state: 'broken',
+  connected_at: '2026-10-23T08:00:00.000Z', last_error: 'revoked', last_error_at: '2026-10-24T10:00:00.000Z', changed_at: '2026-10-24T10:00:00.000Z',
+};
+const GOOGLE_EVENT = { user_id: 'usr_002', meeting_id: 'mtg_001', event_id: 'evt-abc123', synced_rev: 4, synced_at: '2026-10-25T07:00:00.000Z' };
+const GOOGLE_CALENDAR = { user_id: 'usr_002', calendar_id: 'cal-hala@group.calendar.google.com', changed_at: '2026-10-21T08:00:00.000Z' };
+const DAFTRA_CLIENT = { account: 'vado', client_id: 'cli_001', daftra_id: '5521', daftra_name: 'Al Noor Real Estate', matched_by: 'usr_004', matched_at: '2026-10-27T11:00:00.000Z' };
+const DAFTRA_INVOICE = {
+  account: 'vado', id: '9001', daftra_client_id: '5521', no: '000412', total_halalas: 1_250_000, issued_on: '2026-10-20', created_at: '2026-10-20T06:00:00.000Z',
+  payment_status: 2, paid_on: '2026-10-28', draft: false, seen_at: '2026-10-29T05:00:00.000Z',
+};
+const DAFTRA_DRAFT = {
+  account: 'vado', id: '9002', daftra_client_id: '5521', no: '000413', total_halalas: 500, issued_on: '2026-10-21', created_at: '2026-10-21T06:00:00.000Z',
+  payment_status: 0, paid_on: null, draft: true, seen_at: '2026-10-29T05:00:00.000Z',
+};
+const PUSH_DEVICE = {
+  id: 'pdv_001', userId: 'usr_002', endpoint: 'https://fcm.googleapis.com/fcm/send/abc-def-123', label: 'iPhone of Hala', createdAt: '2026-10-21T08:00:00.000Z',
+  lastPushAt: '2026-10-29T05:00:00.000Z', keys: { p256dh: 'B'.repeat(87), auth: 'a'.repeat(22) },
+};
+
+describe('the server tables of the import (plan E, Task 2b)', () => {
+  it('carries every server table of Postgres that the SQLite schema has, or names a reason to skip it', async () => {
+    const t = await nodeOffice({ seed: false });
+    const lite = new Set((t.raw.prepare("select name from sqlite_master where type = 'table'").all() as { name: string }[]).map((row) => row.name));
+    const shape = Object.keys(ServerRowsShape.shape);
+    const sql = Object.keys(PG_SERVER_SQL);
+    for (const table of SERVER_TABLES) {
+      const key = IMPORT_SERVER_TABLES[table];
+      const reason = IMPORT_SERVER_SKIP[table];
+      // One answer for each table: carried or skipped with a reason, never both and never neither.
+      expect([table, key !== undefined, reason !== undefined]).toEqual([table, key !== undefined, key === undefined]);
+      if (key !== undefined) {
+        expect(shape, `${table}: ServerRows has no ${key}`).toContain(key);
+        expect(lite.has(table), `${table} is no table of the SQLite schema`).toBe(true);
+        if (table !== 'office_meta') expect(sql, `${table}: the read of Postgres has no ${key}`).toContain(key);
+      } else {
+        expect(reason!.length, `${table}: the reason is empty`).toBeGreaterThan(10);
+      }
+    }
+    // The lists hold no stale name.
+    for (const name of [...Object.keys(IMPORT_SERVER_TABLES), ...Object.keys(IMPORT_SERVER_SKIP)]) expect(SERVER_TABLES as readonly string[]).toContain(name);
+    for (const name of ['google_connections', 'google_events', 'google_calendars', 'daftra_clients', 'daftra_invoices']) expect(IMPORT_SERVER_TABLES[name]).toBeDefined();
+  });
+
+  it('round trip: the Google, Daftra and push rows after the import equal the rows before', async () => {
+    const seed = await buildSeed(NODE_TODAY, async () => undefined);
+    const state: State = { ...seed, pushDevices: { [PUSH_DEVICE.id]: PUSH_DEVICE } };
+    const t = await nodeOffice({ seed: false });
+    await importState(t, state, serverOf(state, {
+      googleConnections: [GOOGLE_CONNECTION, GOOGLE_BROKEN], googleEvents: [GOOGLE_EVENT], googleCalendars: [GOOGLE_CALENDAR],
+      daftraClients: [DAFTRA_CLIENT], daftraInvoices: [DAFTRA_INVOICE, DAFTRA_DRAFT],
+    }));
+    const all = (table: string, order: string) => t.raw.prepare(`select * from ${table} order by ${order}`).all();
+    expect(all('google_connections', 'id')).toEqual([GOOGLE_CONNECTION, GOOGLE_BROKEN]);
+    expect(all('google_events', 'user_id, meeting_id')).toEqual([GOOGLE_EVENT]);
+    expect(all('google_calendars', 'user_id')).toEqual([GOOGLE_CALENDAR]);
+    expect(all('daftra_clients', 'account, client_id')).toEqual([DAFTRA_CLIENT]);
+    expect(all('daftra_invoices', 'id')).toEqual([{ ...DAFTRA_INVOICE, draft: 0 }, { ...DAFTRA_DRAFT, draft: 1 }]);
+    const device = (await t.parts.db.tx('read', (q) => liteLoadWhole(q))).pushDevices?.[PUSH_DEVICE.id];
+    expect(device).toEqual(PUSH_DEVICE);
+    expect(t.raw.prepare('select user_id from push_devices where endpoint = ?').get(PUSH_DEVICE.endpoint)).toEqual({ user_id: 'usr_002' });
+  });
+
+  it('writes each server row once when the finish goes again (resume)', async () => {
+    const seed = await buildSeed(NODE_TODAY, async () => undefined);
+    const t = await nodeOffice({ seed: false });
+    const server = serverOf(seed, { googleConnections: [GOOGLE_CONNECTION], googleEvents: [GOOGLE_EVENT], googleCalendars: [GOOGLE_CALENDAR], daftraClients: [DAFTRA_CLIENT], daftraInvoices: [DAFTRA_INVOICE] });
+    await importState(t, seed, server);
+    const { id } = await post<{ id: string }>(t, { step: 'begin', mode: 'resume' });
+    await post(t, { step: 'finish', id, server, signin: [] });
+    for (const table of ['google_connections', 'google_events', 'google_calendars', 'daftra_clients', 'daftra_invoices']) {
+      expect(t.raw.prepare(`select count(*) as n from ${table}`).get(), table).toEqual({ n: 1 });
+    }
+  });
+
+  it('takes a finish from an older client that sends none of the new lists, and writes none of the new rows', async () => {
+    const seed = await buildSeed(NODE_TODAY, async () => undefined);
+    const t = await nodeOffice({ seed: false });
+    const { googleConnections, googleEvents, googleCalendars, daftraClients, daftraInvoices, ...old } = serverOf(seed);
+    expect([googleConnections, googleEvents, googleCalendars, daftraClients, daftraInvoices].every((rows) => rows.length === 0)).toBe(true);
+    await importState(t, seed, old as ServerRows);
+    expect(t.raw.prepare('select count(*) as n from google_connections').get()).toEqual({ n: 0 });
   });
 });

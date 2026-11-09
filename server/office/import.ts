@@ -32,6 +32,47 @@ export type ServerRows = {
   usageMonth: { month: string; calls: number; bytes_read: number; backup_bytes: number | null; signals_failed: number; signals_failed_at: string | null }[];
   usageWarnings: { month: string; metric: string; sent_at: string }[];
   jobRuns: { key: string; done_at: string }[];
+  /** The Google link of each person: the sealed token moves as it is (the keys of ent_001 keep their HKDF texts, so it still opens). */
+  googleConnections: GoogleConnectionRow[];
+  googleEvents: { user_id: string; meeting_id: string; event_id: string; synced_rev: number; synced_at: string }[];
+  googleCalendars: { user_id: string; calendar_id: string; changed_at: string }[];
+  /** The Daftra match of each client and the cache of recent invoices. A day is YYYY-MM-DD, money is whole halalas. */
+  daftraClients: { account: string; client_id: string; daftra_id: string; daftra_name: string; matched_by: string; matched_at: string }[];
+  daftraInvoices: DaftraInvoiceRow[];
+};
+
+export type GoogleConnectionRow = {
+  id: string; user_id: string; sealed_token: string | null; calendar_id: string | null; state: 'ok' | 'not_synced' | 'broken' | 'revoking';
+  connected_at: string; last_error: string | null; last_error_at: string | null; changed_at: string;
+};
+export type DaftraInvoiceRow = {
+  account: string; id: string; daftra_client_id: string; no: string; total_halalas: number; issued_on: string; created_at: string;
+  payment_status: number; paid_on: string | null; draft: boolean; seen_at: string;
+};
+
+/**
+ * Each server table of SERVER_TABLES that the import carries, with the key of ServerRows that holds its rows. The records tables
+ * (TABLES, push_devices among them) travel in the parts. office_meta travels as the two numbers officeSeq and version.
+ */
+export const IMPORT_SERVER_TABLES: Readonly<Record<string, keyof ServerRows>> = {
+  office_meta: 'officeSeq', person_seq: 'personSeq', mail_log: 'mailLog', usage_month: 'usageMonth', usage_warnings: 'usageWarnings', job_runs: 'jobRuns',
+  google_connections: 'googleConnections', google_events: 'googleEvents', google_calendars: 'googleCalendars',
+  daftra_clients: 'daftraClients', daftra_invoices: 'daftraInvoices',
+};
+
+/** The server tables that the import leaves out, each with its reason. A new server table must be in one list: server/office/import.test.ts. */
+export const IMPORT_SERVER_SKIP: Readonly<Record<string, string>> = {
+  office_deletes: 'Postgres only: the office cache of the Supabase path keeps the deleted ids; the object has no cache of that kind.',
+  platform_config: 'Postgres only: the address and the secrets of the Supabase functions; the Worker reads its own vars and secrets.',
+  office_copy: 'Postgres only: the compressed office copy for a cold start of a function; the object keeps its own snapshot.',
+  stories: 'A story id is good for 24 hours of one chain of writes; the events keep their story ids, so an Undo of the old changes still works.',
+  idempotency: 'The stored answer of a retried write; it is good for minutes, and the browsers send new keys after the switch.',
+  outbox: 'The effects that wait (a mail, a push): the lead lets the Supabase 15-minute job send them before the switch. The Cron of the object starts with an empty outbox.',
+  upload_intents: 'An open file upload ends in minutes; a person starts the upload again.',
+  agent_links: 'The AI agents connect again once after the move (a new key and new OAuth clients), so an old link points to nothing.',
+  mail_outbox: 'The mail of the outbox driver, which only the test copy uses; production sends through Resend.',
+  rate_limits: 'The windows of a limit end in minutes or hours.',
+  agent_confirms: 'The email code of an agent for a risky Admin act, valid for minutes; an agent that connects again asks for a new one.',
 };
 
 export type ImportStep =
@@ -53,7 +94,7 @@ const TEXT_OR_NULL = z.string().nullable();
 
 const RowShape = z.object({ id: z.string().min(1), doc: z.record(z.string(), z.unknown()), columns: z.record(z.string(), z.unknown()) });
 
-const ServerRowsShape = z.object({
+export const ServerRowsShape = z.object({
   counters: z.array(z.object({ prefix: z.string(), n: COUNT })),
   officeSeq: COUNT,
   version: COUNT,
@@ -64,6 +105,18 @@ const ServerRowsShape = z.object({
   })),
   usageWarnings: z.array(z.object({ month: z.string(), metric: z.string(), sent_at: z.string() })),
   jobRuns: z.array(z.object({ key: z.string(), done_at: z.string() })),
+  // A finish from an older client has none of these lists: the default is none, so the import stays additive.
+  googleConnections: z.array(z.object({
+    id: z.string().min(1), user_id: z.string().min(1), sealed_token: TEXT_OR_NULL, calendar_id: TEXT_OR_NULL, state: z.enum(['ok', 'not_synced', 'broken', 'revoking']),
+    connected_at: z.string(), last_error: TEXT_OR_NULL, last_error_at: TEXT_OR_NULL, changed_at: z.string(),
+  })).default([]),
+  googleEvents: z.array(z.object({ user_id: z.string(), meeting_id: z.string(), event_id: z.string(), synced_rev: COUNT, synced_at: z.string() })).default([]),
+  googleCalendars: z.array(z.object({ user_id: z.string(), calendar_id: z.string(), changed_at: z.string() })).default([]),
+  daftraClients: z.array(z.object({ account: z.string(), client_id: z.string(), daftra_id: z.string(), daftra_name: z.string(), matched_by: z.string(), matched_at: z.string() })).default([]),
+  daftraInvoices: z.array(z.object({
+    account: z.string(), id: z.string(), daftra_client_id: z.string(), no: z.string(), total_halalas: COUNT, issued_on: z.string(), created_at: z.string(),
+    payment_status: z.number().int(), paid_on: TEXT_OR_NULL, draft: z.boolean(), seen_at: z.string(),
+  })).default([]),
 });
 
 const SigninRowShape = z.object({
@@ -153,6 +206,34 @@ export async function importFinish(
     for (const w of server.usageWarnings) await q('insert into usage_warnings (month, metric, sent_at) values (?1, ?2, ?3) on conflict (month, metric) do nothing', [w.month, w.metric, w.sent_at]);
     for (const j of server.jobRuns) {
       await q('insert into job_runs (key, done_at) values (?1, ?2) on conflict (key) do update set done_at = max(job_runs.done_at, excluded.done_at)', [j.key, j.done_at]);
+    }
+    // The Google and Daftra rows (plan E, Task 2b). A second finish (resume) sets the same rows again: each statement is an upsert on the key.
+    for (const g of server.googleConnections) {
+      await q('insert into google_connections (id, user_id, sealed_token, calendar_id, state, connected_at, last_error, last_error_at, changed_at) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) '
+        + 'on conflict (id) do update set user_id = excluded.user_id, sealed_token = excluded.sealed_token, calendar_id = excluded.calendar_id, state = excluded.state, '
+        + 'connected_at = excluded.connected_at, last_error = excluded.last_error, last_error_at = excluded.last_error_at, changed_at = excluded.changed_at',
+        [g.id, g.user_id, g.sealed_token, g.calendar_id, g.state, g.connected_at, g.last_error, g.last_error_at, g.changed_at]);
+    }
+    for (const g of server.googleEvents) {
+      await q('insert into google_events (user_id, meeting_id, event_id, synced_rev, synced_at) values (?1, ?2, ?3, ?4, ?5) '
+        + 'on conflict (user_id, meeting_id) do update set event_id = excluded.event_id, synced_rev = excluded.synced_rev, synced_at = excluded.synced_at',
+        [g.user_id, g.meeting_id, g.event_id, g.synced_rev, g.synced_at]);
+    }
+    for (const g of server.googleCalendars) {
+      await q('insert into google_calendars (user_id, calendar_id, changed_at) values (?1, ?2, ?3) on conflict (user_id) do update set calendar_id = excluded.calendar_id, changed_at = excluded.changed_at',
+        [g.user_id, g.calendar_id, g.changed_at]);
+    }
+    for (const d of server.daftraClients) {
+      await q('insert into daftra_clients (account, client_id, daftra_id, daftra_name, matched_by, matched_at) values (?1, ?2, ?3, ?4, ?5, ?6) '
+        + 'on conflict (account, client_id) do update set daftra_id = excluded.daftra_id, daftra_name = excluded.daftra_name, matched_by = excluded.matched_by, matched_at = excluded.matched_at',
+        [d.account, d.client_id, d.daftra_id, d.daftra_name, d.matched_by, d.matched_at]);
+    }
+    for (const d of server.daftraInvoices) {
+      await q('insert into daftra_invoices (account, id, daftra_client_id, no, total_halalas, issued_on, created_at, payment_status, paid_on, draft, seen_at) '
+        + 'values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11) on conflict (account, id) do update set daftra_client_id = excluded.daftra_client_id, no = excluded.no, '
+        + 'total_halalas = excluded.total_halalas, issued_on = excluded.issued_on, created_at = excluded.created_at, payment_status = excluded.payment_status, '
+        + 'paid_on = excluded.paid_on, draft = excluded.draft, seen_at = excluded.seen_at',
+        [d.account, d.id, d.daftra_client_id, d.no, d.total_halalas, d.issued_on, d.created_at, d.payment_status, d.paid_on, d.draft ? 1 : 0, d.seen_at]);
     }
     // The sign-in rows (wave 2): importSigninRows raises the version once more and writes the snapshot with the lists of the
     // tables, so the first call after the import reads the new office.
