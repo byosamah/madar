@@ -220,16 +220,18 @@ Load `~/dev/madar/.env.local` first (`SUPABASE_ACCESS_TOKEN`, `MADAR_DB_PASSWORD
 Before the evening:
 1. `npx tsx scripts/office/auth-key.ts production` (the sign-in key, straight into the Worker) and `npx tsx scripts/office/new-secret.ts production MADAR_OPS_SECRET` and
    `... MADAR_EXPORT_SECRET`. Then `all.sh production` deploys the Worker with the word still `supabase`: the objects, the Cron and the ops routes exist, the office path is off.
-2. `npx tsx scripts/office/register-company.ts --to https://madar.vado.sa`: the row `ent_001` and the email directory. It must come BEFORE the import: the import into an
-   enterprise id needs the platform list to hold the id (403 else). A second run keeps the row as it is and adds only missing emails.
 
-The evening, after office hours (about 40 minutes with no saves):
+The evening, after office hours:
+2. While people still save: the commit of the switch on main in `deploy-test` (`config/server-host.json` production `office`, and the What's new entry), then `all.sh test`. Production takes only the
+   commit that the last `all.sh test` recorded (`require_tested_commit`), so this step comes first. It takes about 15 minutes and changes nothing for the team. The about 40 minutes with no saves start at step 3.
 3. Stop the saves: `npx supabase secrets set MADAR_WRITES_OFF=on --project-ref oprkvdjudjxxhvodkzgs`. `runCall` then refuses every write with the reason `busy` (the screens show
    their own words for it), and reads work. The Supabase secret stays on after the switch, so nothing writes to the old database by mistake.
 4. Wait for one run of the Supabase 15-minute job: it sends the mails and pushes that wait (only rows older than 2 minutes, so at most about 17 minutes).
-5. `npx tsx scripts/office/invited.ts --env production > <file in the scratchpad>`: the people in state Invited (read only, Postgres). The output holds emails: never in the repo.
-6. Turn the Supabase job off, so the morning summary goes out once: `select cron.alter_job((select jobid from cron.job where jobname = 'madar-jobs'), active := false);`
-7. `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode empty --used-today <USED>`. A production target takes only
+5. `npx tsx scripts/office/register-company.ts --to https://madar.vado.sa`: the row `ent_001` and the email directory. It runs after the stop, so the directory holds every person. It must come BEFORE the
+   import: the import into an enterprise id needs the platform list to hold the id (403 else). A second run keeps the row as it is and adds only missing emails.
+6. `npx tsx scripts/office/invited.ts --env production > <file in the scratchpad>`: the people in state Invited (read only, Postgres). The output holds emails: never in the repo.
+7. Turn the Supabase job off, so the morning summary goes out once: `select cron.alter_job((select jobid from cron.job where jobname = 'madar-jobs'), active := false);`
+8. `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode empty --used-today <USED>`. A production target takes only
    `--from production`, `--office ent_001` and `--mode empty` (the default) or `--mode resume`. Any other value, `--mode replace` included, ends with exit code 2 before
    the typed word. A read of production into a rehearsal name on the test copy works as before. The import carries the Google, Daftra and push rows
    (`server/office/CLAUDE.md`). It refuses to start while a mail or a push waits in Supabase (the object starts with an empty outbox). A row that keeps failing blocks it:
@@ -239,15 +241,15 @@ The evening, after office hours (about 40 minutes with no saves):
      is skipped, the rest is written, and the same check runs at the end. Run it only while the word of production is still `supabase`: the source must be the
      live data. The row budget counts the whole office again, although the skipped parts write nothing. If it refuses, count the rows that remain before you
      raise `--limit`. If the check after a resume finds a difference, do not run a third time: production has no replace and no drop, so ask the lead.
-8. The switch: `config/server-host.json` production `office`, then `all.sh production`. `secrets.ts production --office` and the Worker deploy (`--var MADAR_DATA:office`)
+9. The switch: `echo production | scripts/deploy/all.sh production` on the commit of step 2. `secrets.ts production --office` and the Worker deploy (`--var MADAR_DATA:office`)
    run, and the platform site deploys for the first time.
-9. The checks by hand: the owner signs in, opens Home, a project, a chat and a file.
-10. The nightly backup moves to production (the owner runs these, a GitHub write): `grep '^MADAR_EXPORT_SECRET=' secrets/production.env | cut -d= -f2- | gh secret set OFFICE_EXPORT_SECRET --repo byosamah/madar`,
+10. The checks by hand: the owner signs in, opens Home, a project, a chat and a file.
+11. The nightly backup moves to production (the owner runs these, a GitHub write): `grep '^MADAR_EXPORT_SECRET=' secrets/production.env | cut -d= -f2- | gh secret set OFFICE_EXPORT_SECRET --repo byosamah/madar`,
     `gh variable set OFFICE_BACKUP_URL --repo byosamah/madar --body https://madar.vado.sa`, and `gh variable set OFFICE_BACKUP_COPY --repo byosamah/madar --body production`.
-11. The owner makes the production platform account: `npx tsx scripts/office/platform-account.ts --production --to https://platform.madar.vado.sa --email <email> --name <name>` (it asks for the password twice).
-12. The new invitations of the list of step 5 (an email to real people: the owner's OK first).
+12. The owner makes the production platform account: `npx tsx scripts/office/platform-account.ts --production --to https://platform.madar.vado.sa --email <email> --name <name>` (it asks for the password twice).
+13. The new invitations of the list of step 6 (an email to real people: the owner's OK first).
 
-A stop before step 8 costs nothing: `npx supabase secrets unset MADAR_WRITES_OFF --project-ref oprkvdjudjxxhvodkzgs`, and the job on again (`active := true`). Production then works as before.
+A stop before step 9 costs nothing: `npx supabase secrets unset MADAR_WRITES_OFF --project-ref oprkvdjudjxxhvodkzgs`, and the job on again (`active := true`). Production then works as before.
 
 ### The way back (plan E)
 Warning first: the way back stays open for 14 days after the switch, and the owner says yes before either part. Supabase production stays deployed and

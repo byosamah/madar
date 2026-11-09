@@ -163,7 +163,7 @@ Use the error code of the current invalid-link answer of `server/auth/own/routes
 - [ ] **L5 to L9. The switch** (each step with the owner's OK). The steps and the exact commands are in `scripts/deploy/CLAUDE.md`, "The move of VADO (plan E)". That list replaces
   the first text of these steps, for four reasons found on 2026-11-09: the company row comes BEFORE the import (the import needs the platform list to hold `ent_001`); plan F removed the owner row, so the
   owner makes a platform account instead; saves stop first (`MADAR_WRITES_OFF`, owner: "Stop changes") and the 15-minute job sends the mails and pushes that wait before the import; and the
-  nightly backup moves to production. The check by hand opens the platform site at `platform.madar.vado.sa`, not a page in the app. Target: Thursday 2026-11-19, after office hours (owner, 2026-11-09). Add a What's new entry for the move.
+  nightly backup moves to production. The check by hand opens the platform site at `platform.madar.vado.sa`, not a page in the app. Target: Wednesday 2026-11-11, after office hours (owner, 2026-11-09: moved up from 19 November, so the test time on the test copy is two days, not a week). Add a What's new entry for the move.
 - [ ] **L10. The way back window**: 14 days. Each morning the lead reads the meters and the error records. A failure that the office
   path cannot fix in a day: the owner decides on R6 (the reverse export). After 14 days with no way back: the owner's OK to open
   `MADAR_ENTERPRISE_CREATE` in production, and a later owner decision on the Supabase projects.
