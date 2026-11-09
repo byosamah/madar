@@ -135,7 +135,7 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
 ## Ops names (`/api/office/<op>`, `server/entries/officeWorker.ts`)
 - Without `?office=` an op is for `ENT_VADO`. `export` and `import` take the old name `office`, a rehearsal name or a listed enterprise id;
   `peek` takes `office` or a listed id; `drop` takes a rehearsal name only. An id that the platform does not list gives 403.
-- `platform-register` (`{ row, emails }`) and `platform-accounts` (`{ action: create | password | off | on, email, name?, password? }`, design D13) take the ops
+- `platform-register` (`{ row, emails, keepExisting? }`; with `keepExisting` a row that is there stays as it is and only the missing emails are added; the seed and `scripts/office/register-company.ts` call it) and `platform-accounts` (`{ action: create | password | off | on, email, name?, password? }`, design D13) take the ops
   secret and no `?office=`. `platform-accounts` answers `{ ok: true, account }` (never a hash), logs no body and is called only by
   `scripts/office/platform-account.ts`. The ops route sits on the company address of the copy: the platform site passes only `/api/platform` on. The register op empties the
   listed cache of the isolate, so an import that follows finds the new enterprise at once.

@@ -239,14 +239,12 @@ describe('all.sh production', () => {
       'npm run build:remote -- production',
       'wrangler pages deploy dist --project-name madar --branch main',
       'wrangler account d76d34779c63849f5acdf3d6af3751cd',
-      // The platform site (design 12, D7): the project does not exist in this stub, so the step lists the projects and skips.
-      'wrangler pages project list',
-      'wrangler account d76d34779c63849f5acdf3d6af3751cd',
+      // The platform site (design 12, D7): the word of production is supabase, so the step skips before it asks wrangler for anything.
       'curl -sS --max-time 20 -i https://madar.vado.sa/api/health',
       "curl -sS --max-time 20 -i -X POST -H Content-Type: application/json --data {} https://madar.vado.sa/mcp",
     ]);
     expect(result.out).toContain('Skip: [env.production] of wrangler.server.toml has no Hyperdrive id yet');
-    expect(result.out).toContain('Skipped: the Pages project madar-platform does not exist yet');
+    expect(result.out).toContain('Skipped: the platform site deploys only for a copy whose host word is office');
     expect(result.calls.join('\n')).not.toContain(TEST);
     expect(result.calls.join('\n')).not.toContain('pg-prod-secret');
   });
@@ -533,6 +531,50 @@ describe('pages.sh', () => {
 
 describe('pages-platform.sh (the site Madar enterprises, design 12, D7)', () => {
   const PROJECTS = { STUB_PROJECTS: '│ madar │ madar.vado.sa │\n│ madar-platform │ madar-platform-d6c.pages.dev │' };
+  const OFFICE_HEALTH = '{"ok":true,"host":"office","office":{"schema":3,"lastJob":null}}';
+  // The site works only for a copy of the word office (its platform routes live on the office path). The tests below that deploy it say so.
+  beforeEach(() => {
+    setHost('test', 'office');
+    setHost('production', 'office');
+  });
+
+  it('skips with one clear line and ends with 0 for a copy whose word is supabase or workers: no wrangler call, no build, no typed word', () => {
+    for (const word of ['supabase', 'workers'] as const) {
+      for (const copy of ['test', 'production'] as const) {
+        setHost(copy, word);
+        writeFileSync(log, '');
+        // Input is empty: a skip must not ask for the typed word, also for production.
+        const result = run('pages-platform.sh', [copy], { env: PROJECTS });
+        expect([word, copy, result.code, result.calls], result.out).toEqual([word, copy, 0, []]);
+        expect(result.out).toContain(`Skipped: the platform site deploys only for a copy whose host word is office. ${copy} has ${word}.`);
+        expect(result.out).not.toContain('Type production');
+        expect(existsSync(join(root, 'dist-platform'))).toBe(false);
+        setHost(copy, 'office');
+      }
+    }
+  });
+
+  it('reads the word as all.sh does (serverHost.ts), so a setting with another word stops the step before any call', () => {
+    writeFileSync(join(root, 'config/server-host.json'), '{"test":"worker","production":"supabase"}\n');
+    const result = run('pages-platform.sh', ['test'], { env: PROJECTS });
+    expect(result.code).not.toBe(0);
+    expect(result.calls).toEqual([]);
+  });
+
+  it('lets all.sh production go on after the skip while production is supabase: the step before and the checks after both run', () => {
+    setHost('test', 'supabase');
+    setHost('production', 'supabase');
+    readyForConfigPush();
+    commitAll();
+    deployTest();
+    const result = run('all.sh', ['production'], { input: 'production\n', env: { ...TOKENS, ...PROJECTS } });
+    expect(result.code, result.out).toBe(0);
+    expect(result.out).toContain('Skipped: the platform site deploys only for a copy whose host word is office. production has supabase.');
+    expect(result.calls).toContain('wrangler pages deploy dist --project-name madar --branch main');
+    expect(result.calls.join('\n')).not.toContain('madar-platform');
+    expect(result.calls.some((call) => call.includes('https://madar.vado.sa/api/health'))).toBe(true);
+    expect(result.out).toContain('All steps of production');
+  });
 
   it('skips with one clear line and ends with 0 while the Pages project does not exist, and builds and uploads nothing', () => {
     for (const projects of ['', '│ madar │ madar.vado.sa │', '│ madar-platform-old │ x │', '│ my-madar-platform │ x │']) {
@@ -574,6 +616,8 @@ describe('pages-platform.sh (the site Madar enterprises, design 12, D7)', () => 
 
   it('uploads to the main branch for production, only after the typed word and with the commit of the test copy', () => {
     readyForConfigPush();
+    // The word of production (office) is in the commit that the test copy recorded, as a real release holds it. The test copy keeps supabase here.
+    setHost('test', 'supabase');
     commitAll();
     deployTest();
     const refused = run('pages-platform.sh', ['production'], { input: 'yes\n', env: PROJECTS });
@@ -595,8 +639,10 @@ describe('pages-platform.sh (the site Madar enterprises, design 12, D7)', () => 
     expect(run('pages-platform.sh', [], { env: PROJECTS }).code).toBe(2);
   });
 
-  it('runs in all.sh test after the screens and before the checks', () => {
-    const result = run('all.sh', ['test'], { env: { ...TOKENS, ...PROJECTS } });
+  it('runs in all.sh test after the screens and before the checks, for a copy of the word office', () => {
+    mkdirSync(join(root, 'secrets'), { recursive: true });
+    writeFileSync(join(root, 'secrets/test.env'), 'APP_URL=https://x\nJOBS_SECRET=jobs-secret-value-9\n', { mode: 0o600 });
+    const result = run('all.sh', ['test'], { env: { ...TOKENS, ...PROJECTS, STUB_SERVER: 'office;colo=FRA', STUB_CHECKS: OFFICE_HEALTH } });
     expect(result.code, result.out).toBe(0);
     const at = (call: string) => result.calls.indexOf(call);
     expect(at('wrangler pages deploy --project-name madar-platform --branch preview')).toBeGreaterThan(at('wrangler pages deploy dist --project-name madar --branch preview'));

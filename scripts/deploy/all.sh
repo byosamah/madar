@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # scripts/deploy/all.sh <test|production>: every deploy step in order (plan 5.9): migrations, settings, secrets, functions, the
 # Worker, screens, the platform site, then the quick checks through the page host (owner, 2026-10-16). A copy whose host word is office (exit
-# wave 4) runs only the Worker secrets, the Worker, the screens and the checks.
+# wave 4) runs only the Worker secrets, the Worker, the screens, the platform site and the checks. The platform site deploys only for the word
+# office: for supabase or workers its step prints one clear line and ends with 0 (pages-platform.sh), so every other step goes on.
 # Production runs only from the Mac, and only after the typed word production (plan, section 10, decision 9). It asks once,
 # before any step, and the steps do not ask again. A MADAR_DEPLOY_CONFIRMED from the shell never counts here: only the typed word.
 # Production also takes only the commit that the last full all.sh test put on the test copy (lib.sh, require_tested_commit).
@@ -35,7 +36,8 @@ else
   "$DIR/worker.sh" "$TARGET" --prebuilt
 fi
 "$DIR/pages.sh" "$TARGET"
-# The site Madar enterprises (design 12, D7) is a second Pages project. It skips with one clear line while the owner has not made the project.
+# The site Madar enterprises (design 12, D7) is a second Pages project. It deploys only for a copy whose host word is office: for another word it skips with
+# one clear line and ends with 0. It also skips with one clear line while the owner has not made the project.
 "$DIR/pages-platform.sh" "$TARGET"
 "$DIR/checks.sh" "$TARGET"
 if [ "$TARGET" = test ]; then

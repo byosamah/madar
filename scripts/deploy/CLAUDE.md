@@ -82,8 +82,10 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
      no-cache`. `media-src` names the file store, so a chat video plays from its signed link (owner, 2026-11-03). The push services need no `connect-src`: the browser, not the page, talks to them. The page's own `/api`
      needs none either. `script-src` holds `'wasm-unsafe-eval'`. Its first user, the Arabic text plugin of the map, is gone
      (2026-10-28, tsk_486): drop it after a check that no other file of the build runs WebAssembly.
-  7. `pages-platform.sh`: the site Madar enterprises on the second Pages project `madar-platform` (see "The platform site"). It skips
-     with one clear line, and ends with 0, while that project does not exist. Wrangler that cannot list the projects stops the step.
+  7. `pages-platform.sh`: the site Madar enterprises on the second Pages project `madar-platform` (see "The platform site"). It deploys
+     only for a copy whose host word is `office`: for `supabase` or `workers` it skips with one clear line and ends with 0, before it asks
+     for the typed word or calls wrangler. It also skips with one clear line while that project does not exist. Wrangler that cannot list the
+     projects stops the step.
   8. `checks.sh`: through the page host, `GET /api/health` gives 200 with `x-madar-server` of the host in
      `config/server-host.json`; with `JOBS_SECRET` (curl reads it on stdin, `-K -`) database, lock and asyncContext are ok;
      `POST /mcp` with no token gives 401 from the same host. It only reads, so it asks no typed word. A failed check stops
@@ -189,8 +191,9 @@ Madar enterprises is a separate site (design 12, D7): the Pages project `madar-p
 - Hosts: `preview.madar-platform-d6c.pages.dev` (test), `madar-platform-d6c.pages.dev` and, later, `platform.madar.vado.sa` (production). The
   table is `PLATFORM_HOSTS` in `server/core/serverHost.ts`, and `scripts/office/platform-account.ts` reads that one list. The custom domain
   `platform.madar.vado.sa` is on the project, with the CNAME `platform.madar` to `madar-platform-d6c.pages.dev` (2026-11-09). It serves an
-  error page until the production branch has a deploy. Every `all.sh production` makes that deploy, also before the move of VADO: the page
-  then shows a sign-in that cannot work while production is `supabase`.
+  error page until the production branch has a deploy. `all.sh production` makes that deploy only when the word of production is `office`
+  (owner decision, 2026-11-09): until the switch the step skips with one clear line, so the page keeps no sign-in that cannot work. The first
+  deploy of the production branch is the `all.sh production` of the switch.
 - `config/pages-platform/wrangler.toml` is the config of this project only (never a `wrangler.toml` at the repo root: the project `madar`
   deploys from the root). It holds the name, `pages_build_output_dir = "../../dist-platform"`, the compatibility date, and the service
   bindings: `MADAR_SERVER_TEST` to `madar-server-test` in `env.preview`, and `MADAR_SERVER_PRODUCTION` to `madar-server-production` in
@@ -207,7 +210,21 @@ Madar enterprises is a separate site (design 12, D7): the Pages project `madar-p
 - The bindings need no step: the next deploy sets them from the config file. Without a binding the function answers 404 and logs one warning
   line. A 404 does not tell a wrong host from a missing binding: only an answer with the header `x-madar-server: office;...` proves it. A platform
   account is made on the Mac with `scripts/office/platform-account.ts` (see `server/enterprise/CLAUDE.md`).
-- The site works only for a copy whose host word is `office` (the platform routes live on the office path of the Worker).
+- The site works only for a copy whose host word is `office` (the platform routes live on the office path of the Worker). `pages-platform.sh` reads the
+  word with `node scripts/deploy/serverHost.ts host <copy>`, as `all.sh` does, and skips the deploy for any other word.
+
+## The move of VADO (plan E)
+The order of the production steps, with the script of each one (every script that touches production asks for the typed word `production`):
+1. `npx tsx scripts/office/invited.ts --env production > <file in the scratchpad>`: the people in state Invited (read only, Postgres). The output holds emails: never in the repo.
+2. `npx tsx scripts/office/auth-key.ts production` (the sign-in key, straight into the Worker) and `npx tsx scripts/office/new-secret.ts production MADAR_OPS_SECRET` and
+   `... MADAR_EXPORT_SECRET`. Then `all.sh production` deploys the Worker with the word still `supabase`: the objects, the Cron and the ops routes exist, the office path is off.
+3. `npx tsx scripts/office/register-company.ts --to https://madar.vado.sa`: the row `ent_001` and the email directory. It must come BEFORE the import: the import into an
+   enterprise id needs the platform list to hold the id (403 else). A second run keeps the row as it is and adds only missing emails.
+4. `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode empty --used-today <USED>`. A production target takes only
+   `--from production`, `--office ent_001` and `--mode empty`; any other value ends with exit code 2 before the typed word. A read of production into a rehearsal name on
+   the test copy works as before. The import carries the Google, Daftra and push rows (`server/office/CLAUDE.md`).
+5. The switch: `config/server-host.json` production `office`, then `all.sh production`. `secrets.ts production --office` and the Worker deploy (`--var MADAR_DATA:office`)
+   run, and the platform site deploys for the first time.
 
 ## Other scripts
 - First Admin: `npx tsx scripts/first-admin.ts --env test|production|local --email --name --language --gender`.

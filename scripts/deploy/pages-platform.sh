@@ -7,10 +7,18 @@
 # working folder, and pages deploy has no config flag, so the deploy runs in config/pages-platform and takes the output folder from
 # pages_build_output_dir. The project itself is an owner step (scripts/deploy/CLAUDE.md, "The platform site"). When the project does not
 # exist yet, this script prints one clear line and ends with 0, so all.sh goes on. Wrangler signs in as pages.sh does.
+# The site works only for a copy whose host word is office (the platform routes live on the office path of the Worker). For a copy with another
+# word this script prints one clear line and ends with 0, before it asks for the typed word or calls wrangler, so all.sh goes on.
 . "$(dirname "$0")/lib.sh"
 deploy_target "${1:-}"
-confirm_production
 cd "$ROOT"
+# The word is read as all.sh reads it. A setting with a wrong word makes node stop, and so this script stops.
+host="$(node scripts/deploy/serverHost.ts host "$TARGET")"
+if [ "$host" != office ]; then
+  echo "Skipped: the platform site deploys only for a copy whose host word is office. $TARGET has $host."
+  exit 0
+fi
+confirm_production
 
 PROJECT=madar-platform
 # The Madar Cloudflare account (accounts.md). Not a secret.
