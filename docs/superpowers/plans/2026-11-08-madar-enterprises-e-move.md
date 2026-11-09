@@ -153,7 +153,7 @@ Use the error code of the current invalid-link answer of `server/auth/own/routes
   requests, rows read, rows written, mails, each as a share of the free day limit, for each enterprise.
 - [ ] **L2. The budget check** (R12, R13). Production's estimate plus the busiest test day, for each free day limit. At most
   80%: go on. Above 80%: stop and give the owner the numbers (form B of R-6B, or a paid plan from the first sale).
-- [ ] **L3. The production rehearsal** (R11, owner present, after office hours): copy production into a rehearsal object, reverse
+- [x] **L3. The production rehearsal** (R11, owner present, after office hours): copy production into a rehearsal object, reverse
   it into the local stack, compare, drop the spare object. Record the minutes and the rows written.
 - [ ] **L4. The team notice, one day before** (owner OK on the text and on the send): one message in the general chat of Madar, in
   Arabic and English: the hour of the switch, no saves for about 40 minutes, a new sign-in once with the same password, AI agents connect again once, the old

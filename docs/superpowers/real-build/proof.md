@@ -3386,3 +3386,14 @@ GitHub write and needs the owner's OK.
 - The fix: an inline-block bdi with `max-w-full` and `overflow-wrap: anywhere`. After the fix and the spec changes: `account` 8, `agents` 8 (two new specs: "Claude Code" stays on one line at 390 px in both languages) and `work` 17, all passed, and the shots at 390 px in both languages and both themes show the long name inside the screen.
 - `walk.spec.ts` en-390: 36 of 40 steps passed. `file`, `report` (member and Admin) and `report-done` fail because the local stack has made-up R2 keys (`scripts/dev/office-local.ts`). So uploads have no browser proof on the local stack. The owner checks them on the test copy.
 - The platform site on the local stack, all 10 steps passed: sign-in, create Test Co (`ent_003`), the invitation link from the outbox of that company, set a password, an empty company with none of the people or projects of `ent_001`, an invitation from inside, the people limit refuses the next invitation with no mail, the logo, pause refuses the correct password, resume works. The people count on the platform sheet stayed "Not counted yet", because the count job did not run locally.
+
+## Madar enterprises: the rehearsal of the move (plan E, L3, 2026-11-09)
+
+The owner ran it at 20:11 Riyadh, after office hours. The scripts are the same on 66cd64eb and on rb/enterprises. The source was production, in one read-only snapshot through the session pooler.
+
+- The copy: 6,157 records, 12 sign-in rows (every row of `auth.users` with an email that is not deleted), 25 parts, 46 seconds. Result: "The count and the hash of each table match the source."
+- The rows written: 48,178 planned. The meter gave 602 before the run and 48,719 two minutes after the drop, so the import and the drop wrote about 48,117. The factor of 7.5 for each record holds as a ceiling.
+- The row count of the nightly backup (8,561) holds more tables than the import. The import of the switch costs about 48,200 rows, not the 66,207 that the backup count gave.
+- The way back into the local stack: 18 seconds. Result: "Postgres holds the same records, counters, signal number, person numbers and Google and Daftra rows as the office object." `linked` 0 and 12 names in `needInvite` are correct for a local target: a reset local stack has no Supabase sign-ins.
+- The drop of the spare object: `{"ok":true}`. The whole script took 3 minutes 22 seconds.
+- A trap of the meter: `workersInvocationsAdaptive` of `madar-server-test` rose by 2 during a run of more than 25 requests through the page host. Do not use that number as a count of the calls that come through the Pages binding. The rows read and rows written of the objects moved at once and are the numbers to trust.
