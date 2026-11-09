@@ -3360,3 +3360,11 @@ GitHub write and needs the owner's OK.
   4. `POST /api/platform/auth/token` on preview.madar-46r.pages.dev: 404 "Not found." The company forwarder refuses the platform path.
 - The `platform-owners.ts` line of the section above is out of date: plan F removed that route and its script. A platform account now
   comes from `scripts/office/platform-account.ts` (lead step 3).
+- Lead step 3 and the check by hand (2026-11-09): the owner made the platform account `pla_001` (o.khalil@mazj.sa) with
+  `platform-account.ts` in his own Terminal and signed in on preview.madar-platform-d6c.pages.dev in Dia. The list shows one company,
+  VADOs' Companies, Active, 10 people; the free limits card shows the use of the day (18 requests, 4,514 rows read, 20 rows written,
+  0 mails). The company sheet shows the name, the Arabic name, the address name `vados`, the logo, both limits, the first Admin and Pause.
+- Pause and resume of `ent_001` (the lead, in the owner's platform session): Pause asks for the name of the company, then the sheet shows
+  Paused and Resume. While paused, the password sign-in of admin@madar.test with the right password answered
+  `enterprise_paused` "Madar is paused for your company. Ask your Admin." and made no session. Resume showed "The enterprise works
+  again.", and the same sign-in answered 200 with a token of `ent: ent_001`, `aud: authenticated`.
