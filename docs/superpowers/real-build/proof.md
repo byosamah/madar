@@ -3368,3 +3368,14 @@ GitHub write and needs the owner's OK.
   Paused and Resume. While paused, the password sign-in of admin@madar.test with the right password answered
   `enterprise_paused` "Madar is paused for your company. Ask your Admin." and made no session. Resume showed "The enterprise works
   again.", and the same sign-in answered 200 with a token of `ent: ent_001`, `aud: authenticated`.
+
+## Madar enterprises: the code of the move of VADO (plan E, 2026-11-09)
+- Built on `rb/enterprises` (6c9b519a to 15388a6a): plan E Tasks 1, 2, 2b and 3, the order of the switch (`register-company.ts`), the deploy check of the platform site, `--mode resume` for a failed import,
+  the reverse export into production with the Google and Daftra rows, the write stop `MADAR_WRITES_OFF`, and the import that waits for the mails and pushes. The ordered steps are in `scripts/deploy/CLAUDE.md`, "The move of VADO (plan E)".
+- The full gate, run once on 7273e599 (10:32 to 10:55): typecheck, build, build:server, build:remote test, build:platform, test:lite (3,681), test:office (65), test:db (3,681), test:it (373) and test:mcp (679, 27 expected
+  conformance failures, none new) passed. `npm test`: 14,046 passed, 3 failed. `MadarMark.test.tsx` still named the platform files from before `SiteHeader.tsx` (15f19752, the test was out of date on main): fixed. `ChatListStage.test.tsx` and
+  `EarlierMessages.test.tsx` timed out at 5 s under load and passed alone with `--no-file-parallelism --testTimeout=60000`.
+- `server/office/production.wd.test.ts` follows the real order on workerd with the bindings of production and no `MADAR_DATA`: the import before the register gets 403; after the register the import succeeds and a Cron run changes nothing;
+  with `MADAR_DATA = office` an imported person signs in, the token holds `ent_001`, and the Google and push rows are there.
+- The new read queries ran read-only on the test database (madar-test): `invited.ts` found 6 people in state Invited; the directory queries gave 10 people, 4 sign-in links and 1 Admin; `WAITING_EFFECTS_SQL` gave 0; pg_cron is 1.6.4, so `cron.alter_job` exists, and the job is named `madar-jobs`.
+- Addresses: `platform.madar.vado.sa` went active at 09:24 and `www.platform.madar.vado.sa` at 10:28 (Google Trust Services certificates). Both answer 404 ("Nothing is here yet") until the production branch of `madar-platform` has a deploy, which comes with the switch.

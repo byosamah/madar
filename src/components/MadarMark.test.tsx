@@ -77,7 +77,7 @@ describe('MadarMark', () => {
     // its shell (design 12, D7). No project list uses it.
     expect(users.sort()).toEqual([
       'src/app/HomeMark.tsx', 'src/components/MadarMark.tsx', 'src/features/auth/AuthPage.tsx', 'src/features/space/SpaceNode.tsx',
-      'src/platform/PlatformApp.tsx', 'src/platform/SignInScreen.tsx',
+      'src/platform/SiteHeader.tsx',
     ]);
   });
 });
