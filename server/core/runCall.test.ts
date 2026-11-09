@@ -736,3 +736,27 @@ describe('runCall: the enterprise in session.get (Madar enterprises, design 5.20
     expect(await session(s)).not.toHaveProperty('enterprise');
   });
 });
+
+describe('runCall: the write stop of the move (MADAR_WRITES_OFF, plan E)', () => {
+  it('refuses a write of a person with the reason busy, and opens no write transaction', async () => {
+    const { call, mem, deps } = setup();
+    deps.config.writesOff = true;
+    const error = errorOf(await call(ADMIN, 'tasks.create', { projectId: 'prj_001', title: 'Not during the move' }));
+    expect(error.code).toBe('failed');
+    expect(error.details?.reason).toBe('busy');
+    expect(mem.txCount.write).toBe(0);
+  });
+
+  it('refuses a write of an AI agent in the same way', async () => {
+    const { call, mem, deps } = setup();
+    deps.config.writesOff = true;
+    expect(errorOf(await call(AGENT, 'tasks.create', { projectId: 'prj_001', title: 'Not during the move' })).details?.reason).toBe('busy');
+    expect(mem.txCount.write).toBe(0);
+  });
+
+  it('keeps every read working', async () => {
+    const { call, deps } = setup();
+    deps.config.writesOff = true;
+    expect((await call(ADMIN, 'users.list', {})).ok).toBe(true);
+  });
+});

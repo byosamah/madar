@@ -21,6 +21,9 @@ import { serverCallMap, type CallEntry, type ServerEntry, type SharedEntry } fro
 import { checkStory, newStoryId, resolveStory, sqlStories, statementStories, type StoryStore } from './story';
 import type { ChangeSignal, OfficeSnapshot, RunRequest, RunResult } from './types';
 
+/** The answer to a write while MADAR_WRITES_OFF is on (the move of VADO, plan E). The screens show their own words for the reason busy, and an AI agent reads this text. */
+const WRITES_OFF = new ApiError('failed', 'Madar moves to new servers. Try again in a few minutes.', { reason: 'busy' });
+
 /**
  * Load, run, save (plan 4.5; task C3). The api function, the mcp function, the job and the db-mode tests all run calls here.
  * The sign-in check happens before it: the request names the principal.
@@ -354,6 +357,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     try {
       const entry = calls.get(req.name);
       if (!entry) throw new ApiError('not_found', `There is no call named ${req.name}.`);
+      if (deps.config.writesOff && !entry.readOnly) throw WRITES_OFF;
       // The email code guard: the code of an agent is no part of the input of the call (mcp/guard.ts).
       const guarded = entry.kind === 'shared' && !entry.readOnly && guardApplies(req.name, req.principal);
       const taken = guarded ? takeCode(req.input) : undefined;

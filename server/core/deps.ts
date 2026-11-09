@@ -62,6 +62,7 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  *                          (workers-eu-central-1). It is no AWS region name, so the MCP region hop never starts there
  *   MCP_FORWARD_REGION     the region of every MCP request (default eu-central-1)
  *   MADAR_LOCK_KEY         the office lock key (default 7310001; never HEALTH_LOCK_KEY)
+ *   MADAR_WRITES_OFF       on: runCall refuses every write with the reason busy, and reads still work (the move of VADO, plan E)
  *   JOBS_SECRET            the secret of the job runner (x-madar-jobs-secret); it also opens the database check of GET /api/health
  *   POSTHOG_KEY            the public PostHog project key (phc_...): each error line also goes to PostHog Cloud EU. Optional; none means off
  */
@@ -194,6 +195,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     supabaseUrl,
     mailFrom,
     minClientBuild: read('MIN_CLIENT_BUILD') ?? '0',
+    ...(read('MADAR_WRITES_OFF') === 'on' ? { writesOff: true } : {}),
     allowedOrigins: origins ? origins.split(',').map((o) => o.trim()).filter(Boolean) : [new URL(appUrl).origin],
     region: read('SB_REGION') ?? read('WORKER_REGION') ?? 'unknown',
     forwardRegion: read('MCP_FORWARD_REGION') ?? FUNCTION_REGION,

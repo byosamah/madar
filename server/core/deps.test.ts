@@ -78,6 +78,11 @@ describe('the real Deps from the environment', () => {
     });
   });
 
+  it('turns the write stop on only with MADAR_WRITES_OFF = on (the move of VADO, plan E)', () => {
+    expect(buildDeps(reader({ ...FULL, MADAR_WRITES_OFF: 'on' })).config.writesOff).toBe(true);
+    for (const values of [FULL, { ...FULL, MADAR_WRITES_OFF: 'off' }, { ...FULL, MADAR_WRITES_OFF: '' }]) expect(buildDeps(reader(values)).config.writesOff).toBeFalsy();
+  });
+
   it('names the Worker by WORKER_REGION when SB_REGION is absent; on Supabase SB_REGION wins (owner, 2026-10-16)', () => {
     const { SB_REGION: _region, ...worker } = FULL as Record<string, string>;
     expect(configFromEnv(reader({ ...worker, WORKER_REGION: 'workers-eu-central-1' })).region).toBe('workers-eu-central-1');

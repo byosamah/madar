@@ -137,6 +137,8 @@ export type Config = {
   mailFrom: string;
   /** The oldest screen build the server accepts (X-Madar-Build). Older builds get 409 client_outdated. */
   minClientBuild: string;
+  /** The move of VADO (plan E): true while MADAR_WRITES_OFF = on. runCall then refuses every write with the reason busy, and reads still work. */
+  writesOff?: boolean;
   allowedOrigins: string[];
   /** SB_REGION of the running function. */
   region: string;

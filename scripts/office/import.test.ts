@@ -8,7 +8,8 @@ import { buildSeed } from '../../src/data/seed';
 import { IMPORT_ROWS_PER_RECORD as PIN } from '../../server/office/test/pins';
 import { NODE_TODAY, nodeOffice } from '../../server/office/test/nodeOffice';
 import { recordDigest } from './digest';
-import { ArgumentError, budgetProblem, checkImport, IMPORT_ROWS_PER_RECORD, importArguments, importOffice, officeNameOf, planParts, rowsToWrite, targetOf } from './import';
+import { OUTBOX_MAX_ATTEMPTS } from '../../server/jobs/steps/outbox';
+import { ArgumentError, budgetProblem, checkImport, IMPORT_ROWS_PER_RECORD, importArguments, importOffice, officeNameOf, planParts, refuseWaitingEffects, rowsToWrite, targetOf, WAITING_EFFECTS_SQL } from './import';
 import { partsOps, type OfficeOps } from './ops';
 import { stateSource } from './source';
 
@@ -214,3 +215,19 @@ describe('the finish of a failed import (plan E, Task G)', () => {
   });
 });
 
+describe('the waiting mails and pushes before the import of production (plan E)', () => {
+  it('passes when none waits, and asks with the attempt limit of the 15-minute job', async () => {
+    const asked: unknown[][] = [];
+    await refuseWaitingEffects(async (text, values) => {
+      asked.push([text, values]);
+      return [{ n: 0 }];
+    });
+    expect(asked).toEqual([[WAITING_EFFECTS_SQL, [OUTBOX_MAX_ATTEMPTS]]]);
+  });
+
+  it('stops with the count and the next step while some wait', async () => {
+    const run = refuseWaitingEffects(async () => [{ n: 3 }]);
+    await expect(run).rejects.toThrow('3 mails or pushes');
+    await expect(refuseWaitingEffects(async () => [{ n: 3 }])).rejects.toThrow('15-minute job');
+  });
+});

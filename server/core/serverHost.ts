@@ -48,12 +48,13 @@ export const PAGE_HOSTS: Readonly<Record<string, Copy>> = {
  * The page hosts of the Pages project madar-platform (design 12, D7): the site Madar enterprises, with its own sign-in. They are not hosts of a company page,
  * so no company address reaches the platform and no platform address reaches a company. Cloudflare gave the project the address madar-platform-d6c.pages.dev
  * (the pages.dev names are global, as madar-46r is for the project madar). The test copy has the preview address of the project. Production has the project
- * address and the own address `platform.madar.vado.sa` (a DNS record that the owner adds later).
+ * address and the own addresses `platform.madar.vado.sa` and `www.platform.madar.vado.sa` (both on the project since 2026-11-09).
  */
 export const PLATFORM_HOSTS: Readonly<Record<string, Copy>> = {
   'preview.madar-platform-d6c.pages.dev': 'test',
   'madar-platform-d6c.pages.dev': 'production',
   'platform.madar.vado.sa': 'production',
+  'www.platform.madar.vado.sa': 'production',
 };
 
 export type CopyHosts = {

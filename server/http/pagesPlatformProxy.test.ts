@@ -23,7 +23,7 @@ const post = (host: string, path = '/api/platform', init: RequestInit & { header
 
 describe('the hosts of the platform site', () => {
   it('are the three addresses of design 12 (D7), each with its copy', () => {
-    expect(PLATFORM_HOSTS).toEqual({ 'preview.madar-platform-d6c.pages.dev': 'test', 'madar-platform-d6c.pages.dev': 'production', 'platform.madar.vado.sa': 'production' });
+    expect(PLATFORM_HOSTS).toEqual({ 'preview.madar-platform-d6c.pages.dev': 'test', 'madar-platform-d6c.pages.dev': 'production', 'platform.madar.vado.sa': 'production', 'www.platform.madar.vado.sa': 'production' });
   });
 
   it('are not hosts of a company page, and a company host is not a platform host', () => {
@@ -66,8 +66,8 @@ describe('the platform forwarder', () => {
 
   it('sends a production host to the production binding and never to the test binding', async () => {
     const h = setup();
-    for (const host of ['madar-platform-d6c.pages.dev', 'platform.madar.vado.sa']) expect((await h.call(post(host))).status, host).toBe(200);
-    expect(h.production.seen).toHaveLength(2);
+    for (const host of ['madar-platform-d6c.pages.dev', 'platform.madar.vado.sa', 'www.platform.madar.vado.sa']) expect((await h.call(post(host))).status, host).toBe(200);
+    expect(h.production.seen).toHaveLength(3);
     expect(h.test.seen).toEqual([]);
   });
 

@@ -21,10 +21,11 @@ import { EXPORT_SECRET_HEADER, OPS_SECRET_HEADER } from '../../server/entries/of
 import { IMPORT_PART_ROWS, type ImportBegin, type ImportFinish, type ImportMode, type ImportPartAnswer } from '../../server/office/import';
 import { ENT_VADO, ENTERPRISE_ID } from '../../server/enterprise/ids';
 import { REHEARSAL_NAME } from '../../server/office/ops';
+import { OUTBOX_MAX_ATTEMPTS } from '../../server/jobs/steps/outbox';
 import { exportOffice } from '../backup/officeExport';
 import { parseSecretsFile, POOLER_HOST, REFS } from '../deploy/secrets';
 import { opsOf, type OfficeOps } from './ops';
-import { exportSource, pgSource, type ImportTable, type OfficeSource } from './source';
+import { exportSource, pgSource, type ImportTable, type OfficeSource, type PgQuery } from './source';
 
 /** The ceiling of the rows pins of wave 1 (server/office/test/pins.ts, IMPORT_ROWS_PER_RECORD): 6.90 measured, 7.5 planned. */
 export const IMPORT_ROWS_PER_RECORD = 7.5;
@@ -244,6 +245,19 @@ export function importArguments(argv: readonly string[]): ImportArguments {
   return { from, target, office, mode: mode as ImportMode, typed: from === 'production' ? 'read' : undefined };
 }
 
+/** The mails and pushes that the Supabase 15-minute job can still send: the same attempt limit as its own step. */
+export const WAITING_EFFECTS_SQL = 'select count(*)::int as n from outbox where done_at is null and attempts < $1';
+
+/**
+ * The object starts with an empty outbox, so a mail or a push that waits in Postgres never goes out after the switch. The import of
+ * production stops until the 15-minute job of Supabase has sent them (plan E).
+ */
+export async function refuseWaitingEffects(query: PgQuery): Promise<void> {
+  const [row] = await query(WAITING_EFFECTS_SQL, [OUTBOX_MAX_ATTEMPTS]);
+  const waiting = Number(row?.n ?? 0);
+  if (waiting > 0) throw new Error(`${waiting} mails or pushes still wait in Supabase. Let the 15-minute job send them, then run this again. Nothing changed.`);
+}
+
 async function main(argv: string[]): Promise<void> {
   const { from, target, office, mode, typed } = importArguments(argv);
   if (typed && (await typedWord(typed)) !== 'production') throw new Error('The typed word was not production. Nothing changed.');
@@ -255,6 +269,14 @@ async function main(argv: string[]): Promise<void> {
   const problem = budgetProblem({ records: source.records, usedToday, limit });
   if (problem) throw new Error(problem);
   if (argv.includes('--dry-run')) return;
+  if (target.copy === 'production') {
+    const client = await postgresOf('production');
+    try {
+      await refuseWaitingEffects(async (text, values) => (await client.query(text, values)).rows);
+    } finally {
+      await client.end();
+    }
+  }
   const secrets = officeSecretsOf(target.copy);
   const ops = opsOf({ base: target.base, secret: secrets.ops, header: OPS_SECRET_HEADER, ...(office ? { office } : {}) });
   const report = await importOffice(ops, source, { mode, limit, usedToday, log: (line) => console.log(line) });
