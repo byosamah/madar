@@ -86,7 +86,7 @@ export function registerArguments(argv: readonly string[]): { target: ReturnType
   if (to === '') throw new ArgumentError('--to <page address of the copy> is missing.');
   let target: ReturnType<typeof targetOf>;
   try {
-    target = targetOf(to);
+    target = targetOf(to, { allowProduction: true });
   } catch (error) {
     throw new ArgumentError(error instanceof Error ? error.message : String(error));
   }

@@ -92,10 +92,12 @@ describe('the import client (scripts/office/import.ts)', () => {
     for (const bad of ['office', 'ent_2', 'ENT_002', 'ent_002 ', 'rehearsal-2026', 'platform', '']) expect(() => officeNameOf(bad), bad).toThrow('--office must be');
   });
 
-  it('takes the test copy, the local office and the production page host as targets', () => {
+  it('takes the test copy and the local office as targets, and the production page host only for a script that asks for it', () => {
     expect(targetOf('https://preview.madar-46r.pages.dev').copy).toBe('test');
     expect(targetOf('http://127.0.0.1:8792').copy).toBe('local');
-    expect(targetOf('https://madar.vado.sa').copy).toBe('production');
+    expect(targetOf('https://madar.vado.sa', { allowProduction: true }).copy).toBe('production');
+    // The seed, the drop and the reverse export call targetOf with no option: none of them may write to production (plan E).
+    for (const host of ['https://madar.vado.sa', 'https://www.madar.vado.sa', 'https://madar-46r.pages.dev']) expect(() => targetOf(host), host).toThrow('does not take production');
     expect(() => targetOf('https://example.com')).toThrow('not a Madar copy');
   });
 });

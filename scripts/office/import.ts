@@ -115,12 +115,16 @@ export async function importOffice(
   }
 }
 
-/** The copy of a target address. A write into production passes the checks of importArguments first. */
-export function targetOf(to: string): { copy: Copy | 'local'; base: string } {
+/**
+ * The copy of a target address. Production is refused unless the caller asks for it (allowProduction): only the import and the register script of
+ * the move do, each with its own checks and the typed word. The seed, the drop and the reverse export never do.
+ */
+export function targetOf(to: string, o: { allowProduction?: boolean } = {}): { copy: Copy | 'local'; base: string } {
   const url = new URL(to);
   if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') return { copy: 'local', base: url.origin };
   const copy = copyOfPageHost(url.hostname);
   if (!copy) throw new Error(`${url.host} is not a Madar copy.`);
+  if (copy === 'production' && o.allowProduction !== true) throw new Error('This script does not take production. Only scripts/office/import.ts and scripts/office/register-company.ts do (plan E).');
   return { copy, base: url.origin };
 }
 
@@ -219,7 +223,7 @@ export function importArguments(argv: readonly string[]): ImportArguments {
   let target: ReturnType<typeof targetOf>;
   let office: string | undefined;
   try {
-    target = targetOf(flagOf(argv, '--to'));
+    target = targetOf(flagOf(argv, '--to'), { allowProduction: true });
     office = officeNameOf(flagOf(argv, '--office') || undefined);
   } catch (error) {
     throw new ArgumentError(error instanceof Error ? error.message : String(error));
