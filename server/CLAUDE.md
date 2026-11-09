@@ -60,6 +60,8 @@ The other host stays deployed as the way back. Each area has its own guide: `mcp
   `CallData.on`). Only the first call joins, and a failed first call rolls the transaction back. A server call never joins: it opens its own
   transactions, and a nested one is refused. `apiApp` turns the join on only with the real `runCall` and the real office read; a test that
   replaces either passes `joinFirst` itself. The office object has its own batch and no join.
+- The write stop of the move (`MADAR_WRITES_OFF = on`, plan E): `runCall` refuses every write call with the reason `busy` before the parse, for people and agents alike, and reads work. The
+  15-minute job still sends the outbox, because a job step does not go through it (a job step that runs a write call gets `busy` and tries again on the next run).
 
 ## Errors to PostHog
 - `core/insight.ts`: `insightLogger` wraps the console logger when `POSTHOG_KEY` is set. Each `error` line posts one `$exception` record

@@ -188,9 +188,9 @@ Madar enterprises is a separate site (design 12, D7): the Pages project `madar-p
 `dist-platform`), its own sign-in and its own accounts. VADO is one of the companies, and no company address reaches it.
 - The project exists (the lead made it, 2026-11-08). Cloudflare gave it the address `madar-platform-d6c.pages.dev`, because the pages.dev names
   are global (the project `madar` has `madar-46r` for the same reason). `madar-platform.pages.dev` is not ours.
-- Hosts: `preview.madar-platform-d6c.pages.dev` (test), `madar-platform-d6c.pages.dev` and, later, `platform.madar.vado.sa` (production). The
-  table is `PLATFORM_HOSTS` in `server/core/serverHost.ts`, and `scripts/office/platform-account.ts` reads that one list. The custom domain
-  `platform.madar.vado.sa` is on the project, with the CNAME `platform.madar` to `madar-platform-d6c.pages.dev` (2026-11-09). It serves an
+- Hosts: `preview.madar-platform-d6c.pages.dev` (test), `madar-platform-d6c.pages.dev`, `platform.madar.vado.sa` and `www.platform.madar.vado.sa` (production). The
+  table is `PLATFORM_HOSTS` in `server/core/serverHost.ts`, and `scripts/office/platform-account.ts` reads that one list. The custom domains
+  `platform.madar.vado.sa` and `www.platform.madar.vado.sa` are on the project, with the CNAME records `platform.madar` and `www.platform.madar` to `madar-platform-d6c.pages.dev` (2026-11-09). It serves an
   error page until the production branch has a deploy. `all.sh production` makes that deploy only when the word of production is `office`
   (owner decision, 2026-11-09): until the switch the step skips with one clear line, so the page keeps no sign-in that cannot work. The first
   deploy of the production branch is the `all.sh production` of the switch.
@@ -214,23 +214,40 @@ Madar enterprises is a separate site (design 12, D7): the Pages project `madar-p
   word with `node scripts/deploy/serverHost.ts host <copy>`, as `all.sh` does, and skips the deploy for any other word.
 
 ## The move of VADO (plan E)
-The order of the production steps, with the script of each one (every script that touches production asks for the typed word `production`):
-1. `npx tsx scripts/office/invited.ts --env production > <file in the scratchpad>`: the people in state Invited (read only, Postgres). The output holds emails: never in the repo.
-2. `npx tsx scripts/office/auth-key.ts production` (the sign-in key, straight into the Worker) and `npx tsx scripts/office/new-secret.ts production MADAR_OPS_SECRET` and
+The order of the production steps, with the script of each one. Each step needs the owner's OK. Every script that touches production asks for the typed word `production`.
+Load `~/dev/madar/.env.local` first (`SUPABASE_ACCESS_TOKEN`, `MADAR_DB_PASSWORD`). The owner runs `all.sh`.
+
+Before the evening:
+1. `npx tsx scripts/office/auth-key.ts production` (the sign-in key, straight into the Worker) and `npx tsx scripts/office/new-secret.ts production MADAR_OPS_SECRET` and
    `... MADAR_EXPORT_SECRET`. Then `all.sh production` deploys the Worker with the word still `supabase`: the objects, the Cron and the ops routes exist, the office path is off.
-3. `npx tsx scripts/office/register-company.ts --to https://madar.vado.sa`: the row `ent_001` and the email directory. It must come BEFORE the import: the import into an
+2. `npx tsx scripts/office/register-company.ts --to https://madar.vado.sa`: the row `ent_001` and the email directory. It must come BEFORE the import: the import into an
    enterprise id needs the platform list to hold the id (403 else). A second run keeps the row as it is and adds only missing emails.
-4. `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode empty --used-today <USED>`. A production target takes only
+
+The evening, after office hours (about 40 minutes with no saves):
+3. Stop the saves: `npx supabase secrets set MADAR_WRITES_OFF=on --project-ref oprkvdjudjxxhvodkzgs`. `runCall` then refuses every write with the reason `busy` (the screens show
+   their own words for it), and reads work. The Supabase secret stays on after the switch, so nothing writes to the old database by mistake.
+4. Wait for one run of the Supabase 15-minute job: it sends the mails and pushes that wait (only rows older than 2 minutes, so at most about 17 minutes).
+5. `npx tsx scripts/office/invited.ts --env production > <file in the scratchpad>`: the people in state Invited (read only, Postgres). The output holds emails: never in the repo.
+6. Turn the Supabase job off, so the morning summary goes out once: `select cron.alter_job((select jobid from cron.job where jobname = 'madar-jobs'), active := false);`
+7. `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode empty --used-today <USED>`. A production target takes only
    `--from production`, `--office ent_001` and `--mode empty` (the default) or `--mode resume`. Any other value, `--mode replace` included, ends with exit code 2 before
    the typed word. A read of production into a rehearsal name on the test copy works as before. The import carries the Google, Daftra and push rows
-   (`server/office/CLAUDE.md`). The run ends with the count and hash check of each table; a difference exits 1.
+   (`server/office/CLAUDE.md`). It refuses to start while a mail or a push waits in Supabase (the object starts with an empty outbox). A row that keeps failing blocks it:
+   read the `error` of that row, and ask the owner. The run ends with the count and hash check of each table; a difference exits 1.
    - A failed import: the object holds part of the records, and `--mode empty` refuses it (409 `not_empty`). Finish it with the same command and `--mode resume`:
      `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode resume --used-today <USED>`. A part that is there
      is skipped, the rest is written, and the same check runs at the end. Run it only while the word of production is still `supabase`: the source must be the
      live data. The row budget counts the whole office again, although the skipped parts write nothing. If it refuses, count the rows that remain before you
      raise `--limit`. If the check after a resume finds a difference, do not run a third time: production has no replace and no drop, so ask the lead.
-5. The switch: `config/server-host.json` production `office`, then `all.sh production`. `secrets.ts production --office` and the Worker deploy (`--var MADAR_DATA:office`)
+8. The switch: `config/server-host.json` production `office`, then `all.sh production`. `secrets.ts production --office` and the Worker deploy (`--var MADAR_DATA:office`)
    run, and the platform site deploys for the first time.
+9. The checks by hand: the owner signs in, opens Home, a project, a chat and a file.
+10. The nightly backup moves to production (the owner runs these, a GitHub write): `grep '^MADAR_EXPORT_SECRET=' secrets/production.env | cut -d= -f2- | gh secret set OFFICE_EXPORT_SECRET --repo byosamah/madar`,
+    `gh variable set OFFICE_BACKUP_URL --repo byosamah/madar --body https://madar.vado.sa`, and `gh variable set OFFICE_BACKUP_COPY --repo byosamah/madar --body production`.
+11. The owner makes the production platform account: `npx tsx scripts/office/platform-account.ts --production --to https://platform.madar.vado.sa --email <email> --name <name>` (it asks for the password twice).
+12. The new invitations of the list of step 5 (an email to real people: the owner's OK first).
+
+A stop before step 8 costs nothing: `npx supabase secrets unset MADAR_WRITES_OFF --project-ref oprkvdjudjxxhvodkzgs`, and the job on again (`active := true`). Production then works as before.
 
 ### The way back (plan E)
 Warning first: the way back stays open for 14 days after the switch, and the owner says yes before either part. Supabase production stays deployed and
@@ -242,7 +259,8 @@ First, with no writes on the object yet (nobody wrote after the import):
 2. Set the word of production back to `supabase` in `config/server-host.json`. Commit.
 3. `scripts/deploy/all.sh production`. The screens use the api function again, and the forwarders send `/api` and `/mcp` to the Supabase functions. The Worker is then
    deployed with no `MADAR_DATA`, so the Cron of the object stops.
-4. Turn the Supabase 15-minute job on again in pg_cron (it is off since the switch), so the summary and the effects run on Supabase again.
+4. Turn the Supabase 15-minute job on again (`select cron.alter_job((select jobid from cron.job where jobname = 'madar-jobs'), active := true);`), so the summary and the effects run on
+   Supabase again, and allow saves again: `npx supabase secrets unset MADAR_WRITES_OFF --project-ref oprkvdjudjxxhvodkzgs`.
 5. `scripts/deploy/checks.sh production` names `supabase` in `x-madar-server`. The owner signs in and opens Home.
 
 Second, after writes on the object:

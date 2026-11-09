@@ -156,26 +156,14 @@ Use the error code of the current invalid-link answer of `server/auth/own/routes
 - [ ] **L3. The production rehearsal** (R11, owner present, after office hours): copy production into a rehearsal object, reverse
   it into the local stack, compare, drop the spare object. Record the minutes and the rows written.
 - [ ] **L4. The team notice, one day before** (owner OK on the text and on the send): one message in the general chat of Madar, in
-  Arabic and English: the hour of the switch, a new sign-in once with the same password, AI agents connect again once, the old
+  Arabic and English: the hour of the switch, no saves for about 40 minutes, a new sign-in once with the same password, AI agents connect again once, the old
   invitation and reset links stop. Draft (Arabic):
-  «غداً بعد الدوام ننقل مدار إلى خوادم جديدة. بعد النقل، سجّل دخولك مرة واحدة بالبريد وكلمة المرور نفسها. واربط وكيل
-  الذكاء الاصطناعي من جديد مرة واحدة. تتوقف روابط الدعوة وإعادة كلمة المرور القديمة، فاطلب رابطاً جديداً إن احتجته.»
-- [ ] **L5. The open invitations** (the evening of the switch, before it): `npx tsx scripts/office/invited.ts --env production`
-  into the scratchpad.
-- [ ] **L6. The deploy of the production Worker with the word still `supabase`** (the owner runs `all.sh production` with `!`).
-  Set the production secrets first: `MADAR_AUTH_PRIVATE_JWK` (made by `scripts/office/auth-key.ts production`, straight into the
-  Worker), `MADAR_OPS_SECRET`, `MADAR_EXPORT_SECRET`, `MCP_URL`. Check `GET /api/health`.
-- [ ] **L7. The import** (owner types `production`): the size check of R11 step 1, then
-  `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode empty --used-today <USED>`.
-  Expected: "The count and the hash of each table match the source."
-- [ ] **L8. The directory and the owner**: the ops call of plan B writes the enterprise row of `ent_001` (address `vados`, name
-  "VADOs' Companies", Arabic name «شركات فادو», no limits, state `active`), the directory rows of every email of `ent_001`, and the
-  owner row (`ent_001`, the person id of the owner). Turn the Supabase 15-minute job off at the switch (pg_cron), so the summary
-  goes out once.
-- [ ] **L9. The switch** (owner OK): `config/server-host.json` production `office`, the release flow of `scripts/deploy/CLAUDE.md`
-  (`all.sh production`, run by the owner). Then the quick checks and one check by hand: the owner signs in, opens Home, a
-  project, a chat, a file, and the page "Madar enterprises". Then send the new invitations of L5 (an email to real people: the
-  owner's OK first).
+  «غداً بعد الدوام ننقل مدار إلى خوادم جديدة. يتوقف الحفظ نحو 40 دقيقة، وتبقى القراءة متاحة. بعد النقل، سجّل دخولك مرة واحدة بالبريد وكلمة المرور نفسها.
+  واربط وكيل الذكاء الاصطناعي من جديد مرة واحدة. تتوقف روابط الدعوة وإعادة كلمة المرور القديمة، فاطلب رابطًا جديدًا إن احتجته.»
+- [ ] **L5 to L9. The switch** (each step with the owner's OK). The steps and the exact commands are in `scripts/deploy/CLAUDE.md`, "The move of VADO (plan E)". That list replaces
+  the first text of these steps, for four reasons found on 2026-11-09: the company row comes BEFORE the import (the import needs the platform list to hold `ent_001`); plan F removed the owner row, so the
+  owner makes a platform account instead; saves stop first (`MADAR_WRITES_OFF`, owner: "Stop changes") and the 15-minute job sends the mails and pushes that wait before the import; and the
+  nightly backup moves to production. The check by hand opens the platform site at `platform.madar.vado.sa`, not a page in the app. Target: Thursday 2026-11-19, after office hours (owner, 2026-11-09). Add a What's new entry for the move.
 - [ ] **L10. The way back window**: 14 days. Each morning the lead reads the meters and the error records. A failure that the office
   path cannot fix in a day: the owner decides on R6 (the reverse export). After 14 days with no way back: the owner's OK to open
   `MADAR_ENTERPRISE_CREATE` in production, and a later owner decision on the Supabase projects.
