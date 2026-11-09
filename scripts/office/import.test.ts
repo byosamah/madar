@@ -1,11 +1,14 @@
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildSeed } from '../../src/data/seed';
 import { IMPORT_ROWS_PER_RECORD as PIN } from '../../server/office/test/pins';
 import { NODE_TODAY, nodeOffice } from '../../server/office/test/nodeOffice';
 import { recordDigest } from './digest';
-import { ArgumentError, budgetProblem, IMPORT_ROWS_PER_RECORD, importArguments, importOffice, officeNameOf, planParts, rowsToWrite, targetOf } from './import';
+import { ArgumentError, budgetProblem, checkImport, IMPORT_ROWS_PER_RECORD, importArguments, importOffice, officeNameOf, planParts, rowsToWrite, targetOf } from './import';
 import { partsOps, type OfficeOps } from './ops';
 import { stateSource } from './source';
 
@@ -119,12 +122,22 @@ describe('the arguments of the import (plan E, Task 2)', () => {
     }
   });
 
-  it('refuses --to production with a mode other than empty, in an error that names --mode', () => {
-    for (const mode of ['resume', 'replace']) {
+  it('takes --mode resume for a production target, so a failed import can be finished (plan E, Task G)', () => {
+    expect(plan([...prod, '--office', 'ent_001', '--mode', 'resume'])).toMatchObject({ target: { copy: 'production' }, office: 'ent_001', mode: 'resume', from: 'production', typed: 'write' });
+  });
+
+  it('still refuses --mode replace for a production target, and any unknown mode, in an error that names --mode', () => {
+    for (const mode of ['replace', 'drop', 'Resume', '']) {
       const run = () => plan([...prod, '--office', 'ent_001', '--mode', mode]);
-      expect(run).toThrow(ArgumentError);
-      expect(run).toThrow('--mode');
+      expect(run, mode).toThrow(ArgumentError);
+      expect(run, mode).toThrow('--mode');
     }
+  });
+
+  it('keeps every other check of a production target when the mode is resume', () => {
+    expect(() => plan([...prod, '--office', 'ent_002', '--mode', 'resume'])).toThrow('--office');
+    expect(() => plan([...prod, '--mode', 'resume'])).toThrow('--office');
+    expect(() => plan(['--from', 'test', '--to', 'https://madar.vado.sa', '--office', 'ent_001', '--mode', 'resume'])).toThrow('--from');
   });
 
   it('refuses --to production from any source but production, in an error that names --from', () => {
@@ -159,3 +172,45 @@ describe('the arguments of the import (plan E, Task 2)', () => {
     expect([wrongWord.status, wrongWord.stderr]).toEqual([1, expect.stringContaining('The typed word was not production. Nothing changed.')]);
   });
 });
+
+describe('the finish of a failed import (plan E, Task G)', () => {
+  it('a resume completes a half-filled object, and the count and hash check then finds no difference', async () => {
+    const t = await nodeOffice({ seed: false });
+    const inner = partsOps(t.parts);
+    const seed = await buildSeed(NODE_TODAY, async () => undefined);
+    const source = stateSource(seed, { server: { personSeq: [{ user_id: 'usr_001', seq: 3 }] } });
+    // The first run stops with a refusal (4xx) in the part of the tasks: the records before it stay in the object.
+    const stopping: OfficeOps = {
+      post: async <T,>(op: string, body: unknown): Promise<T> => {
+        if ((body as { table?: string }).table === 'tasks') throw new Error('The office op import answered 400: stop');
+        return inner.post<T>(op, body);
+      },
+    };
+    await expect(importOffice(stopping, source, { mode: 'empty', wait: async () => undefined })).rejects.toThrow(/answered 400/);
+    const half = t.raw.prepare('select count(*) as n from users').get() as { n: number };
+    expect(half.n).toBeGreaterThan(0);
+    expect(t.raw.prepare('select count(*) as n from tasks').get()).toEqual({ n: 0 });
+    // A second run in mode empty refuses the half-filled object.
+    await expect(importOffice(inner, source, { mode: 'empty', wait: async () => undefined })).rejects.toThrow(/answered 409/);
+    // Mode resume skips the parts that are there, writes the rest and the finish.
+    const report = await importOffice(inner, source, { mode: 'resume', wait: async () => undefined });
+    expect(report.skipped).toBeGreaterThan(0);
+    expect(t.raw.prepare('select count(*) as n from tasks').get()).toEqual({ n: Object.keys(seed.tasks).length });
+    const folder = mkdtempSync(join(tmpdir(), 'madar-import-resume-test-'));
+    const out = await checkImport(source, inner, { copy: 'local', folder });
+    expect(out.problems).toEqual([]);
+  });
+
+  it('the check names the table of a difference, so a resume that left a record out exits 1', async () => {
+    const t = await nodeOffice({ seed: false });
+    const inner = partsOps(t.parts);
+    const seed = await buildSeed(NODE_TODAY, async () => undefined);
+    const source = stateSource(seed);
+    await importOffice(inner, source, { mode: 'empty' });
+    t.raw.prepare('delete from comments where id = (select id from comments limit 1)').run();
+    const folder = mkdtempSync(join(tmpdir(), 'madar-import-resume-test-'));
+    const out = await checkImport(source, inner, { copy: 'local', folder });
+    expect(out.problems.join(' ')).toMatch(/comments: /);
+  });
+});
+

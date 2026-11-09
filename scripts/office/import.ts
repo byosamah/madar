@@ -6,7 +6,8 @@
 // It reads the source (Postgres inside one read-only snapshot, or an export folder), plans the parts, checks the Free day budget,
 // sends the parts, then exports the object and compares the count and the hash of each table with the source. A difference exits 1.
 // --from production reads production, only with the typed word production. It goes into a rehearsal name (the rehearsal of the move),
-// or into production itself (--to https://madar.vado.sa), and that needs --office ent_001, --mode empty and the typed word too.
+// or into production itself (--to https://madar.vado.sa), and that needs --office ent_001, the typed word, and --mode empty (the default)
+// or --mode resume (it finishes an import that failed half way). --mode replace is never allowed on production.
 // The secrets come from secrets/<copy>.env or from the environment (the local office); the script never prints them.
 // An argument that the script refuses ends with exit code 2, before any typed word, read or request.
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
@@ -234,8 +235,8 @@ export function importArguments(argv: readonly string[]): ImportArguments {
     // A write into production: one office, from production, into an empty object. Nothing else is safe to run by a typing mistake.
     if (from !== 'production') throw new ArgumentError('--to production takes only --from production.');
     if (office !== ENT_VADO) throw new ArgumentError(`--to production needs --office ${ENT_VADO}: it is the only object that the move fills.`);
-    if (mode !== 'empty') throw new ArgumentError('--to production needs --mode empty: a second run on a filled object is never a safe default.');
-    return { from, target, office, mode, typed: 'write' };
+    if (mode !== 'empty' && mode !== 'resume') throw new ArgumentError('--to production takes only --mode empty (the default) or --mode resume: replace would delete a filled object.');
+    return { from, target, office, mode: mode as ImportMode, typed: 'write' };
   }
   if (from === 'production' && (office === undefined || !REHEARSAL_NAME.test(office))) throw new ArgumentError('A copy of production goes only into a rehearsal name (--office rehearsal-YYYYMMDD).');
   return { from, target, office, mode: mode as ImportMode, typed: from === 'production' ? 'read' : undefined };
@@ -258,15 +259,21 @@ async function main(argv: string[]): Promise<void> {
   console.log(JSON.stringify(report));
   const folder = mkdtempSync(join(tmpdir(), `madar-office-check-${process.pid}-`));
   try {
-    await exportOffice(opsOf({ base: target.base, secret: secrets.exportSecret, header: EXPORT_SECRET_HEADER, ...(office ? { office } : {}) }), { copy: target.copy, folder });
-    const { compareImport } = await import('./compare');
-    const { problems, notes } = compareImport(source, folder);
+    // The check runs after every mode: a resume ends with the same count and hash check as a first import.
+    const { problems, notes } = await checkImport(source, opsOf({ base: target.base, secret: secrets.exportSecret, header: EXPORT_SECRET_HEADER, ...(office ? { office } : {}) }), { copy: target.copy, folder });
     for (const note of notes) console.log(`Note: ${note}`);
     if (problems.length > 0) throw new Error(`The office object differs from the source:\n${problems.join('\n')}`);
     console.log('The count and the hash of each table match the source.');
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
+}
+
+/** The count and hash check of an import: an export of the object into folder, compared with the source (spec section 4, step 6). */
+export async function checkImport(source: OfficeSource, exportOps: OfficeOps, o: { copy: Copy | 'local'; folder: string }): Promise<{ problems: string[]; notes: string[] }> {
+  await exportOffice(exportOps, o);
+  const { compareImport } = await import('./compare');
+  return compareImport(source, o.folder);
 }
 
 const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));

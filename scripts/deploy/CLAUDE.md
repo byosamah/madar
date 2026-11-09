@@ -221,8 +221,14 @@ The order of the production steps, with the script of each one (every script tha
 3. `npx tsx scripts/office/register-company.ts --to https://madar.vado.sa`: the row `ent_001` and the email directory. It must come BEFORE the import: the import into an
    enterprise id needs the platform list to hold the id (403 else). A second run keeps the row as it is and adds only missing emails.
 4. `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode empty --used-today <USED>`. A production target takes only
-   `--from production`, `--office ent_001` and `--mode empty`; any other value ends with exit code 2 before the typed word. A read of production into a rehearsal name on
-   the test copy works as before. The import carries the Google, Daftra and push rows (`server/office/CLAUDE.md`).
+   `--from production`, `--office ent_001` and `--mode empty` (the default) or `--mode resume`. Any other value, `--mode replace` included, ends with exit code 2 before
+   the typed word. A read of production into a rehearsal name on the test copy works as before. The import carries the Google, Daftra and push rows
+   (`server/office/CLAUDE.md`). The run ends with the count and hash check of each table; a difference exits 1.
+   - A failed import: the object holds part of the records, and `--mode empty` refuses it (409 `not_empty`). Finish it with the same command and `--mode resume`:
+     `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode resume --used-today <USED>`. A part that is there
+     is skipped, the rest is written, and the same check runs at the end. Run it only while the word of production is still `supabase`: the source must be the
+     live data. The row budget counts the whole office again, although the skipped parts write nothing. If it refuses, count the rows that remain before you
+     raise `--limit`. If the check after a resume finds a difference, do not run a third time: production has no replace and no drop, so ask the lead.
 5. The switch: `config/server-host.json` production `office`, then `all.sh production`. `secrets.ts production --office` and the Worker deploy (`--var MADAR_DATA:office`)
    run, and the platform site deploys for the first time.
 
