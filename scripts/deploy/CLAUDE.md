@@ -187,7 +187,8 @@ Madar enterprises is a separate site (design 12, D7): the Pages project `madar-p
 - Hosts: `preview.madar-platform-d6c.pages.dev` (test), `madar-platform-d6c.pages.dev` and, later, `platform.madar.vado.sa` (production). The
   table is `PLATFORM_HOSTS` in `server/core/serverHost.ts`, and `scripts/office/platform-account.ts` reads that one list. The custom domain
   `platform.madar.vado.sa` is on the project, with the CNAME `platform.madar` to `madar-platform-d6c.pages.dev` (2026-11-09). It serves an
-  error page until the production branch has a deploy, and that deploy waits for the move of VADO (production is `supabase`).
+  error page until the production branch has a deploy. Every `all.sh production` makes that deploy, also before the move of VADO: the page
+  then shows a sign-in that cannot work while production is `supabase`.
 - `config/pages-platform/wrangler.toml` is the config of this project only (never a `wrangler.toml` at the repo root: the project `madar`
   deploys from the root). It holds the name, `pages_build_output_dir = "../../dist-platform"`, the compatibility date, and the service
   bindings: `MADAR_SERVER_TEST` to `madar-server-test` in `env.preview`, and `MADAR_SERVER_PRODUCTION` to `madar-server-production` in
