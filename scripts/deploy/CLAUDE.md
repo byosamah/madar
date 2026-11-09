@@ -220,6 +220,8 @@ Load `~/dev/madar/.env.local` first (`SUPABASE_ACCESS_TOKEN`, `MADAR_DB_PASSWORD
 Before the evening:
 1. `npx tsx scripts/office/auth-key.ts production` (the sign-in key, straight into the Worker) and `npx tsx scripts/office/new-secret.ts production MADAR_OPS_SECRET` and
    `... MADAR_EXPORT_SECRET`. Then `all.sh production` deploys the Worker with the word still `supabase`: the objects, the Cron and the ops routes exist, the office path is off.
+   The Pages project needs its link to that Worker once: `npx tsx scripts/deploy/cloudflare-setup.ts --env production`, then `scripts/deploy/pages.sh production` (a Pages binding works only from the next Pages deploy; done 2026-11-09). While the word is `supabase`, only `/api/office/*` uses the link.
+   Check: `curl -i -X POST https://madar.vado.sa/api/office/enterprises` answers 401 with `x-madar-server: office;...`. A 404 with the text `Not found.` means that the link is missing: the import stops at its first request, and after the switch the site still goes to Supabase.
 
 The evening, after office hours:
 2. While people still save: the commit of the switch on main in `deploy-test` (`config/server-host.json` production `office`, and the What's new entry), then `all.sh test`. Production takes only the
