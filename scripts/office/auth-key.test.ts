@@ -15,9 +15,11 @@ describe('a new sign-in key (scripts/office/auth-key.ts)', () => {
     expect(await newAuthKey()).not.toBe(await newAuthKey());
   });
 
-  it('takes the test copy only before the switch of wave 6', () => {
-    expect(authKeyTarget(['test'])).toBe('test');
-    expect(() => authKeyTarget(['production'])).toThrow('wave 6');
-    expect(() => authKeyTarget([])).toThrow('wave 6');
+  it('takes the test copy, and production only with the typed word (plan E: the sign-in key is set before the switch)', () => {
+    expect(authKeyTarget(['test'])).toEqual({ target: 'test', typed: false });
+    expect(authKeyTarget(['production'])).toEqual({ target: 'production', typed: true });
+    expect(() => authKeyTarget([])).toThrow('test or production');
+    expect(() => authKeyTarget(['staging'])).toThrow('test or production');
+    expect(() => authKeyTarget(['Production'])).toThrow('test or production');
   });
 });

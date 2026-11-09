@@ -1,0 +1,47 @@
+# The Worker of production as it is BEFORE the switch (plan E), on local workerd for server/office/production.wd.test.ts. It runs the real bundle
+# entry (server/entries/workerMain.ts), with the bindings, migrations, Cron, binding SELF and public vars of [env.production] of
+# wrangler.server.toml, and no MADAR_DATA: the test sets that var in a second step, as scripts/deploy/worker.sh does at the switch. It never
+# deploys. The test passes the secrets, made for each run: none of them is a real key. The test also checks this file against the production env.
+name = "madar-production-shape"
+main = "../../../entries/workerMain.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[vars]
+WORKER_REGION = "workers-eu-central-1"
+MADAR_CRON_TRANSPORT = "self"
+# Values that production gets from its secrets file or from worker.sh, as fake local values.
+SUPABASE_URL = "http://127.0.0.1:54321"
+APP_URL = "https://madar.test"
+ALLOWED_ORIGINS = "https://madar.test"
+API_URL = "https://madar.test/api"
+MCP_URL = "https://madar.test/mcp"
+MAIL_FROM = "Madar <notices@madar.test>"
+MAIL_DRIVER = "outbox"
+MADAR_FILE_STORE = "r2"
+R2_BUCKET = "madar-files-test"
+
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "Office"
+
+[[durable_objects.bindings]]
+name = "PLATFORM"
+class_name = "Platform"
+
+[[migrations]]
+tag = "office-v1"
+new_sqlite_classes = ["Office"]
+
+[[migrations]]
+tag = "platform-v1"
+new_sqlite_classes = ["Platform"]
+
+# The Cron fan-out calls this Worker again for each enterprise. The test points the binding at this same Worker.
+[[services]]
+binding = "SELF"
+service = "madar-production-shape"
+
+[triggers]
+crons = ["*/15 * * * *"]

@@ -1,11 +1,12 @@
 // A new secret of an office copy (exit wave 4), typed by nobody and printed nowhere:
 //
-//   npx tsx scripts/office/new-secret.ts test MADAR_OPS_SECRET
+//   npx tsx scripts/office/new-secret.ts <test|production> MADAR_OPS_SECRET
 //   npx tsx scripts/office/new-secret.ts test MADAR_EXPORT_SECRET --github OFFICE_EXPORT_SECRET
 //
 // It makes 32 random bytes (base64url), adds the line NAME=<value> to secrets/<env>.env, and with --github sends the same value
 // to that GitHub secret of byosamah/madar on the stdin of gh. Then scripts/deploy/secrets.ts <env> gives it to the Worker.
-// The owner runs it in his Terminal (a GitHub write needs his OK). Production comes with the switch (wave 6).
+// The owner runs it in his Terminal (a GitHub write needs his OK). Production (plan E) writes only the file of production here: the nightly backup
+// uses one GitHub secret, so give OFFICE_EXPORT_SECRET the production value only together with vars.OFFICE_BACKUP_URL and OFFICE_BACKUP_COPY.
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
@@ -21,12 +22,12 @@ export function withSecretLine(text: string, name: string, value: string): strin
   return `${text.replace(/\n*$/, text === '' ? '' : '\n')}${name}=${value}\n`;
 }
 
-export type NewSecretArgs = { target: 'test'; name: (typeof NEW_SECRET_NAMES)[number]; github?: string };
+export type NewSecretArgs = { target: 'test' | 'production'; name: (typeof NEW_SECRET_NAMES)[number]; github?: string };
 
-/** The checked arguments: the test copy only, one of the two names, and --github only with the name of the export secret. */
+/** The checked arguments: the test copy or production, one of the two names, and --github only with the name of the export secret. */
 export function newSecretArgs(argv: readonly string[]): NewSecretArgs {
   const [target, name] = argv;
-  if (target !== 'test') throw new Error('Only the test copy takes a new office secret now; production comes with the switch (wave 6).');
+  if (target !== 'test' && target !== 'production') throw new Error('The copy must be test or production.');
   if (!(NEW_SECRET_NAMES as readonly string[]).includes(name ?? '')) throw new Error(`The name must be one of ${NEW_SECRET_NAMES.join(', ')}.`);
   const at = argv.indexOf('--github');
   const github = at === -1 ? undefined : argv[at + 1];

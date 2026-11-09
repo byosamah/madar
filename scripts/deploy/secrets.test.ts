@@ -847,8 +847,23 @@ describe('the Worker secrets of an office copy (exit wave 4)', () => {
     await expect(runOfficeSecrets({ target: 'test', text: office.replace(/^MCP_URL=.*\n/m, ''), dryRun: true, log: () => undefined, worker: worker() })).rejects.toThrow('MCP_URL is missing');
   });
 
-  it('takes no production copy before the switch of wave 6', async () => {
-    await expect(runOfficeSecrets({ target: 'production', text: office, dryRun: true, log: () => undefined, worker: worker() })).rejects.toThrow('wave 6');
+  it('takes the production copy (plan E): a dry run needs no typed word, a real run does, and CI never runs it', async () => {
+    const sent: string[] = [];
+    const logs: string[] = [];
+    await runOfficeSecrets({ target: 'production', text: office, dryRun: true, log: (line) => logs.push(line), worker: worker(sent) });
+    expect(logs.at(-1)).toContain('Dry run of the office copy production');
+    // The typed word comes from all.sh (MADAR_DEPLOY_CONFIRMED) or from the terminal; a wrong word or no way to ask changes nothing.
+    const base = { target: 'production' as const, text: office, dryRun: false, log: () => undefined };
+    await expect(runOfficeSecrets({ ...base, worker: worker(sent), env: {}, ask: async () => 'yes' })).rejects.toThrow(/typed word/);
+    await expect(runOfficeSecrets({ ...base, worker: worker(sent), env: {} })).rejects.toThrow(/typed word/);
+    await expect(runOfficeSecrets({ ...base, worker: worker(sent), env: { CI: 'true', MADAR_DEPLOY_CONFIRMED: 'production' }, ask: async () => 'production' })).rejects.toThrow(/from the Mac only/);
+    expect(sent).toEqual([]);
+    await runOfficeSecrets({ ...base, worker: worker(sent), env: {}, ask: async () => 'production' });
+    await runOfficeSecrets({ ...base, worker: worker(sent), env: { MADAR_DEPLOY_CONFIRMED: 'production' } });
+    expect(sent).toHaveLength(2);
+    // The test copy asks nothing.
+    await runOfficeSecrets({ target: 'test', text: office, dryRun: false, log: () => undefined, worker: worker(sent) });
+    expect(sent).toHaveLength(3);
   });
 
   it('gives the office secrets to the Worker on the Supabase path too, and never to the Supabase functions', async () => {

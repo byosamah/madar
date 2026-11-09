@@ -448,15 +448,26 @@ export function officeSecretsOf(values: Record<string, string>): Record<string, 
 export type OfficeSecretsRun = {
   target: Target; text: string; dryRun: boolean; log: (line: string) => void;
   worker: Pick<WorkerPort, 'exists' | 'secretBulk'>;
+  /** The typed word for production: MADAR_DEPLOY_CONFIRMED (all.sh asked) or one answer from the terminal. A dry run and the test copy need neither. */
+  env?: Record<string, string | undefined>;
+  ask?: (question: string) => Promise<string>;
 };
+
+/** A real run on production: the Mac only, and only after the typed word. all.sh asks once and sets MADAR_DEPLOY_CONFIRMED for its steps. */
+async function confirmOfficeProduction(run: OfficeSecretsRun): Promise<void> {
+  const env = run.env ?? {};
+  if (env.CI || env.GITHUB_ACTIONS) throw new Error('Production deploys run from the Mac only (plan, section 10, decision 9). GitHub deploys only the test project.');
+  if (env.MADAR_DEPLOY_CONFIRMED === 'production') return;
+  const word = run.ask ? await run.ask('This changes the Worker secrets of production. Type production to go on: ') : '';
+  if (word.trim() !== 'production') throw new Error('Stopped: the typed word was not production. Nothing changed.');
+}
 
 /**
  * secrets.ts <env> --office (exit wave 4): the Worker secrets of an office copy only. No Supabase token, no database password,
  * no Hyperdrive and no function secret: the Supabase project keeps its last state as the way back. The test copy only until the
- * switch of production (wave 6).
+ * switch of production (wave 6). Production joined it in plan E: a real run there needs the typed word.
  */
 export async function runOfficeSecrets(run: OfficeSecretsRun): Promise<void> {
-  if (run.target !== 'test') throw new Error('Only the test copy runs on its office object now; production comes with the switch (wave 6).');
   const values = parseSecretsFile(run.text, { file: `secrets/${run.target}.env` });
   if (!values.MCP_URL) throw new Error(`MCP_URL is missing in secrets/${run.target}.env: the own OAuth issuer comes from it.`);
   const secrets = officeSecretsOf(values);
@@ -466,6 +477,7 @@ export async function runOfficeSecrets(run: OfficeSecretsRun): Promise<void> {
     run.log(`Dry run of the office copy ${run.target}. Worker secrets: ${set.join(', ')}. Removed: ${removed.join(', ') || 'none'}. Kept: MADAR_SECRET_KEY, ${KEPT_ON_WORKER.join(', ')}.`);
     return;
   }
+  if (run.target === 'production') await confirmOfficeProduction(run);
   const name = COPY_HOSTS[run.target].workers.name;
   if (!(await run.worker.exists(name))) {
     run.log(`Skip: ${name} does not exist yet. Run scripts/deploy/worker.sh ${run.target} first.`);
@@ -524,7 +536,17 @@ if (isMain) {
   };
   if (args.includes('--office')) {
     // An office copy (exit wave 4): the Worker secrets only. No pg, no Supabase token, no database password.
-    await runOfficeSecrets({ target, text: readFileSync(file, 'utf8'), dryRun: args.includes('--dry-run'), log: (line) => console.log(line), worker: { exists, secretBulk } }).catch(failed);
+    const ask = async (question: string): Promise<string> => {
+      const reader = createInterface({ input: process.stdin, output: process.stderr });
+      try {
+        return await reader.question(question);
+      } catch {
+        return '';
+      } finally {
+        reader.close();
+      }
+    };
+    await runOfficeSecrets({ target, text: readFileSync(file, 'utf8'), dryRun: args.includes('--dry-run'), log: (line) => console.log(line), worker: { exists, secretBulk }, env: process.env, ask }).catch(failed);
     process.exit(0);
   }
   const { default: pg } = await import('pg');
