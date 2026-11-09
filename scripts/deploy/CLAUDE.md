@@ -232,6 +232,35 @@ The order of the production steps, with the script of each one (every script tha
 5. The switch: `config/server-host.json` production `office`, then `all.sh production`. `secrets.ts production --office` and the Worker deploy (`--var MADAR_DATA:office`)
    run, and the platform site deploys for the first time.
 
+### The way back (plan E)
+Warning first: the way back stays open for 14 days after the switch, and the owner says yes before either part. Supabase production stays deployed and
+unchanged. After writes, a write on the object after the export is lost, and each person who joined after the switch needs a new invitation. Run the Mac
+steps with the sandbox off.
+
+First, with no writes on the object yet (nobody wrote after the import):
+1. The owner says yes.
+2. Set the word of production back to `supabase` in `config/server-host.json`. Commit.
+3. `scripts/deploy/all.sh production`. The screens use the api function again, and the forwarders send `/api` and `/mcp` to the Supabase functions. The Worker is then
+   deployed with no `MADAR_DATA`, so the Cron of the object stops.
+4. Turn the Supabase 15-minute job on again in pg_cron (it is off since the switch), so the summary and the effects run on Supabase again.
+5. `scripts/deploy/checks.sh production` names `supabase` in `x-madar-server`. The owner signs in and opens Home.
+
+Second, after writes on the object:
+1. The owner says yes.
+2. Pause `ent_001` on the platform site (the typed company name). Nobody then writes on the object, and the export is the last state. Resume it before a new switch.
+3. Load `~/dev/madar/.env.local` (it holds `MADAR_DB_PASSWORD`). `secrets/production.env` holds `MADAR_EXPORT_SECRET`. Then run
+   `npx tsx scripts/office/reverse.ts --from-office https://madar.vado.sa --office ent_001 --to production --yes-replace`. It asks for the typed word `production`.
+   It refuses with exit code 2 a run with no `--yes-replace`, any other `--office`, an export folder as the source, or any source but the office of production.
+   A wrong typed word exits 1. Each refusal comes before any secret, network or database call.
+4. The script writes in one transaction: the records, the counters, the person numbers, the Google rows and the Daftra rows (nobody connects Google again, and the
+   accountant does not match the clients again). It empties only those tables and `office_copy` (the next read rebuilds it). The agent links, the effects that wait and
+   the meters of Supabase stay as they are (`REVERSE_SERVER_TABLES` names each server table). An error before the commit rolls everything back: run it again.
+5. The last line must say "Postgres holds the same records, counters, signal number, person numbers and Google and Daftra rows as the office object." A difference
+   exits 1 and names the tables. Do not switch then: ask the lead.
+6. The report names `needInvite`: the people who joined after the switch and have no Supabase sign-in. The Admin invites each one again. A password that a person changed
+   on the object does not travel: the old password works again.
+7. Do steps 2 to 5 of the first part (the word back, `all.sh production`, the Supabase job on, the checks).
+
 ## Other scripts
 - First Admin: `npx tsx scripts/first-admin.ts --env test|production|local --email --name --language --gender`.
   With no terminal, `--password-stdin` reads the typed word `production` and the password from one stdin.

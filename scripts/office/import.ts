@@ -117,15 +117,15 @@ export async function importOffice(
 }
 
 /**
- * The copy of a target address. Production is refused unless the caller asks for it (allowProduction): only the import and the register script of
- * the move do, each with its own checks and the typed word. The seed, the drop and the reverse export never do.
+ * The copy of a target address. Production is refused unless the caller asks for it (allowProduction): only the import, the register script and
+ * the reverse export of the move do, each with its own checks and the typed word (the reverse only for --to production). The seed and the drop never do.
  */
 export function targetOf(to: string, o: { allowProduction?: boolean } = {}): { copy: Copy | 'local'; base: string } {
   const url = new URL(to);
   if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') return { copy: 'local', base: url.origin };
   const copy = copyOfPageHost(url.hostname);
   if (!copy) throw new Error(`${url.host} is not a Madar copy.`);
-  if (copy === 'production' && o.allowProduction !== true) throw new Error('This script does not take production. Only scripts/office/import.ts and scripts/office/register-company.ts do (plan E).');
+  if (copy === 'production' && o.allowProduction !== true) throw new Error('This script does not take production. Only scripts/office/import.ts, scripts/office/register-company.ts and scripts/office/reverse.ts (with its own checks) do (plan E).');
   return { copy, base: url.origin };
 }
 
@@ -159,7 +159,9 @@ export type TypedWordFor = 'read' | 'write';
 export async function askTypedWord(prompt: string): Promise<string> {
   const reader = createInterface({ input: process.stdin, output: process.stderr });
   try {
-    return (await reader.question(prompt)).trim();
+    // A closed input (no terminal, an empty pipe) is no typed word: without this, the question never settles and the script ends with exit code 0.
+    const closed = new Promise<string>((resolve) => reader.once('close', () => resolve('')));
+    return (await Promise.race([reader.question(prompt), closed])).trim();
   } finally {
     reader.close();
   }

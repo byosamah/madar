@@ -99,7 +99,7 @@ describe('the import client (scripts/office/import.ts)', () => {
     expect(targetOf('https://preview.madar-46r.pages.dev').copy).toBe('test');
     expect(targetOf('http://127.0.0.1:8792').copy).toBe('local');
     expect(targetOf('https://madar.vado.sa', { allowProduction: true }).copy).toBe('production');
-    // The seed, the drop and the reverse export call targetOf with no option: none of them may write to production (plan E).
+    // The seed and the drop call targetOf with no option: neither may write to production. The reverse asks for it only with its own checks (plan E).
     for (const host of ['https://madar.vado.sa', 'https://www.madar.vado.sa', 'https://madar-46r.pages.dev']) expect(() => targetOf(host), host).toThrow('does not take production');
     expect(() => targetOf('https://example.com')).toThrow('not a Madar copy');
   });

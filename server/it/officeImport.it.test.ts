@@ -9,7 +9,7 @@ import { sourceDigests } from '../../scripts/office/compare';
 import { recordDigest } from '../../scripts/office/digest';
 import { importOffice } from '../../scripts/office/import';
 import { partsOps } from '../../scripts/office/ops';
-import { reverseExport } from '../../scripts/office/reverse';
+import { reverseExport, reverseKeys } from '../../scripts/office/reverse';
 import { exportSource, pgSource, stateSource } from '../../scripts/office/source';
 import { authAdminPort } from '../auth/admin';
 import { setAuthUserId } from '../data/officeCache';
@@ -61,6 +61,12 @@ describe('the Postgres source of an import on the local stack', () => {
     const admin = authAdminPort({ supabaseUrl: stack.apiUrl, secretKey: stack.secretKey });
     const { authUserId } = await admin.createUser(`reverse-${Date.now()}@madar.test`, 'a reverse test password');
     try {
+      // One row in each Google and Daftra table: the import carries them in, the reverse writes them back (plan E, Task H).
+      await client.query("insert into google_connections (id, user_id, sealed_token, calendar_id, state, connected_at, changed_at) values ('gcn_001', 'usr_002', 'v1.sealed', 'cal', 'ok', '2026-10-21T08:00:00Z', '2026-10-22T09:30:00Z')");
+      await client.query("insert into google_events (user_id, meeting_id, event_id, synced_rev, synced_at) values ('usr_002', 'mtg_001', 'e1', 4, '2026-10-25T07:00:00Z')");
+      await client.query("insert into google_calendars (user_id, calendar_id, changed_at) values ('usr_002', 'cal', '2026-10-21T08:00:00Z')");
+      await client.query("insert into daftra_clients (account, client_id, daftra_id, daftra_name, matched_by, matched_at) values ('vado', 'cli_001', '5521', 'Al Noor', 'usr_004', '2026-10-27T11:00:00Z')");
+      await client.query("insert into daftra_invoices (account, id, daftra_client_id, no, total_halalas, issued_on, created_at, payment_status, paid_on, draft, seen_at) values ('vado', '9001', '5521', '000412', 1250000, '2026-10-20', '2026-10-20T06:00:00Z', 2, null, true, '2026-10-29T05:00:00Z')");
       const linkFirst = rows as Parameters<typeof setAuthUserId>[0];
       expect(await setAuthUserId(linkFirst, 'usr_001', authUserId)).toBe(true);
       const first = await pgSource(rows);
@@ -80,7 +86,15 @@ describe('the Postgres source of an import on the local stack', () => {
         const second = await pgSource(rows);
         const a = sourceDigests(first);
         const b = sourceDigests(second);
-        for (const key of [...first.tables.map((x) => x.table), 'counters', 'person_seq', 'office_seq']) expect(b[key], key).toEqual(a[key]);
+        for (const key of reverseKeys(first)) expect(b[key], key).toEqual(a[key]);
+        expect(b.google_connections.rows).toBe(1);
+        expect(b.daftra_invoices.rows).toBe(1);
+        // The production reverse empties only what it writes back: a row of a table that it does not write back stays (plan E, Task H).
+        await client.query("insert into rate_limits (key, window_start, count) values ('k', now(), 1)");
+        await reverseExport(rows, exportSource(folder, { today: TODAY }), { lockKey: 7_310_001, today: TODAY, to: 'production' });
+        expect(await rows('select count(*)::int as n from rate_limits')).toEqual([{ n: 1 }]);
+        const third = sourceDigests(await pgSource(rows));
+        for (const key of reverseKeys(first)) expect(third[key], key).toEqual(a[key]);
       } finally {
         await client.query(`set search_path to ${SCHEMA}, public`);
         await dropSchema(client, back);
