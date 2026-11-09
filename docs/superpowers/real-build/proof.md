@@ -3345,3 +3345,18 @@ GitHub write and needs the owner's OK.
 - Time (2026-11-08 18:22 UTC, 20 rounds, the Mac): `scripts/proof/server-time.sh` measured the Supabase function (member 209 ms median,
   p25 163, p75 331); its page member leg got 401, because the script signs in with Supabase Auth and the office path takes only own tokens.
   20 rounds of `session.get` with an own token on the page: median 192 ms, p25 178, p75 220. The office path is faster, so it stays.
+
+## Madar enterprises: the platform site on the test copy (plan F, lead step 2, 2026-11-09)
+- The owner ran `all.sh test` on main 6b8cae76. pages.sh deployed the companies' site (preview.madar-46r.pages.dev), then
+  pages-platform.sh deployed the site Madar enterprises (deployment 6177adca, alias preview.madar-platform-d6c.pages.dev): 22 files,
+  `_headers`, the Worker bundle from `functions-platform` and `_routes.json`. Cloudflare took `config/pages-platform/wrangler.toml`
+  on the existing project with no error. The quick checks of test passed on the host office (colo JED).
+- Four requests from the Mac:
+  1. `GET /` on the platform site: 200, title "Madar enterprises".
+  2. `POST /api/platform/auth/token` with a wrong email and password: 401 `invalid_credentials`, header `x-madar-server: office;colo=JED`.
+     The proxy gives a plain 404 for a missing binding, so this answer proves that the preview binding `MADAR_SERVER_TEST` reaches
+     madar-server-test.
+  3. `POST /api/platform` with no token and no build header: 409 `client_outdated` from the office Worker (the build check runs first).
+  4. `POST /api/platform/auth/token` on preview.madar-46r.pages.dev: 404 "Not found." The company forwarder refuses the platform path.
+- The `platform-owners.ts` line of the section above is out of date: plan F removed that route and its script. A platform account now
+  comes from `scripts/office/platform-account.ts` (lead step 3).
