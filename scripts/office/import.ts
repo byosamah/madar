@@ -5,9 +5,10 @@
 //
 // It reads the source (Postgres inside one read-only snapshot, or an export folder), plans the parts, checks the Free day budget,
 // sends the parts, then exports the object and compares the count and the hash of each table with the source. A difference exits 1.
-// --from production reads production (only with the typed word production, and only into a rehearsal name). --to never takes
-// production before wave 6. The secrets come from secrets/test.env (the test copy) or from the environment (the local office); the
-// script never prints them.
+// --from production reads production, only with the typed word production. It goes into a rehearsal name (the rehearsal of the move),
+// or into production itself (--to https://madar.vado.sa), and that needs --office ent_001, --mode empty and the typed word too.
+// The secrets come from secrets/<copy>.env or from the environment (the local office); the script never prints them.
+// An argument that the script refuses ends with exit code 2, before any typed word, read or request.
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { tmpdir } from 'node:os';
@@ -17,7 +18,7 @@ import pg from 'pg';
 import { copyOfPageHost, type Copy } from '../../server/core/serverHost';
 import { EXPORT_SECRET_HEADER, OPS_SECRET_HEADER } from '../../server/entries/officeWorker';
 import { IMPORT_PART_ROWS, type ImportBegin, type ImportFinish, type ImportMode, type ImportPartAnswer } from '../../server/office/import';
-import { ENTERPRISE_ID } from '../../server/enterprise/ids';
+import { ENT_VADO, ENTERPRISE_ID } from '../../server/enterprise/ids';
 import { REHEARSAL_NAME } from '../../server/office/ops';
 import { exportOffice } from '../backup/officeExport';
 import { parseSecretsFile, POOLER_HOST, REFS } from '../deploy/secrets';
@@ -114,15 +115,17 @@ export async function importOffice(
   }
 }
 
-/** The copy of a target address. The production page host is refused until the switch of wave 6. */
+/** The copy of a target address. A write into production passes the checks of importArguments first. */
 export function targetOf(to: string): { copy: Copy | 'local'; base: string } {
   const url = new URL(to);
   if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') return { copy: 'local', base: url.origin };
   const copy = copyOfPageHost(url.hostname);
   if (!copy) throw new Error(`${url.host} is not a Madar copy.`);
-  if (copy === 'production') throw new Error('An import into production comes only with the switch (wave 6 of the exit plan).');
   return { copy, base: url.origin };
 }
+
+/** A refused argument. The script ends with exit code 2 for it, before any typed word, read or request. */
+export class ArgumentError extends Error {}
 
 /** The value after a flag, or the fallback when the flag is not there. */
 export function flagOf(argv: readonly string[], flag: string, fallback = ''): string {
@@ -144,10 +147,14 @@ export function officeSecretsOf(copy: Copy | 'local'): { ops: string; exportSecr
   return { ops, exportSecret };
 }
 
-async function typedWord(): Promise<string> {
+/** What the typed word is for: a read of production, or a write into production (which also reads it). */
+export type TypedWordFor = 'read' | 'write';
+
+async function typedWord(forWhat: TypedWordFor): Promise<string> {
   const reader = createInterface({ input: process.stdin, output: process.stderr });
   try {
-    return (await reader.question('This reads production. Type production to go on: ')).trim();
+    const what = forWhat === 'write' ? 'This writes the office of production into ent_001 on production' : 'This reads production';
+    return (await reader.question(`${what}. Type production to go on: `)).trim();
   } finally {
     reader.close();
   }
@@ -192,14 +199,42 @@ export function officeNameOf(flag: string | undefined): string | undefined {
   throw new Error('--office must be an enterprise id (ent_NNN) or a rehearsal name (rehearsal-YYYYMMDD), or left out for ent_001.');
 }
 
-async function main(argv: string[]): Promise<void> {
+export type ImportArguments = {
+  from: string;
+  target: ReturnType<typeof targetOf>;
+  office: string | undefined;
+  mode: ImportMode;
+  /** The typed word that the run needs: for a write into production, for a read of production, or none. */
+  typed: TypedWordFor | undefined;
+};
+
+/** The checks of the command line, in one place and with no outside work. Every refusal is an ArgumentError (exit code 2). */
+export function importArguments(argv: readonly string[]): ImportArguments {
   const from = flagOf(argv, '--from');
-  const target = targetOf(flagOf(argv, '--to'));
-  const office = officeNameOf(flagOf(argv, '--office') || undefined);
+  let target: ReturnType<typeof targetOf>;
+  let office: string | undefined;
+  try {
+    target = targetOf(flagOf(argv, '--to'));
+    office = officeNameOf(flagOf(argv, '--office') || undefined);
+  } catch (error) {
+    throw new ArgumentError(error instanceof Error ? error.message : String(error));
+  }
   const mode = flagOf(argv, '--mode', 'empty');
-  if (!MODES.includes(mode)) throw new Error('--mode must be empty, resume or replace.');
-  if (from === 'production' && (office === undefined || !REHEARSAL_NAME.test(office))) throw new Error('A copy of production goes only into a rehearsal name (--office rehearsal-YYYYMMDD).');
-  if (from === 'production' && (await typedWord()) !== 'production') throw new Error('The typed word was not production. Nothing changed.');
+  if (!MODES.includes(mode)) throw new ArgumentError('--mode must be empty, resume or replace.');
+  if (target.copy === 'production') {
+    // A write into production: one office, from production, into an empty object. Nothing else is safe to run by a typing mistake.
+    if (from !== 'production') throw new ArgumentError('--to production takes only --from production.');
+    if (office !== ENT_VADO) throw new ArgumentError(`--to production needs --office ${ENT_VADO}: it is the only object that the move fills.`);
+    if (mode !== 'empty') throw new ArgumentError('--to production needs --mode empty: a second run on a filled object is never a safe default.');
+    return { from, target, office, mode, typed: 'write' };
+  }
+  if (from === 'production' && (office === undefined || !REHEARSAL_NAME.test(office))) throw new ArgumentError('A copy of production goes only into a rehearsal name (--office rehearsal-YYYYMMDD).');
+  return { from, target, office, mode: mode as ImportMode, typed: from === 'production' ? 'read' : undefined };
+}
+
+async function main(argv: string[]): Promise<void> {
+  const { from, target, office, mode, typed } = importArguments(argv);
+  if (typed && (await typedWord(typed)) !== 'production') throw new Error('The typed word was not production. Nothing changed.');
   const today = new Date().toISOString().slice(0, 10);
   const source = await sourceFrom(from, today);
   const limit = Number(flagOf(argv, '--limit', String(IMPORT_DAY_LIMIT)));
@@ -210,7 +245,7 @@ async function main(argv: string[]): Promise<void> {
   if (argv.includes('--dry-run')) return;
   const secrets = officeSecretsOf(target.copy);
   const ops = opsOf({ base: target.base, secret: secrets.ops, header: OPS_SECRET_HEADER, ...(office ? { office } : {}) });
-  const report = await importOffice(ops, source, { mode: mode as ImportMode, limit, usedToday, log: (line) => console.log(line) });
+  const report = await importOffice(ops, source, { mode, limit, usedToday, log: (line) => console.log(line) });
   console.log(JSON.stringify(report));
   const folder = mkdtempSync(join(tmpdir(), `madar-office-check-${process.pid}-`));
   try {
@@ -229,6 +264,6 @@ const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) ==
 if (isMain) {
   main(process.argv.slice(2)).catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : String(error));
-    process.exit(1);
+    process.exit(error instanceof ArgumentError ? 2 : 1);
   });
 }

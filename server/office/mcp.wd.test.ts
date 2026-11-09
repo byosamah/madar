@@ -1,3 +1,4 @@
+import { SignJWT } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildSeed } from '../../src/data/seed';
 import { signAgentToken, signingKeysOf } from '../auth/own/keys';
@@ -47,6 +48,49 @@ describe('MCP through the office object on local workerd', () => {
     expect([401, 403]).toContain((await live.mcp(token, 'tools/list')).status);
     expect((await live.mcp(token, 'tools/call', { name: 'projects.list', arguments: {} })).body.result).toBeUndefined();
     expect((await live.mcp(null, 'tools/list')).status).toBe(401);
+  });
+});
+
+/**
+ * The old agent tokens after the move of VADO (plan E, Review Focus 3): a token of the Supabase key, and a token of the own key with no
+ * claim ent. The object refuses both with 401 and the challenge, never with a 500, so the AI app asks the person to connect again.
+ */
+describe('an old agent token on the office path (plan E)', () => {
+  let live: Awaited<ReturnType<typeof startLive>>;
+  beforeAll(async () => {
+    live = await startLive();
+  }, 120_000);
+  afterAll(async () => {
+    await live?.server.close();
+  });
+
+  /** The claims of an old Supabase agent token: no ent. It is signed here with the own key (no ent) or with a foreign key. */
+  const withNoEnt = async (key: CryptoKey, kid: string) => {
+    const { authId, clientId, sessionId } = await live.agent('usr_002');
+    const iat = Math.floor(Date.now() / 1000);
+    return new SignJWT({ role: 'authenticated', session_id: sessionId, client_id: clientId })
+      .setProtectedHeader({ alg: 'ES256', kid, typ: 'JWT' }).setIssuer((await signingKeysOf(live.jwk, MCP_URL)).issuer).setAudience((await signingKeysOf(live.jwk, MCP_URL)).mcpUrl)
+      .setSubject(authId).setIssuedAt(iat).setExpirationTime(iat + 900).sign(key);
+  };
+
+  it('answers 401 with WWW-Authenticate for an agent token of the own key that has no ent claim', async () => {
+    await live.fresh(await buildSeed(TODAY, async () => undefined));
+    const keys = await signingKeysOf(live.jwk, MCP_URL);
+    const answer = await live.mcp(await withNoEnt(keys.key, keys.kid), 'tools/list');
+    expect(answer.status).toBe(401);
+    expect(answer.headers.get('www-authenticate')).toMatch(/resource_metadata=/);
+    expect(answer.headers.get('www-authenticate')).toContain('error="invalid_token"');
+  });
+
+  it('answers 401 with WWW-Authenticate for an agent token that another key signed (the Supabase key), and for a tool call', async () => {
+    await live.fresh(await buildSeed(TODAY, async () => undefined));
+    const other = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const token = await withNoEnt(other.privateKey, 'supabase-key');
+    for (const [method, params] of [['tools/list', {}], ['tools/call', { name: 'projects.list', arguments: {} }]] as const) {
+      const answer = await live.mcp(token, method, params);
+      expect([method, answer.status]).toEqual([method, 401]);
+      expect(answer.headers.get('www-authenticate')).toMatch(/resource_metadata=/);
+    }
   });
 });
 

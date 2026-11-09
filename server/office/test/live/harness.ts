@@ -98,7 +98,7 @@ export async function startLive(o: { outside?: boolean } = {}) {
       });
       const text = await response.text();
       const json = text.startsWith('event:') ? text.split('\n').find((line) => line.startsWith('data: '))!.slice(6) : text;
-      return { status: response.status, body: (json ? JSON.parse(json) : {}) as { result?: Record<string, any>; error?: { message: string } } };
+      return { status: response.status, headers: response.headers, body: (json ? JSON.parse(json) : {}) as { result?: Record<string, any>; error?: { message: string } } };
     },
     open: (ticket: string) => openSocket(`${url.href.replace(/^http/, 'ws')}api/live?ticket=${ticket}`),
     evict: () => worker().evictDurableObject('OFFICE', { name: 'ent_001', webSockets: 'hibernate' }),
