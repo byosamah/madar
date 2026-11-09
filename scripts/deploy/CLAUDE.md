@@ -54,6 +54,7 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - Release history: `npx wrangler pages deployment list --project-name madar --environment production --json` gives each
   production commit (times only as "2 hours ago"); the "Release record: production at <commit>" commits give the exact time.
 - The test copy keeps every mail in `mail_outbox` and sends none. Show the owner a mail change from that table.
+  The first-Admin link of a company made on the platform site: `POST <page>/api/office/peek?office=ent_NNN`, header `x-madar-ops-secret` from `secrets/test.env`, body `{"text":"select to_email, tag, mail from mail_outbox order by id desc limit 5","values":[]}`. Try `ent_002` upward: an id that the platform does not list gives 403. A select with a wrong column gives 500. The mail holds the link twice: take the form with a plain `&`.
 - Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive. Push
   devices go too: turn the switch on again after a seed (and after the deploy suite, which seeds at its end).
 - The seed uploads the sample files to the file store of the test copy under real object keys, the pictures as PNG
@@ -97,6 +98,7 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   `echo production | scripts/deploy/all.sh production`.
 - A `!` command has no keyboard. Without `echo production |` it stops with "the typed word was not production" and changes
   nothing. The owner may also run the script in his Terminal window and type the word.
+- A `!` command that runs longer than 120 s moves to the background and goes on. The session gets a notice when it ends, and the output is in the task file. Tell the owner that this is normal, and never start a second copy.
 - After the owner asks, `echo production | scripts/deploy/all.sh production` (sandbox off, in the background) has passed the
   auto-mode check. If the check refuses it, hand the owner the `!` command. While it runs, the check can refuse an unrelated
   read-only Bash call as "Production Deploy": wait for the run to end. The push still needs the owner's `!`.
@@ -182,6 +184,8 @@ step: the file store does not follow the server host. No copy from R2 back to St
   `pagesFunctionsInvocationsAdaptiveGroups` (dimensions `scriptName`, `status`, `datetimeHour`) with
   `scripts/proof/do-socket/gql.mjs`; a stop is the status `exceededResources`, and a deleted Worker shows as `__unknown__`. Run
   `npx wrangler whoami` first when the query gives 401: it renews the OAuth token. Never take its "Upgrade" button.
+- The day meter: `scripts/proof/office-day/day.graphql` through `gql.mjs`. Trust `per[].sum.rowsRead` and `rowsWritten`. The request sums (`w`, `all`) are no count of the calls through the Pages binding: a run with more than 25 such calls moved them by 2 (2026-11-09).
+- Before the first production use of a path, compare production with the test copy: the names of `wrangler secret list --config wrangler.server.toml --env <copy> --format json`, `[env.<copy>]` of the toml, and `deployment_configs.<env>.services` of `GET /accounts/<id>/pages/projects/<name>`. Then call the route with no secret. The test copy can hide a missing production step: the Pages binding of production was missing until 2026-11-09.
 
 ## The platform site
 Madar enterprises is a separate site (design 12, D7): the Pages project `madar-platform`, its own build (`npm run build:platform`, folder
@@ -238,6 +242,7 @@ The evening, after office hours:
    the typed word. A read of production into a rehearsal name on the test copy works as before. The import carries the Google, Daftra and push rows
    (`server/office/CLAUDE.md`). It refuses to start while a mail or a push waits in Supabase (the object starts with an empty outbox). A row that keeps failing blocks it:
    read the `error` of that row, and ask the owner. The run ends with the count and hash check of each table; a difference exits 1.
+   `USED` is the sum of `per[].sum.rowsWritten` of `day.graphql` for the UTC day. The cost is records x 7.5 + 2,000, with the records of the `Source:` line of the import. The `rows` of the nightly backup holds more tables (8,561 against 6,157 records on 2026-11-09), so it overstates the cost.
    - A failed import: the object holds part of the records, and `--mode empty` refuses it (409 `not_empty`). Finish it with the same command and `--mode resume`:
      `npx tsx scripts/office/import.ts --from production --to https://madar.vado.sa --office ent_001 --mode resume --used-today <USED>`. A part that is there
      is skipped, the rest is written, and the same check runs at the end. Run it only while the word of production is still `supabase`: the source must be the
