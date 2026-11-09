@@ -170,9 +170,11 @@ step: the file store does not follow the server host. No copy from R2 back to St
 - `worker.sh` deploys `madar-server-<env>` from `wrangler.server.toml`. No Madar Worker has a workers.dev address
   (`workers_dev` and `preview_urls` false). A Worker fetch of a workers.dev address of the same account fails with error 1042,
   so Pages reaches the Worker only through its service binding. Never touch the Worker `binhindi-massing` of the same account.
-- `madar-server-production` has no Durable Object binding, no migration and no Cron (`migrations = []`, `crons = []`).
-  Wrangler prints one warning about `durable_objects` on each production deploy: this is expected. Count the Cron Triggers of
-  the account (Free allows 5) before you add one.
+- `madar-server-production` holds the bindings `OFFICE` and `PLATFORM`, the migrations `office-v1` and `platform-v1`, the Cron
+  `*/15 * * * *`, the service binding `SELF` to itself and the var `MADAR_CRON_TRANSPORT = "self"` (plan E). It never holds
+  `MADAR_TEST_TOOLS`, `MADAR_DAY_CAP` or `MADAR_DATA` in the toml: only `worker.sh` sets `MADAR_DATA`, from the host word, so the Cron
+  does nothing and the office path stays off while production is `supabase` (the ops routes under `/api/office/` still work). The
+  account uses 1 of its 5 free Cron Triggers for the test Worker, and production takes one more.
 - Cloudflare mails "[Action required] Workers CPU limit exceeded" once a day while any Worker of the account (also a probe) hits
   the Free CPU limit in the last 24 hours. Find the source: query `workersInvocationsAdaptive` and
   `pagesFunctionsInvocationsAdaptiveGroups` (dimensions `scriptName`, `status`, `datetimeHour`) with

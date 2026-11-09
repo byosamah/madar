@@ -6,7 +6,7 @@ import setting from '../../config/server-host.json' with { type: 'json' };
  * the way back.
  *
  * config/server-host.json holds one word for each copy: "supabase", "workers", or "office" (the office object of the copy, Supabase
- * exit; the test copy only until wave 6, OFFICE_COPIES_OPEN). It is in git, so a switch goes through the
+ * exit; OFFICE_COPIES_OPEN lists the copies that may take it). It is in git, so a switch goes through the
  * release flow (scripts/deploy/CLAUDE.md). The word only picks one of the two fixed targets below, so no step ever takes a
  * free address. Every place that must follow the switch reads it here:
  *   - scripts/build-remote.ts: the API address of the screens (VITE_API_URL),
@@ -24,10 +24,10 @@ export type ServerHost = (typeof SERVER_HOSTS)[number];
 export type ServerHostSetting = Readonly<Record<Copy, ServerHost>>;
 
 /**
- * The copies that may take the word office now (exit wave 4). Production takes it at the switch (wave 6 of the exit plan), in the
- * same commit that adds its office binding and its Cron; until then the setting refuses it.
+ * The copies that may take the word office. Production joined the test copy in plan E: its Worker now holds the office and platform
+ * objects and the Cron (wrangler.server.toml). The file config/server-host.json decides when production takes the word.
  */
-export const OFFICE_COPIES_OPEN: readonly Copy[] = ['test'];
+export const OFFICE_COPIES_OPEN: readonly Copy[] = ['test', 'production'];
 
 /** True when the Worker of the copy serves its /api and /mcp: the Postgres path (workers) or the office object (office). */
 export function onWorker(host: ServerHost): boolean {
@@ -98,7 +98,7 @@ export function parseServerHostSetting(value: unknown): ServerHostSetting {
     if (!(SERVER_HOSTS as readonly unknown[]).includes(word)) throw new Error(`config/server-host.json: ${copy} must be supabase, workers or office.`);
     out[copy] = word as ServerHost;
     if (word === 'office' && !OFFICE_COPIES_OPEN.includes(copy)) {
-      throw new Error(`config/server-host.json: ${copy} takes office only at the switch (wave 6 of the exit plan). Keep supabase or workers until then.`);
+      throw new Error(`config/server-host.json: ${copy} may not take office. Use supabase or workers.`);
     }
   }
   return out;

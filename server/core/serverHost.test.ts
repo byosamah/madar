@@ -4,6 +4,7 @@ import {
   COPIES,
   SERVER_HOSTS,
   COPY_HOSTS,
+  OFFICE_COPIES_OPEN,
   PAGE_HOSTS,
   PROJECT_REFS,
   SERVER_HOST_SETTING,
@@ -115,9 +116,11 @@ describe('the host word office (exit wave 4)', () => {
     expect([onWorker('supabase'), onWorker('workers'), onWorker('office')]).toEqual([false, true, true]);
   });
 
-  it('refuses production: office until wave 6, with a message that names the wave', () => {
-    expect(() => parseServerHostSetting({ test: 'office', production: 'office' })).toThrow(/production.*wave 6/);
+  it('takes production: office after the enterprise move (plan E, Task 1)', () => {
+    expect(parseServerHostSetting({ test: 'office', production: 'office' })).toEqual({ test: 'office', production: 'office' });
+    expect(OFFICE_COPIES_OPEN).toEqual(['test', 'production']);
   });
+
 
   it('names the three words in the message of a wrong word', () => {
     expect(() => parseServerHostSetting({ test: 'pages', production: 'supabase' })).toThrow('test must be supabase, workers or office.');

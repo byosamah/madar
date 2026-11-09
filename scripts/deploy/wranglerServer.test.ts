@@ -47,8 +47,8 @@ describe('wrangler.server.toml', () => {
         expect(env.hyperdrive[0].id).toMatch(/^[0-9a-f]{32}$/);
       });
 
-      it('holds the public vars SUPABASE_URL of its own project and a region label that starts no MCP hop, the test tools and the day cap on the test Worker only, and nothing else', () => {
-        const office = copy === 'test' ? ['MADAR_CRON_TRANSPORT', 'MADAR_DAY_CAP', 'MADAR_TEST_TOOLS'] : [];
+      it('holds the public vars SUPABASE_URL of its own project and a region label that starts no MCP hop, the Cron transport on both, the test tools and the day cap on the test Worker only, and nothing else', () => {
+        const office = copy === 'test' ? ['MADAR_CRON_TRANSPORT', 'MADAR_DAY_CAP', 'MADAR_TEST_TOOLS'] : ['MADAR_CRON_TRANSPORT'];
         expect(Object.keys(env.vars).sort()).toEqual([...office, 'SUPABASE_URL', 'WORKER_REGION']);
         expect(env.vars.SUPABASE_URL).toBe(COPY_HOSTS[copy].supabaseUrl);
         expect(env.vars.WORKER_REGION).toBe('workers-eu-central-1');
@@ -100,18 +100,18 @@ describe('the office object in wrangler.server.toml (exit wave 3)', () => {
   const file = fileURLToPath(new URL('../../wrangler.server.toml', import.meta.url));
   const read = (env?: 'test' | 'production') => unstable_readConfig({ config: file, env }, { hideWarnings: true });
 
-  it('gives the office object to local runs and to the test Worker, and none to production', () => {
-    // Madar enterprises: the platform object next to the office object (migration platform-v1). Production has neither before the switch.
+  it('gives the office object and the platform object to local runs, to the test Worker and to production (plan E)', () => {
     const office = [{ name: 'OFFICE', class_name: 'Office' }, { name: 'PLATFORM', class_name: 'Platform' }];
-    expect(read().durable_objects.bindings).toEqual(office);
-    expect(read('test').durable_objects.bindings).toEqual(office);
-    expect(read('production').durable_objects.bindings).toEqual([]);
-    expect(read('test').migrations).toEqual([{ tag: 'office-v1', new_sqlite_classes: ['Office'] }, { tag: 'platform-v1', new_sqlite_classes: ['Platform'] }]);
-    expect(read('production').migrations).toEqual([]);
+    const migrations = [{ tag: 'office-v1', new_sqlite_classes: ['Office'] }, { tag: 'platform-v1', new_sqlite_classes: ['Platform'] }];
+    for (const env of [undefined, 'test', 'production'] as const) {
+      expect(read(env).durable_objects.bindings).toEqual(office);
+      expect(read(env).migrations).toEqual(migrations);
+    }
   });
 
-  it('sets MADAR_DATA in no env, so no deployed Worker takes the office path in wave 3', () => {
+  it('sets MADAR_DATA in no env: only scripts/deploy/worker.sh sets it, from the host word, so the Cron of production stays inert until the word is office', () => {
     for (const env of [undefined, 'test', 'production'] as const) expect(read(env).vars.MADAR_DATA).toBeUndefined();
+    expect(workerConfigOf(toml, 'production').vars).not.toHaveProperty('MADAR_DATA');
   });
 
   it('gives the test Worker the day cap and the test tools, and production and local runs neither (exit wave 4)', () => {
@@ -123,17 +123,19 @@ describe('the office object in wrangler.server.toml (exit wave 3)', () => {
       expect(read(env).vars.MADAR_TEST_TOOLS).toBeUndefined();
       expect(read(env).vars.MADAR_DAY_CAP).toBeUndefined();
     }
+    expect(workerConfigOf(toml, 'production').vars).not.toHaveProperty('MADAR_TEST_TOOLS');
+    expect(workerConfigOf(toml, 'production').vars).not.toHaveProperty('MADAR_DAY_CAP');
   });
 
-  it('sends the Cron legs through the binding SELF on the test Worker (spike S1), and sets the transport on no other env', () => {
+  it('sends the Cron legs through the binding SELF on the test Worker and on production, and sets the transport on no other env', () => {
     expect(read('test').vars.MADAR_CRON_TRANSPORT).toBe('self');
     expect(read('test').services).toEqual([{ binding: 'SELF', service: 'madar-server-test' }]);
-    for (const env of [undefined, 'production'] as const) expect(read(env).vars.MADAR_CRON_TRANSPORT).toBeUndefined();
+    expect(read('production').vars.MADAR_CRON_TRANSPORT).toBe('self');
+    expect(read('production').services).toEqual([{ binding: 'SELF', service: 'madar-server-production' }]);
+    expect(read().vars.MADAR_CRON_TRANSPORT).toBeUndefined();
   });
 
-  it('runs the 15-minute Cron on local runs and on the test Worker, and none on production', () => {
-    expect(read().triggers.crons).toEqual(['*/15 * * * *']);
-    expect(read('test').triggers.crons).toEqual(['*/15 * * * *']);
-    expect(read('production').triggers.crons).toEqual([]);
+  it('runs the 15-minute Cron on local runs, on the test Worker and on production', () => {
+    for (const env of [undefined, 'test', 'production'] as const) expect(read(env).triggers.crons).toEqual(['*/15 * * * *']);
   });
 });
