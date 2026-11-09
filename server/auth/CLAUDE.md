@@ -40,6 +40,9 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
 - Reason: Auth confirms the email and stores a password value as soon as an invite link opens.
 - The screens set the mark with each password save and after a password sign-in.
 - `users.invites`, the renew route and the `auth.email` effect all use this rule. Keep them the same.
+- `scripts/office/invited.ts` (the list of open invitations before the move of VADO) reads the same rule straight from Postgres, read only, because production
+  has no Admin token on the Mac. Its SQL (`INVITED_SQL`) names the mark and the confirmed email. Change it with the rule. An old invitation or reset link has no
+  enterprise tag after the move, and the sign-in steps answer it with `link_ended` (`enterpriseLeaks.test.ts`).
 
 ## Email change and turn-off
 - Only an Admin changes an email, never through an agent. After acceptance the old address gets a notice (no link).

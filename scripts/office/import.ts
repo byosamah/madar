@@ -150,18 +150,23 @@ export function officeSecretsOf(copy: Copy | 'local'): { ops: string; exportSecr
 /** What the typed word is for: a read of production, or a write into production (which also reads it). */
 export type TypedWordFor = 'read' | 'write';
 
-async function typedWord(forWhat: TypedWordFor): Promise<string> {
+/** Asks one question on the terminal (the prompt goes to stderr) and gives the answer, trimmed. The scripts that touch production use it for the typed word. */
+export async function askTypedWord(prompt: string): Promise<string> {
   const reader = createInterface({ input: process.stdin, output: process.stderr });
   try {
-    const what = forWhat === 'write' ? 'This writes the office of production into ent_001 on production' : 'This reads production';
-    return (await reader.question(`${what}. Type production to go on: `)).trim();
+    return (await reader.question(prompt)).trim();
   } finally {
     reader.close();
   }
 }
 
+function typedWord(forWhat: TypedWordFor): Promise<string> {
+  const what = forWhat === 'write' ? 'This writes the office of production into ent_001 on production' : 'This reads production';
+  return askTypedWord(`${what}. Type production to go on: `);
+}
+
 /** Postgres of a copy as postgres, through the session pooler, with the Supabase root certificate (the rights of the backup). */
-async function postgresOf(from: 'test' | 'production' | 'local'): Promise<pg.Client> {
+export async function postgresOf(from: 'test' | 'production' | 'local'): Promise<pg.Client> {
   if (from === 'local') {
     const client = new pg.Client({ connectionString: 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' });
     await client.connect();

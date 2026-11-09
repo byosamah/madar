@@ -220,6 +220,26 @@ describe('the leak tests of two enterprises with the same record ids', () => {
     expect(projectsTwo.text).not.toContain(ONE_WORD);
   });
 
+  it('answers the calm link error for an old invitation or reset link that has no enterprise tag, and never opens an office (plan E, Review Focus 1)', async () => {
+    const t = await world();
+    const post = async (path: string, body: unknown) => {
+      const answer = await t.route(httpOf('POST', path, body));
+      return { status: answer.status, body: parse(answer.body) };
+    };
+    // The link of the Supabase days: 64 hex characters, no "<ent>." in front. The screen reads reason link_ended and offers "Send me a new link".
+    for (const type of ['invite', 'recovery']) {
+      const old = await post('/api/auth/verify', { token_hash: 'a'.repeat(64), type });
+      expect([type, old.status]).toEqual([type, 401]);
+      expect(old.body.error).toMatchObject({ code: 'unauthenticated', message: 'This link ended. Ask for a new one.', details: { reason: 'link_ended' } });
+      expect(JSON.stringify(old.body)).not.toMatch(/ent_00\d/);
+    }
+    // The renew key of an old mail has no tag either: the same answer as a key that no row holds, and no object is made.
+    const renew = await post('/api/auth/renew-invite', { key: 'A'.repeat(52) });
+    const nothing = await post('/api/auth/renew-invite', { key: `${ENT_VADO}.${'A'.repeat(52)}` });
+    expect(renew).toEqual(nothing);
+    expect(t.created).toEqual([ENT_VADO]);
+  });
+
   it('an unknown email, an untagged link, ent_999.abc, ENT_001.abc, /mcp/nope and /mcp/OAUTH give the answer of wrong credentials, wait, and make no new object', async () => {
     const sleeps: number[] = [];
     const t = await world({ sleeps });
