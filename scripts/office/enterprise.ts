@@ -65,7 +65,7 @@ export async function fakeEnterpriseSource(o: { now: Date; passwords: Readonly<R
  * header only, never into a log line or an error text. It takes no ?office= and makes no object.
  */
 export async function registerEnterprise(
-  base: string, secret: string, input: { row: EnterpriseRow; emails: string[] }, send: typeof fetch = fetch,
+  base: string, secret: string, input: { row: EnterpriseRow; emails: string[]; keepExisting?: boolean }, send: typeof fetch = fetch,
 ): Promise<void> {
   const response = await send(new URL('/api/office/platform-register', base).toString(), {
     method: 'POST', headers: { 'content-type': 'application/json', [OPS_SECRET_HEADER]: secret }, body: JSON.stringify(input),

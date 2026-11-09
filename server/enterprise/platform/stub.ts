@@ -40,8 +40,8 @@ export type PlatformStub = {
   meterToday(input: { day: string }): Promise<{ account: DayCounts; byEnterprise: { ent: EnterpriseId; counts: DayCounts }[] }>;
   /** A place in the mail pool of the account (plan D). The ref is the scoped idempotency key of the mail: a repeat of a ref takes no new place. */
   mailReserve(input: { ent: EnterpriseId; kind: 'signin' | 'notice'; day: string; ref: string }): Promise<'ok' | 'full'>;
-  /** Ops secret only. Upserts a row in any state and reserves its emails. */
-  register(input: { row: EnterpriseRow; emails: string[] }): Promise<void>;
+  /** Ops secret only. Upserts a row in any state and reserves its emails. With keepExisting a row that is there stays as it is. */
+  register(input: { row: EnterpriseRow; emails: string[]; keepExisting?: boolean }): Promise<void>;
   /**
    * Counts one hit of the network address for a step, before the Worker chooses the enterprise (design 5.2). It is the only count of the
    * address for these steps: the enterprise objects and the refuse steps get addressChecked and skip their own. The limits of the email

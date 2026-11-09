@@ -69,7 +69,7 @@ export class Platform extends DurableObject<Env> implements PlatformStub {
     return this.parts.mailReserve(input);
   }
 
-  register(input: { row: EnterpriseRow; emails: string[] }) {
+  register(input: { row: EnterpriseRow; emails: string[]; keepExisting?: boolean }) {
     return this.parts.register(input);
   }
 

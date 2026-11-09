@@ -162,7 +162,7 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
       return db.tx('write', (q) => mailReserve(q, input, { limit: plan.limits.mails, share: plan.share }));
     },
 
-    async register({ row, emails }: { row: EnterpriseRow; emails: string[] }) {
+    async register({ row, emails, keepExisting }: { row: EnterpriseRow; emails: string[]; keepExisting?: boolean }) {
       entOf(row.id);
       const keys = [...new Set(emails.map(normalizeEmail))];
       await db.tx('write', async (q) => {
@@ -173,10 +173,13 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
         }
         const [other] = await q<{ id: string }>('select id from enterprises where address = ?1 and id <> ?2', [row.address, row.id]);
         if (other) throw new ApiError('conflict', 'This address name is taken.', { reason: 'address_taken' });
+        // keepExisting (the move script of VADO, run again): a row that is there stays as it is, so a later pause, limit or new name survives.
+        const onConflict = keepExisting === true
+          ? 'on conflict (id) do nothing'
+          : 'on conflict (id) do update set address = excluded.address, state = excluded.state, name = excluded.name, name_ar = excluded.name_ar, '
+            + 'limits = excluded.limits, first_admin = excluded.first_admin';
         await q(
-          'insert into enterprises (id, address, state, name, name_ar, limits, created_at, first_admin) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) '
-          + 'on conflict (id) do update set address = excluded.address, state = excluded.state, name = excluded.name, name_ar = excluded.name_ar, '
-          + 'limits = excluded.limits, first_admin = excluded.first_admin',
+          `insert into enterprises (id, address, state, name, name_ar, limits, created_at, first_admin) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) ${onConflict}`,
           [row.id, row.address, row.state, row.name, row.nameAr, JSON.stringify(row.limits), row.createdAt, JSON.stringify(row.firstAdmin)]);
         for (const key of keys) await q('insert into emails (email, ent) values (?1, ?2) on conflict (email) do nothing', [key, row.id]);
       });

@@ -656,6 +656,13 @@ describe('the office ops behind their secrets (exit wave 4)', () => {
       expect(created).toEqual([]);
     });
 
+    it('platform-register passes keepExisting on, and refuses a value that is not a boolean', async () => {
+      const { routes, platformCalls } = opsRoutes();
+      expect((await send(routes, 'platform-register', { row, emails: [], keepExisting: 'yes' })).status).toBe(400);
+      expect((await send(routes, 'platform-register', { row, emails: ['hana@globex.test'], keepExisting: true })).status).toBe(200);
+      expect(platformCalls).toEqual([{ method: 'register', input: { row, emails: ['hana@globex.test'], keepExisting: true } }]);
+    });
+
     it('platform-accounts needs the ops secret, refuses a bad body, answers the account with no password and no hash, and passes a refusal on', async () => {
       const { routes, platformCalls, created } = opsRoutes();
       const body = { action: 'create', email: 'boss@x.test', name: 'The Boss', password: 'a long platform password' };

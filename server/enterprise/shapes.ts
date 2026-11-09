@@ -31,4 +31,5 @@ export const PlatformAccountsBodyShape = z.object({
   password: z.string().min(1).max(200).optional(),
 }).strict();
 
-export const RegisterBodyShape = z.object({ row: EnterpriseRowShape, emails: z.array(z.string().trim().min(3).max(254)).max(500) });
+/** keepExisting (optional): a row that is there stays as it is; only the missing emails are added. The move script of VADO sets it. */
+export const RegisterBodyShape = z.object({ row: EnterpriseRowShape, emails: z.array(z.string().trim().min(3).max(254)).max(500), keepExisting: z.boolean().optional() });

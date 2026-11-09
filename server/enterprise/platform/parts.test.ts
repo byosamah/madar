@@ -82,6 +82,24 @@ describe('the list of enterprises', () => {
     expect(await parts.resolveEmail({ email: 'c@x.test' })).toBeNull();
   });
 
+  it('register with keepExisting leaves the row as it is (state, limits, names) and still adds the missing emails', async () => {
+    const { parts, raw } = await platform();
+    await parts.register({ row: row('ent_001', 'vados'), emails: ['a@x.test'] });
+    // The platform paused the enterprise and set a limit meanwhile. A second run of the move script must not undo that.
+    await parts.register({ row: row('ent_001', 'vados', { state: 'paused', name: 'Paused name', limits: { people: 10, storageBytes: null } }), emails: [] });
+    await parts.register({ row: row('ent_001', 'vados', { name: 'Script name' }), emails: ['a@x.test', 'B@x.test'], keepExisting: true });
+    expect(raw.prepare('select state, name, limits from enterprises where id = ?').get('ent_001')).toEqual({ state: 'paused', name: 'Paused name', limits: JSON.stringify({ people: 10, storageBytes: null }) });
+    expect(await parts.resolveEmail({ email: 'b@x.test' })).toEqual({ ent: 'ent_001' });
+    // With no row yet, keepExisting writes the row.
+    await parts.register({ row: row('ent_002', 'globex'), emails: [], keepExisting: true });
+    expect(raw.prepare('select address from enterprises where id = ?').get('ent_002')).toEqual({ address: 'globex' });
+    // An address that another enterprise holds is still refused, and an email of another enterprise is still a conflict.
+    await expect(parts.register({ row: row('ent_003', 'vados'), emails: [], keepExisting: true })).rejects.toMatchObject({ details: { reason: 'address_taken' } });
+    await expect(parts.register({ row: row('ent_001', 'vados'), emails: ['b@x.test'], keepExisting: true })).resolves.toBeUndefined();
+    await parts.register({ row: row('ent_002', 'globex'), emails: ['c@x.test'] });
+    await expect(parts.register({ row: row('ent_001', 'vados'), emails: ['c@x.test'], keepExisting: true })).rejects.toMatchObject({ code: 'conflict' });
+  });
+
   it('register refuses an address name that another enterprise holds', async () => {
     const { parts } = await platform();
     await parts.register({ row: row('ent_001', 'vados'), emails: [] });
