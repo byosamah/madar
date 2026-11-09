@@ -159,9 +159,14 @@ step: the file store does not follow the server host. No copy from R2 back to St
   belongs to someone else). R2 buckets: `madar-files-test` and `madar-files`, both EU.
 - wrangler 4.147+ sends `pages project create` to the new Workers path. The project exists, so `pages deploy` works.
 - Pages custom domains go through the Cloudflare API with the wrangler login token (`npx wrangler whoami` refreshes it;
-  `oauth_token` in `~/Library/Preferences/.wrangler/config/default.toml`).
+  `oauth_token` in `~/Library/Preferences/.wrangler/config/default.toml`): `POST /accounts/<id>/pages/projects/<project>/domains` with
+  `{"name":"<host>"}`, and `GET .../domains/<host>` for the status. Add the domain before the owner adds the CNAME: a CNAME first gives error 522.
 - vado.sa DNS is in a Vercel team that the CLI cannot see. Give the owner the records, and he adds them himself.
   Never pay Vercel.
+- Check a new vado.sa record at `@ns1.vercel-dns.com`. A public resolver that you ask before the record exists keeps "no record" for 600 s
+  (the SOA minimum).
+- The CAA records of vado.sa allow letsencrypt.org, pki.goog, sectigo.com and ssl.com (Pages took pki.goog). Another provider needs a CAA
+  record first.
 - `worker.sh` deploys `madar-server-<env>` from `wrangler.server.toml`. No Madar Worker has a workers.dev address
   (`workers_dev` and `preview_urls` false). A Worker fetch of a workers.dev address of the same account fails with error 1042,
   so Pages reaches the Worker only through its service binding. Never touch the Worker `binhindi-massing` of the same account.
@@ -180,8 +185,9 @@ Madar enterprises is a separate site (design 12, D7): the Pages project `madar-p
 - The project exists (the lead made it, 2026-11-08). Cloudflare gave it the address `madar-platform-d6c.pages.dev`, because the pages.dev names
   are global (the project `madar` has `madar-46r` for the same reason). `madar-platform.pages.dev` is not ours.
 - Hosts: `preview.madar-platform-d6c.pages.dev` (test), `madar-platform-d6c.pages.dev` and, later, `platform.madar.vado.sa` (production). The
-  table is `PLATFORM_HOSTS` in `server/core/serverHost.ts`, and `scripts/office/platform-account.ts` reads that one list. The DNS record of
-  the own address is an owner step, like every vado.sa record, and so is the custom domain on the project.
+  table is `PLATFORM_HOSTS` in `server/core/serverHost.ts`, and `scripts/office/platform-account.ts` reads that one list. The custom domain
+  `platform.madar.vado.sa` is on the project, with the CNAME `platform.madar` to `madar-platform-d6c.pages.dev` (2026-11-09). It serves an
+  error page until the production branch has a deploy, and that deploy waits for the move of VADO (production is `supabase`).
 - `config/pages-platform/wrangler.toml` is the config of this project only (never a `wrangler.toml` at the repo root: the project `madar`
   deploys from the root). It holds the name, `pages_build_output_dir = "../../dist-platform"`, the compatibility date, and the service
   bindings: `MADAR_SERVER_TEST` to `madar-server-test` in `env.preview`, and `MADAR_SERVER_PRODUCTION` to `madar-server-production` in
@@ -195,8 +201,8 @@ Madar enterprises is a separate site (design 12, D7): the Pages project `madar-p
   `config/pages-platform`. `pages deploy` has no config flag: wrangler reads `wrangler.toml` from its working folder, and it takes the output
   folder from `pages_build_output_dir`. Branch `preview` for test, `main` for production. It needs no `config/remote.<env>.env` and no Supabase
   value: the site talks to its own `/api/platform`. The headers come from `config/headers.platform` (the own origin only).
-- Owner steps (each with his OK, outside the repo): the DNS record and the custom domain of `platform.madar.vado.sa`. The bindings need no
-  step: the next deploy sets them from the config file. Without a binding the function answers 404 and logs one warning line. A platform
+- The bindings need no step: the next deploy sets them from the config file. Without a binding the function answers 404 and logs one warning
+  line. A 404 does not tell a wrong host from a missing binding: only an answer with the header `x-madar-server: office;...` proves it. A platform
   account is made on the Mac with `scripts/office/platform-account.ts` (see `server/enterprise/CLAUDE.md`).
 - The site works only for a copy whose host word is `office` (the platform routes live on the office path of the Worker).
 

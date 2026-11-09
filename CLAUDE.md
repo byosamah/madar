@@ -99,6 +99,7 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
   The sandbox blocks `open`: ask the owner to type `! open -a TextEdit <file>` in the prompt.
 - An example line of a secrets file for the owner uses a placeholder that fails the shape check (`<the Bunah key>`),
   never a plausible value: a plausible example passed the check while the real value was not set.
+- A command that the owner runs with `!` holds the real values, never `<your email>`: zsh reads `<` as a redirect.
 - The Resend keys are listed in `server/mail/CLAUDE.md`.
 - The backup private key is not on the Mac. The owner holds it (password manager and paper). Opening a backup needs him.
 - Supabase (both Frankfurt): `madar-test` = `qdgwpnesxppnqsaabqzd`, production `madar` = `oprkvdjudjxxhvodkzgs`.
