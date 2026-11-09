@@ -50,6 +50,10 @@ in a node script with `devices['iPhone 15']` too. Both configs run Desktop Chrom
 - Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`). `agents.spec.ts` skips itself
   without `MADAR_E2E_AFTER_G=1` ("1 skipped" is no pass). One case alone: `-g "an approved agent shows in Settings"`.
 - `full.spec.ts` alone takes about 12 minutes, more than the 600 s limit of a foreground Bash call: run it in the background.
+- On the local office stack the `file` and `report` steps of `walk.spec.ts` always fail: `office-local.ts` gives made-up R2 keys, so a signed upload cannot finish. Check an upload and a
+  report with a picture by hand on the test copy.
+- Each new `playwright test` call signs in the four accounts again, and the limit is 30 sign-ins for each address in 15 minutes: too many calls in a row fail in `auth.setup.ts`. Wait out the
+  window. All tests of one call share the saved sign-in and a refresh token works once, so a call of more than 15 minutes on the office path can end its sessions (2026-11-09).
 - It is the only check of the CSP: `vite preview` sends no CSP (`csp.spec.ts`).
 - The walk names the file store from the host of its upload PUT (`store.ts`): Supabase Storage or R2. On Storage it counts
   `storage.objects`. On R2 it heads the new keys in `madar-files-test`, only with the four R2 lines of `secrets/test.env` in the

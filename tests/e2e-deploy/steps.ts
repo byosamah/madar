@@ -69,7 +69,7 @@ export async function signIn(page: Page, email: string, password: string): Promi
  */
 export async function signOut(page: Page, person: string, lang: Lang): Promise<void> {
   if ((page.viewportSize()?.width ?? 1440) < 640) {
-    await page.getByRole('navigation', { name: word(lang, 'nav.main') }).getByRole('link', { name: word(lang, 'phoneShell.tab.me') }).click();
+    await page.getByRole('navigation', { name: word(lang, 'nav.main') }).getByRole('link', { name: word(lang, 'phoneShell.tab.me'), exact: true }).click();
     await page.getByRole('button', { name: word(lang, 'auth.signOut'), exact: true }).click();
   } else {
     await page.getByRole('button', { name: person, exact: true }).click();

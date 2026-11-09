@@ -116,7 +116,7 @@ async function expectPressArea(control: Locator): Promise<void> {
 
 for (const width of [360, 390]) {
   for (const lang of ['en', 'ar'] as const) {
-    test(`Work at ${width}px in ${lang}: title, three parts of 44 px, no sideways scroll`, async ({ page }) => {
+    test(`Work at ${width}px in ${lang}: title, four parts of 44 px, no sideways scroll`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       if (lang === 'ar') await useArabic(page);
       for (const path of ['/work', '/meetings', '/projects']) {
@@ -127,8 +127,9 @@ for (const width of [360, 390]) {
         await expect(title, path).toHaveText(lang === 'en' ? 'Work' : 'العمل');
         const group = page.getByRole('radiogroup').first();
         const radios = group.getByRole('radio');
-        await expect(radios, path).toHaveCount(3);
-        for (let n = 0; n < 3; n += 1) {
+        // To-dos, Meetings, Projects and Resources (Resources page, 2026-11-05).
+        await expect(radios, path).toHaveCount(4);
+        for (let n = 0; n < 4; n += 1) {
           const radio = radios.nth(n);
           const box = await radio.boundingBox();
           expect(box!.height, `${path} part ${n}`).toBeGreaterThanOrEqual(43.5);

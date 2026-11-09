@@ -105,7 +105,7 @@ const NAME_MARK = '\u0001';
 
 /**
  * The title: the AI app, and the company when the Admin set a name ("Allow <app> to act for you in <name>?"). The app name is Latin text
- * in an Arabic sentence. It sits in a bdi that never breaks, so a name such as "Claude Code" stays on one line and keeps its order.
+ * in an Arabic sentence. It sits in an inline-block bdi, so a name such as "Claude Code" stays whole on its line and keeps its order, and a long name wraps inside the screen.
  */
 function titleOf(request: ConsentRequest, t: TFunction, language: string): ReactNode {
   if (!request.clientName) return t('consent.generic');
@@ -116,7 +116,7 @@ function titleOf(request: ConsentRequest, t: TFunction, language: string): React
     text = t('consent.titleIn', { name: NAME_MARK, company });
   }
   const [before = '', ...rest] = text.split(NAME_MARK);
-  return <>{before}<bdi className="whitespace-nowrap">{request.clientName}</bdi>{rest.join(request.clientName)}</>;
+  return <>{before}<bdi className="inline-block max-w-full [overflow-wrap:anywhere]">{request.clientName}</bdi>{rest.join(request.clientName)}</>;
 }
 
 function Decide({ request, leave }: { request: ConsentRequest; leave: (url: string) => void }) {

@@ -282,14 +282,19 @@ describe('the consent title keeps the app name in one piece (ent-ui)', () => {
     const heading = await screen.findByRole('heading', { level: 1, name: /Claude Code/ });
     return { heading, bdi: heading.querySelector('bdi') };
   };
+  // A short name stays whole on its line. A long name wraps inside the screen (browser check of 2026-11-09: 490 px wide at 390 px).
+  const expectWholeAndInside = (bdi: Element | null) => {
+    expect(bdi).toHaveClass('inline-block', 'max-w-full', '[overflow-wrap:anywhere]');
+    expect(bdi).not.toHaveClass('whitespace-nowrap');
+  };
 
-  it('wraps the app name in a bdi that never breaks, in English and in Arabic', async () => {
+  it('wraps the app name in a bdi that stays whole and fits the screen, in English and in Arabic', async () => {
     for (const language of ['en', 'ar'] as const) {
       const { unmount } = await open({ language });
       const { heading, bdi } = await markOf();
       expect(bdi, language).not.toBeNull();
       expect(bdi).toHaveTextContent(/^Claude Code$/);
-      expect(bdi).toHaveClass('whitespace-nowrap');
+      expectWholeAndInside(bdi);
       expect(heading.textContent).toBe(language === 'ar' ? 'هل تربط Claude Code بمدار؟' : 'Connect Claude Code to Madar?');
       unmount();
     }
@@ -300,7 +305,7 @@ describe('the consent title keeps the app name in one piece (ent-ui)', () => {
       const { unmount } = await open({ tools: withCompany(), language });
       const { heading, bdi } = await markOf();
       expect(bdi).toHaveTextContent(/^Claude Code$/);
-      expect(bdi).toHaveClass('whitespace-nowrap');
+      expectWholeAndInside(bdi);
       expect(heading.textContent).toBe(language === 'ar' ? 'هل تسمح بأن يعمل Claude Code باسمك في أكمي؟' : 'Allow Claude Code to act for you in Acme Co?');
       unmount();
     }

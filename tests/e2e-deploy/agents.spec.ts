@@ -135,6 +135,23 @@ for (const lang of LANGS) {
   }
 }
 
+for (const lang of LANGS) {
+  test(`the consent title keeps a short agent name on one line at 390 px, ${lang}`, async ({ page }) => {
+    const flow = await startFlow(await registerClient('Claude Code'));
+    if (lang === 'ar') await useLanguage(page, 'ar');
+    await page.setViewportSize({ width: 390, height: 900 });
+    await goto(page, flow.consentRoute);
+    const name = page.getByRole('heading', { level: 1 }).locator('bdi');
+    await expect(name).toHaveText('Claude Code');
+    const box = await name.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { height: el.getBoundingClientRect().height, line: parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5 };
+    });
+    expect(box.height, 'one line').toBeLessThan(box.line * 1.5);
+    await page.screenshot({ path: `test-results/e2e-deploy-shots/agents/consent-short-390-${lang}.png`, fullPage: true });
+  });
+}
+
 test('an approved agent shows in Settings, Agents after its first call, and Remove takes it away', async ({ page }) => {
   const name = `X2 agent ${runId()}`;
   const flow = await startFlow(await registerClient(name));
@@ -153,9 +170,8 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
   expect(tools).toContain('projects.list');
   expect(tools).not.toContain('feedback.list');
   // The message tools of every agent (owner, 2026-10-12; fbk_011, owner 2026-10-18): it sends, reads the chats of its person and lists
-  // what waits for a reply. It never marks a chat read.
-  for (const name of ['"chats.openDirect"', '"chats.list"', '"chats.send"', '"chats.messages"', '"chats.waiting"']) expect(tools, name).toContain(name);
-  expect(tools).not.toContain('"chats.markRead"');
+  // what waits for a reply. It also marks a chat read (MCP parity, owner, 2026-10-26).
+  for (const name of ['"chats.openDirect"', '"chats.list"', '"chats.send"', '"chats.messages"', '"chats.waiting"', '"chats.markRead"']) expect(tools, name).toContain(name);
   await page.unroute(`${new URL(REDIRECT_URI).origin}/**`);
   // /me/agents is the phone page of the Agents section. From 640 px it sends the person to /settings.
   await goto(page, '/me/agents');
