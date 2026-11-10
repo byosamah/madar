@@ -2,7 +2,7 @@ import { ApiError } from '../../../src/api/errors';
 import type { SigningKeys } from '../../auth/own/keys';
 import { signPlatformToken } from '../../auth/own/keys';
 import { randomToken, sha256Hex } from '../../auth/own/crypto';
-import { ADDRESS_LIMITS, SIGNIN_PER_EMAIL, SIGNIN_WINDOW_MS } from '../../auth/own/limits';
+import { ADDRESS_LIMITS, SIGNIN_PER_EMAIL, SIGNIN_PER_EMAIL_TOTAL, SIGNIN_WINDOW_MS } from '../../auth/own/limits';
 import { accountOff, wrongCredentials } from '../../auth/own/ops';
 import { hashPassword, verifyPassword } from '../../auth/own/password';
 import { countLimits, DAY_MS, REFRESH_REUSE_MS, SESSION_DAYS, sessionEnded } from '../../auth/own/sessions';
@@ -29,6 +29,7 @@ const EMAIL_MAX = 254;
 const NAME_MAX = 120;
 /** Own key prefixes, so a try on the platform page never counts against the sign-in of a company. */
 const ADDRESS_PREFIX = 'psignin:ip';
+const PAIR_PREFIX = 'psignin:pair';
 const EMAIL_PREFIX = 'psignin:email';
 
 export type PlatformAccountState = 'active' | 'off';
@@ -63,14 +64,17 @@ async function answerOf(d: AccountDeps, o: { account: AccountRow; sessionId: str
 
 /**
  * Sign in with email and password. A wrong password and an unknown email give one answer, after the same work (one PBKDF2 each). An account
- * that is off shows only after the right password. The limits of the email and of the address use their own keys.
+ * that is off shows only after the right password. The limits use their own keys, with the rule of passwordSignIn (review 2026-11-10): the
+ * address, the email with the address (10), then the total of the email (100), so a stranger at another address does not lock the account out.
  */
 export async function platformSignIn(d: AccountDeps, input: { email: string; password: string; address: string }): Promise<PlatformTokenAnswer> {
   const email = normalizeEmail(textOf(input.email));
   const password = textOf(input.password).slice(0, PASSWORD_MAX);
+  const address = textOf(input.address);
   await countLimits(d, [
-    { key: await hashedKey(ADDRESS_PREFIX, textOf(input.address)), ...ADDRESS_LIMITS['auth.password'].limit },
-    { key: await hashedKey(EMAIL_PREFIX, email), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },
+    { key: await hashedKey(ADDRESS_PREFIX, address), ...ADDRESS_LIMITS['auth.password'].limit },
+    { key: await hashedKey(PAIR_PREFIX, `${email}|${address}`), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },
+    { key: await hashedKey(EMAIL_PREFIX, email), limit: SIGNIN_PER_EMAIL_TOTAL, windowMs: SIGNIN_WINDOW_MS },
   ]);
   const [found] = await d.db.statement<AccountRow>('read', ACCOUNT_BY_EMAIL, [email]);
   const check = await verifyPassword(password, found?.password_hash ?? null);

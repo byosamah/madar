@@ -47,6 +47,17 @@ describe('the routes of the office path, from the Worker into the object (server
     expect([wrong.status, wrong.body]).toEqual([unknown.status, unknown.body]);
   });
 
+  it('counts the wrong tries for each email and address together through the Worker, with the address that the Pages Function wrote (review 2026-11-10, finding 3)', async () => {
+    const t = await signedOffice();
+    const token = (address: string, password: string) =>
+      t.route(httpOf('POST', '/api/auth/token', { grant_type: 'password', email: t.email, password }, { 'x-madar-client-address': address }));
+    for (let i = 0; i < 10; i += 1) expect((await token('198.51.100.1', 'not-the-password')).status).toBe(401);
+    // The step gets addressChecked on this path, and the limit of the email and the address still stops the same address.
+    expect((await token('198.51.100.1', PASSWORD)).status).toBe(429);
+    // The person at another address still signs in: the object got the real address of each request.
+    expect((await token('203.0.113.7', PASSWORD)).status).toBe(200);
+  });
+
   it('runs a batch with the token of a sign-in: the Worker checks the own token, and the object finds the person', async () => {
     // The Worker checks the token against the real time, so this office runs at the real time.
     const t = await signedOffice(new Date().toISOString());

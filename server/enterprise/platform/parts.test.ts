@@ -175,12 +175,14 @@ describe('hitAddress counts the network address of the steps before a token', ()
     await parts.refuseMail({ route: 'forgot', body: '{"email":"a@b.test"}', address: ADDRESS, addressChecked: true });
     await parts.refuseMail({ route: 'renew', body: '{"key":"k"}', address: ADDRESS, addressChecked: true });
     const keys = (raw.prepare('select key from rate_limits').all() as { key: string }[]).map((one) => one.key.split(':').slice(0, 2).join(':'));
-    expect(keys.sort()).toEqual(['forgot:email', 'renew:key', 'signin:email']);
+    // Review 2026-11-10: the password step also counts the email with the address (signin:pair); no key of the address alone.
+    expect(keys.sort()).toEqual(['forgot:email', 'renew:key', 'signin:email', 'signin:pair']);
   });
 });
 
 describe('the refuse steps give the answer of the object', () => {
-  const inputs = (i: number) => ({ email: 'ghost@globex.test', password: 'a wrong password', address: `203.0.113.${i}` });
+  // Review 2026-11-10 (owner): the 10 count the email and the address together, so every try comes from one address.
+  const inputs = (_i: number) => ({ email: 'ghost@globex.test', password: 'a wrong password', address: '203.0.113.1' });
 
   it('refuseSignin password answers invalid_credentials and counts the limits like the object: the 11th try for one email answers too_many', async () => {
     const { parts } = await platform();

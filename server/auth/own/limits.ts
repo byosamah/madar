@@ -6,8 +6,14 @@
 const MINUTE_MS = 60_000;
 export const HOUR_MS = 60 * MINUTE_MS;
 export const SIGNIN_WINDOW_MS = 15 * MINUTE_MS;
-/** Password sign-ins for one email in 15 minutes: a person who forgot the password tries a few times; a guesser stops at 10. */
+/**
+ * Password sign-ins for one email from one network address in 15 minutes (the key holds the pair): a person who forgot the password tries
+ * a few times; a guesser at one address stops at 10. The pair, not the email alone (owner, review 2026-11-10): wrong tries of a stranger
+ * at another address do not lock the person out.
+ */
 export const SIGNIN_PER_EMAIL = 10;
+/** All password sign-ins for one email in 15 minutes, from any address: the total stop for a guesser with many addresses. */
+export const SIGNIN_PER_EMAIL_TOTAL = 100;
 /** For one network address in 15 minutes: the whole office (about 15 people) can sit behind one address. */
 export const SIGNIN_PER_ADDRESS = 30;
 /** Link opens (Welcome and Reset) for one address in one hour. */

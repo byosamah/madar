@@ -113,20 +113,30 @@ describe('platform sign-in', () => {
     expect(await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS })).toMatchObject({ expires_in: 900 });
   });
 
-  it('stops one email after 10 tries and one address after 30 tries in 15 minutes, with a retry time', async () => {
+  it('stops one email after 10 tries from one address and one address after 30 tries in 15 minutes, with a retry time', async () => {
+    // Review 2026-11-10 (owner): the 10 count the email and the address together, so the 10 tries come from one address now.
     const { parts } = await withAccount();
-    for (let i = 0; i < 10; i += 1) await failure(parts.platformSignIn({ email: 'owner@madar.test', password: 'wrong wrong wrong', address: `198.51.100.${i}` }));
-    expect(await failure(parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: '198.51.100.99' }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+    for (let i = 0; i < 10; i += 1) await failure(parts.platformSignIn({ email: 'owner@madar.test', password: 'wrong wrong wrong', address: '198.51.100.1' }));
+    expect(await failure(parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: '198.51.100.1' }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
     const address = await platform();
     for (let i = 0; i < 30; i += 1) await failure(address.parts.platformSignIn({ email: `ghost${i}@madar.test`, password: 'wrong wrong wrong', address: ADDRESS }));
     expect(await failure(address.parts.platformSignIn({ email: 'ghost99@madar.test', password: 'wrong wrong wrong', address: ADDRESS }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+  });
+
+  it('a stranger does not lock the account out: 10 wrong passwords from one address, then the right one from another (review 2026-11-10, finding 3)', async () => {
+    const { parts } = await withAccount();
+    for (let i = 0; i < 10; i += 1) {
+      expect(await failure(parts.platformSignIn({ email: 'owner@madar.test', password: 'wrong wrong wrong', address: '198.51.100.1' }))).toMatchObject({ reason: 'invalid_credentials' });
+    }
+    expect(await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS })).toMatchObject({ expires_in: 900 });
   });
 
   it('the limits of the platform sign-in do not touch the limit of the company sign-in address', async () => {
     const { parts, raw } = await withAccount();
     await failure(parts.platformSignIn({ email: 'owner@madar.test', password: 'wrong wrong wrong', address: ADDRESS }));
     const keys = (raw.prepare('select key from rate_limits').all() as { key: string }[]).map((row) => row.key);
-    expect(keys.length).toBe(2);
+    // Review 2026-11-10: three keys now (the address, the email with the address, and the total of the email).
+    expect(keys.length).toBe(3);
     expect(keys.every((key) => key.startsWith('psignin:'))).toBe(true);
     // The company address step (hitAddress) still counts its own key.
     expect(await parts.hitAddress({ step: 'auth.password', address: ADDRESS })).toEqual({ ok: true });

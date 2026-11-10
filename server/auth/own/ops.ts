@@ -4,7 +4,7 @@ import { readLiteOffice } from '../../data/lite/office';
 import { principalOf } from '../principal';
 import { hashedKey } from '../rateLimit';
 import { randomToken, sha256Hex } from './crypto';
-import { ADDRESS_LIMITS, SIGNIN_PER_EMAIL, SIGNIN_WINDOW_MS } from './limits';
+import { ADDRESS_LIMITS, SIGNIN_PER_EMAIL, SIGNIN_PER_EMAIL_TOTAL, SIGNIN_WINDOW_MS } from './limits';
 import { LINK_LIFE_MS } from './liteAdmin';
 import { hashPassword, PASSWORD_MIN, verifyPassword } from './password';
 import {
@@ -47,10 +47,14 @@ const liteOf = (deps: SigninDeps) => deps.db as LiteDb;
 export async function passwordSignIn(deps: SigninDeps, input: { email: string; password: string; address: string; addressChecked?: boolean }): Promise<TokenAnswer> {
   const email = input.email.trim().toLowerCase();
   // addressChecked: the Worker of the office path already counted the address in the platform object (ADDRESS_LIMITS), before it chose the
-  // enterprise. Only that Worker sets it, on the object call: no route builds this input from a request field.
+  // enterprise. Only that Worker sets it, on the object call: no route builds this input from a request field. The pair key below still
+  // needs the address: the Worker passes the one that the Pages Function wrote (clientAddress).
+  // The email counts with the address (owner, review 2026-11-10), so the wrong tries of a stranger at another address do not lock the
+  // person out. The pair comes before the total: a try that the pair refuses does not count toward the total of the email.
   await countLimits(deps, [
     ...(input.addressChecked === true ? [] : [{ key: await hashedKey(ADDRESS_LIMITS['auth.password'].prefix, input.address), ...ADDRESS_LIMITS['auth.password'].limit }]),
-    { key: await hashedKey('signin:email', email), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },
+    { key: await hashedKey('signin:pair', `${email}|${input.address}`), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },
+    { key: await hashedKey('signin:email', email), limit: SIGNIN_PER_EMAIL_TOTAL, windowMs: SIGNIN_WINDOW_MS },
   ]);
   const [found] = await deps.db.statement<AuthUserRow>('read', AUTH_USER_BY_EMAIL, [email]);
   const check = await verifyPassword(input.password, found?.password_hash ?? null);

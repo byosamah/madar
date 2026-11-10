@@ -58,7 +58,8 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
 - The limit of one network address in a step before a token (password sign-in, link open, forgot, renew) is counted once, in the platform
   object (`platform.hitAddress`), in the Worker route and before the enterprise is chosen. So one address stops at the same request for a
   known email of any enterprise and for an unknown email. The Worker then passes `addressChecked: true` on the object call and on the refuse
-  call, and they count the limit of the email or of the key only. The flag is on the RPC input only: no route builds an input from a request
+  call, and they count the limits of the email or of the key only. The password step still keys its email limit with the address of the
+  person (`signin:pair`, review 2026-11-10), which the Worker passes in the input. The flag is on the RPC input only: no route builds an input from a request
   field, and the local path never sets it, so the step counts the address itself there. Forgot and renew count the address only for a body
   with a good email or key, as before. Do not move this count into an object: a per-object count tells whether two emails share an enterprise.
 - A limit that comes from a Cloudflare plan is a named constant or a setting, never a bare number in a branch.
@@ -68,8 +69,9 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
   PBKDF2 hash, state `active` or `off`) and `platform_sessions` (the sha256 of the refresh secret, `prev_hash` and `used_at` for the 10 s reuse window,
   `ends_at`). `accounts.ts` holds the work: `platformSignIn`, `platformRefresh`, `platformSignOut`, `platformAccount`, `platformAccounts` (the ops).
   A wrong password and an unknown email give one answer after the same work (one PBKDF2 each). `off` shows only after the right password. The limits
-  use the counts and windows of `server/auth/own/limits.ts` with their own keys (`psignin:ip`, `psignin:email`), so a try on the platform never counts
-  against a company. A refresh rotates like `rotateSession`; the previous token after the window ends the session. A new password ends every session;
+  use the counts, windows and rule of `server/auth/own/limits.ts` with their own keys (`psignin:ip`, `psignin:pair` for the email with the address,
+  `psignin:email` for the total of the email), so a try on the platform never counts against a company, and a stranger does not lock an account out.
+  A refresh rotates like `rotateSession`; the previous token after the window ends the session. A new password ends every session;
   `off` ends none (the refresh then gives `account_off`). The password has 12 to 200 characters (`PLATFORM_PASSWORD_MIN`).
 - **Refusals are data.** `platformSignIn`, `platformRefresh` and `platformAccounts` return `PlatformOutcome` (`{ ok: true, value }` or `{ ok: false, error }`),
   not a throw: an `ApiError` thrown in a Durable Object loses its class over the RPC hop. The Worker calls `valueOfOutcome` to throw it again. Tests that read a

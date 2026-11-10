@@ -49,10 +49,11 @@ describe('the HTTP routes of the own sign-in (server/auth/own/routes.ts)', () =>
     expect(wrong).toMatchObject({ status: 401, body: { v: 1, error: { code: 'unauthenticated', details: { reason: 'invalid_credentials' } } } });
   });
 
-  it('answers 429 with Retry-After over the limit of one email', async () => {
+  it('answers 429 with Retry-After over the limit of one email from one address', async () => {
+    // Review 2026-11-10 (owner): the limit counts the email and the address together, so the tries and the last one share one address.
     const { email, send } = await setup();
-    for (let i = 0; i < 10; i += 1) await send('/auth/token', { body: { grant_type: 'password', email, password: 'not it' }, address: `192.0.2.${i}` });
-    const over = await send('/auth/token', { body: { grant_type: 'password', email, password: 'a good password' } });
+    for (let i = 0; i < 10; i += 1) await send('/auth/token', { body: { grant_type: 'password', email, password: 'not it' }, address: '192.0.2.1' });
+    const over = await send('/auth/token', { body: { grant_type: 'password', email, password: 'a good password' }, address: '192.0.2.1' });
     expect(over.status).toBe(429);
     expect(Number(over.headers.get('retry-after'))).toBeGreaterThan(0);
   });

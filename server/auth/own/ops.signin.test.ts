@@ -79,12 +79,33 @@ describe('the password sign-in of the own stack (server/auth/own/ops.ts)', () =>
     expect(t.raw.prepare('select count(*) as n from auth_sessions').get()).toEqual({ n: 0 });
   });
 
-  it('stops at 10 tries for one email in 15 minutes, and rate_limits holds no email', async () => {
+  it('the same address stops at 10 tries for one email in 15 minutes, also with the right password, and rate_limits holds no email', async () => {
+    // Review 2026-11-10 (owner): the 10 count the email and the address together, so the 10 tries come from one address now.
     const { t, email, deps } = await setup();
-    for (let i = 0; i < 10; i += 1) await errorOf(passwordSignIn(deps, { email, password: 'not it', address: `198.51.100.${i}` }));
-    expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+    for (let i = 0; i < 10; i += 1) await errorOf(passwordSignIn(deps, { email, password: 'not it', address: '198.51.100.1' }));
+    expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: '198.51.100.1' }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
     expect(JSON.stringify(t.raw.prepare('select key from rate_limits').all())).not.toContain(email);
   });
+
+  it('a stranger does not lock the person out: 10 wrong passwords from one address, then the right one from another address (review 2026-11-10, finding 3)', async () => {
+    const { email, deps } = await setup();
+    for (let i = 0; i < 10; i += 1) expect(await errorOf(passwordSignIn(deps, { email, password: 'not it', address: '198.51.100.1' }))).toMatchObject({ reason: 'invalid_credentials' });
+    expect(await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS })).toMatchObject({ token_type: 'bearer' });
+  });
+
+  it('the office path: a stranger does not lock the person out with addressChecked on every call', async () => {
+    const { email, deps } = await setup();
+    for (let i = 0; i < 10; i += 1) await errorOf(passwordSignIn(deps, { email, password: 'not it', address: '198.51.100.1', addressChecked: true }));
+    expect(await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS, addressChecked: true })).toMatchObject({ token_type: 'bearer' });
+  });
+
+  it('the total stop: 100 tries for one email from 10 addresses stop the 101st, also with the right password from a new address', async () => {
+    const { email, deps } = await setup();
+    for (let a = 0; a < 10; a += 1) {
+      for (let i = 0; i < 10; i += 1) expect(await errorOf(passwordSignIn(deps, { email, password: 'not it', address: `198.51.100.${a}` }))).toMatchObject({ reason: 'invalid_credentials' });
+    }
+    expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+  }, 120_000);
 
   it('stops at 30 tries for one network address in 15 minutes', async () => {
     const { deps } = await setup();

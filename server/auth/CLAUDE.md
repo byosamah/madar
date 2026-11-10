@@ -73,11 +73,15 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   audience and refuse a token with an `ent` or a `client_id`; `browserTokenChecker` accepts only the audience `authenticated`, so a platform token never passes
   a company route. `isPlatformBearer` reads the audience of an unchecked token only to send it away early (the MCP route). The sign-in of the platform accounts
   is in `server/enterprise/platform/accounts.ts`; it reuses `countLimits`, `rotateSession`-like rotation, `hashPassword` and `verifyPassword`.
-- Limits are in `own/limits.ts` (sign-ins for one email and for one address, link opens, OAuth registrations, OAuth authorize steps).
-  The address is `clientAddress` (`forgot.ts`).
+- Limits are in `own/limits.ts` (sign-ins for one address, link opens, OAuth registrations, OAuth authorize steps, and the two email
+  limits below). The address is `clientAddress` (`forgot.ts`).
+- Password sign-ins (owner, review 2026-11-10): 10 tries in 15 minutes for one email from one address (`signin:pair`, `SIGNIN_PER_EMAIL`),
+  and 100 for one email from all addresses (`signin:email`, `SIGNIN_PER_EMAIL_TOTAL`). So the wrong tries of a stranger at another address
+  do not lock the person out. The tries count before the password check, so the 11th try at one address fails also with the right password.
+  The pair key comes before the total: a try that the pair refuses does not count toward the total.
   On the office path the limit of the address for `auth.password`, `auth.verify`, forgot and renew is counted once, in the platform object
-  (`platform.hitAddress`), before the enterprise is chosen. The step gets `addressChecked` and counts the email or the key only. The local
-  path has no flag and counts both. Details: `server/enterprise/CLAUDE.md`.
+  (`platform.hitAddress`), before the enterprise is chosen. The step gets `addressChecked` and counts the email (with the address of the
+  person, from the Worker) or the key only. The local path has no flag and counts both. Details: `server/enterprise/CLAUDE.md`.
 - `liteAuthAdmin` is the Auth admin port over these rows, so `invite.ts`, `effects.ts`, `forgot.ts`, `renew.ts` and
   `users.invites` keep their logic; each text of theirs has a `_LITE` twin (`server/data/CLAUDE.md`, "The SQLite path").
 - Steps run through `SigninOffice` (`own/office.ts`). On the office path, `enterpriseSigninOffice` (`server/entries/officeSignin.ts`)
