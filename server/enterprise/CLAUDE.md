@@ -120,11 +120,11 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
   state, names, limits, first_admin), `emails` (the directory: normalized email to enterprise), `owners` (unused since plan F), `platform_accounts` and
   `platform_sessions` (plan F), `status` (one row for each
   enterprise, from its Cron), `account_day` (the day counts for each (day, enterprise); `meter` replaces the whole day so far), and empty
-  copies of `rate_limits`, `auth_users`, `auth_links`, `auth_sessions` and `auth_old_hashes` (`serverTableSql`; `PLATFORM_COPIED_TABLES`). A copy
-  that a refuse step reads needs a platform step too, as the copy of `auth_old_hashes` in step 5.
+  copies of `rate_limits`, `auth_users`, `auth_links`, `auth_sessions`, `auth_old_hashes` and `auth_known_addresses` (`serverTableSql`;
+  `PLATFORM_COPIED_TABLES`). A copy that a refuse step reads needs a platform step too, as the two copies of step 5.
 - `listed()` and `resolveAddress` leave out an enterprise in state `creating`. `hitAddress` holds the counters of the address (`rate_limits` of the platform object, swept by `sweep`). `reserveEmail` answers `taken` for another enterprise.
   `register` (ops secret only) upserts a row in any state and reserves its emails; a conflict leaves nothing behind.
-- `PLATFORM_SCHEMA_VERSION` 5 (`mail_pool` came in step 3, the platform accounts in step 4, the copy of `auth_old_hashes` in step 5), `PLATFORM_STEPS` for the later versions. A directory read costs 1 row for a hit and 0 for a miss (proof.md,
+- `PLATFORM_SCHEMA_VERSION` 5 (`mail_pool` came in step 3, the platform accounts in step 4, the copies of the sign-in memory in step 5), `PLATFORM_STEPS` for the later versions. A directory read costs 1 row for a hit and 0 for a miss (proof.md,
   "Madar enterprises: core spikes S2 and S3").
 
 ## The Cron fan-out

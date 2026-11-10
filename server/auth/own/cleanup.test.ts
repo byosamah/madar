@@ -26,4 +26,12 @@ describe('the cleanup of old sign-in rows (server/auth/own/cleanup.ts)', () => {
     expect(raw.prepare('select id from auth_sessions').all()).toEqual([{ id: 'live' }]);
     expect(raw.prepare('select hash from auth_old_hashes').all()).toEqual([{ hash: 'o3' }]);
   });
+
+  it('deletes a known address that was last seen more than 90 days ago, and keeps a newer one (review 2026-11-10)', async () => {
+    const { raw, db } = await freshLite();
+    raw.exec(`insert into auth_known_addresses (pair_key, seen_at) values
+      ('known:old', '2026-07-18T05:00:00.000Z'), ('known:edge', '2026-07-19T07:00:00.000Z'), ('known:new', '2026-10-16T00:00:00.000Z')`);
+    await db.tx('write', (q) => cleanupSignin(q, new Date('2026-10-17T06:00:00Z')));
+    expect(raw.prepare('select pair_key from auth_known_addresses order by pair_key').all()).toEqual([{ pair_key: 'known:edge' }, { pair_key: 'known:new' }]);
+  });
 });

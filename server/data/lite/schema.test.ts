@@ -8,14 +8,14 @@ import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, SIGNIN_TABLES, applyLiteSchema, 
 import { freshLite } from './testDb';
 
 /** The sha256 of the schema text of LITE_SCHEMA_VERSION. A change of the schema needs a new version and a new value here. */
-const PINNED_SHA256 = 'a1e544ca92e332ecfd6b7f7be131bba6645b93918632b9b6fcf81b4494cc0506';
+const PINNED_SHA256 = 'e360b82d8aa1d6e3838b3ac1ba80a636383ecb32ea3934420dcd7421d06fcab5';
 
 const tablesOf = (raw: DatabaseSync) =>
   (raw.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name").all() as { name: string }[]).map((r) => r.name);
 const columnsOf = (raw: DatabaseSync, table: string) =>
   (raw.prepare('select name from pragma_table_info(?)').all(table) as { name: string }[]).map((r) => r.name);
-/** Takes the sign-in memory of version 17 away (review 2026-11-10): the steps of a version below 17 make it again. Its index goes with it. */
-const dropSigninMemory = (raw: DatabaseSync) => raw.exec('drop table auth_old_hashes');
+/** Takes the sign-in memory of version 17 away (review 2026-11-10): the steps of a version below 17 make it again. The index goes with its table. */
+const dropSigninMemory = (raw: DatabaseSync) => raw.exec('drop table auth_old_hashes; drop table auth_known_addresses');
 /** Takes the table of version 16 away (the use of the enterprise), and the sign-in memory of version 17: the steps of a version below 16 make them again. */
 const dropUse = (raw: DatabaseSync) => {
   raw.exec('drop table enterprise_use');
@@ -312,11 +312,13 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     expect(() => raw.exec('insert into enterprise_use (id) values (2)')).toThrow('CHECK');
   });
 
-  it('steps a version 16 office with a live session to version 17: the session stays, and auth_old_hashes is there and empty (review 2026-11-10)', async () => {
+  it('steps a version 16 office with a live session to version 17: the session stays, and the two new tables are there and empty (review 2026-11-10)', async () => {
     const { raw } = await freshLite();
-    const objects = () => raw.prepare("select name, sql from sqlite_master where tbl_name = 'auth_old_hashes' order by name").all();
+    const objects = () => raw.prepare("select name, sql from sqlite_master where tbl_name in ('auth_old_hashes', 'auth_known_addresses') order by name").all();
     const fresh = objects();
-    expect(fresh.map((row) => (row as { name: string }).name)).toEqual(['auth_old_hashes', 'auth_old_hashes_session', 'sqlite_autoindex_auth_old_hashes_1']);
+    expect(fresh.map((row) => (row as { name: string }).name)).toEqual([
+      'auth_known_addresses', 'auth_old_hashes', 'auth_old_hashes_session', 'sqlite_autoindex_auth_known_addresses_1', 'sqlite_autoindex_auth_old_hashes_1',
+    ]);
     raw.exec("insert into auth_sessions (id, auth_id, amr, refresh_hash, prev_hash, rotated_at, expires_at) values ('s1', 'a1', 'password', 'h2', 'h1', '2026-11-10T06:00:00.000Z', '2026-12-10T06:00:00.000Z')");
     const session = () => raw.prepare("select * from auth_sessions where id = 's1'").get();
     const live = session();
@@ -326,7 +328,9 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     expect(objects()).toEqual(fresh);
     expect(session()).toEqual(live);
     expect(raw.prepare('select count(*) as n from auth_old_hashes').get()).toEqual({ n: 0 });
+    expect(raw.prepare('select count(*) as n from auth_known_addresses').get()).toEqual({ n: 0 });
     expect(columnsOf(raw, 'auth_old_hashes')).toEqual(['hash', 'session_id', 'at']);
+    expect(columnsOf(raw, 'auth_known_addresses')).toEqual(['pair_key', 'seen_at']);
   });
 
   it('keeps one calendar for each person (fbk_022)', async () => {

@@ -18,15 +18,16 @@ import { MAIL_POOL_SCHEMA } from './mailPool';
  * Version 4 (plan F, design D8): the tables platform_accounts and platform_sessions, the sign-in of the people of the platform. They belong
  * to no company. The table owners of version 1 stays (a released step never changes) and nothing reads or writes it any more (design D11).
  *
- * Version 5 (the open items of the review of 2026-11-10): the empty copy of the sign-in table auth_old_hashes (schema version 17 of the office
- * object), because the refuse step of a refresh now reads it. The step is in PLATFORM_STEPS.
+ * Version 5 (the open items of the review of 2026-11-10): the empty copies of the sign-in tables auth_old_hashes and auth_known_addresses
+ * (schema version 17 of the office object), because the refuse steps of a refresh and of a password sign-in now read them. The step is in
+ * PLATFORM_STEPS.
  */
 export const PLATFORM_SCHEMA_VERSION = 5;
 
 /** The server tables that the platform object copies empty, for the refuse steps. The ones of version 1 come first; a later step adds the rest. */
 const FIRST_COPIED_TABLES: readonly string[] = ['rate_limits', 'auth_users', 'auth_links', 'auth_sessions'];
 /** The copies of version 5: the sign-in memory of the office object (review 2026-11-10). */
-const MEMORY_COPIED_TABLES: readonly string[] = ['auth_old_hashes'];
+const MEMORY_COPIED_TABLES: readonly string[] = ['auth_old_hashes', 'auth_known_addresses'];
 export const PLATFORM_COPIED_TABLES: readonly string[] = [...FIRST_COPIED_TABLES, ...MEMORY_COPIED_TABLES];
 
 /** The platform accounts and their sessions (version 4). The refresh hash is the sha256 of the secret; prev_hash and used_at serve the reuse window. */

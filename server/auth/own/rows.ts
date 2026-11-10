@@ -54,5 +54,13 @@ export const SESSION_END_OWN = 'update auth_sessions set revoked_at = ?3 where i
  */
 export const OLD_HASH_INSERT = 'insert or ignore into auth_old_hashes (hash, session_id, at) values (?1, ?2, ?3)';
 export const OLD_HASH_BY_HASH = 'select session_id from auth_old_hashes where hash = ?1';
+/**
+ * The known addresses (schema version 17, review 2026-11-10). pair_key is hashedKey('known', '<email>|<limitAddress>'), never the email or
+ * the address. KNOWN_TOUCH: ?1 the key, ?2 now, ?3 now minus KNOWN_ADDRESS_TOUCH_MS, so a person who signs in many times a day writes one row
+ * a day.
+ */
+export const KNOWN_BY_KEY = 'select seen_at from auth_known_addresses where pair_key = ?1';
+export const KNOWN_TOUCH =
+  'insert into auth_known_addresses (pair_key, seen_at) values (?1, ?2) on conflict (pair_key) do update set seen_at = ?2 where auth_known_addresses.seen_at < ?3';
 /** Whether the agent link of a client is removed (a refresh of an agent session needs a live link). */
 export const AGENT_LINK_STATE = 'select revoked_at from agent_links where client_id = ?1';

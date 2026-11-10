@@ -53,9 +53,10 @@ import type { SqlHost } from './host';
  * platform owners of this enterprise (owners, JSON text; unused since plan F, a released step never changes). It is derived data and an office object table only, like enterprise. The step counts
  * the bytes of the files that the office holds. Its step is in LITE_STEPS.
  *
- * Version 17 (the open items of the review of 2026-11-10): the sign-in table auth_old_hashes, the refresh hashes that left a session row, with
- * the index auth_old_hashes_session. A refresh with such a hash ends its session (server/auth/own/sessions.ts). It is an office object table
- * only, as the other sign-in tables. Its step is in LITE_STEPS.
+ * Version 17 (the open items of the review of 2026-11-10): two sign-in tables. auth_old_hashes, the refresh hashes that left a session row,
+ * with the index auth_old_hashes_session: a refresh with such a hash ends its session (server/auth/own/sessions.ts). auth_known_addresses, the
+ * pairs of an email and a network address where the person signed in: such an address does not meet the total stop of the email
+ * (server/auth/own/ops.ts). They are office object tables only, as the other sign-in tables. Their step is in LITE_STEPS.
  */
 export const LITE_SCHEMA_VERSION = 17;
 
@@ -164,9 +165,13 @@ const FILES_BYTES_STEP = "(select coalesce(sum(json_extract(v.value, '$.size')),
 
 /**
  * The sign-in memory (version 17, review 2026-11-10). auth_old_hashes: each refresh hash that left a session row by a rotation, so a later
- * refresh with it ends that session (a thief who rotated twice). It holds hashes only, never a token.
+ * refresh with it ends that session (a thief who rotated twice). auth_known_addresses: one row for each email and network address where the
+ * person signed in with the right password; pair_key is a sha256 (hashedKey 'known'), never the email or the address. Hashes only.
  */
-const SIGNIN_MEMORY_SQL: readonly string[] = ['create table auth_old_hashes (hash text primary key, session_id text not null, at text not null)'];
+const SIGNIN_MEMORY_SQL: readonly string[] = [
+  'create table auth_old_hashes (hash text primary key, session_id text not null, at text not null)',
+  'create table auth_known_addresses (pair_key text primary key, seen_at text not null)',
+];
 const SIGNIN_MEMORY_INDEXES: readonly LiteIndex[] = [{ table: 'auth_old_hashes', name: 'auth_old_hashes_session', columns: 'session_id' }];
 
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
@@ -247,8 +252,9 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * (target_type, seq) for events.list with a target_type filter, as in liteSchemaSql.
  * Version 15 adds the table enterprise (Madar enterprises), as in liteSchemaSql.
  * Version 16 adds the table enterprise_use (Madar enterprises, plan C) with its one row: a stepped office starts with the bytes of its files.
- * Version 17 adds the sign-in table auth_old_hashes and its index (review 2026-11-10), as in liteSchemaSql. A stepped office keeps every
- * session; the table starts empty, so a hash that left a row before the step stays unknown, as before.
+ * Version 17 adds the sign-in tables auth_old_hashes (with its index) and auth_known_addresses (review 2026-11-10), as in liteSchemaSql. A
+ * stepped office keeps every session. Both tables start empty: a hash that left a row before the step stays unknown, as before, and each
+ * person makes the address known again with the next sign-in.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -280,7 +286,7 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
 };
 
 /** The sign-in tables of wave 2 and the sign-in memory of version 17: the import of wave 4 and the restore check copy them with the office. */
-export const SIGNIN_TABLES: readonly string[] = ['auth_users', 'auth_links', 'auth_sessions', 'oauth_clients', 'oauth_requests', 'auth_old_hashes'];
+export const SIGNIN_TABLES: readonly string[] = ['auth_users', 'auth_links', 'auth_sessions', 'oauth_clients', 'oauth_requests', 'auth_old_hashes', 'auth_known_addresses'];
 
 /** The index that a read with atOrAfter names (indexed by), so no other index decides its plan (wave 0: 124,339 rows). */
 export const TIME_INDEX: Readonly<Record<string, string>> = { events: 'events_created_at' };

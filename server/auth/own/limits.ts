@@ -12,8 +12,18 @@ export const SIGNIN_WINDOW_MS = 15 * MINUTE_MS;
  * at another address do not lock the person out.
  */
 export const SIGNIN_PER_EMAIL = 10;
-/** All password sign-ins for one email in 15 minutes, from any address: the total stop for a guesser with many addresses. */
+/**
+ * All password sign-ins for one email in 15 minutes, from any address: the total stop for a guesser with many addresses. A known address
+ * (below) does not count toward it and does not meet it (review 2026-11-10), so 10 addresses of strangers cannot lock the person out.
+ */
 export const SIGNIN_PER_EMAIL_TOTAL = 100;
+/**
+ * A known address: the person signed in with the right password from this network address (its /64 block for IPv6) in the last 90 days.
+ * The table auth_known_addresses keeps a sha256 of the email with the address. A known address still meets its own limit of 10 tries.
+ */
+export const KNOWN_ADDRESS_DAYS = 90;
+/** A sign-in from a known address writes its row again only when the row is older than one day: one row written a day at most. */
+export const KNOWN_ADDRESS_TOUCH_MS = 24 * 60 * 60 * 1000;
 /** For one network address in 15 minutes: the whole office (about 15 people) can sit behind one address. */
 export const SIGNIN_PER_ADDRESS = 30;
 /** Link opens (Welcome and Reset) for one address in one hour. */

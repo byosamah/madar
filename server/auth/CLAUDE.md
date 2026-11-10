@@ -56,7 +56,7 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   Worker side: the public key and the issuer). No Supabase entry loads `own/`: bcryptjs imports the bare module `crypto`, which
   Deno may not load (`server/workerGraph.test.ts`). The hosts pass the routes in (`ownApiRoutes`, `mountOAuth`).
 - Rows: `auth_users` (the id of `auth.users` for an imported person), `auth_links`, `auth_sessions`, `oauth_clients`,
-  `oauth_requests`, and `auth_old_hashes` (schema version 17, below). The sign-in link is `auth_users.user_id`; the office snapshot carries the links, so `principalOf` stays as it
+  `oauth_requests`, and `auth_old_hashes` and `auth_known_addresses` (schema version 17, below). The sign-in link is `auth_users.user_id`; the office snapshot carries the links, so `principalOf` stays as it
   is. `setLiteAuthLink` is the one write of a link.
 - Passwords: PBKDF2 SHA-256, `PBKDF2_ROUNDS` = 100,000, never more (deployed Workers refuse more; local workerd does not show
   it). A copied bcrypt hash works once, then the row holds PBKDF2. The hash work runs in the office object between two
@@ -90,6 +90,12 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   and 100 for one email from all addresses (`signin:email`, `SIGNIN_PER_EMAIL_TOTAL`). So the wrong tries of a stranger at another address
   do not lock the person out. The tries count before the password check, so the 11th try at one address fails also with the right password.
   The pair key comes before the total: a try that the pair refuses does not count toward the total.
+- A known address (review 2026-11-10): the person signed in with the right password from this address (its /64 block for IPv6) in the last 90
+  days (`KNOWN_ADDRESS_DAYS`). The table `auth_known_addresses` keeps only `pair_key` = `hashedKey('known', '<email>|<limitAddress>')` and
+  `seen_at`. A known address skips the total of the email, so 10 addresses of strangers with 10 wrong tries each do not lock the person out.
+  It still meets its own pair limit of 10. The step reads the row before the limits (one row read) and writes it after the right password,
+  in the transaction of the session (`KNOWN_TOUCH`: at most one row written a day for each person and address, `KNOWN_ADDRESS_TOUCH_MS`).
+  A wrong password, an unknown email, a ban, a turn-off and a paused enterprise write no row.
   On the office path the limit of the address for `auth.password`, `auth.verify`, forgot and renew is counted once, in the platform object
   (`platform.hitAddress`), before the enterprise is chosen. The step gets `addressChecked` and counts the email (with the address of the
   person, from the Worker) or the key only. The local path has no flag and counts both. Details: `server/enterprise/CLAUDE.md`.
@@ -111,8 +117,8 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   unknown email gives the usual `invalid_credentials`. A right password gives `pausedSignIn()` (reason `enterprise_paused`) and makes no
   session. Every other step of a paused object answers `session_ended` (`parts.signin`). A paused `mailRoute` gives the usual answer with no
   work, so no mail goes out, and a paused `mailWork` does nothing.
-- `own/cleanup.ts` (`cleanupSignin`) deletes the links, OAuth requests and sessions that ended more than a day ago, and then the displaced
-  hashes of a deleted session; the Cron of the office object runs it in its first run after 00:00 UTC (`server/office/jobs.ts`). Each text
+- `own/cleanup.ts` (`cleanupSignin`) deletes the links, OAuth requests and sessions that ended more than a day ago, then the displaced
+  hashes of a deleted session, and the known addresses last seen more than 90 days ago; the Cron of the office object runs it in its first run after 00:00 UTC (`server/office/jobs.ts`). Each text
   binds only the values up to its highest `?N`: SQLite refuses an extra value.
 - The sign-in key of an office copy is the Worker secret `MADAR_AUTH_PRIVATE_JWK`, made by `npx tsx scripts/office/auth-key.ts
   <test|production>` straight into the Worker (never in a file: `scripts/deploy/secrets.ts` refuses a secrets file that holds it). A new key

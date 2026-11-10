@@ -117,6 +117,73 @@ describe('the password sign-in of the own stack (server/auth/own/ops.ts)', () =>
     expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
   }, 120_000);
 
+  describe('the known address (review 2026-11-10, open item)', () => {
+    /** 100 wrong tries for the email from 10 addresses that the person never used, 10 from each. The last ones meet the total stop. */
+    const strangers = async (deps: Awaited<ReturnType<typeof setup>>['deps'], email: string) => {
+      for (let a = 0; a < 10; a += 1) {
+        for (let i = 0; i < 10; i += 1) await errorOf(passwordSignIn(deps, { email, password: 'not it', address: `198.51.100.${a}` }));
+      }
+    };
+
+    it('a known address signs in while strangers hit the total stop', async () => {
+      const { email, deps } = await setup();
+      await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS });
+      await strangers(deps, email);
+      expect(await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS })).toMatchObject({ token_type: 'bearer' });
+    }, 120_000);
+
+    it('an unknown address still meets the total stop', async () => {
+      const { email, deps } = await setup();
+      await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS });
+      await strangers(deps, email);
+      expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: '192.0.2.44' }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+    }, 120_000);
+
+    it('a known address still stops at 10 wrong tries of its own', async () => {
+      const { email, deps } = await setup();
+      await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS });
+      for (let i = 0; i < 10; i += 1) await errorOf(passwordSignIn(deps, { email, password: 'not it', address: ADDRESS }));
+      expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+    });
+
+    it('a wrong password, an unknown email and a banned person make no known row', async () => {
+      const { t, authId, email, deps } = await setup();
+      const known = () => t.raw.prepare('select count(*) as n from auth_known_addresses').get();
+      await errorOf(passwordSignIn(deps, { email, password: 'not it', address: ADDRESS }));
+      await errorOf(passwordSignIn(deps, { email: 'nobody@madar.test', password: 'a good password', address: ADDRESS }));
+      t.raw.prepare('update auth_users set banned = 1 where id = ?').run(authId);
+      expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS }))).toMatchObject({ reason: 'account_off' });
+      expect(known()).toEqual({ n: 0 });
+    });
+
+    it('an address last seen 91 days ago is not known', async () => {
+      const { t, email, deps } = await setup();
+      await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS });
+      const old = new Date(t.deps.clock.now().getTime() - 91 * 24 * 60 * 60 * 1000).toISOString();
+      t.raw.prepare('update auth_known_addresses set seen_at = ?').run(old);
+      await strangers(deps, email);
+      expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+    }, 120_000);
+
+    it('the row holds no email and no address', async () => {
+      const { t, email, deps } = await setup();
+      await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS });
+      const rows = t.raw.prepare('select * from auth_known_addresses').all() as { pair_key: string; seen_at: string }[];
+      expect(rows).toHaveLength(1);
+      expect(rows[0].pair_key).toMatch(/^known:[0-9a-f]{64}$/);
+      expect(rows[0].seen_at).toBe('2026-10-17T06:00:00.000Z');
+      expect(JSON.stringify(rows)).not.toContain(email);
+      expect(JSON.stringify(rows)).not.toContain(ADDRESS);
+    });
+
+    it('a sign-in from one address of an IPv6 /64 block makes every address of that block known', async () => {
+      const { email, deps } = await setup();
+      await passwordSignIn(deps, { email, password: 'a good password', address: '2001:db8:1:2::1' });
+      await strangers(deps, email);
+      expect(await passwordSignIn(deps, { email, password: 'a good password', address: '2001:db8:1:2:ffff::b' })).toMatchObject({ token_type: 'bearer' });
+    }, 120_000);
+  });
+
   it('stops at 30 tries for one network address in 15 minutes', async () => {
     const { deps } = await setup();
     for (let i = 0; i < 30; i += 1) await errorOf(passwordSignIn(deps, { email: `p${i}@madar.test`, password: 'x', address: ADDRESS }));

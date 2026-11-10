@@ -44,8 +44,8 @@ export const ROWID_ALIAS: ReadonlyMap<string, string> = new Map(tablesOf().flatM
 export const DRIFT_TABLES: readonly string[] = [
   'auth_users', 'auth_links', 'auth_sessions', 'oauth_clients', 'oauth_requests', 'agent_approvals', 'rate_limits', 'outbox', 'mail_log',
   'mail_outbox', 'usage_day', 'usage_month', 'usage_warnings', 'agent_confirms',
-  // The sign-in memory (schema version 17): a refresh writes auth_old_hashes, as it writes auth_sessions.
-  'auth_old_hashes',
+  // The sign-in memory (schema version 17): a refresh writes auth_old_hashes and a sign-in writes auth_known_addresses, as they write auth_sessions.
+  'auth_old_hashes', 'auth_known_addresses',
   // The Google effects and the Daftra cache run during an export hold (runEffects lets them). These four are in OUTSIDE_OFFICE_LOCK of
   // scripts/backup/check.ts too. google_calendars changes only under the office lock, so it is not here.
   'google_connections', 'google_events', 'daftra_clients', 'daftra_invoices',

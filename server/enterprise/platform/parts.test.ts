@@ -269,11 +269,11 @@ describe('the cleanup and the schema', () => {
   });
 
   it('keeps empty copies of the sign-in tables and no table of an office', async () => {
-    // Review 2026-11-10: version 5 adds the copy of auth_old_hashes, which the refuse step of a refresh reads.
+    // Review 2026-11-10: version 5 adds the copies of auth_old_hashes and auth_known_addresses, which the refuse steps read.
     const { raw } = await platform();
     const tables = (raw.prepare("select name from sqlite_master where type = 'table' order by name").all() as { name: string }[]).map((r) => r.name);
     expect(tables).toEqual([
-      'account_day', 'auth_links', 'auth_old_hashes', 'auth_sessions', 'auth_users', 'emails', 'enterprises', 'mail_pool', 'owners', 'platform_accounts',
+      'account_day', 'auth_known_addresses', 'auth_links', 'auth_old_hashes', 'auth_sessions', 'auth_users', 'emails', 'enterprises', 'mail_pool', 'owners', 'platform_accounts',
       'platform_sessions', 'rate_limits', 'schema_version', 'status',
     ]);
   });

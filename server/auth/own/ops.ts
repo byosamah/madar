@@ -4,14 +4,14 @@ import { readLiteOffice } from '../../data/lite/office';
 import { principalOf } from '../principal';
 import { hashedKey, limitAddress } from '../rateLimit';
 import { randomToken, sha256Hex } from './crypto';
-import { ADDRESS_LIMITS, SIGNIN_PER_EMAIL, SIGNIN_PER_EMAIL_TOTAL, SIGNIN_WINDOW_MS } from './limits';
+import { ADDRESS_LIMITS, KNOWN_ADDRESS_DAYS, KNOWN_ADDRESS_TOUCH_MS, SIGNIN_PER_EMAIL, SIGNIN_PER_EMAIL_TOTAL, SIGNIN_WINDOW_MS } from './limits';
 import { LINK_LIFE_MS } from './liteAdmin';
 import { hashPassword, PASSWORD_MIN, verifyPassword } from './password';
 import {
-  AUTH_USER_BY_EMAIL, AUTH_USER_BY_ID, AUTH_USER_CONFIRM, AUTH_USER_PASSWORD, AUTH_USER_SIGNED_IN, LINK_BY_HASH, LINKS_END,
-  SESSION_BY_ID, SESSION_END_OWN, SESSION_LINK_DONE, SESSIONS_END_OTHERS, type AuthUserRow, type LinkRow, type SessionRow,
+  AUTH_USER_BY_EMAIL, AUTH_USER_BY_ID, AUTH_USER_CONFIRM, AUTH_USER_PASSWORD, AUTH_USER_SIGNED_IN, KNOWN_BY_KEY, KNOWN_TOUCH, LINK_BY_HASH,
+  LINKS_END, SESSION_BY_ID, SESSION_END_OWN, SESSION_LINK_DONE, SESSIONS_END_OTHERS, type AuthUserRow, type LinkRow, type SessionRow,
 } from './rows';
-import { browserAnswer, countLimits, insertSession, rotateSession, sessionEnded } from './sessions';
+import { browserAnswer, countLimits, DAY_MS, insertSession, rotateSession, sessionEnded } from './sessions';
 import type { SigninDeps, TokenAnswer } from './types';
 
 /**
@@ -52,11 +52,17 @@ export async function passwordSignIn(deps: SigninDeps, input: { email: string; p
   // The email counts with the address (owner, review 2026-11-10), so the wrong tries of a stranger at another address do not lock the
   // person out. The pair comes before the total: a try that the pair refuses does not count toward the total of the email.
   // An IPv6 address counts as its /64 block (limitAddress), so one machine has one count.
+  // A known address (review 2026-11-10): the person signed in from it with the right password in the last KNOWN_ADDRESS_DAYS. It skips the
+  // total of the email, so the wrong tries of strangers at 10 other addresses do not lock the person out. It still meets the pair limit.
   const address = limitAddress(input.address);
+  const knownKey = await hashedKey('known', `${email}|${address}`);
+  const knownSince = new Date(deps.clock.now().getTime() - KNOWN_ADDRESS_DAYS * DAY_MS).toISOString();
+  const [seen] = await deps.db.statement<{ seen_at: string }>('read', KNOWN_BY_KEY, [knownKey]);
+  const known = seen !== undefined && seen.seen_at > knownSince;
   await countLimits(deps, [
     ...(input.addressChecked === true ? [] : [{ key: await hashedKey(ADDRESS_LIMITS['auth.password'].prefix, address), ...ADDRESS_LIMITS['auth.password'].limit }]),
     { key: await hashedKey('signin:pair', `${email}|${address}`), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },
-    { key: await hashedKey('signin:email', email), limit: SIGNIN_PER_EMAIL_TOTAL, windowMs: SIGNIN_WINDOW_MS },
+    ...(known ? [] : [{ key: await hashedKey('signin:email', email), limit: SIGNIN_PER_EMAIL_TOTAL, windowMs: SIGNIN_WINDOW_MS }]),
   ]);
   const [found] = await deps.db.statement<AuthUserRow>('read', AUTH_USER_BY_EMAIL, [email]);
   const check = await verifyPassword(input.password, found?.password_hash ?? null);
@@ -75,6 +81,8 @@ export async function passwordSignIn(deps: SigninDeps, input: { email: string; p
     if (row.banned === 1) throw accountOff();
     principalOf(row.id, await readLiteOffice(liteOf(deps), q));
     await q(AUTH_USER_SIGNED_IN, [row.id, upgraded, now.toISOString()]);
+    // The right password from this address: it is known now. At most one row written a day for each person and address.
+    await q(KNOWN_TOUCH, [knownKey, now.toISOString(), new Date(now.getTime() - KNOWN_ADDRESS_TOUCH_MS).toISOString()]);
     return insertSession(q, { authId: row.id, clientId: null, amr: 'password', refreshHash, linkUntil: null, now });
   });
   return browserAnswer(deps, { authId: found.id, sessionId, refresh });
