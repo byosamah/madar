@@ -10,10 +10,12 @@ export function shortLinkIn(text: string): string | null {
 /**
  * The long Google Maps address of a short link, or null when the server cannot follow it (audit 2026-10-19, PRJ-03). The Pages
  * Function /maplink follows the redirect: a browser cannot, because Google sends no CORS header. Null leads to the old message.
+ * The route answers only a signed-in person (review 2026-11-10), so the caller passes the sign-in token: src/lib never imports src/app.
  */
-export async function resolveShortLink(link: string): Promise<string | null> {
+export async function resolveShortLink(link: string, token?: string | null): Promise<string | null> {
   try {
-    const response = await fetch('/maplink', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: link }) });
+    const headers: Record<string, string> = { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) };
+    const response = await fetch('/maplink', { method: 'POST', headers, body: JSON.stringify({ url: link }) });
     if (!response.ok) return null;
     const body: unknown = await response.json();
     const url = typeof body === 'object' && body !== null ? (body as { url?: unknown }).url : undefined;

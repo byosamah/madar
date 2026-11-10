@@ -2,6 +2,7 @@ import { Suspense, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { GeoPoint } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
+import { tileToken } from '../../app/remote/tileToken';
 import { Button } from '../../components/Button';
 import { TextField } from '../../components/Fields';
 import { googleMapsUrl, inSaudi, parseMapPoint, pointText, swapPoint } from '../../lib/geo';
@@ -91,7 +92,8 @@ export function PinPicker({ value, onChange, onPlace }: {
     }
     setNote('reading');
     const mine = reading.current;
-    void resolveShortLink(link).then((long) => {
+    // /maplink answers only a signed-in person: the same token as the satellite tiles. No token gives the old message.
+    void tileToken().catch(() => null).then((token) => resolveShortLink(link, token)).then((long) => {
       if (mine !== reading.current) return;
       const found = long ? parseMapPoint(long) : null;
       if (found && found !== 'short_link' && inSaudi(found)) {

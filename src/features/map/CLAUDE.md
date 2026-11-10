@@ -64,7 +64,9 @@ of coordinates. The Dashboard Map tab is `src/features/dashboard/DashboardMap.ts
   save, only when the link moves the pin and the person may edit.
 - The picker reads a link or two coordinates at once. A name is searched on Enter only (`src/lib/placeSearch.ts`), with one more search
   with a shorter name when nothing is found. A pair outside Saudi Arabia (`inSaudi`) sets no pin and offers "Swap them". A short Google Maps
-  link goes to the Pages Function `/maplink`, which follows the redirect. The prototype has no server and no search.
+  link goes to the Pages Function `/maplink`, which follows the redirect. The route answers only a signed-in person, so the picker
+  sends the token of the satellite tiles (`tileToken`) and `resolveShortLink(link, token)` puts it in the header (`src/lib` never imports
+  `src/app`). No token, or a refusal, gives the old message. The prototype has no server and no search.
 - `src/lib/nominatimGate.ts` (`gated`) runs every Nominatim request one at a time and at least 1 s after the last start, for the search and
   the lookup together. Send no header and no referrer of our own (`Referrer-Policy: no-referrer`). A test that sends a search calls
   `resetGate()` first.

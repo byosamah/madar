@@ -5,7 +5,19 @@
  *
  * It costs nothing and needs no key. It opens only the short link, and follows a redirect only to a host of the Google list.
  * It never opens the last address, so no page of Google and no person data comes back. The answer is one address.
+ *
+ * Only a person signed in to the copy of the host gets an answer (review 2026-11-10, finding 4): a client that sends no
+ * sec-fetch-site header (a script, or an old Safari) passed the site check alone. The token check is the one of the satellite tiles
+ * (isPerson, pagesSatellite.ts), so both key kinds work. Only the page hosts of the two copies answer; any other host gets 404.
  */
+
+import { copyOfPageHost } from '../core/serverHost';
+import type { PagesEnv } from './pagesForward';
+import { ownKeySetFor } from './pagesOwnKeys';
+import { isPerson, keySetOf, type SatelliteDeps } from './pagesSatellite';
+
+/** fetch opens the short link and its redirects; the two key sets check the token, as for the satellite tiles. */
+export type MapLinkDeps = SatelliteDeps;
 
 /** The hosts of a short link. The path of goo.gl must start with /maps. */
 const SHORT_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl']);
@@ -64,12 +76,24 @@ export async function followShortLink(link: string, run: typeof fetch): Promise<
   return null;
 }
 
-/** POST /maplink with {"url": "<short link>"}. The answer is {"url": "<long address>"}. */
-export async function resolveMapLink(request: Request, run: typeof fetch = fetch): Promise<Response> {
+/**
+ * POST /maplink with {"url": "<short link>"} and the sign-in token of the person. The answer is {"url": "<long address>"}. No good
+ * token: 401, and the route opens no outside address. A key set that does not load: 503, never a refusal.
+ */
+export async function resolveMapLink(request: Request, env: PagesEnv = {}, deps: MapLinkDeps = { fetch, keySet: keySetOf, ownKeySet: ownKeySetFor }): Promise<Response> {
+  const copy = copyOfPageHost(new URL(request.url).hostname);
+  if (!copy) return answer({ error: 'not_found' }, 404);
   if (request.method !== 'POST') return answer({ error: 'method_not_allowed' }, 405);
-  // A browser names the site of a request. Only the page of Madar itself may ask.
+  // A browser names the site of a request. Only the page of Madar itself may ask. A client with no header still needs the token below.
   const site = request.headers.get('sec-fetch-site');
   if (site !== null && site !== 'same-origin') return answer({ error: 'forbidden' }, 403);
+  let person: boolean;
+  try {
+    person = await isPerson(request.headers.get('authorization'), copy, { supabase: () => deps.keySet(copy), own: () => deps.ownKeySet?.(copy, env) });
+  } catch {
+    return answer({ error: 'sign_in_check_failed' }, 503);
+  }
+  if (!person) return answer({ error: 'unauthenticated' }, 401);
   let body: unknown;
   try {
     body = await request.json();
@@ -79,6 +103,6 @@ export async function resolveMapLink(request: Request, run: typeof fetch = fetch
   const value = typeof body === 'object' && body !== null ? (body as { url?: unknown }).url : undefined;
   const url = typeof value === 'string' && value.length <= 300 ? parse(value) : null;
   if (!url || !isShortLink(url)) return answer({ error: 'bad_link' }, 400);
-  const long = await followShortLink(url.href, run);
+  const long = await followShortLink(url.href, deps.fetch);
   return long ? answer({ url: long }, 200) : answer({ error: 'unreachable' }, 502);
 }

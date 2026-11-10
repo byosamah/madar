@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithRuntime } from '../../test/render';
 import { resetGate } from '../../lib/nominatimGate';
+import { setTileTokenSource } from '../../app/remote/tileToken';
 import { PinPicker } from './PinPicker';
 
 // The real build shows the map (a double here) and the place search. The one field shows in both builds.
@@ -219,6 +220,21 @@ describe('PinPicker short link (PRJ-03)', () => {
     type(SHORT);
     expect(await screen.findByText(/Madar cannot read this short link now/)).toBeTruthy();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('sends the sign-in token of the person to /maplink (review 2026-11-10, finding 4)', async () => {
+    setTileTokenSource(async () => 'the.person.token');
+    try {
+      fetchMock.mockResolvedValue(answer({ url: 'https://www.google.com/maps/place/X/@26.2834,50.2105,17z/data=!3d26.2834!4d50.2105' }));
+      const onChange = vi.fn();
+      await renderWithRuntime(<PinPicker value={null} onChange={onChange} />);
+      type(SHORT);
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ lat: 26.2834, lng: 50.2105 }));
+      const sent = fetchMock.mock.calls.find((call) => call[0] === '/maplink');
+      expect(new Headers((sent?.[1] as RequestInit).headers).get('authorization')).toBe('Bearer the.person.token');
+    } finally {
+      setTileTokenSource(async () => null);
+    }
   });
 });
 

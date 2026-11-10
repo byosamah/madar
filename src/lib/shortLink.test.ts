@@ -25,6 +25,16 @@ describe('resolveShortLink (PRJ-03)', () => {
     vi.stubGlobal('fetch', run);
     expect(await resolveShortLink('https://maps.app.goo.gl/AbC123')).toBe('https://www.google.com/maps/@26.28,50.21,17z');
     expect(run).toHaveBeenCalledWith('/maplink', expect.objectContaining({ method: 'POST', body: JSON.stringify({ url: 'https://maps.app.goo.gl/AbC123' }) }));
+    expect(new Headers((run.mock.calls[0][1] as RequestInit).headers).has('authorization')).toBe(false);
+  });
+
+  it('sends the sign-in token of the person when the caller gives one (review 2026-11-10, finding 4)', async () => {
+    const run = vi.fn().mockResolvedValue(new Response(JSON.stringify({ url: 'https://www.google.com/maps/@26.28,50.21,17z' }), { status: 200 }));
+    vi.stubGlobal('fetch', run);
+    expect(await resolveShortLink('https://maps.app.goo.gl/AbC123', 'the.person.token')).toBe('https://www.google.com/maps/@26.28,50.21,17z');
+    const headers = new Headers((run.mock.calls[0][1] as RequestInit).headers);
+    expect(headers.get('authorization')).toBe('Bearer the.person.token');
+    expect(headers.get('content-type')).toBe('application/json');
   });
 
   it('gives null when the server says no, the answer is odd, or the request fails', async () => {

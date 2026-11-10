@@ -55,7 +55,7 @@ export function ownIssuerOf(copy: Copy): string {
 
 /** The key set of Supabase Auth of each copy, made once for each function instance. */
 const keySets = new Map<Copy, JWTVerifyGetKey>();
-function keySetOf(copy: Copy): JWTVerifyGetKey {
+export function keySetOf(copy: Copy): JWTVerifyGetKey {
   let set = keySets.get(copy);
   if (!set) {
     set = createRemoteJWKSet(new URL(`${COPY_HOSTS[copy].supabaseUrl}/auth/v1/.well-known/jwks.json`));
@@ -69,9 +69,9 @@ function keySetOf(copy: Copy): JWTVerifyGetKey {
  * issuer of the copy, the audience and role "authenticated", a sub, and no client_id (an agent token). The issuer picks the key set: the
  * Supabase issuer of the copy keeps the Supabase check, the own issuer of the copy uses the own set (undefined when the copy does not run
  * on its office object, so the token is refused), and any other issuer is a refusal. A key set that does not load throws, so the route
- * answers 503 and never treats an outage as a refusal.
+ * answers 503 and never treats an outage as a refusal. The map link route (pagesMapLink.ts) uses the same check (review 2026-11-10).
  */
-async function isPerson(header: string | null, copy: Copy, keys: { supabase: () => JWTVerifyGetKey; own: () => JWTVerifyGetKey | undefined }): Promise<boolean> {
+export async function isPerson(header: string | null, copy: Copy, keys: { supabase: () => JWTVerifyGetKey; own: () => JWTVerifyGetKey | undefined }): Promise<boolean> {
   const match = header === null ? null : BEARER.exec(header.trim());
   if (!match) return false;
   let issuer: unknown;

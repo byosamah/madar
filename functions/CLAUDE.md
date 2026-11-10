@@ -11,8 +11,11 @@ that passes `request` and `env`. The logic and its tests live in `server/http/` 
 - `map/[[path]].ts`: unused route, kept for a later own map file (`server/http/pagesMap.ts`). It needs the R2 binding `MAP`;
   without it every request answers 404 `map_not_ready`. The screens read the free OpenFreeMap tiles.
 - `maplink.ts`: `POST /maplink` follows a short Google Maps link (`maps.app.goo.gl`, `goo.gl/maps`) and answers the long address,
-  logic in `server/http/pagesMapLink.ts`. It needs no key and no binding. It opens only the short link, follows a redirect only
-  to a Google host, never opens the last address, and answers only a request from the same site.
+  logic in `server/http/pagesMapLink.ts`. It needs no key. It opens only the short link, follows a redirect only to a Google host,
+  never opens the last address, and answers only a request from the same site. Only the page hosts of the two copies (any other
+  host: 404), and only a person signed in to that copy (review 2026-11-10): the token check of the satellite route below (`isPerson`,
+  both key kinds, the same binding for the own key set), else 401 with no outside request. A client with no `sec-fetch-site` (an old
+  Safari) still passes with a good token. A key set that does not load gives 503.
 - `satellite/[[path]].ts`: `GET /satellite/<z>/<y>/<x>`, one Esri World Imagery tile, logic in `server/http/pagesSatellite.ts`
   (the details are in its top comment). Only the page hosts of the two copies (any other host: 404). Only a person signed in to
   that copy (the browser token, no agent token): else 401. Two key kinds work. The route reads the issuer of the token first. The
