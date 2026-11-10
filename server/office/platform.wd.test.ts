@@ -31,7 +31,8 @@ describe('the platform object on local workerd', () => {
     expect(await live.platform('listed')).toEqual(['ent_002']);
     expect(await live.platform('resolveEmail', { email: 'hana@globex.test' })).toEqual({ ent: 'ent_002' });
     expect(await live.platform('resolveAddress', { address: 'globex' })).toEqual({ ent: 'ent_002' });
-    expect(await live.platform('health')).toEqual({ schema: 4 });
+    // Version 5 (review 2026-11-10): the displaced refresh hashes and the known sign-in places of the platform accounts.
+    expect(await live.platform('health')).toEqual({ schema: 5 });
   });
 
   it('refuses an unknown email like a wrong password, with real crypto', async () => {
