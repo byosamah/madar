@@ -351,5 +351,22 @@ describe('the files of an office task (owner, 2026-10-06)', () => {
     await expect(run({ ...office, projectId: 'prj_001', key: 'prj-001/upl-a/file' }, upload)).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(run({ ...office, key: 'feedback/upl-a/file' }, upload)).rejects.toMatchObject({ code: 'invalid_input' });
   });
+
+  it('the preflight of files.upload refuses an upload that names no place with the calm refusal, not a plain error (review finding 7)', async () => {
+    const office: Intent = {
+      id: 'upl_a', actorId: 'usr_002', projectId: null, stagingKey: 'up/upl-a/file', key: 'office/tsk-050/upl-a/file', thumbKey: null, size: 12,
+      mimeType: 'application/pdf', expiresAt: new Date('2026-10-04T08:00:00Z'), usedAt: null,
+    };
+    for (const more of [{}, { taskId: null }, { taskId: '' }]) {
+      const s = setup();
+      await insertIntents(s.db, [office]);
+      s.deps.files.objects.set('up/upl-a/file', { size: 12, mimeType: 'application/pdf' });
+      const input = { uploadId: 'upl_a', name: 'licence.pdf', ...more };
+      await expect(filesUploadHooks.preflight!(input, { actorId: 'usr_002', now: NOW, deps: s.deps }), JSON.stringify(more))
+        .rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['projectId'], reason: 'office_needs_task' } });
+      // No store call: the refusal comes before the intent read and the copy.
+      expect(s.deps.files.calls).toEqual([]);
+    }
+  });
 });
 

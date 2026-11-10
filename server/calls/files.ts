@@ -182,10 +182,14 @@ export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
   async preflight(input, { actorId, now, deps }): Promise<UploadPrepared & { thumbSize?: number }> {
     const { projectId, uploadId, taskId, conversationId, meetingId, resources } = input as UploadInput;
     // No project: the intent must be one of the meeting the call names (wave 2), of the chat it names (owner, 2026-10-19), or of the office task it names (owner, 2026-10-06).
+    // No place at all: refuse with the calm reason, as files.uploadStart does (officeTaskOfUpload). The key part of an empty task id would throw a plain error.
+    if (resources !== true && meetingId === undefined && conversationId === undefined && projectId === undefined && !taskId) {
+      throw invalid('projectId', 'Name the project, or the office task of the file.', 'office_needs_task');
+    }
     const place = resources === true ? { projectId: null, resources: true }
       : meetingId !== undefined ? { projectId: projectId ?? null, meetingId, ...(conversationId !== undefined ? { conversationId } : {}) }
       : conversationId !== undefined ? { projectId: projectId ?? null, conversationId }
-      : projectId !== undefined ? { projectId } : { projectId: null, officeTaskId: taskId ?? '' };
+      : projectId !== undefined ? { projectId } : { projectId: null, officeTaskId: taskId as string };
     const intent = checkIntent((await readIntents(deps.db, [uploadId])).get(uploadId), { id: uploadId, actorId, now, field: 'uploadId', ...place, allowUsed: true, ent: entOfConfig(deps.config) });
     // A used intent: a retry of a call that committed. No store call, because a late second PUT may sit on the staging key; runCall
     // replays the stored answer of the key, and without one prepare refuses with conflict.
