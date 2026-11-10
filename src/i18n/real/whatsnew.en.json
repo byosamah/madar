@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-11-10-163": {
+        "title": "Safer sign-in and a clearer Week page",
+        "body": "Sign-in is safer: a stranger with wrong passwords can no longer lock you out. A short network drop no longer signs you out. The week of the team lists as missing only the people who answer the weekly question."
+      },
       "2026-11-08-161": {
         "title": "Your company name and logo",
         "body": "Madar now shows the name and logo of your company."
