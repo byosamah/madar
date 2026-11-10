@@ -185,6 +185,16 @@ describe('checkins.week', () => {
     expect(view.missing.plan.map((user) => user.id)).not.toContain('usr_003');
   });
 
+  it('does not name a person without the switch "Answer the weekly question" as missing, and still names a person with the switch and no answer', async () => {
+    const t = office({ usr_004: { off: ['checkin.answer'] } });
+    setNow(THURSDAY);
+    t.as('usr_001');
+    const view = await t.api.call('checkins.week', {});
+    // usr_004 may not answer, so the lists leave that person out. The others have the switch and no answer, so they stay.
+    expect(view.missing.plan.map((user) => user.id)).toEqual(['usr_002', 'usr_001', 'usr_003']);
+    expect(view.missing.review.map((user) => user.id)).toEqual(['usr_002', 'usr_001', 'usr_003']);
+  });
+
   it('needs the switch "Read the weekly answers", for the person and for the agent of the person', async () => {
     const t = office({ usr_004: { off: ['checkin.read'] } });
     t.as('usr_004');

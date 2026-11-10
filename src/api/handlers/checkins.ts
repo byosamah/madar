@@ -8,7 +8,8 @@ import { applyPatch, recordCreate } from '../events';
 import { checkinsOf, nextId, type State } from '../store';
 import { cardOf } from '../views';
 import { addDays } from '../../lib/dates';
-import { mayViewTask } from '../permissions';
+import { can, mayViewTask } from '../permissions';
+import { withRights } from '../rights';
 import { involves } from '../../lib/taskPeople';
 import { reviewDay, weekHasBegun, weekOf } from '../../lib/week';
 import { assertCan } from './shared';
@@ -123,7 +124,8 @@ const checkinsWeek = defineCall({
       .filter((user) => answers.some((one) => one.userId === user.id))
       .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
       .map((user) => ({ user: cardOf(ctx.state, user.id), plan: answered(user.id, 'plan'), review: answered(user.id, 'review') }));
-    const active = people.filter((user) => user.active).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    // Only a person who may answer can be missing. This is the same test as `runScheduledTriggers` (notify.ts): one rule, two places.
+    const active = people.filter((user) => user.active && can(withRights(ctx.state, user), 'checkin.answer')).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     const reviewDue = reviewDay(week) <= ctx.today;
     const missing = {
       plan: active.filter((user) => !find(user.id, 'plan')).map((user) => cardOf(ctx.state, user.id)),

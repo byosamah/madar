@@ -343,7 +343,7 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   switch. `checkins.save { kind, items: TaskId[], text }` writes the own answer of the CURRENT week and needs `checkin.answer`; a second save
   changes the same answer; the same lines and text write no event. `checkins.week { week? }` gives every answer of a week, one row for each person
   who answered, and the people who have not (`missing.plan`; `missing.review` stays empty until the Thursday of that week), and needs
-  `checkin.read`. Both switches are basic (on for every role). A week that has not begun is refused (`week_future`).
+  `checkin.read`. Only an active person who holds `checkin.answer` can be missing: the test is the one of `runScheduledTriggers`. Both switches are basic (on for every role). A week that has not begun is refused (`week_future`).
 - Everyone who holds `checkin.read` reads every answer (owner: "Everyone"). So the leak rules are about the lines and about the History, not about the
   readers. Rule 1, the lines: the record keeps ids only, so no title is in a record, an event or a History row. Each read builds the lines when it reads
   (`viewOf`, `handlers/checkins.ts`): the title is the one the live to-do has now, and a line stands only when the reader may view the to-do
