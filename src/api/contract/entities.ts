@@ -287,6 +287,12 @@ export const User = z.object({
   removed: z.boolean().optional(),
   /** The custom role of a person (owner, 2026-10-18). Only a Member holds one: rightsOf (rights.ts) ignores it for the other roles. Unset means none. */
   roleId: RoleId.nullable().optional(),
+  /**
+   * The time when the person was added (the week of the team uses it: a new person is missing only for a question that came after). Set when
+   * the Admin adds a person and for the first Admin of a new enterprise. An agent has none. A person saved before 2026-11-10 has none, and
+   * that reads as "always there".
+   */
+  createdAt: Stamp.optional(),
 });
 export type User = z.infer<typeof User>;
 

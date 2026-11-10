@@ -22,6 +22,7 @@ The rules of all parts (additive contract, a table for a new collection) are in 
   `google_link_other`).
 - `User.avatarUrl` takes picture data (`PICTURE_DATA`) or an https address (`UserAvatarInput`). `userCard()` leaves the
   picture data out, so lists stay small. `User.nameAr` and `Project.nameAr`: an empty value means none.
+  `User.createdAt` is optional: the time when the person was added. A person with none was there from the start (`checkins.week` reads it).
 - Caps of a stored rights list (`MAX_STORED_RIGHTS`, `MAX_OFF_RIGHTS`): see "Add a switch" in `src/api/CLAUDE.md`.
 
 ## Plain limits and the first load

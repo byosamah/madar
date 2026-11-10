@@ -12,6 +12,7 @@ import { readLiteOffice, writeOfficeSnapshot } from '../data/lite/office';
 import { insertRow } from '../data/lite/save';
 import { DEFAULT_SETTINGS } from '../data/lite/schema';
 import { rowOf } from '../data/rows';
+import { nowStamp } from '../../src/lib/dates';
 import { TABLES } from '../data/tables';
 import type { EnterpriseFacts } from './facts';
 import type { EnterpriseGate } from './gate';
@@ -62,7 +63,7 @@ export async function initEnterprise(o: InitOptions, input: EnterpriseInit): Pro
     };
     const admin = User.parse({
       id: FIRST_ADMIN_ID, name: input.admin.name, email, avatarUrl: null, kind: 'human', systemRole: 'admin', discipline: 'Administration',
-      active: true, ownerId: null, preferences: { ...defaultPreferences(), language: input.admin.language },
+      active: true, ownerId: null, preferences: { ...defaultPreferences(), language: input.admin.language }, createdAt: nowStamp(now),
     });
     const signin: SigninExportRow = { id: crypto.randomUUID(), email, password_hash: null, email_confirmed: false, banned: false, password_set: false, user_id: FIRST_ADMIN_ID };
     const users = TABLES.find((spec) => spec.table === 'users')!;

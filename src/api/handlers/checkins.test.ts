@@ -227,6 +227,53 @@ describe('checkins.week', () => {
     expect(view.missing.review.map((user) => user.id)).toEqual(['usr_002', 'usr_001', 'usr_003']);
   });
 
+  it('does not name a person added on Wednesday as missing for the plan of that week, and names them for its review from Thursday', async () => {
+    const t = office();
+    t.store.state.users.usr_004.createdAt = '2026-11-11T10:00:00+03:00';
+    setNow(THURSDAY);
+    t.as('usr_001');
+    const view = await t.api.call('checkins.week', {});
+    expect(view.missing.plan.map((user) => user.id)).not.toContain('usr_004');
+    expect(view.missing.plan.map((user) => user.id)).toContain('usr_002');
+    expect(view.missing.review.map((user) => user.id)).toContain('usr_004');
+  });
+
+  it('does not name a person added on Friday as missing for the plan or the review of that week', async () => {
+    const t = office();
+    t.store.state.users.usr_004.createdAt = '2026-11-13T10:00:00+03:00';
+    setNow(new Date('2026-11-13T09:00:00Z'));
+    t.as('usr_001');
+    const view = await t.api.call('checkins.week', {});
+    expect(view.missing.plan.map((user) => user.id)).not.toContain('usr_004');
+    expect(view.missing.review.map((user) => user.id)).not.toContain('usr_004');
+    expect(view.missing.review.map((user) => user.id)).toContain('usr_002');
+  });
+
+  it('does not name a person added this week as missing in an earlier week', async () => {
+    const t = office();
+    t.store.state.users.usr_004.createdAt = '2026-11-10T10:00:00+03:00';
+    setNow(new Date('2026-11-16T06:00:00Z'));
+    t.as('usr_001');
+    const past = await t.api.call('checkins.week', { week: '2026-11-01' });
+    expect(past.missing.plan.map((user) => user.id)).not.toContain('usr_004');
+    expect(past.missing.review.map((user) => user.id)).not.toContain('usr_004');
+    expect(past.missing.plan.map((user) => user.id)).toContain('usr_002');
+    // The week of the day of the stamp counts the person from the Sunday on: the plan of that week is not missing, the review is.
+    const same = await t.api.call('checkins.week', { week: '2026-11-08' });
+    expect(same.missing.plan.map((user) => user.id)).not.toContain('usr_004');
+    expect(same.missing.review.map((user) => user.id)).toContain('usr_004');
+  });
+
+  it('names a person with no stamp as missing for every week, as before', async () => {
+    const t = office();
+    expect(t.store.state.users.usr_004.createdAt).toBeUndefined();
+    setNow(new Date('2026-11-16T06:00:00Z'));
+    t.as('usr_001');
+    const past = await t.api.call('checkins.week', { week: '2026-11-01' });
+    expect(past.missing.plan.map((user) => user.id)).toContain('usr_004');
+    expect(past.missing.review.map((user) => user.id)).toContain('usr_004');
+  });
+
   it('needs the switch "Read the weekly answers", for the person and for the agent of the person', async () => {
     const t = office({ usr_004: { off: ['checkin.read'] } });
     t.as('usr_004');

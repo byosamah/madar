@@ -232,6 +232,7 @@ export const usersCreate = defineCall({
       discipline: input.discipline, ownerId, avatarUrl: null, active: true, gender: input.gender,
       preferences: { ...defaultPreferences(), language: input.language ?? ctx.authority.preferences.language },
       ...(input.roleId ? { roleId: input.roleId } : {}),
+      ...(input.kind === 'human' ? { createdAt: ctx.stamp } : {}),
     };
     ctx.state.users[id] = user;
     recordCreate(ctx, { projectId: null, verb: 'user.created', targetType: 'user', targetId: id, entity: user });

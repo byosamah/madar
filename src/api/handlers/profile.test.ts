@@ -79,6 +79,15 @@ describe('the names in two languages in the contract (owner item 12, 2026-10-05)
     expect(t.store.state.users[made.id].nameAr).toBe('نورة صالح');
   });
 
+  it('stamps a new person with the time of the call, and gives an agent no stamp', async () => {
+    const t = testApi(peopleCalls);
+    const made = await t.api.call('users.create', { name: 'Stamped Person', email: 'stamped@madar.test', discipline: 'MEP' });
+    expect(made.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(t.store.state.users[made.id].createdAt).toBe(made.createdAt);
+    const agent = await t.api.call('users.create', { name: 'Agent One', email: 'agent1@madar.test', discipline: 'MEP', kind: 'agent', ownerId: 'usr_002' });
+    expect(agent.createdAt).toBeUndefined();
+  });
+
   it('still creates a person with the English name only, for old callers', async () => {
     const t = testApi(peopleCalls);
     const made = await t.api.call('users.create', { name: 'Old Caller', email: 'old@madar.test', discipline: 'MEP' });

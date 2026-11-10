@@ -1,13 +1,13 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Checkin, CheckinKind, Day, TaskId } from '../contract/entities';
+import { Checkin, CheckinKind, Day, TaskId, type User } from '../contract/entities';
 import { CHECKIN_LIMITS } from '../contract/limits';
 import { CheckinItem, CheckinMine, CheckinView, WeekView } from '../contract/views';
 import { invalid } from '../errors';
 import { applyPatch, recordCreate } from '../events';
 import { checkinsOf, nextId, type State } from '../store';
 import { cardOf } from '../views';
-import { addDays } from '../../lib/dates';
+import { addDays, stampDay } from '../../lib/dates';
 import { can, mayViewTask } from '../permissions';
 import { withRights } from '../rights';
 import { involves } from '../../lib/taskPeople';
@@ -129,9 +129,12 @@ const checkinsWeek = defineCall({
     // Only a person who may answer can be missing. This is the same test as `runScheduledTriggers` (notify.ts): one rule, two places.
     const active = people.filter((user) => user.active && can(withRights(ctx.state, user), 'checkin.answer')).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     const reviewDue = reviewDay(week) <= ctx.today;
+    // A person is missing only for a question that came after the person was added: the plan opens on the Sunday and the review on the
+    // Thursday of the week. A person with no `createdAt` was there from the start.
+    const joinedAfter = (user: User, due: string) => user.createdAt !== undefined && stampDay(user.createdAt) > due;
     const missing = {
-      plan: active.filter((user) => !find(user.id, 'plan')).map((user) => cardOf(ctx.state, user.id)),
-      review: reviewDue ? active.filter((user) => !find(user.id, 'review')).map((user) => cardOf(ctx.state, user.id)) : [],
+      plan: active.filter((user) => !find(user.id, 'plan') && !joinedAfter(user, week)).map((user) => cardOf(ctx.state, user.id)),
+      review: reviewDue ? active.filter((user) => !find(user.id, 'review') && !joinedAfter(user, reviewDay(week))).map((user) => cardOf(ctx.state, user.id)) : [],
     };
     return { week, previous: addDays(week, -7), next: week < weekOf(ctx.today) ? addDays(week, 7) : null, rows, missing };
   },

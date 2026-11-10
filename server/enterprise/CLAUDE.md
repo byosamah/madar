@@ -99,6 +99,7 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
 - **VADO is a normal company** (design D11). There is no owner list: no `isOwner`, no `setOwners`, no mirror in the office object, no `owner_enterprise`
   refusal (the reason is gone from the contract and the words). The platform pauses `ent_001` like any other company, with the typed name. `session.get` never sets `platformOwner`. The platform table `owners`
   and the column `enterprise_use.owners` stay in the schema (a released step never changes) and nothing reads or writes them.
+- The first Admin of a new enterprise holds `createdAt`, the time of the create (`initEnterprise`), so the week of the team does not list the Admin as missing for an earlier week.
 - Create runs in this order: `platform.create` (row `creating`, address and Admin email reserved), `office.init` (settings, `usr_001`, the invitation),
   `platform.activate`. A failed step leaves the row `creating`; the same call again finishes it. A change of two sides writes the object first and the
   platform row second (`update` sends the object only the fields that changed). `pause` needs the typed name.

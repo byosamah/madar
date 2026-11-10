@@ -35,6 +35,8 @@ describe('init of an enterprise object', () => {
     expect(JSON.parse(user.doc as string)).toMatchObject({
       id: 'usr_001', name: 'Sara Admin', email: 'sara@acme.test', systemRole: 'admin', kind: 'human', discipline: 'Administration', active: true, preferences: { language: 'ar' },
     });
+    // The first Admin holds the stamp of the create, so the week of the team does not list the Admin as missing for an earlier week.
+    expect(JSON.parse(user.doc as string).createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(rows(one, 'select user_id, email, password_hash, password_set, email_confirmed, banned from auth_users')).toEqual([
       { user_id: 'usr_001', email: 'sara@acme.test', password_hash: null, password_set: 0, email_confirmed: 0, banned: 0 },
     ]);
