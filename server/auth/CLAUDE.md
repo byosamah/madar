@@ -75,7 +75,9 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   a company route. `isPlatformBearer` reads the audience of an unchecked token only to send it away early (the MCP route). The sign-in of the platform accounts
   is in `server/enterprise/platform/accounts.ts`; it reuses `countLimits`, `rotateSession`-like rotation, `hashPassword` and `verifyPassword`.
 - Limits are in `own/limits.ts` (sign-ins for one address, link opens, OAuth registrations, OAuth authorize steps, and the two email
-  limits below). The address is `clientAddress` (`forgot.ts`).
+  limits below). The address is `clientAddress` (`forgot.ts`). Every limit key reads it through `limitAddress` (`rateLimit.ts`, task D3b):
+  an IPv6 address counts as its /64 block (one machine holds the whole block), an IPv4-mapped one as its IPv4 address. `clientAddress`
+  keeps the full address; the helper runs only where a key is built, also for the RPC input of the platform object (`hitAddress`).
 - Password sign-ins (owner, review 2026-11-10): 10 tries in 15 minutes for one email from one address (`signin:pair`, `SIGNIN_PER_EMAIL`),
   and 100 for one email from all addresses (`signin:email`, `SIGNIN_PER_EMAIL_TOTAL`). So the wrong tries of a stranger at another address
   do not lock the person out. The tries count before the password check, so the 11th try at one address fails also with the right password.

@@ -8,7 +8,7 @@ import { countLimits, insertSession, rotateSession } from '../../auth/own/sessio
 import { OAuthError, type SigninDeps } from '../../auth/own/types';
 import { ACCESS_TTL_S, ownIssuer } from '../../auth/ownKeys';
 import { principalOf } from '../../auth/principal';
-import { hashedKey } from '../../auth/rateLimit';
+import { hashedKey, limitAddress } from '../../auth/rateLimit';
 import type { LiteDb } from '../../data/lite/db';
 import { readLiteOffice } from '../../data/lite/office';
 import { userIdOfAuth } from '../../data/officeCache';
@@ -46,7 +46,7 @@ export type RegisteredClient = {
 
 /** POST /mcp/oauth/register (RFC 7591): a public client (PKCE, no secret) with safe return addresses. */
 export async function registerClient(deps: SigninDeps, input: { body: unknown; address: string }): Promise<RegisteredClient> {
-  await countLimits(deps, [{ key: await hashedKey('register:ip', input.address), limit: REGISTER_PER_ADDRESS, windowMs: HOUR_MS }]);
+  await countLimits(deps, [{ key: await hashedKey('register:ip', limitAddress(input.address)), limit: REGISTER_PER_ADDRESS, windowMs: HOUR_MS }]);
   const parsed = RegisterBody.safeParse(input.body);
   if (!parsed.success) throw new OAuthError(400, 'invalid_client_metadata', 'The client metadata is not valid.');
   const body = parsed.data;
@@ -78,7 +78,7 @@ const AuthorizeQuery = z.object({
  * The limit of the address comes first, before the client read: over it, the step reads and writes nothing more.
  */
 export async function startAuthorization(deps: SigninDeps, input: { query: Record<string, string>; address: string }): Promise<{ redirect: string }> {
-  await countLimits(deps, [{ key: await hashedKey('authorize:ip', input.address), limit: AUTHORIZE_PER_ADDRESS, windowMs: HOUR_MS }]);
+  await countLimits(deps, [{ key: await hashedKey('authorize:ip', limitAddress(input.address)), limit: AUTHORIZE_PER_ADDRESS, windowMs: HOUR_MS }]);
   const { client_id: clientId, redirect_uri: redirectUri, state } = input.query;
   const [client] = clientId ? await deps.db.statement<ClientRow>('read', CLIENT_BY_ID, [clientId]) : [];
   if (!client || !redirectUri || !redirectAllowed(JSON.parse(client.redirect_uris) as string[], redirectUri)) {

@@ -2,7 +2,7 @@ import { ApiError } from '../../../src/api/errors';
 import type { LiteDb } from '../../data/lite/db';
 import { readLiteOffice } from '../../data/lite/office';
 import { principalOf } from '../principal';
-import { hashedKey } from '../rateLimit';
+import { hashedKey, limitAddress } from '../rateLimit';
 import { randomToken, sha256Hex } from './crypto';
 import { ADDRESS_LIMITS, SIGNIN_PER_EMAIL, SIGNIN_PER_EMAIL_TOTAL, SIGNIN_WINDOW_MS } from './limits';
 import { LINK_LIFE_MS } from './liteAdmin';
@@ -51,9 +51,11 @@ export async function passwordSignIn(deps: SigninDeps, input: { email: string; p
   // needs the address: the Worker passes the one that the Pages Function wrote (clientAddress).
   // The email counts with the address (owner, review 2026-11-10), so the wrong tries of a stranger at another address do not lock the
   // person out. The pair comes before the total: a try that the pair refuses does not count toward the total of the email.
+  // An IPv6 address counts as its /64 block (limitAddress), so one machine has one count.
+  const address = limitAddress(input.address);
   await countLimits(deps, [
-    ...(input.addressChecked === true ? [] : [{ key: await hashedKey(ADDRESS_LIMITS['auth.password'].prefix, input.address), ...ADDRESS_LIMITS['auth.password'].limit }]),
-    { key: await hashedKey('signin:pair', `${email}|${input.address}`), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },
+    ...(input.addressChecked === true ? [] : [{ key: await hashedKey(ADDRESS_LIMITS['auth.password'].prefix, address), ...ADDRESS_LIMITS['auth.password'].limit }]),
+    { key: await hashedKey('signin:pair', `${email}|${address}`), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },
     { key: await hashedKey('signin:email', email), limit: SIGNIN_PER_EMAIL_TOTAL, windowMs: SIGNIN_WINDOW_MS },
   ]);
   const [found] = await deps.db.statement<AuthUserRow>('read', AUTH_USER_BY_EMAIL, [email]);
@@ -112,7 +114,7 @@ export function linkEnded(): ApiError {
 export async function verifySignInLink(deps: SigninDeps, input: { token: string; type: 'invite' | 'recovery'; address: string; addressChecked?: boolean }): Promise<TokenAnswer> {
   // addressChecked: see passwordSignIn.
   if (input.addressChecked !== true) {
-    await countLimits(deps, [{ key: await hashedKey(ADDRESS_LIMITS['auth.verify'].prefix, input.address), ...ADDRESS_LIMITS['auth.verify'].limit }]);
+    await countLimits(deps, [{ key: await hashedKey(ADDRESS_LIMITS['auth.verify'].prefix, limitAddress(input.address)), ...ADDRESS_LIMITS['auth.verify'].limit }]);
   }
   const hash = await sha256Hex(input.token);
   const refresh = randomToken();

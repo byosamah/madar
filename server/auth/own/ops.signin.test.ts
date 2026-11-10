@@ -93,6 +93,16 @@ describe('the password sign-in of the own stack (server/auth/own/ops.ts)', () =>
     expect(await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS })).toMatchObject({ token_type: 'bearer' });
   });
 
+  it('counts an IPv6 address as its /64 block: 10 tries from 10 addresses of one block stop the 11th address of that block (task D3b)', async () => {
+    const { email, deps } = await setup();
+    for (let i = 1; i <= 10; i += 1) {
+      expect(await errorOf(passwordSignIn(deps, { email, password: 'not it', address: `2001:db8:1:2::${i.toString(16)}` }))).toMatchObject({ reason: 'invalid_credentials' });
+    }
+    expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: '2001:db8:1:2:ffff::b' }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+    // Another /64 block is another machine: it still signs in.
+    expect(await passwordSignIn(deps, { email, password: 'a good password', address: '2001:db8:1:3::1' })).toMatchObject({ token_type: 'bearer' });
+  });
+
   it('the office path: a stranger does not lock the person out with addressChecked on every call', async () => {
     const { email, deps } = await setup();
     for (let i = 0; i < 10; i += 1) await errorOf(passwordSignIn(deps, { email, password: 'not it', address: '198.51.100.1', addressChecked: true }));

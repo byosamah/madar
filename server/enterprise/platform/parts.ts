@@ -1,7 +1,7 @@
 import { ApiError } from '../../../src/api/errors';
 import { FORGOT_ADDRESS_LIMIT } from '../../auth/forgot';
 import { ADDRESS_LIMITS } from '../../auth/own/limits';
-import { hashedKey, hitLimit } from '../../auth/rateLimit';
+import { hashedKey, hitLimit, limitAddress } from '../../auth/rateLimit';
 import { RENEW_ADDRESS_LIMIT } from '../../auth/renew';
 import { statementQuery } from '../../data/dialect';
 import { runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../../auth/own/office';
@@ -189,7 +189,7 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
       const one = ADDRESS_STEP_LIMITS[step];
       if (!one || typeof address !== 'string') throw new ApiError('invalid_input', 'This is not a step with an address limit.');
       const { prefix, ...window } = one;
-      const hit = await hitLimit(statementQuery(db, 'write'), { key: await hashedKey(prefix, address), ...window, now: clock.now() });
+      const hit = await hitLimit(statementQuery(db, 'write'), { key: await hashedKey(prefix, limitAddress(address)), ...window, now: clock.now() });
       return hit.ok ? { ok: true } : { ok: false, retryAfterMs: hit.retryAfterMs };
     },
 

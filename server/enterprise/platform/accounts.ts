@@ -7,7 +7,7 @@ import { accountOff, wrongCredentials } from '../../auth/own/ops';
 import { hashPassword, verifyPassword } from '../../auth/own/password';
 import { countLimits, DAY_MS, REFRESH_REUSE_MS, SESSION_DAYS, sessionEnded } from '../../auth/own/sessions';
 import { ACCESS_TTL_S } from '../../auth/ownKeys';
-import { hashedKey } from '../../auth/rateLimit';
+import { hashedKey, limitAddress } from '../../auth/rateLimit';
 import type { Clock } from '../../core/ports';
 import type { RunError } from '../../core/types';
 import { runErrorOf } from '../../http/errors';
@@ -71,7 +71,7 @@ async function answerOf(d: AccountDeps, o: { account: AccountRow; sessionId: str
 export async function platformSignIn(d: AccountDeps, input: { email: string; password: string; address: string }): Promise<PlatformTokenAnswer> {
   const email = normalizeEmail(textOf(input.email));
   const password = textOf(input.password).slice(0, PASSWORD_MAX);
-  const address = textOf(input.address);
+  const address = limitAddress(textOf(input.address));
   await countLimits(d, [
     { key: await hashedKey(ADDRESS_PREFIX, address), ...ADDRESS_LIMITS['auth.password'].limit },
     { key: await hashedKey(PAIR_PREFIX, `${email}|${address}`), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },

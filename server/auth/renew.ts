@@ -12,7 +12,7 @@ import { entOfConfig, scopedRef } from '../enterprise/scope';
 import { authAdminOf } from './admin';
 import { clientAddress } from './forgot';
 import { mailKey, NEWER_LINK_LITE, NEWER_LINK_SQL, PAYLOAD_MERGE_LITE, PAYLOAD_MERGE_SQL, PERSON_LITE, PERSON_SQL, renewRow } from './invite';
-import { hashedKey, hitLimit } from './rateLimit';
+import { hashedKey, hitLimit, limitAddress } from './rateLimit';
 
 /**
  * POST /api/auth/renew-invite { key } (security fix 7, wave 5 track H). The Welcome screen sends it with no sign-in, when the
@@ -185,7 +185,7 @@ export function createRenewRoute(o: {
     const now = deps.clock.now();
     if (o.skipAddress !== true) {
       const { prefix, ...window } = RENEW_ADDRESS_LIMIT;
-      const byAddress = await hitLimit(q, { key: await hashedKey(prefix, clientAddress(request)), ...window, now });
+      const byAddress = await hitLimit(q, { key: await hashedKey(prefix, limitAddress(clientAddress(request))), ...window, now });
       if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
     }
     const byKey = await hitLimit(q, { key: await hashedKey('renew:key', key), limit: RENEW_KEY_PER_HOUR, windowMs: HOUR_MS, now });

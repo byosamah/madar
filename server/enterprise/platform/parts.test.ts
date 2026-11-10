@@ -163,6 +163,13 @@ describe('hitAddress counts the network address of the steps before a token', ()
     }
   });
 
+  it('counts an IPv6 address as its /64 block: a new address of the same block does not start a new count (task D3b)', async () => {
+    const { parts } = await platform();
+    for (let i = 1; i <= LIMITS.forgot; i += 1) expect(await parts.hitAddress({ step: 'forgot', address: `2001:db8:5:6::${i.toString(16)}` }), `${i}`).toEqual({ ok: true });
+    expect(await parts.hitAddress({ step: 'forgot', address: '[2001:DB8:5:6:abcd::1]' })).toMatchObject({ ok: false });
+    expect(await parts.hitAddress({ step: 'forgot', address: '2001:db8:5:7::1' })).toEqual({ ok: true });
+  });
+
   it('refuses a step that has no address limit', async () => {
     const { parts } = await platform();
     await expect(parts.hitAddress({ step: 'auth.refresh' as never, address: ADDRESS })).rejects.toThrow();

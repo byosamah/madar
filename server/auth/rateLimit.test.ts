@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Query } from '../core/ports';
 import { markLite, statementQuery } from '../data/dialect';
 import { freshLite } from '../data/lite/testDb';
-import { hashedKey, hitLimit, RATE_SQL } from './rateLimit';
+import { hashedKey, hitLimit, limitAddress, RATE_SQL } from './rateLimit';
 
 /** The rate_limits table in memory: it answers RATE_SQL as the upsert does (no update and no row over the limit, the third value). */
 function memoryLimits() {
@@ -70,5 +70,37 @@ describe('hashedKey', () => {
     expect(one).not.toContain('sara');
     expect(await hashedKey('forgot:email', ' sara@madar.test ')).toBe(one);
     expect(await hashedKey('forgot:ip', 'sara@madar.test')).not.toBe(one);
+  });
+});
+
+describe('limitAddress: the address of a limit key (review 2026-11-10, task D3b)', () => {
+  it('gives every address of one IPv6 /64 block the same text, and another block another text', () => {
+    const block = limitAddress('2001:db8:1:2:aaaa::1');
+    expect(block).toBe('2001:0db8:0001:0002');
+    expect(limitAddress('2001:DB8:1:2::ffff')).toBe(block);
+    expect(limitAddress('2001:0db8:0001:0002:0000:0000:0000:0009')).toBe(block);
+    expect(limitAddress(' 2001:db8:1:2:1:2:3:4 ')).toBe(block);
+    expect(limitAddress('2001:db8:1:3::1')).toBe('2001:0db8:0001:0003');
+  });
+
+  it('reads ::, brackets, a zone id and an IPv4-mapped address', () => {
+    expect(limitAddress('::1')).toBe('0000:0000:0000:0000');
+    expect(limitAddress('::')).toBe('0000:0000:0000:0000');
+    expect(limitAddress('[2001:db8::1]')).toBe('2001:0db8:0000:0000');
+    expect(limitAddress('fe80::1%en0')).toBe('fe80:0000:0000:0000');
+    expect(limitAddress('::ffff:1.2.3.4')).toBe('1.2.3.4');
+    expect(limitAddress('::FFFF:0102:0304')).toBe('1.2.3.4');
+    expect(limitAddress('64:ff9b::1.2.3.4')).toBe('0064:ff9b:0000:0000');
+  });
+
+  it('keeps an IPv4 address and a text that is no address as they are, trimmed and lower-case, and never throws', () => {
+    expect(limitAddress('1.2.3.4')).toBe('1.2.3.4');
+    expect(limitAddress(' 203.0.113.7 ')).toBe('203.0.113.7');
+    expect(limitAddress('not-an-address')).toBe('not-an-address');
+    expect(limitAddress('Unknown')).toBe('unknown');
+    for (const odd of ['', ':::', '1::2::3', '2001:db8:1:2:3:4:5:6:7', '12345::1', 'g::1', '1.2.3.4::', '[2001:db8::1', '::ffff:1.2.3.999']) {
+      expect(() => limitAddress(odd), odd).not.toThrow();
+      expect(limitAddress(odd), odd).toBe(odd.trim().toLowerCase());
+    }
   });
 });

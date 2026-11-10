@@ -9,7 +9,7 @@ import { errorResponse, runErrorOf } from '../http/errors';
 import { CLIENT_ADDRESS_HEADER } from '../http/pagesForward';
 import { reservePlace, sendCounted } from '../mail/quota';
 import { renderSigninMail, signinLink } from './mail';
-import { hashedKey, hitLimit } from './rateLimit';
+import { hashedKey, hitLimit, limitAddress } from './rateLimit';
 import { mailOptionsOf } from '../enterprise/brand';
 
 /**
@@ -162,7 +162,7 @@ export function createForgotRoute(o: {
     const now = deps.clock.now();
     if (o.skipAddress !== true) {
       const { prefix, ...window } = FORGOT_ADDRESS_LIMIT;
-      const byAddress = await hitLimit(q, { key: await hashedKey(prefix, clientAddress(request)), ...window, now });
+      const byAddress = await hitLimit(q, { key: await hashedKey(prefix, limitAddress(clientAddress(request))), ...window, now });
       if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
     }
     const byEmail = await hitLimit(q, { key: await hashedKey('forgot:email', email), limit: FORGOT_EMAIL_PER_WINDOW, windowMs: FORGOT_EMAIL_WINDOW_MS, now });
