@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-11-10-164": {
+        "title": "A fairer Week page and a safer sign-in",
+        "body": "The week of the team no longer lists a new person as missing for a question from before they joined. Sign-in protects you better: the place where you usually sign in keeps working when a stranger tries wrong passwords."
+      },
       "2026-11-10-163": {
         "title": "Safer sign-in and a clearer Week page",
         "body": "Sign-in is safer: a stranger with wrong passwords can no longer lock you out. A short network drop no longer signs you out. The week of the team lists as missing only the people who answer the weekly question."
