@@ -64,6 +64,18 @@ describe('the OAuth documents, the registration and the authorize step (server/m
     expect((await root.request(authorizeUrl(body.client_id, { redirect_uri: 'http://127.0.0.1:51000/callback' }))).status).toBe(302);
   });
 
+  it('authorize stops at 60 an hour for one address, and writes no request row over the limit (review 2026-11-10, finding 1)', async () => {
+    const { root, t } = await oauthApp();
+    const { body } = await registered(root);
+    const from = (ip: string) => root.request(authorizeUrl(body.client_id), { headers: { 'cf-connecting-ip': ip } });
+    for (let i = 0; i < 60; i += 1) expect((await from('198.51.100.9')).status).toBe(302);
+    const over = await from('198.51.100.9');
+    expect(over.status).toBe(429);
+    expect(((await over.json()) as { error: { details: { reason: string } } }).error.details.reason).toBe('too_many');
+    expect(t.raw.prepare('select count(*) as n from oauth_requests').get()).toEqual({ n: 60 });
+    expect((await from('198.51.100.10')).status).toBe(302);
+  });
+
   it('never sends an error to an unknown client or address, and sends the other errors back to the client', async () => {
     const { root } = await oauthApp();
     const { body } = await registered(root);

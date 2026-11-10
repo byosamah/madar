@@ -9,7 +9,9 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
 ## Files
 - `verify.ts` (the token check), `principal.ts` (the person of a token), `admin.ts` (the AuthAdminPort over the Auth admin API).
 - `invite.ts`, `renew.ts`, `forgot.ts`: the three mail routes. `mail.ts`: the sign-in mail. `effects.ts`: the `auth.*` effects.
-- `rateLimit.ts`: fixed-window limits in the `rate_limits` table.
+- `rateLimit.ts`: fixed-window limits in the `rate_limits` table. A hit over the limit writes no row: the count of a window stops at
+  limit + 1 (the update of the upsert has a condition, review 2026-11-10). The MCP tool limit (`server/mcp/app.ts`) uses the same text.
+  Tests: `rateLimit.test.ts` (SQLite) and `server/it/rateLimit.it.test.ts` (Postgres, parallel hits).
 - The screens: `src/features/auth/` (Sign-in, Welcome, Forgot, Reset) and `src/app/remote/auth.ts` (the sign-in port).
 
 ## Rules
@@ -71,8 +73,8 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   audience and refuse a token with an `ent` or a `client_id`; `browserTokenChecker` accepts only the audience `authenticated`, so a platform token never passes
   a company route. `isPlatformBearer` reads the audience of an unchecked token only to send it away early (the MCP route). The sign-in of the platform accounts
   is in `server/enterprise/platform/accounts.ts`; it reuses `countLimits`, `rotateSession`-like rotation, `hashPassword` and `verifyPassword`.
-- Limits are in `own/limits.ts` (sign-ins for one email and for one address, link opens, OAuth registrations). The address is
-  `clientAddress` (`forgot.ts`).
+- Limits are in `own/limits.ts` (sign-ins for one email and for one address, link opens, OAuth registrations, OAuth authorize steps).
+  The address is `clientAddress` (`forgot.ts`).
   On the office path the limit of the address for `auth.password`, `auth.verify`, forgot and renew is counted once, in the platform object
   (`platform.hitAddress`), before the enterprise is chosen. The step gets `addressChecked` and counts the email or the key only. The local
   path has no flag and counts both. Details: `server/enterprise/CLAUDE.md`.

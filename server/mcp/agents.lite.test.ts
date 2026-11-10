@@ -5,7 +5,7 @@ import { liteData } from '../data/lite/callData';
 import { readLiteOffice } from '../data/lite/office';
 import { ensureAgentUser } from './agentUser';
 import { offWith } from './aiRoles.testing';
-import { sqlMcpLimit } from './app';
+import { sqlMcpLimit, TOOL_CALLS_PER_MINUTE } from './app';
 import { recordApproval } from './approval';
 import { liteAgentOf } from './oauth/agent';
 
@@ -120,6 +120,18 @@ describe('the agent rows on SQLite (Supabase exit, wave 2)', () => {
     const now = new Date('2026-10-17T06:00:30Z');
     expect(await sqlMcpLimit(deps, { ownerId: 'usr_002', clientId, now })).toEqual({ ok: true, count: 1, retryAfterMs: 30_000 });
     expect(t.raw.prepare('select last_used_at from agent_links').get()).toEqual({ last_used_at: '2026-10-17T06:00:30.000Z' });
+  });
+
+  it('refuses the tool call after the limit of a minute, and writes no count over limit + 1 (review 2026-11-10, finding 1)', async () => {
+    const t = await signinOffice();
+    const { clientId } = await linkedAgent(t);
+    const deps = t.deps as unknown as Deps;
+    const now = new Date('2026-10-17T06:00:30Z');
+    const answers = [];
+    for (let n = 0; n < TOOL_CALLS_PER_MINUTE + 3; n += 1) answers.push(await sqlMcpLimit(deps, { ownerId: 'usr_002', clientId, now }));
+    expect(answers.filter((one) => one.ok)).toHaveLength(TOOL_CALLS_PER_MINUTE);
+    expect(answers.slice(TOOL_CALLS_PER_MINUTE).map((one) => [one.ok, one.count])).toEqual([1, 2, 3].map(() => [false, TOOL_CALLS_PER_MINUTE + 1]));
+    expect(t.raw.prepare("select count from rate_limits where key = 'mcp:usr_002'").get()).toEqual({ count: TOOL_CALLS_PER_MINUTE + 1 });
   });
 
   it('records the Madar approval only for a pending authorization of the same person', async () => {

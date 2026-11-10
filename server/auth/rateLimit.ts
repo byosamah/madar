@@ -3,24 +3,31 @@ import { sqlFor } from '../data/dialect';
 
 /**
  * Fixed-window rate limits in the rate_limits table (plan 4.2 and 5.1; task P2): the forgot route (3 an hour for each email,
- * 10 an hour for each address) and users.resendInvite (5 a day for each person). One upsert counts a hit and gives the new
- * count, so two parallel hits never both pass the last place. The job deletes windows older than 1 day (plan 5.5).
- * A key that names a person's email or network address holds only a sha256 of it (hashedKey).
+ * 10 an hour for each address), users.resendInvite (5 a day for each person) and the limits of the own sign-in (own/limits.ts).
+ * One upsert counts a hit and gives the new count, so two parallel hits never both pass the last place. The job deletes windows
+ * older than 1 day (plan 5.5). A key that names a person's email or network address holds only a sha256 of it (hashedKey).
+ *
+ * The update has a condition (review 2026-11-10, finding 1): the hit that takes the count to limit + 1 is the last write of a
+ * window. Each later hit of that window updates nothing and gets no row back, so a flood over the limit writes no rows (each row
+ * write counts against the Free day limit of the office object).
  */
 
 export const RATE_SQL =
-  'insert into rate_limits (key, window_start, count) values ($1, $2, 1) on conflict (key, window_start) do update set count = rate_limits.count + 1 returning count';
+  'insert into rate_limits (key, window_start, count) values ($1, $2, 1) on conflict (key, window_start) do update set count = rate_limits.count + 1 where rate_limits.count <= $3 returning count';
 /** The SQLite form (Supabase exit, wave 2). */
 export const RATE_LITE =
-  'insert into rate_limits (key, window_start, count) values (?1, ?2, 1) on conflict (key, window_start) do update set count = rate_limits.count + 1 returning count';
+  'insert into rate_limits (key, window_start, count) values (?1, ?2, 1) on conflict (key, window_start) do update set count = rate_limits.count + 1 where rate_limits.count <= ?3 returning count';
 
 export type LimitResult = { ok: boolean; count: number; retryAfterMs: number };
 
-/** Counts one hit of "key" in the window that holds "now". ok is false from the hit after "limit" on. */
+/**
+ * Counts one hit of "key" in the window that holds "now". ok is false from the hit after "limit" on. The count is never above
+ * limit + 1: no returned row means that the window is full already, and the hit wrote nothing.
+ */
 export async function hitLimit(q: Query, o: { key: string; limit: number; windowMs: number; now: Date }): Promise<LimitResult> {
   const start = Math.floor(o.now.getTime() / o.windowMs) * o.windowMs;
-  const [row] = await q<{ count: number | string }>(sqlFor(q, RATE_SQL, RATE_LITE), [o.key, new Date(start).toISOString()]);
-  const count = Number(row?.count ?? 0);
+  const [row] = await q<{ count: number | string }>(sqlFor(q, RATE_SQL, RATE_LITE), [o.key, new Date(start).toISOString(), o.limit]);
+  const count = row === undefined ? o.limit + 1 : Number(row.count);
   return { ok: count <= o.limit, count, retryAfterMs: start + o.windowMs - o.now.getTime() };
 }
 

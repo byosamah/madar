@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ApiError } from '../../../src/api/errors';
 import { equalText, pkceChallengeOf, randomToken, sha256Hex } from '../../auth/own/crypto';
 import { signAgentToken } from '../../auth/own/keys';
-import { HOUR_MS, REGISTER_PER_ADDRESS } from '../../auth/own/limits';
+import { AUTHORIZE_PER_ADDRESS, HOUR_MS, REGISTER_PER_ADDRESS } from '../../auth/own/limits';
 import { AUTH_USER_BY_ID, type AuthUserRow } from '../../auth/own/rows';
 import { countLimits, insertSession, rotateSession } from '../../auth/own/sessions';
 import { OAuthError, type SigninDeps } from '../../auth/own/types';
@@ -75,8 +75,10 @@ const AuthorizeQuery = z.object({
 /**
  * GET /mcp/oauth/authorize: the request waits in oauth_requests, and the person goes to the Madar consent screen. Until the client
  * and its return address hold, no error goes to the address (RFC 6749, section 4.1.2.1). The resource must be MCP_URL (RFC 8707).
+ * The limit of the address comes first, before the client read: over it, the step reads and writes nothing more.
  */
-export async function startAuthorization(deps: SigninDeps, input: { query: Record<string, string> }): Promise<{ redirect: string }> {
+export async function startAuthorization(deps: SigninDeps, input: { query: Record<string, string>; address: string }): Promise<{ redirect: string }> {
+  await countLimits(deps, [{ key: await hashedKey('authorize:ip', input.address), limit: AUTHORIZE_PER_ADDRESS, windowMs: HOUR_MS }]);
   const { client_id: clientId, redirect_uri: redirectUri, state } = input.query;
   const [client] = clientId ? await deps.db.statement<ClientRow>('read', CLIENT_BY_ID, [clientId]) : [];
   if (!client || !redirectUri || !redirectAllowed(JSON.parse(client.redirect_uris) as string[], redirectUri)) {

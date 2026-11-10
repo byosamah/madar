@@ -102,9 +102,12 @@ export type McpAppOptions = {
   oauth?: (app: Hono) => void;
 };
 
-/** The rate limit of tool calls, and the last use of the agent link, in one statement. */
+/**
+ * The rate limit of tool calls, and the last use of the agent link, in one statement. $3 is the limit of RATE_SQL, $4 the client.
+ * The update of the link runs also when the count is full and the insert gives no row.
+ */
 export const MCP_LIMIT_SQL =
-  "with seen as (update agent_links set last_used_at = now() where client_id = $3::uuid and (last_used_at is null or last_used_at < now() - interval '1 minute')) " +
+  "with seen as (update agent_links set last_used_at = now() where client_id = $4::uuid and (last_used_at is null or last_used_at < now() - interval '1 minute')) " +
   RATE_SQL;
 
 /** The SQLite form of the last use (Supabase exit, wave 2): ?1 client, ?2 now, ?3 one minute before now. */
@@ -112,18 +115,19 @@ export const MCP_SEEN_LITE = 'update agent_links set last_used_at = ?2 where cli
 
 export const sqlMcpLimit: McpLimit = async (deps, o) => {
   const start = Math.floor(o.now.getTime() / MINUTE_MS) * MINUTE_MS;
-  let count: number;
+  const values = [`mcp:${o.ownerId}`, new Date(start).toISOString(), TOOL_CALLS_PER_MINUTE];
+  let row: { count: number | string } | undefined;
   if (isLite(deps.db)) {
     // SQLite has no update inside a with clause: two statements in one transaction.
-    count = await deps.db.tx('write', async (q) => {
+    row = await deps.db.tx('write', async (q) => {
       await q(MCP_SEEN_LITE, [o.clientId, o.now.toISOString(), new Date(o.now.getTime() - MINUTE_MS).toISOString()]);
-      const [row] = await q<{ count: number }>(RATE_LITE, [`mcp:${o.ownerId}`, new Date(start).toISOString()]);
-      return Number(row?.count ?? 0);
+      return (await q<{ count: number }>(RATE_LITE, values))[0];
     });
   } else {
-    const [row] = await deps.db.statement<{ count: number | string }>('write', MCP_LIMIT_SQL, [`mcp:${o.ownerId}`, new Date(start).toISOString(), o.clientId]);
-    count = Number(row?.count ?? 0);
+    [row] = await deps.db.statement<{ count: number | string }>('write', MCP_LIMIT_SQL, [...values, o.clientId]);
   }
+  // No row: the count of this minute is full already (hitLimit, server/auth/rateLimit.ts), and this call wrote no count.
+  const count = row === undefined ? TOOL_CALLS_PER_MINUTE + 1 : Number(row.count);
   return { ok: count <= TOOL_CALLS_PER_MINUTE, count, retryAfterMs: start + MINUTE_MS - o.now.getTime() };
 };
 

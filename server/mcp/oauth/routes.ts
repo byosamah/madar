@@ -27,7 +27,7 @@ export function mountOAuth(app: Hono, office: SigninOffice, o: { mcpUrl: string;
   app.get('/oauth/jwks', () => Response.json(o.jwks, { headers: { ...OPEN, 'Cache-Control': 'public, max-age=600' } }));
   app.post('/oauth/register', async (c) => answer(await office.run('oauth.register', { body: await jsonOf(c.req.raw), address: clientAddress(c.req.raw) }), 201));
   app.get('/oauth/authorize', async (c) => {
-    const result = await office.run('oauth.authorize', { query: Object.fromEntries(new URL(c.req.url).searchParams) });
+    const result = await office.run('oauth.authorize', { query: Object.fromEntries(new URL(c.req.url).searchParams), address: clientAddress(c.req.raw) });
     return result.ok ? new Response(null, { status: 302, headers: { Location: result.value.redirect, 'Cache-Control': 'no-store' } }) : answer(result);
   });
   app.post('/oauth/token', async (c) => answer(await office.run('oauth.token', { form: await formOf(c.req.raw) })));

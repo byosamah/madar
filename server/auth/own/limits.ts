@@ -14,6 +14,11 @@ export const SIGNIN_PER_ADDRESS = 30;
 export const VERIFY_PER_ADDRESS = 20;
 /** OAuth client registrations for one address in one hour: each one writes rows of the Free day limit. */
 export const REGISTER_PER_ADDRESS = 10;
+/**
+ * OAuth authorize steps for one address in one hour (review 2026-11-10, finding 1). Each step writes one row of oauth_requests, and
+ * the step needs no sign-in, so a flood with one known client id would fill the Free day limit of rows written.
+ */
+export const AUTHORIZE_PER_ADDRESS = 60;
 
 /**
  * The limit of one network address in a step that runs before a token (Madar enterprises). The step itself counts it on the local path.

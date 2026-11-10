@@ -7,6 +7,8 @@ grants of Settings, Agents. The tools, the token check and the approval are in `
 - The documents: issuer = `MCP_URL`. The same document is at `/mcp/.well-known/oauth-authorization-server` and
   `/mcp/.well-known/openid-configuration`.
 - Dynamic Client Registration of public clients (PKCE S256, no secret). Authorize sends the browser to `/oauth/consent?authorization_id=`.
+- Both open routes write rows with no sign-in, so each has a limit for each address (`clientAddress`, `server/auth/own/limits.ts`):
+  register 10 an hour (`REGISTER_PER_ADDRESS`), authorize 60 an hour (`AUTHORIZE_PER_ADDRESS`, counted before the client read).
 - The consent gives a code only after `POST /api/agents/approve` with a browser token (the Madar approval is inside the consent).
   The code works once and lives `CODE_LIFE_MS` (`ops.ts`). The refresh token rotates.
 - No Client ID Metadata Document: it is a fetch, and the office object does no network work.
