@@ -144,7 +144,7 @@ describe('platform sign-in', () => {
 });
 
 describe('platform refresh and sign-out', () => {
-  it('rotates: the new refresh token works, the old one works again once in the 10 s window, and the old one after the window ends the session', async () => {
+  it('rotates: the new refresh token works, the old one works again once in the reuse window, and the old one after the window ends the session', async () => {
     const { parts, clock } = await withAccount();
     const first = await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
     const second = await parts.platformRefresh({ refreshToken: first.refresh_token });
@@ -155,9 +155,20 @@ describe('platform refresh and sign-out', () => {
     const third = await parts.platformRefresh({ refreshToken: first.refresh_token });
     expect(third.refresh_token).not.toBe(second.refresh_token);
     // After the window, a reuse of the previous token (second) ends the whole session, also the newest token.
-    clock.advance(60_000);
+    // Review 2026-11-10 (owner): the window is 60 s now, so the clock moves 61 s after the last rotation.
+    clock.advance(61_000);
     expect(await failure(parts.platformRefresh({ refreshToken: second.refresh_token }))).toMatchObject({ code: 'unauthenticated', reason: 'session_ended' });
     expect(await failure(parts.platformRefresh({ refreshToken: third.refresh_token }))).toMatchObject({ reason: 'session_ended' });
+  });
+
+  it('a retry 30 seconds after a lost answer keeps the platform session (review 2026-11-10, finding 5)', async () => {
+    const { parts, clock, raw } = await withAccount();
+    const first = await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+    // The answer of this refresh is lost on the network: the browser still holds the first token.
+    await parts.platformRefresh({ refreshToken: first.refresh_token });
+    clock.advance(30_000);
+    expect(await parts.platformRefresh({ refreshToken: first.refresh_token })).toMatchObject({ expires_in: 900 });
+    expect(raw.prepare('select ends_at > ? as live from platform_sessions').get(clock.now().toISOString())).toEqual({ live: 1 });
   });
 
   it('an unknown refresh token gives session_ended', async () => {

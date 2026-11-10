@@ -30,7 +30,7 @@ describe('the sessions of the own stack (server/auth/own/sessions.ts)', () => {
     expect(decodeJwt(second.access_token).ent).toBe(deps.ent);
   });
 
-  it('a second use of the old refresh token within 10 s rotates again, and signs nobody out', async () => {
+  it('a second use of the old refresh token within the reuse window rotates again, and signs nobody out', async () => {
     const { t, deps, first } = await signedIn();
     const second = await refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) });
     t.deps.clock.advance(5_000);
@@ -39,11 +39,22 @@ describe('the sessions of the own stack (server/auth/own/sessions.ts)', () => {
     expect(await reasonOf(refreshSignIn(deps, { refreshToken: bareToken(again.refresh_token) }))).toBe('passed');
   });
 
-  it('a use of an old refresh token after 10 s ends the whole session', async () => {
-    const { t, deps, first } = await signedIn();
+  it('a retry 30 seconds after a lost answer keeps the session (review 2026-11-10, finding 5)', async () => {
+    const { t, deps, first, sessionId } = await signedIn();
+    // The answer of this refresh is lost on the network: the browser still holds the first token.
+    await refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) });
+    t.deps.clock.advance(30_000);
+    expect(await refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) })).toMatchObject({ token_type: 'bearer' });
+    expect(t.raw.prepare('select revoked_at from auth_sessions where id = ?').get(sessionId)).toEqual({ revoked_at: null });
+  });
+
+  it('a use of an old refresh token after 60 s ends the whole session', async () => {
+    // Review 2026-11-10 (owner): the reuse window is 60 s, not 10 s, so the clock moves 61 s.
+    const { t, deps, first, sessionId } = await signedIn();
     const second = await refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) });
-    t.deps.clock.advance(11_000);
+    t.deps.clock.advance(61_000);
     expect(await reasonOf(refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) }))).toBe('session_ended');
+    expect(t.raw.prepare('select revoked_at is not null as gone from auth_sessions where id = ?').get(sessionId)).toEqual({ gone: 1 });
     expect(await reasonOf(refreshSignIn(deps, { refreshToken: bareToken(second.refresh_token) }))).toBe('session_ended');
   });
 

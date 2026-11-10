@@ -16,8 +16,12 @@ import type { SigninDeps, TokenAnswer } from './types';
 
 /** A session lives 30 days after its last refresh. */
 export const SESSION_DAYS = 30;
-/** A second use of the old refresh token within 10 s rotates again (refresh_token_reuse_interval = 10 of supabase/config.toml). */
-export const REFRESH_REUSE_MS = 10_000;
+/**
+ * A second use of the old refresh token within 60 s rotates again (owner, review 2026-11-10). The window was 10 s, as
+ * refresh_token_reuse_interval = 10 of supabase/config.toml, but a phone on a weak network retries a lost answer later than that, and
+ * the retry then ended the session. The platform sessions use the same window (server/enterprise/platform/accounts.ts).
+ */
+export const REFRESH_REUSE_MS = 60_000;
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function sessionEnded(): ApiError {

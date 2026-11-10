@@ -11,8 +11,8 @@ import { SESSION_KEYS } from './authMode';
  * - The session (the tokens and the person) lives in localStorage under madar.session: every tab of the browser shares it, and a
  *   storage event tells the other tabs of a sign-in, a refresh or a sign-out.
  * - A refresh runs under one Web Lock for the whole browser (navigator.locks) and reads the stored session again inside it: a tab
- *   that waited uses the tokens of the tab that refreshed, so two tabs never send one refresh token (the server keeps a 10 s
- *   reuse window for a lost answer too).
+ *   that waited uses the tokens of the tab that refreshed, so two tabs never send one refresh token (the server keeps a 60 s
+ *   reuse window for a lost answer too, REFRESH_REUSE_MS).
  * - A token is refreshed 60 s before its end, when a call asks for it. A refused refresh ends the session in this browser.
  */
 

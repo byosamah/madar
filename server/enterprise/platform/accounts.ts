@@ -17,7 +17,8 @@ import { isPlatformAccountId, normalizeEmail } from '../ids';
 /**
  * The accounts of the platform (Madar enterprises, design D8): the people who run Madar enterprises. An account belongs to no company, and
  * it lives only in the platform object: email, name, password hash, state, and its sessions. The sign-in follows the own sign-in of the
- * companies (server/auth/own): PBKDF2 between two transactions, a refresh token that rotates with a 10 s reuse window, the same answer for a
+ * companies (server/auth/own): PBKDF2 between two transactions, a refresh token that rotates with the 60 s reuse window of the companies
+ * (REFRESH_REUSE_MS), the same answer for a
  * wrong password and an unknown email. The tokens carry the audience madar-platform and no ent (signPlatformToken).
  */
 
