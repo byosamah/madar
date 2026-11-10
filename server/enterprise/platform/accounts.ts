@@ -2,13 +2,15 @@ import { ApiError } from '../../../src/api/errors';
 import type { SigningKeys } from '../../auth/own/keys';
 import { signPlatformToken } from '../../auth/own/keys';
 import { randomToken, sha256Hex } from '../../auth/own/crypto';
-import { ADDRESS_LIMITS, SIGNIN_PER_EMAIL, SIGNIN_PER_EMAIL_TOTAL, SIGNIN_WINDOW_MS } from '../../auth/own/limits';
+import {
+  ADDRESS_LIMITS, KNOWN_ADDRESS_DAYS, KNOWN_ADDRESS_TOUCH_MS, SIGNIN_PER_EMAIL, SIGNIN_PER_EMAIL_TOTAL, SIGNIN_WINDOW_MS,
+} from '../../auth/own/limits';
 import { accountOff, wrongCredentials } from '../../auth/own/ops';
 import { hashPassword, verifyPassword } from '../../auth/own/password';
 import { countLimits, DAY_MS, SESSION_DAYS, sessionEnded } from '../../auth/own/sessions';
 import { ACCESS_TTL_S } from '../../auth/ownKeys';
 import { hashedKey, limitAddress } from '../../auth/rateLimit';
-import type { Clock } from '../../core/ports';
+import type { Clock, Query } from '../../core/ports';
 import type { RunError } from '../../core/types';
 import { runErrorOf } from '../../http/errors';
 import type { LiteDb } from '../../data/lite/db';
@@ -19,6 +21,8 @@ import { isPlatformAccountId, normalizeEmail } from '../ids';
  * it lives only in the platform object: email, name, password hash, state, and its sessions. The sign-in follows the own sign-in of the
  * companies (server/auth/own): PBKDF2 between two transactions, a refresh token that rotates with a 10 s reuse window (PLATFORM_REUSE_MS),
  * the same answer for a wrong password and an unknown email. The tokens carry the audience madar-platform and no ent (signPlatformToken).
+ * The two rules of the review of 2026-11-10 apply too, on their own tables: a displaced refresh token ends its session
+ * (platform_old_hashes), and a known address skips the total stop of the email (platform_known_addresses).
  */
 
 /** The shortest password of a platform account. The Mac script refuses a shorter one as well. */
@@ -31,6 +35,8 @@ const NAME_MAX = 120;
 const ADDRESS_PREFIX = 'psignin:ip';
 const PAIR_PREFIX = 'psignin:pair';
 const EMAIL_PREFIX = 'psignin:email';
+/** The key prefix of a known address of a platform account (the companies use 'known'). */
+const KNOWN_PREFIX = 'pknown';
 /**
  * The reuse window of a platform refresh token: 10 s (task D5b). The 60 s of a company browser (REFRESH_REUSE_MS) is for the phones of a
  * team on a weak network. A platform account gains nothing from it, and a longer window only helps a thief with a stolen refresh token.
@@ -55,6 +61,12 @@ const SESSION_INSERT = 'insert into platform_sessions (id, account_id, refresh_h
 const SESSION_ROTATE = 'update platform_sessions set prev_hash = refresh_hash, refresh_hash = ?2, used_at = ?3, ends_at = ?4 where id = ?1';
 const SESSION_END = 'update platform_sessions set ends_at = ?2 where id = ?1 and ends_at > ?2';
 const SESSIONS_END_ALL = 'update platform_sessions set ends_at = ?2 where account_id = ?1 and ends_at > ?2';
+/** The twins of OLD_HASH_INSERT, OLD_HASH_BY_HASH, KNOWN_BY_KEY and KNOWN_TOUCH (server/auth/own/rows.ts), with the same values. */
+const OLD_HASH_INSERT = 'insert or ignore into platform_old_hashes (hash, session_id, at) values (?1, ?2, ?3)';
+const OLD_HASH_BY_HASH = 'select session_id from platform_old_hashes where hash = ?1';
+const KNOWN_BY_KEY = 'select seen_at from platform_known_addresses where pair_key = ?1';
+const KNOWN_TOUCH =
+  'insert into platform_known_addresses (pair_key, seen_at) values (?1, ?2) on conflict (pair_key) do update set seen_at = ?2 where platform_known_addresses.seen_at < ?3';
 
 const textOf = (value: unknown): string => (typeof value === 'string' ? value : '');
 
@@ -71,15 +83,21 @@ async function answerOf(d: AccountDeps, o: { account: AccountRow; sessionId: str
  * Sign in with email and password. A wrong password and an unknown email give one answer, after the same work (one PBKDF2 each). An account
  * that is off shows only after the right password. The limits use their own keys, with the rule of passwordSignIn (review 2026-11-10): the
  * address, the email with the address (10), then the total of the email (100), so a stranger at another address does not lock the account out.
+ * A known address (the account signed in from it in the last KNOWN_ADDRESS_DAYS) skips the total, so strangers at 10 addresses cannot lock
+ * the account out either. Only the right password writes the known row, at most once a day.
  */
 export async function platformSignIn(d: AccountDeps, input: { email: string; password: string; address: string }): Promise<PlatformTokenAnswer> {
   const email = normalizeEmail(textOf(input.email));
   const password = textOf(input.password).slice(0, PASSWORD_MAX);
   const address = limitAddress(textOf(input.address));
+  const knownKey = await hashedKey(KNOWN_PREFIX, `${email}|${address}`);
+  const knownSince = new Date(d.clock.now().getTime() - KNOWN_ADDRESS_DAYS * DAY_MS).toISOString();
+  const [seen] = await d.db.statement<{ seen_at: string }>('read', KNOWN_BY_KEY, [knownKey]);
+  const known = seen !== undefined && seen.seen_at > knownSince;
   await countLimits(d, [
     { key: await hashedKey(ADDRESS_PREFIX, address), ...ADDRESS_LIMITS['auth.password'].limit },
     { key: await hashedKey(PAIR_PREFIX, `${email}|${address}`), limit: SIGNIN_PER_EMAIL, windowMs: SIGNIN_WINDOW_MS },
-    { key: await hashedKey(EMAIL_PREFIX, email), limit: SIGNIN_PER_EMAIL_TOTAL, windowMs: SIGNIN_WINDOW_MS },
+    ...(known ? [] : [{ key: await hashedKey(EMAIL_PREFIX, email), limit: SIGNIN_PER_EMAIL_TOTAL, windowMs: SIGNIN_WINDOW_MS }]),
   ]);
   const [found] = await d.db.statement<AccountRow>('read', ACCOUNT_BY_EMAIL, [email]);
   const check = await verifyPassword(password, found?.password_hash ?? null);
@@ -94,6 +112,7 @@ export async function platformSignIn(d: AccountDeps, input: { email: string; pas
     // A new password or a turn-off between the check and this transaction: the check is old, so refuse it.
     if (!row || row.password_hash !== found.password_hash) throw wrongCredentials();
     if (row.state !== 'active') throw accountOff();
+    await q(KNOWN_TOUCH, [knownKey, now.toISOString(), new Date(now.getTime() - KNOWN_ADDRESS_TOUCH_MS).toISOString()]);
     await q(SESSION_INSERT, [sessionId, row.id, refreshHash, new Date(now.getTime() + SESSION_DAYS * DAY_MS).toISOString(), now.toISOString()]);
     return row;
   });
@@ -105,6 +124,8 @@ type Rotation = { kind: 'ok'; session: SessionRow; account: AccountRow } | { kin
 /**
  * One refresh with rotation, as rotateSession of the companies: the presented hash is the current one of a live session, or the previous one
  * within PLATFORM_REUSE_MS. The previous one after the window ends the whole session. An account that is off refuses with account_off.
+ * A displaced hash (review 2026-11-10): each rotation keeps the previous hash that leaves the row in platform_old_hashes, and a later
+ * refresh with it ends its session. An unknown hash ends nothing.
  */
 export async function platformRefresh(d: AccountDeps, input: { refreshToken: string }): Promise<PlatformTokenAnswer> {
   const hash = await sha256Hex(textOf(input.refreshToken));
@@ -115,7 +136,11 @@ export async function platformRefresh(d: AccountDeps, input: { refreshToken: str
     let [session] = await q<SessionRow>(SESSION_BY_REFRESH, [hash]);
     if (!session) {
       const [old] = await q<SessionRow>(SESSION_BY_PREV, [hash]);
-      if (!old) return { kind: 'ended' };
+      if (!old) {
+        const [displaced] = await q<{ session_id: string }>(OLD_HASH_BY_HASH, [hash]);
+        if (displaced) await q(SESSION_END, [displaced.session_id, now.toISOString()]);
+        return { kind: 'ended' };
+      }
       const inWindow = old.used_at !== null && now.getTime() - Date.parse(old.used_at) <= PLATFORM_REUSE_MS;
       if (!inWindow) {
         await q(SESSION_END, [old.id, now.toISOString()]);
@@ -127,12 +152,27 @@ export async function platformRefresh(d: AccountDeps, input: { refreshToken: str
     const [account] = await q<AccountRow>(ACCOUNT_BY_ID, [session.account_id]);
     if (!account) return { kind: 'ended' };
     if (account.state !== 'active') return { kind: 'off' };
+    // The previous hash leaves the row now: keep it, so a later use of it ends the session.
+    if (session.prev_hash !== null) await q(OLD_HASH_INSERT, [session.prev_hash, session.id, now.toISOString()]);
     await q(SESSION_ROTATE, [session.id, nextHash, now.toISOString(), new Date(now.getTime() + SESSION_DAYS * DAY_MS).toISOString()]);
     return { kind: 'ok', session, account };
   });
   if (out.kind === 'off') throw accountOff();
   if (out.kind !== 'ok') throw sessionEnded();
   return answerOf(d, { account: out.account, sessionId: out.session.id, refresh: next });
+}
+
+/**
+ * The clean-up of the sign-in memory of the platform accounts (review 2026-11-10), in the daily sweep of the platform object. A platform
+ * session row stays after its end (the end only moves ends_at), so its displaced hashes go one day after the end, or when the row is gone.
+ * A known address goes when the account did not sign in from it for KNOWN_ADDRESS_DAYS. Each delete is a row written of the Free day limit.
+ */
+const OLD_HASHES_CLEANUP = 'delete from platform_old_hashes where session_id not in (select id from platform_sessions where ends_at >= ?1)';
+const KNOWN_CLEANUP = 'delete from platform_known_addresses where seen_at < ?1';
+
+export async function cleanupPlatformMemory(q: Query, at: Date): Promise<void> {
+  await q(OLD_HASHES_CLEANUP, [new Date(at.getTime() - DAY_MS).toISOString()]);
+  await q(KNOWN_CLEANUP, [new Date(at.getTime() - KNOWN_ADDRESS_DAYS * DAY_MS).toISOString()]);
 }
 
 /** The sign-out of one session. A session id that is unknown or ended changes nothing. */

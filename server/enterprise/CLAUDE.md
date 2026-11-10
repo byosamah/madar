@@ -73,6 +73,10 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
   `psignin:email` for the total of the email), so a try on the platform never counts against a company, and a stranger does not lock an account out.
   A refresh rotates like `rotateSession`; the previous token after the window ends the session. A new password ends every session;
   `off` ends none (the refresh then gives `account_off`). The password has 12 to 200 characters (`PLATFORM_PASSWORD_MIN`).
+  The two rules of the review of 2026-11-10 (`server/auth/CLAUDE.md`) apply on their own tables (schema version 5): a displaced refresh token
+  ends its session (`platform_old_hashes`), and a known address skips `psignin:email` (`platform_known_addresses`, key prefix `pknown`, the
+  constants of `limits.ts`). The daily `sweep` deletes the displaced hashes one day after the end of their session (a platform session row
+  stays after its end) and the known addresses older than 90 days (`cleanupPlatformMemory`).
 - **Refusals are data.** `platformSignIn`, `platformRefresh` and `platformAccounts` return `PlatformOutcome` (`{ ok: true, value }` or `{ ok: false, error }`),
   not a throw: an `ApiError` thrown in a Durable Object loses its class over the RPC hop. The Worker calls `valueOfOutcome` to throw it again. Tests that read a
   refusal as a throw wrap the parts (`accounts.test.ts`, `unwrapped`; `nodeWorld` offers `accounts()`).
@@ -128,7 +132,7 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
   "Madar enterprises: core spikes S2 and S3").
 
 ## The Cron fan-out
-- `scheduled` reads `platform.listed()`, sweeps the rate limits of the platform on the first run after 00:00 UTC, and sends one leg for each
+- `scheduled` reads `platform.listed()`, sweeps the rate limits and the sign-in memory of the platform on the first run after 00:00 UTC, and sends one leg for each
   id through the transport. A leg is `POST /api/internal/cron` (jobs secret, body `{ ent, at }`): the job in the object, then
   `platform.report(status)` and `platform.meter(...)`. A leg that throws (a paused object) still reports its status.
 - The transport is `MADAR_CRON_TRANSPORT`: `self` (the service binding `SELF`, a new Worker invocation for each leg, so each job has its own

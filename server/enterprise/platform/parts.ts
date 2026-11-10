@@ -21,7 +21,9 @@ import { PLATFORM_SCHEMA_VERSION } from './schema';
 import { accountStop, capVerdict, planFrom, type Plan } from '../plan';
 import { activateEnterprise, activeEnterpriseIds, createEnterprise, getEnterprise, listEnterprises, setEnterpriseState, updateEnterprise } from './enterprises';
 import type { AddressAnswer, AddressStep, CapAnswer, PlatformStub } from './stub';
-import { outcomeOf, platformAccount, platformAccounts, platformRefresh, platformSignIn, platformSignOut, type AccountDeps } from './accounts';
+import {
+  cleanupPlatformMemory, outcomeOf, platformAccount, platformAccounts, platformRefresh, platformSignIn, platformSignOut, type AccountDeps,
+} from './accounts';
 
 /**
  * The work of the platform object (Madar enterprises, plan B Task 7), apart from workerd: object.ts gives it the host of ctx.storage, and
@@ -205,7 +207,11 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
 
     async sweep({ at }) {
       const before = new Date(Date.parse(at) - RATE_LIMIT_KEEP_MS).toISOString();
-      await db.tx('write', (q) => q(RATE_LIMITS_CLEANUP_LITE, [before]));
+      // The old rate limits, and the sign-in memory of the platform accounts (review 2026-11-10), in one transaction.
+      await db.tx('write', async (q) => {
+        await q(RATE_LIMITS_CLEANUP_LITE, [before]);
+        await cleanupPlatformMemory(q, new Date(at));
+      });
     },
 
     async health() {

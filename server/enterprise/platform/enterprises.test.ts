@@ -131,8 +131,12 @@ describe('the lists and the state', () => {
   });
 });
 
-/** Takes the objects of version 5 away (the copies of the sign-in memory, review 2026-11-10): the steps of a version below 5 make them again. */
-const dropVersion5 = (raw: DatabaseSync) => raw.exec('drop table auth_old_hashes; drop table auth_known_addresses');
+/**
+ * Takes the objects of version 5 away (the sign-in memory of the platform accounts and the copies of the office one, review 2026-11-10): the
+ * steps of a version below 5 make them again.
+ */
+const dropVersion5 = (raw: DatabaseSync) =>
+  raw.exec('drop table platform_old_hashes; drop table platform_known_addresses; drop table auth_old_hashes; drop table auth_known_addresses');
 
 describe('schema version 2', () => {
   it('steps a version 1 platform object to the column logo', async () => {
@@ -203,6 +207,9 @@ describe('schema version 5', () => {
     expect(kept()).toEqual(before);
     expect(raw.prepare('select count(*) as n from auth_old_hashes').get()).toEqual({ n: 0 });
     expect(raw.prepare('select count(*) as n from auth_known_addresses').get()).toEqual({ n: 0 });
+    for (const table of ['platform_old_hashes', 'platform_known_addresses']) expect(raw.prepare(`select count(*) as n from ${table}`).get(), table).toEqual({ n: 0 });
+    expect((raw.prepare('select name from pragma_table_info(?)').all('platform_old_hashes') as { name: string }[]).map((r) => r.name)).toEqual(['hash', 'session_id', 'at']);
+    expect((raw.prepare('select name from pragma_table_info(?)').all('platform_known_addresses') as { name: string }[]).map((r) => r.name)).toEqual(['pair_key', 'seen_at']);
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
   });
 });

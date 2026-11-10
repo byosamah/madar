@@ -260,6 +260,21 @@ describe('the cleanup and the schema', () => {
     expect(raw.prepare('select count(*) as n from emails').get()).toEqual({ n: 1 });
   });
 
+  it('sweep deletes the displaced hashes of a platform session that ended a day ago, and the known addresses older than 90 days (review 2026-11-10)', async () => {
+    const { parts, raw } = await platform();
+    raw.exec(`insert into platform_sessions (id, account_id, refresh_hash, ends_at, created_at) values
+      ('ended', 'pla_001', 'r1', '2026-11-06T00:00:00.000Z', '2026-10-01T00:00:00.000Z'), ('just-ended', 'pla_001', 'r2', '2026-11-08T07:00:00.000Z', '2026-10-01T00:00:00.000Z'),
+      ('live', 'pla_001', 'r3', '2026-12-08T00:00:00.000Z', '2026-11-01T00:00:00.000Z')`);
+    raw.exec(`insert into platform_old_hashes (hash, session_id, at) values
+      ('o1', 'ended', '2026-11-05T00:00:00.000Z'), ('o2', 'just-ended', '2026-11-08T06:00:00.000Z'), ('o3', 'live', '2026-11-07T00:00:00.000Z'), ('o4', 'gone', '2026-10-01T00:00:00.000Z')`);
+    raw.exec(`insert into platform_known_addresses (pair_key, seen_at) values ('pknown:old', '2026-08-09T07:00:00.000Z'), ('pknown:new', '2026-08-10T09:00:00.000Z')`);
+    await parts.sweep({ at: NOW });
+    expect(raw.prepare('select hash from platform_old_hashes order by hash').all()).toEqual([{ hash: 'o2' }, { hash: 'o3' }]);
+    expect(raw.prepare('select pair_key from platform_known_addresses').all()).toEqual([{ pair_key: 'pknown:new' }]);
+    // The sessions themselves stay: the sweep deletes no session row.
+    expect(raw.prepare('select count(*) as n from platform_sessions').get()).toEqual({ n: 3 });
+  });
+
   it('applyPlatformSchema twice is a no-op, and a newer schema is refused', async () => {
     const { raw, host } = await platform();
     expect(await applyPlatformSchema(host)).toEqual({ applied: false });
@@ -269,12 +284,13 @@ describe('the cleanup and the schema', () => {
   });
 
   it('keeps empty copies of the sign-in tables and no table of an office', async () => {
-    // Review 2026-11-10: version 5 adds the copies of auth_old_hashes and auth_known_addresses, which the refuse steps read.
+    // Review 2026-11-10: version 5 adds the copies of auth_old_hashes and auth_known_addresses, which the refuse steps read, and the two
+    // twins of the platform accounts.
     const { raw } = await platform();
     const tables = (raw.prepare("select name from sqlite_master where type = 'table' order by name").all() as { name: string }[]).map((r) => r.name);
     expect(tables).toEqual([
       'account_day', 'auth_known_addresses', 'auth_links', 'auth_old_hashes', 'auth_sessions', 'auth_users', 'emails', 'enterprises', 'mail_pool', 'owners', 'platform_accounts',
-      'platform_sessions', 'rate_limits', 'schema_version', 'status',
+      'platform_known_addresses', 'platform_old_hashes', 'platform_sessions', 'rate_limits', 'schema_version', 'status',
     ]);
   });
 

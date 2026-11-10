@@ -131,6 +131,48 @@ describe('platform sign-in', () => {
     expect(await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS })).toMatchObject({ expires_in: 900 });
   });
 
+  describe('the known address (review 2026-11-10, open item)', () => {
+    /** 100 wrong tries for the account from 10 addresses that the owner never used, 10 from each. The last ones meet the total stop. */
+    const strangers = async (parts: Awaited<ReturnType<typeof withAccount>>['parts']) => {
+      for (let a = 0; a < 10; a += 1) {
+        for (let i = 0; i < 10; i += 1) await failure(parts.platformSignIn({ email: 'owner@madar.test', password: 'wrong wrong wrong', address: `198.51.100.${a}` }));
+      }
+    };
+
+    it('a known address signs in while strangers hit the total stop', async () => {
+      const { parts } = await withAccount();
+      await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+      await strangers(parts);
+      expect(await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS })).toMatchObject({ expires_in: 900 });
+    }, 120_000);
+
+    it('an unknown address still meets the total stop', async () => {
+      const { parts } = await withAccount();
+      await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+      await strangers(parts);
+      expect(await failure(parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: '192.0.2.44' }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+    }, 120_000);
+
+    it('a known address still stops at 10 wrong tries of its own', async () => {
+      const { parts } = await withAccount();
+      await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+      for (let i = 0; i < 10; i += 1) await failure(parts.platformSignIn({ email: 'owner@madar.test', password: 'wrong wrong wrong', address: ADDRESS }));
+      expect(await failure(parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+    });
+
+    it('the row holds no email and no address, and a wrong password makes none', async () => {
+      const { parts, raw } = await withAccount();
+      await failure(parts.platformSignIn({ email: 'owner@madar.test', password: 'wrong wrong wrong', address: ADDRESS }));
+      expect(raw.prepare('select count(*) as n from platform_known_addresses').get()).toEqual({ n: 0 });
+      await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+      const rows = raw.prepare('select * from platform_known_addresses').all() as { pair_key: string }[];
+      expect(rows).toHaveLength(1);
+      expect(rows[0].pair_key).toMatch(/^pknown:[0-9a-f]{64}$/);
+      expect(JSON.stringify(rows)).not.toContain('owner@madar.test');
+      expect(JSON.stringify(rows)).not.toContain(ADDRESS);
+    });
+  });
+
   it('the limits of the platform sign-in do not touch the limit of the company sign-in address', async () => {
     const { parts, raw } = await withAccount();
     await failure(parts.platformSignIn({ email: 'owner@madar.test', password: 'wrong wrong wrong', address: ADDRESS }));
@@ -174,6 +216,38 @@ describe('platform refresh and sign-out', () => {
     soon.clock.advance(5_000);
     expect(await soon.parts.platformRefresh({ refreshToken: one.refresh_token })).toMatchObject({ expires_in: 900 });
     expect(live(soon.raw, soon.clock.now())).toEqual({ live: 1 });
+  });
+
+  it('a displaced token ends the session of a thief (review 2026-11-10, open item)', async () => {
+    const { parts, raw, clock } = await withAccount();
+    const first = await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+    const second = await parts.platformRefresh({ refreshToken: first.refresh_token });
+    // The thief holds a copy of the first token and uses it inside the reuse window.
+    clock.advance(5_000);
+    const third = await parts.platformRefresh({ refreshToken: first.refresh_token });
+    const fourth = await parts.platformRefresh({ refreshToken: third.refresh_token });
+    // The token of the owner (second) is now neither the current hash nor the previous hash of the session.
+    expect(await failure(parts.platformRefresh({ refreshToken: second.refresh_token }))).toMatchObject({ code: 'unauthenticated', reason: 'session_ended' });
+    expect(raw.prepare('select ends_at > ? as live from platform_sessions').get(clock.now().toISOString())).toEqual({ live: 0 });
+    expect(await failure(parts.platformRefresh({ refreshToken: fourth.refresh_token }))).toMatchObject({ reason: 'session_ended' });
+  });
+
+  it('a displaced hash of an ended session gives the plain answer, and an unknown token ends nothing', async () => {
+    const { parts, raw, clock } = await withAccount();
+    const first = await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+    const sessions = () => raw.prepare('select * from platform_sessions').all();
+    const second = await parts.platformRefresh({ refreshToken: first.refresh_token });
+    clock.advance(5_000);
+    const third = await parts.platformRefresh({ refreshToken: first.refresh_token });
+    await parts.platformRefresh({ refreshToken: third.refresh_token });
+    const before = sessions();
+    expect(await failure(parts.platformRefresh({ refreshToken: 'a token that no session ever held' }))).toMatchObject({ reason: 'session_ended' });
+    expect(sessions()).toEqual(before);
+    await parts.platformSignOut({ sessionId: decodeJwt(first.access_token).sid as string });
+    const ended = sessions();
+    clock.advance(1_000);
+    expect(await failure(parts.platformRefresh({ refreshToken: second.refresh_token }))).toMatchObject({ reason: 'session_ended' });
+    expect(sessions()).toEqual(ended);
   });
 
   it('an unknown refresh token gives session_ended', async () => {

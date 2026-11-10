@@ -19,8 +19,8 @@ import { MAIL_POOL_SCHEMA } from './mailPool';
  * to no company. The table owners of version 1 stays (a released step never changes) and nothing reads or writes it any more (design D11).
  *
  * Version 5 (the open items of the review of 2026-11-10): the empty copies of the sign-in tables auth_old_hashes and auth_known_addresses
- * (schema version 17 of the office object), because the refuse steps of a refresh and of a password sign-in now read them. The step is in
- * PLATFORM_STEPS.
+ * (schema version 17 of the office object), because the refuse steps of a refresh and of a password sign-in now read them; and the twins of
+ * the platform accounts, platform_old_hashes and platform_known_addresses (accounts.ts). The step is in PLATFORM_STEPS.
  */
 export const PLATFORM_SCHEMA_VERSION = 5;
 
@@ -38,6 +38,16 @@ const ACCOUNT_SQL: readonly string[] = [
   'create index platform_sessions_account on platform_sessions (account_id)',
 ];
 
+/**
+ * The sign-in memory of the platform accounts (version 5, review 2026-11-10), the twins of auth_old_hashes and auth_known_addresses: the
+ * refresh hashes that left a platform session row, and the pairs of an email and an address where an account signed in (pair_key is a
+ * sha256 with the prefix pknown, never the email or the address).
+ */
+const MEMORY_SQL: readonly string[] = [
+  'create table platform_old_hashes (hash text primary key, session_id text not null, at text not null)',
+  'create table platform_known_addresses (pair_key text primary key, seen_at text not null)',
+];
+
 const PLATFORM_SQL: readonly string[] = [
   'create table enterprises (id text primary key, address text not null unique, state text not null, name text not null, name_ar text not null, limits text not null, created_at text not null, first_admin text not null, logo text)',
   'create table emails (email text primary key, ent text not null)',
@@ -46,6 +56,7 @@ const PLATFORM_SQL: readonly string[] = [
   'create table account_day (day text not null, ent text not null, requests integer not null default 0, rows_read integer not null default 0, rows_written integer not null default 0, mails integer not null default 0, primary key (day, ent))',
   MAIL_POOL_SCHEMA,
   ...ACCOUNT_SQL,
+  ...MEMORY_SQL,
   'create table schema_version (id integer primary key check (id = 1), version integer not null)',
 ];
 
@@ -54,7 +65,7 @@ export const PLATFORM_STEPS: Readonly<Record<number, readonly string[]>> = {
   2: ['alter table enterprises add column logo text'],
   3: [MAIL_POOL_SCHEMA],
   4: ACCOUNT_SQL,
-  5: serverTableSql(MEMORY_COPIED_TABLES),
+  5: [...MEMORY_SQL, ...serverTableSql(MEMORY_COPIED_TABLES)],
 };
 
 export function platformSchemaSql(): string[] {
