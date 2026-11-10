@@ -205,6 +205,28 @@ describe('the refusals of the page api', () => {
       expect([h.production.seen, h.supabase.seen]).toEqual([[], []]);
     }
   });
+
+  it('refuses the platform routes also when the path is encoded, and a path with a bad escape (review 2026-11-10, finding 2)', async () => {
+    for (const setting of [WORKERS, SUPABASE]) {
+      const h = setup({ setting });
+      for (const path of ['/api/platform', '/api/platform/auth/token', '/api/%70latform/auth/token', '/api/%2570latform/auth/token', '/api/platfor%6d', '/api/%zz', '/api/%25252570latform']) {
+        expect((await h.call(new Request(`https://madar.vado.sa${path}`, { method: 'POST', body: '{}' }))).status, path).toBe(404);
+      }
+      expect([h.production.seen, h.supabase.seen]).toEqual([[], []]);
+    }
+  });
+
+  it('passes an upper-case /api/%50latform on with its raw path: Hono routes are case-sensitive, so it reaches no platform route', async () => {
+    const h = setup();
+    expect((await h.call(new Request('https://madar.vado.sa/api/%50latform', { method: 'POST', body: '{}' }))).status).toBe(200);
+    expect(h.production.seen.map((r) => r.url)).toEqual(['https://madar-server.internal/api/%50latform']);
+  });
+
+  it('keeps the path and the query of a plain call as they came: /api/batch?x=%20 reaches the binding', async () => {
+    const h = setup();
+    expect((await h.call(new Request('https://madar.vado.sa/api/batch?x=%20', { method: 'POST', body: '{}' }))).status).toBe(200);
+    expect(h.production.seen.map((r) => r.url)).toEqual(['https://madar-server.internal/api/batch?x=%20']);
+  });
 });
 
 describe('functions/api/[[path]].ts', () => {
@@ -235,6 +257,14 @@ describe('the office ops and the word office (exit wave 4)', () => {
     const b = binding();
     await proxyApi(new Request('https://preview.madar-46r.pages.dev/api/office/export', { method: 'POST', body: '{}' }), b.env, { setting: { test: 'supabase', production: 'supabase' }, log: () => undefined, fetch: noFetch });
     expect(b.seen).toEqual(['/api/office/export']);
+  });
+
+  it('reads an encoded /api/%6Fffice/* as the office ops: the binding only, never the Supabase function (review 2026-11-10, finding 2)', async () => {
+    const b = binding();
+    await proxyApi(new Request('https://preview.madar-46r.pages.dev/api/%6Fffice/export', { method: 'POST', body: '{}' }), b.env, { setting: { test: 'supabase', production: 'supabase' }, log: () => undefined, fetch: noFetch });
+    expect(b.seen).toEqual(['/api/%6Fffice/export']);
+    const none = await proxyApi(new Request('https://madar.vado.sa/api/%6fffice/export', { method: 'POST', body: '{}' }), {}, { setting: { test: 'supabase', production: 'supabase' }, log: () => undefined, fetch: noFetch });
+    expect(none.status).toBe(404);
   });
 
   it('answers 404 for /api/office/* with no binding, and never sends it to the Supabase function', async () => {

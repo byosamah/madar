@@ -8,6 +8,7 @@ import {
   fallbackLine,
   forwardHeaders,
   forwardInit,
+  plainSuffix,
   unsafeSuffix,
   type PagesEnv,
 } from './pagesForward';
@@ -30,6 +31,7 @@ import {
  *   back. Supabase then sees the address of the Pages Function, not of the person (the forgot limit counts them together).
  * - A 101 answer of the Worker (the live socket, exit wave 3) goes back as it is.
  * - /api/platform and every path under it get 404 here: the platform routes belong to the project madar-platform (design 12, D9).
+ *   The test reads the decoded path (plainSuffix), so an encoded form such as /api/%70latform gets 404 too, and so does a bad escape.
  * - The word office (exit wave 4) also goes to the binding: the Worker of the copy serves it from its office object.
  * - /api/office and every path under it (the office ops of exit wave 4: export, import, peek, drop) go to the binding whatever the
  *   word says, and nowhere else. No Supabase function has them, so with no binding they answer 404 (production before wave 6).
@@ -48,14 +50,17 @@ export async function proxyApi(request: Request, env: PagesEnv = {}, o: ProxyOpt
   if (!copy || !inside) return new Response(NOT_FOUND, { status: 404 });
   const suffix = url.pathname.slice(PREFIX.length);
   if (unsafeSuffix(suffix)) return new Response(NOT_FOUND, { status: 404 });
+  // The tests of a fixed word read the decoded path, as the router of the Worker reads it (review 2026-11-10, finding 2).
+  const plain = plainSuffix(suffix);
+  if (plain === null) return new Response(NOT_FOUND, { status: 404 });
   // Madar enterprises is a separate site (design 12, D9): the platform routes have their own Pages project and its own forwarder
   // (pagesPlatformProxy.ts). A company address never reaches them, whatever token the request carries.
-  if (suffix === '/platform' || suffix.startsWith('/platform/')) return new Response(NOT_FOUND, { status: 404 });
+  if (plain === '/platform' || plain.startsWith('/platform/')) return new Response(NOT_FOUND, { status: 404 });
 
   const headers = forwardHeaders(request);
   const hosts = COPY_HOSTS[copy];
   // The ops of the office object (exit wave 4) go to the Worker whatever the word says, and nowhere else.
-  const ops = suffix === '/office' || suffix.startsWith('/office/');
+  const ops = plain === '/office' || plain.startsWith('/office/');
   const onWorkers = ops || onWorker(serverHostOf(copy, o.setting));
   const binding = onWorkers ? bindingOf(env, hosts.workers.binding) : undefined;
   if (binding) {

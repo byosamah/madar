@@ -45,6 +45,30 @@ export function unsafeSuffix(suffix: string): boolean {
   return /%2e|%2f|%5c|\\/i.test(suffix);
 }
 
+/** The most decode rounds of plainSuffix. A path that still changes after them is refused. */
+const PLAIN_ROUNDS = 3;
+
+/**
+ * The path as a router reads it (review 2026-11-10, finding 2): Hono decodes a path before it routes, so /api/%70latform reaches the
+ * route /api/platform. A test of a fixed word reads this text, never the raw suffix. It decodes until the text no longer changes, at
+ * most PLAIN_ROUNDS times (a double encoding included). A bad escape (decodeURIComponent throws), or a text that still changes after
+ * the last round, gives null: refuse the request. The request to the next host keeps the raw suffix.
+ */
+export function plainSuffix(suffix: string): string | null {
+  let text = suffix;
+  for (let round = 0; round <= PLAIN_ROUNDS; round += 1) {
+    let next: string;
+    try {
+      next = decodeURIComponent(text);
+    } catch {
+      return null;
+    }
+    if (next === text) return text;
+    text = next;
+  }
+  return null;
+}
+
 /** The binding of that name, when the Pages env has one that can fetch. */
 export function bindingOf(env: PagesEnv | undefined, name: string): ServiceBinding | undefined {
   const value = env?.[name] as { fetch?: unknown } | undefined;

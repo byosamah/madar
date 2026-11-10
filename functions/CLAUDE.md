@@ -74,3 +74,7 @@ that passes `request` and `env`. The logic and its tests live in `server/http/` 
   fallback: the platform routes exist on the office path only.
 - The company forwarder (`/api`) answers 404 for `/api/platform` and every path under it on the company hosts (`pagesApiProxy.ts`), so a
   company address holds no door to the platform, whatever token a request carries. `PLATFORM_HOSTS` and `PAGE_HOSTS` share no host.
+- A test of a fixed word in a forwarder reads the decoded path (`plainSuffix`, `pagesForward.ts`), never the raw one: Hono decodes the path
+  before it routes, so `/api/%70latform/...` reached the platform routes (review 2026-11-10). It decodes at most 3 times (a double encoding
+  too). A bad escape (`/api/%zz`) or a text that still changes gets 404. The request to the Worker keeps the raw path. The mcp and platform
+  forwarders test only their own prefix on the raw path, an allow test that fails closed, so they need no decode.
