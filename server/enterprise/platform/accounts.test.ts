@@ -155,20 +155,25 @@ describe('platform refresh and sign-out', () => {
     const third = await parts.platformRefresh({ refreshToken: first.refresh_token });
     expect(third.refresh_token).not.toBe(second.refresh_token);
     // After the window, a reuse of the previous token (second) ends the whole session, also the newest token.
-    // Review 2026-11-10 (owner): the window is 60 s now, so the clock moves 61 s after the last rotation.
-    clock.advance(61_000);
+    clock.advance(60_000);
     expect(await failure(parts.platformRefresh({ refreshToken: second.refresh_token }))).toMatchObject({ code: 'unauthenticated', reason: 'session_ended' });
     expect(await failure(parts.platformRefresh({ refreshToken: third.refresh_token }))).toMatchObject({ reason: 'session_ended' });
   });
 
-  it('a retry 30 seconds after a lost answer keeps the platform session (review 2026-11-10, finding 5)', async () => {
-    const { parts, clock, raw } = await withAccount();
-    const first = await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
-    // The answer of this refresh is lost on the network: the browser still holds the first token.
-    await parts.platformRefresh({ refreshToken: first.refresh_token });
-    clock.advance(30_000);
-    expect(await parts.platformRefresh({ refreshToken: first.refresh_token })).toMatchObject({ expires_in: 900 });
-    expect(raw.prepare('select ends_at > ? as live from platform_sessions').get(clock.now().toISOString())).toEqual({ live: 1 });
+  it('a platform session keeps the 10 s window: a retry 30 s after a rotation ends the session, 5 s keeps it (task D5b)', async () => {
+    const live = (raw: DatabaseSync, now: Date) => raw.prepare('select ends_at > ? as live from platform_sessions').get(now.toISOString());
+    const late = await withAccount();
+    const first = await late.parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+    await late.parts.platformRefresh({ refreshToken: first.refresh_token });
+    late.clock.advance(30_000);
+    expect(await failure(late.parts.platformRefresh({ refreshToken: first.refresh_token }))).toMatchObject({ reason: 'session_ended' });
+    expect(live(late.raw, late.clock.now())).toEqual({ live: 0 });
+    const soon = await withAccount();
+    const one = await soon.parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+    await soon.parts.platformRefresh({ refreshToken: one.refresh_token });
+    soon.clock.advance(5_000);
+    expect(await soon.parts.platformRefresh({ refreshToken: one.refresh_token })).toMatchObject({ expires_in: 900 });
+    expect(live(soon.raw, soon.clock.now())).toEqual({ live: 1 });
   });
 
   it('an unknown refresh token gives session_ended', async () => {

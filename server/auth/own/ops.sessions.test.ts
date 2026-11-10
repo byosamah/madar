@@ -1,6 +1,7 @@
 import { decodeJwt } from 'jose';
 import { describe, expect, it } from 'vitest';
 import { passwordSignIn, refreshSignIn, signOutSessions } from './ops';
+import { rotateSession } from './sessions';
 import { addSignIn, bareToken, signinDepsOf, signinOffice } from './testOffice';
 
 async function signedIn() {
@@ -56,6 +57,22 @@ describe('the sessions of the own stack (server/auth/own/sessions.ts)', () => {
     expect(await reasonOf(refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) }))).toBe('session_ended');
     expect(t.raw.prepare('select revoked_at is not null as gone from auth_sessions where id = ?').get(sessionId)).toEqual({ gone: 1 });
     expect(await reasonOf(refreshSignIn(deps, { refreshToken: bareToken(second.refresh_token) }))).toBe('session_ended');
+  });
+
+  it('an agent session keeps the 10 s window: the previous token 30 s after a rotation ends the session, 5 s rotates again (task D5b)', async () => {
+    const { t, authId, deps } = await signedIn();
+    const agent = (id: string) => t.raw.prepare("insert into auth_sessions (id, auth_id, client_id, amr, refresh_hash, expires_at) values (?, ?, 'c-agent', 'oauth', ?, '2026-11-17T06:00:00.000Z')").run(id, authId, `${id}-h1`);
+    const gone = (id: string) => t.raw.prepare('select revoked_at is not null as gone from auth_sessions where id = ?').get(id);
+    agent('s-late');
+    await rotateSession(deps, { hash: 's-late-h1', nextHash: 's-late-h2', clientId: 'c-agent' });
+    t.deps.clock.advance(30_000);
+    expect(await reasonOf(rotateSession(deps, { hash: 's-late-h1', nextHash: 's-late-h3', clientId: 'c-agent' }))).toBe('session_ended');
+    expect(gone('s-late')).toEqual({ gone: 1 });
+    agent('s-soon');
+    await rotateSession(deps, { hash: 's-soon-h1', nextHash: 's-soon-h2', clientId: 'c-agent' });
+    t.deps.clock.advance(5_000);
+    expect(await rotateSession(deps, { hash: 's-soon-h1', nextHash: 's-soon-h3', clientId: 'c-agent' })).toMatchObject({ id: 's-soon' });
+    expect(gone('s-soon')).toEqual({ gone: 0 });
   });
 
   it('refuses the refresh of a turned-off person, and of a banned one', async () => {

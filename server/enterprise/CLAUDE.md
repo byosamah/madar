@@ -66,7 +66,7 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
 
 ## Platform accounts and calls (plans C and F)
 - **Accounts (plan F, design D8).** A platform account belongs to no company. The platform object holds it: `platform_accounts` (id `pla_NNN`, email, name,
-  PBKDF2 hash, state `active` or `off`) and `platform_sessions` (the sha256 of the refresh secret, `prev_hash` and `used_at` for the 60 s reuse window (`REFRESH_REUSE_MS`),
+  PBKDF2 hash, state `active` or `off`) and `platform_sessions` (the sha256 of the refresh secret, `prev_hash` and `used_at` for the 10 s reuse window (`PLATFORM_REUSE_MS`; the 60 s of `REFRESH_REUSE_MS` is for a company browser only),
   `ends_at`). `accounts.ts` holds the work: `platformSignIn`, `platformRefresh`, `platformSignOut`, `platformAccount`, `platformAccounts` (the ops).
   A wrong password and an unknown email give one answer after the same work (one PBKDF2 each). `off` shows only after the right password. The limits
   use the counts, windows and rule of `server/auth/own/limits.ts` with their own keys (`psignin:ip`, `psignin:pair` for the email with the address,

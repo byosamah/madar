@@ -5,7 +5,7 @@ import { randomToken, sha256Hex } from '../../auth/own/crypto';
 import { ADDRESS_LIMITS, SIGNIN_PER_EMAIL, SIGNIN_PER_EMAIL_TOTAL, SIGNIN_WINDOW_MS } from '../../auth/own/limits';
 import { accountOff, wrongCredentials } from '../../auth/own/ops';
 import { hashPassword, verifyPassword } from '../../auth/own/password';
-import { countLimits, DAY_MS, REFRESH_REUSE_MS, SESSION_DAYS, sessionEnded } from '../../auth/own/sessions';
+import { countLimits, DAY_MS, SESSION_DAYS, sessionEnded } from '../../auth/own/sessions';
 import { ACCESS_TTL_S } from '../../auth/ownKeys';
 import { hashedKey, limitAddress } from '../../auth/rateLimit';
 import type { Clock } from '../../core/ports';
@@ -17,9 +17,8 @@ import { isPlatformAccountId, normalizeEmail } from '../ids';
 /**
  * The accounts of the platform (Madar enterprises, design D8): the people who run Madar enterprises. An account belongs to no company, and
  * it lives only in the platform object: email, name, password hash, state, and its sessions. The sign-in follows the own sign-in of the
- * companies (server/auth/own): PBKDF2 between two transactions, a refresh token that rotates with the 60 s reuse window of the companies
- * (REFRESH_REUSE_MS), the same answer for a
- * wrong password and an unknown email. The tokens carry the audience madar-platform and no ent (signPlatformToken).
+ * companies (server/auth/own): PBKDF2 between two transactions, a refresh token that rotates with a 10 s reuse window (PLATFORM_REUSE_MS),
+ * the same answer for a wrong password and an unknown email. The tokens carry the audience madar-platform and no ent (signPlatformToken).
  */
 
 /** The shortest password of a platform account. The Mac script refuses a shorter one as well. */
@@ -32,6 +31,11 @@ const NAME_MAX = 120;
 const ADDRESS_PREFIX = 'psignin:ip';
 const PAIR_PREFIX = 'psignin:pair';
 const EMAIL_PREFIX = 'psignin:email';
+/**
+ * The reuse window of a platform refresh token: 10 s (task D5b). The 60 s of a company browser (REFRESH_REUSE_MS) is for the phones of a
+ * team on a weak network. A platform account gains nothing from it, and a longer window only helps a thief with a stolen refresh token.
+ */
+export const PLATFORM_REUSE_MS = 10_000;
 
 export type PlatformAccountState = 'active' | 'off';
 export type PlatformAccountView = { id: string; name: string; email: string; state: PlatformAccountState };
@@ -100,7 +104,7 @@ type Rotation = { kind: 'ok'; session: SessionRow; account: AccountRow } | { kin
 
 /**
  * One refresh with rotation, as rotateSession of the companies: the presented hash is the current one of a live session, or the previous one
- * within REFRESH_REUSE_MS. The previous one after the window ends the whole session. An account that is off refuses with account_off.
+ * within PLATFORM_REUSE_MS. The previous one after the window ends the whole session. An account that is off refuses with account_off.
  */
 export async function platformRefresh(d: AccountDeps, input: { refreshToken: string }): Promise<PlatformTokenAnswer> {
   const hash = await sha256Hex(textOf(input.refreshToken));
@@ -112,7 +116,7 @@ export async function platformRefresh(d: AccountDeps, input: { refreshToken: str
     if (!session) {
       const [old] = await q<SessionRow>(SESSION_BY_PREV, [hash]);
       if (!old) return { kind: 'ended' };
-      const inWindow = old.used_at !== null && now.getTime() - Date.parse(old.used_at) <= REFRESH_REUSE_MS;
+      const inWindow = old.used_at !== null && now.getTime() - Date.parse(old.used_at) <= PLATFORM_REUSE_MS;
       if (!inWindow) {
         await q(SESSION_END, [old.id, now.toISOString()]);
         return { kind: 'ended' };

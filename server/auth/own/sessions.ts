@@ -17,11 +17,16 @@ import type { SigninDeps, TokenAnswer } from './types';
 /** A session lives 30 days after its last refresh. */
 export const SESSION_DAYS = 30;
 /**
- * A second use of the old refresh token within 60 s rotates again (owner, review 2026-11-10). The window was 10 s, as
- * refresh_token_reuse_interval = 10 of supabase/config.toml, but a phone on a weak network retries a lost answer later than that, and
- * the retry then ended the session. The platform sessions use the same window (server/enterprise/platform/accounts.ts).
+ * For the browser session of a person (client_id null): a second use of the old refresh token within 60 s rotates again (owner, review
+ * 2026-11-10). The window was 10 s, as refresh_token_reuse_interval = 10 of supabase/config.toml, but a phone on a weak network retries a
+ * lost answer later than that, and the retry then ended the session.
  */
 export const REFRESH_REUSE_MS = 60_000;
+/**
+ * For an agent session (client_id set; task D5b): the 10 s window stays. An AI app gains nothing from a longer window, and a longer window
+ * only helps a thief with a stolen refresh token. The platform sessions keep 10 s too (server/enterprise/platform/accounts.ts).
+ */
+export const AGENT_REUSE_MS = 10_000;
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function sessionEnded(): ApiError {
@@ -65,9 +70,11 @@ type Rotation = { kind: 'ok'; row: SessionRow } | { kind: 'ended' };
 
 /**
  * One refresh with rotation (OAuth 2.1, section 4.3.1). The presented hash is the current refresh hash of a live session, or its
- * previous one within REFRESH_REUSE_MS (two tabs, or a lost answer): both rotate. The previous one after the window ends the whole
- * session, in a transaction that commits (a throw would roll the end back). clientId null is a browser session; a refresh of a
- * turned-off person throws account_off, and of a banned person, an agent whose link is removed or a turned-off owner, session_ended.
+ * previous one within the reuse window (two tabs, or a lost answer): both rotate. The window is REFRESH_REUSE_MS for a browser session
+ * and AGENT_REUSE_MS for an agent session; the client of the stored row picks it, so a caller cannot ask for the longer window. The
+ * previous one after the window ends the whole session, in a transaction that commits (a throw would roll the end back). clientId null
+ * is a browser session; a refresh of a turned-off person throws account_off, and of a banned person, an agent whose link is removed or a
+ * turned-off owner, session_ended.
  */
 export async function rotateSession(deps: SigninDeps, o: { hash: string; nextHash: string; clientId: string | null }): Promise<SessionRow> {
   const now = deps.clock.now();
@@ -76,7 +83,8 @@ export async function rotateSession(deps: SigninDeps, o: { hash: string; nextHas
     if (!row) {
       const [old] = await q<SessionRow>(SESSION_BY_PREV, [o.hash]);
       if (!old) return { kind: 'ended' };
-      const inWindow = old.rotated_at !== null && now.getTime() - Date.parse(old.rotated_at) <= REFRESH_REUSE_MS;
+      const windowMs = (old.client_id ?? null) === null ? REFRESH_REUSE_MS : AGENT_REUSE_MS;
+      const inWindow = old.rotated_at !== null && now.getTime() - Date.parse(old.rotated_at) <= windowMs;
       if (!inWindow) {
         await q(SESSION_END, [old.id, now.toISOString()]);
         return { kind: 'ended' };

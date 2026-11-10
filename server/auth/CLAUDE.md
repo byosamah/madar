@@ -64,9 +64,12 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
 - Tokens: ES256, issuer = MCP_URL, the secret `MADAR_AUTH_PRIVATE_JWK` (a P-256 private JWK with a kid). The public key set is
   `GET /api/auth/jwks` and `GET /mcp/oauth/jwks`. With the secret set, `verifyBrowserToken` and `agentTokenCheckerOf` use the own
   key; without it they use Supabase Auth.
-- Sessions (`own/sessions.ts`): refresh tokens rotate; a second use inside `REFRESH_REUSE_MS` (60 s, owner, review 2026-11-10) rotates
-  again, a later one ends the session. It was 10 s, as Supabase Auth keeps it (`refresh_token_reuse_interval`), but a phone on a weak
-  network retried a lost answer later and lost its sign-in. The platform sessions use the same constant. Sign-out others ends agents too. The API checks no session for a browser token (15 minutes at most, as on Supabase).
+- Sessions (`own/sessions.ts`): refresh tokens rotate; a second use of the previous token inside the reuse window rotates again, a later
+  one ends the session. Two windows (review 2026-11-10): 60 s for the browser session of a person (`REFRESH_REUSE_MS`, owner: a phone on
+  a weak network retried a lost answer after 10 s and lost its sign-in), and 10 s for an agent session (`AGENT_REUSE_MS`, as Supabase
+  Auth keeps it), because a longer window only helps a thief with a stolen token. The client of the stored row picks the window. The
+  platform sessions keep 10 s (`PLATFORM_REUSE_MS`, `server/enterprise/platform/accounts.ts`). Sign-out others ends agents too. The API
+  checks no session for a browser token (15 minutes at most, as on Supabase).
 - Links: random bytes, only the sha256 in the table, one use; a new link ends the open links of the person. A link opens a link
   session that may set a password once with no current password. An agent token never sets a password (403 `agent_token`).
 - Platform tokens (plan F, design D10): `signPlatformToken` (`own/keys.ts`) signs the token of a platform account with the audience `PLATFORM_AUDIENCE`
