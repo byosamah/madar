@@ -2,12 +2,14 @@ import { ApiError } from '../../src/api/errors';
 import type { ServerHooks } from '../../src/api/registry';
 import type { Db, Deps, Query } from '../core/ports';
 import type { JobStep } from '../jobs/run';
+import { keysOf } from '../files/keys';
+import { entOfConfig } from './scope';
 
 /**
  * The storage of one enterprise (Madar enterprises, design 5.9). The limit counts the bytes of every version of every file record. The full
  * count reads one row for each file and each version (13,200 rows on the year office, proof.md), so the object keeps a running total in
  * enterprise_use.storage_bytes. The save step adds the change of each write (server/data/lite/save.ts), the finish of an import counts again,
- * and the daily step "storage" repairs a total that drifted. Feedback pictures are not counted: version 1 counts file records only.
+ * and the daily step "storage" repairs a total that drifted. Feedback pictures are not counted: version 1 counts file records only, and the open-upload sum leaves out the screenshot keys of the enterprise.
  */
 
 /** The sum of the version sizes of all file records. The step 15 of the schema uses the same text. */
@@ -33,10 +35,12 @@ export async function storageUsed(db: Pick<Db, 'statement'>): Promise<number> {
 }
 
 /**
- * The bytes of the open uploads of ONE person: not used, not ended. The screenshots of reports (keys under feedback/) are not counted, as the
- * running total does not count them. Only the uploads of the person who starts count, so one person cannot block the starts of the others.
+ * The bytes of the open uploads of ONE person: not used, not ended. The screenshots of reports are not counted, as the running total does not
+ * count them. The key of a screenshot starts with the screenshot prefix of the enterprise (`e/<ent>/feedback/` for a new company, `feedback/`
+ * for ENT_VADO), so the prefix is the third value. A key part holds no `_` and no `%` (`part()` in server/files/keys.ts), so the pattern needs
+ * no escape. Only the uploads of the person who starts count, so one person cannot block the starts of the others.
  */
-const OPEN_INTENTS_LITE = "select coalesce(sum(size), 0) as n from upload_intents where actor_id = ?2 and used_at is null and expires_at > ?1 and key not like 'feedback/%'";
+const OPEN_INTENTS_LITE = "select coalesce(sum(size), 0) as n from upload_intents where actor_id = ?2 and used_at is null and expires_at > ?1 and key not like ?3";
 
 /**
  * Refuses a file that goes above the limit: a size equal to the room passes, one byte more fails. size is the file and its small picture.
@@ -44,12 +48,12 @@ const OPEN_INTENTS_LITE = "select coalesce(sum(size), 0) as n from upload_intent
  * than exists. The open uploads of other people do not count here: the check inside the lock at the save (assertStorageRoomInLock) is the real
  * guard. null, and an object with no facts (the Postgres path), never refuse.
  */
-export async function assertStorageRoom(deps: Pick<Deps, 'db' | 'enterprise'>, size: number, o: { now?: Date; actorId?: string } = {}): Promise<void> {
+export async function assertStorageRoom(deps: Pick<Deps, 'db' | 'enterprise' | 'config'>, size: number, o: { now?: Date; actorId?: string } = {}): Promise<void> {
   const limit = deps.enterprise?.limits().storageBytes ?? null;
   if (limit === null) return;
   let open = 0;
   if (o.now && o.actorId) {
-    const [row] = await deps.db.statement<{ n: number }>('read', OPEN_INTENTS_LITE, [o.now.toISOString(), o.actorId]);
+    const [row] = await deps.db.statement<{ n: number }>('read', OPEN_INTENTS_LITE, [o.now.toISOString(), o.actorId, `${keysOf(entOfConfig(deps.config)).screenshotPrefix}%`]);
     open = Number(row?.n ?? 0);
   }
   if ((await storageUsed(deps.db)) + open + size > limit) throw storageLimitError(limit);

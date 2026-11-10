@@ -7,6 +7,10 @@ import { freshLite } from '../data/lite/testDb';
 import { importFinish } from '../office/import';
 import { nodeWorld } from '../office/test/nodeWorld';
 import { EnterpriseFacts } from './facts';
+import type { Deps } from '../core/ports';
+import { insertIntents, type Intent } from '../files/intents';
+import { keysOf } from '../files/keys';
+import { ENT_VADO } from './ids';
 import { STORAGE_STEP, assertStorageRoom, bytesOfFile, recountStorage, settingsGetHooks, storageUsed } from './storage';
 import { officeSteps } from '../office/jobs';
 
@@ -109,7 +113,7 @@ describe('assertStorageRoom (limit 1000)', () => {
     raw.exec(`update enterprise_use set storage_bytes = ${used}`);
     const facts = new EnterpriseFacts();
     facts.set({ limits: { people: null, storageBytes: limit } });
-    return { db, enterprise: facts };
+    return { db, enterprise: facts, config: { ent: ENT } as Deps['config'] };
   }
 
   it('passes at the limit and fails one byte above', async () => {
@@ -121,7 +125,38 @@ describe('assertStorageRoom (limit 1000)', () => {
   it('never refuses with no limit or with no facts', async () => {
     await expect(assertStorageRoom(await room(999_999, null), 1_000_000)).resolves.toBeUndefined();
     const { db } = await freshLite();
-    await expect(assertStorageRoom({ db }, 1e12)).resolves.toBeUndefined();
+    await expect(assertStorageRoom({ db, enterprise: undefined, config: {} as Deps['config'] }, 1e12)).resolves.toBeUndefined();
+  });
+});
+
+describe('assertStorageRoom counts the open uploads of the person, but not the report screenshots of any company (review finding 8)', () => {
+  const NOW = new Date('2026-10-04T06:00:00Z');
+  const intent = (key: string, size: number): Intent => ({
+    id: 'upl_001', actorId: 'usr_001', projectId: null, stagingKey: 'up/upl-001/file', key, thumbKey: null, size, mimeType: 'image/png',
+    expiresAt: new Date('2026-10-04T08:00:00Z'), usedAt: null,
+  });
+  async function room(ent: string, key: string, size: number) {
+    const { db } = await freshLite();
+    await insertIntents(db, [intent(key, size)]);
+    const facts = new EnterpriseFacts();
+    facts.set({ limits: { people: null, storageBytes: 100 } });
+    return { db, enterprise: facts, config: { ent } as Deps['config'] };
+  }
+  const who = { now: NOW, actorId: 'usr_001' };
+
+  it('leaves the open screenshot of another company out of the count', async () => {
+    const deps = await room('ent_002', keysOf('ent_002').screenshotKey('upl_001'), 90);
+    await expect(assertStorageRoom(deps, 50, who)).resolves.toBeUndefined();
+  });
+
+  it('leaves the open screenshot of ENT_VADO out of the count', async () => {
+    const deps = await room(ENT_VADO, keysOf(ENT_VADO).screenshotKey('upl_001'), 90);
+    await expect(assertStorageRoom(deps, 50, who)).resolves.toBeUndefined();
+  });
+
+  it('still counts an open file upload of the same company', async () => {
+    const deps = await room('ent_002', keysOf('ent_002').uploadKey('prj_001', 'upl_001'), 90);
+    await expect(assertStorageRoom(deps, 50, who)).rejects.toMatchObject({ code: 'conflict', details: { reason: 'storage_limit' } });
   });
 });
 
