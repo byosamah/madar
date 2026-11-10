@@ -91,8 +91,14 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   do not lock the person out. The tries count before the password check, so the 11th try at one address fails also with the right password.
   The pair key comes before the total: a try that the pair refuses does not count toward the total.
 - A known address (review 2026-11-10): the person signed in with the right password from this address (its /64 block for IPv6) in the last 90
-  days (`KNOWN_ADDRESS_DAYS`). The table `auth_known_addresses` keeps only `pair_key` = `hashedKey('known', '<email>|<limitAddress>')` and
-  `seen_at`. A known address skips the total of the email, so 10 addresses of strangers with 10 wrong tries each do not lock the person out.
+  days (`KNOWN_ADDRESS_DAYS`). The table `auth_known_addresses` keeps only `pair_key` = `known:<64 hex>` and `seen_at`. The key is an
+  HMAC-SHA-256 of `<email>|<limitAddress>` under a key that HKDF derives from the server secret (`ServerEnv.secretKey`: `MADAR_SECRET_KEY`
+  or the first key of `SUPABASE_SECRET_KEYS`), with the info text `madar-known-address:<ent>` (`server/auth/own/knownKey.ts`, the field
+  `SigninDeps.knownKey`). That secret is in no database and in no backup, so a copy of the database cannot check a guess (a plain sha256
+  could: an email is known, and IPv4 has only 4 billion addresses). A new server secret makes every address not known until the next
+  sign-in. An empty secret refuses the step, never a plain hash. The address `unknown` (`UNKNOWN_ADDRESS`, clientAddress with no header)
+  and an empty address never become known: no row read, no row written, and the total applies.
+  A known address skips the total of the email, so 10 addresses of strangers with 10 wrong tries each do not lock the person out.
   It still meets its own pair limit of 10. The step reads the row before the limits (one row read) and writes it after the right password,
   in the transaction of the session (`KNOWN_TOUCH`: at most one row written a day for each person and address, `KNOWN_ADDRESS_TOUCH_MS`).
   A wrong password, an unknown email, a ban, a turn-off and a paused enterprise write no row.

@@ -70,6 +70,9 @@ function ipv6Groups(text: string): number[] | null {
   return missing >= 1 ? [...head, ...new Array<number>(missing).fill(0), ...tail] : null;
 }
 
+/** The address of clientAddress (forgot.ts) when no address header exists (local runs). It never becomes a known address (own/knownKey.ts). */
+export const UNKNOWN_ADDRESS = 'unknown';
+
 /**
  * The network address of a limit key (review 2026-11-10, task D3b). One machine on IPv6 holds a whole /64 block, so an IPv6 address counts
  * as its first 4 groups, fully expanded (2001:db8:1:2::9 gives 2001:0db8:0001:0002). Without it, each new address of the block is a new

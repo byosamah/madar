@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { localSigninOffice } from '../../auth/own/office';
 import { signingKeysOf } from '../../auth/own/keys';
-import { testPrivateJwk } from '../../auth/own/testKeys';
+import { TEST_SERVER_SECRET, testPrivateJwk } from '../../auth/own/testKeys';
+import { knownKeyOf } from '../../auth/own/knownKey';
 import { signinOffice } from '../../auth/own/testOffice';
 import type { SigninDeps } from '../../auth/own/types';
 import { ownIssuer, ownKeySet, ownPublicJwks } from '../../auth/ownKeys';
@@ -25,7 +26,7 @@ export async function oauthApp(o: { at?: string } = {}) {
   const t = await signinOffice({ at: o.at ?? new Date().toISOString(), config: { mcpUrl: TEST_MCP_URL, appUrl: 'https://madar.test', allowedOrigins: ['https://madar.test'] } });
   const jwk = await testPrivateJwk();
   const keys = await signingKeysOf(jwk, TEST_MCP_URL);
-  const deps: SigninDeps = { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys, ent: ENT_VADO };
+  const deps: SigninDeps = { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys, ent: ENT_VADO, knownKey: knownKeyOf(TEST_SERVER_SECRET, ENT_VADO) };
   const office = localSigninOffice(deps);
   const run = createRunCall({ data: liteData });
   const mcp = mcpApp(t.deps as unknown as Deps, {

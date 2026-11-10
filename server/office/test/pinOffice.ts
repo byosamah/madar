@@ -2,6 +2,8 @@ import { DurableObject } from 'cloudflare:workers';
 import { emptyState, type State } from '../../../src/api/store';
 import { importSigninRows, type SigninExportRow } from '../../auth/own/import';
 import { signingKeysOf } from '../../auth/own/keys';
+import { knownKeyOf } from '../../auth/own/knownKey';
+import { TEST_SERVER_SECRET } from '../../auth/own/testKeys';
 import { runSigninOp, type SigninOpName } from '../../auth/own/office';
 import { createRunCall } from '../../core/runCall';
 import { ENT_VADO } from '../../enterprise/ids';
@@ -142,7 +144,7 @@ export class PinOffice extends DurableObject implements PinOfficeApi {
     const { db, deps } = await this.#ready();
     deps.clock.set(new Date(now));
     const keys = await signingKeysOf(privateJwk, deps.config.mcpUrl);
-    return runSigninOp({ db, clock: deps.clock, log: deps.log, config: deps.config, keys, ent: ENT_VADO }, name as SigninOpName, input as never);
+    return runSigninOp({ db, clock: deps.clock, log: deps.log, config: deps.config, keys, ent: ENT_VADO, knownKey: knownKeyOf(TEST_SERVER_SECRET, ENT_VADO) }, name as SigninOpName, input as never);
   }
 
   async importSignins(rows: SigninExportRow[], now: string): Promise<number> {

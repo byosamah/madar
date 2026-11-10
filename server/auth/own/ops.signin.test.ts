@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { sha256Hex } from './crypto';
 import { passwordSignIn } from './ops';
 import { untag } from '../../enterprise/ids';
+import { hashedKey, limitAddress } from '../rateLimit';
 import { addSignIn, bareToken, signinDepsOf, signinOffice } from './testOffice';
 
 const ADDRESS = '203.0.113.7';
@@ -174,6 +175,62 @@ describe('the password sign-in of the own stack (server/auth/own/ops.ts)', () =>
       expect(rows[0].seen_at).toBe('2026-10-17T06:00:00.000Z');
       expect(JSON.stringify(rows)).not.toContain(email);
       expect(JSON.stringify(rows)).not.toContain(ADDRESS);
+    });
+
+    describe('the pair key is an HMAC under the server secret (review 2026-11-10, K2b)', () => {
+      const pairKeys = (t: Awaited<ReturnType<typeof setup>>['t']) =>
+        (t.raw.prepare('select pair_key from auth_known_addresses').all() as { pair_key: string }[]).map((row) => row.pair_key);
+
+      it('the pair key cannot be computed without the server secret', async () => {
+        const { t, email, deps } = await setup();
+        await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS });
+        const keys = pairKeys(t);
+        expect(keys).toHaveLength(1);
+        expect(keys[0]).toMatch(/^known:[0-9a-f]{64}$/);
+        // A reader of a database copy knows the email and can try every IPv4 address: the plain sha256 of the pair must not be the key.
+        expect(keys[0]).not.toBe(await hashedKey('known', `${email}|${limitAddress(ADDRESS)}`));
+      });
+
+      it('two enterprises give different keys for the same email and address', async () => {
+        const { t, email, deps } = await setup();
+        const other = await signinDepsOf(t, { ent: 'ent_002' });
+        await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS });
+        await passwordSignIn(other, { email, password: 'a good password', address: ADDRESS });
+        const keys = pairKeys(t);
+        expect(keys).toHaveLength(2);
+        expect(new Set(keys).size).toBe(2);
+      });
+
+      it('another server secret gives another key, and the address reads as not known', async () => {
+        const { t, email, deps } = await setup();
+        await passwordSignIn(deps, { email, password: 'a good password', address: ADDRESS });
+        const renewed = await signinDepsOf(t, { secret: 'sb_secret_test_another_not_a_key' });
+        await strangers(renewed, email);
+        expect(await errorOf(passwordSignIn(renewed, { email, password: 'a good password', address: ADDRESS }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+        // After the window, the right password signs in again and the address is known under the new key: a second row.
+        t.deps.clock.advance(16 * 60 * 1000);
+        expect(await passwordSignIn(renewed, { email, password: 'a good password', address: ADDRESS })).toMatchObject({ token_type: 'bearer' });
+        expect(new Set(pairKeys(t)).size).toBe(2);
+      }, 120_000);
+
+      it('an empty server secret refuses the sign-in: it never falls back to the plain hash', async () => {
+        const { t, email } = await setup();
+        const empty = await signinDepsOf(t, { secret: '' });
+        await expect(passwordSignIn(empty, { email, password: 'a good password', address: ADDRESS })).rejects.toThrow('MADAR_SECRET_KEY');
+        expect(pairKeys(t)).toEqual([]);
+        expect(t.raw.prepare('select count(*) as n from auth_sessions').get()).toEqual({ n: 0 });
+      });
+
+      it('the address unknown never becomes known, so the total of the email still applies to it', async () => {
+        const { t, email, deps } = await setup();
+        // 'unknown' is the address of clientAddress with no address header. An empty text is no place either.
+        for (const address of ['unknown', ' Unknown ', '']) {
+          expect(await passwordSignIn(deps, { email, password: 'a good password', address })).toMatchObject({ token_type: 'bearer' });
+        }
+        expect(pairKeys(t)).toEqual([]);
+        await strangers(deps, email);
+        expect(await errorOf(passwordSignIn(deps, { email, password: 'a good password', address: 'unknown' }))).toMatchObject({ code: 'conflict', reason: 'too_many' });
+      }, 120_000);
     });
 
     it('a sign-in from one address of an IPv6 /64 block makes every address of that block known', async () => {

@@ -55,9 +55,10 @@ export const SESSION_END_OWN = 'update auth_sessions set revoked_at = ?3 where i
 export const OLD_HASH_INSERT = 'insert or ignore into auth_old_hashes (hash, session_id, at) values (?1, ?2, ?3)';
 export const OLD_HASH_BY_HASH = 'select session_id from auth_old_hashes where hash = ?1';
 /**
- * The known addresses (schema version 17, review 2026-11-10). pair_key is hashedKey('known', '<email>|<limitAddress>'), never the email or
- * the address. KNOWN_TOUCH: ?1 the key, ?2 now, ?3 now minus KNOWN_ADDRESS_TOUCH_MS, so a person who signs in many times a day writes one row
- * a day.
+ * The known addresses (schema version 17, review 2026-11-10). pair_key is SigninDeps.knownKey('known', '<email>|<limitAddress>'): an HMAC
+ * under a key from the server secret, which is in no database and in no backup (knownKey.ts). So a copy of the database cannot check a guess
+ * of an email and an address. KNOWN_TOUCH: ?1 the key, ?2 now, ?3 now minus KNOWN_ADDRESS_TOUCH_MS, so a person who signs in many times a day
+ * writes one row a day.
  */
 export const KNOWN_BY_KEY = 'select seen_at from auth_known_addresses where pair_key = ?1';
 export const KNOWN_TOUCH =

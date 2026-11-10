@@ -8,14 +8,15 @@ import type { LiteDb } from '../../data/lite/db';
 import { readLiteOffice, setLiteAuthLink } from '../../data/lite/office';
 import { freshLite } from '../../data/lite/testDb';
 import { liteWriteState } from '../../data/lite/whole';
-import { ENT_VADO, untag } from '../../enterprise/ids';
+import { ENT_VADO, untag, type EnterpriseId } from '../../enterprise/ids';
 import { fakeDeps, type FakeDeps } from '../../test/fakes/deps';
 import type { AuthAdmin } from '../admin';
 import { signingKeysOf } from './keys';
+import { knownKeyOf } from './knownKey';
 import { liteAuthAdmin } from './liteAdmin';
 import { hashPassword } from './password';
 import { AUTH_USER_INSERT } from './rows';
-import { testPrivateJwk } from './testKeys';
+import { TEST_SERVER_SECRET, testPrivateJwk } from './testKeys';
 import type { SigninDeps } from './types';
 
 /**
@@ -67,9 +68,16 @@ export async function addSignIn(t: TestOffice, userId: string, o: { password?: s
   return authId;
 }
 
-/** The deps of the sign-in steps on the test office, with a new test key. */
-export async function signinDepsOf(t: TestOffice): Promise<SigninDeps> {
-  return { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys: await signingKeysOf(await testPrivateJwk(), t.deps.config.mcpUrl), ent: ENT_VADO };
+/**
+ * The deps of the sign-in steps on the test office, with a new test key. ent (ENT_VADO when none) and secret (TEST_SERVER_SECRET when none)
+ * set the enterprise and the key of the known addresses, as the office object derives it.
+ */
+export async function signinDepsOf(t: TestOffice, o: { ent?: EnterpriseId; secret?: string } = {}): Promise<SigninDeps> {
+  const ent = o.ent ?? ENT_VADO;
+  return {
+    db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys: await signingKeysOf(await testPrivateJwk(), t.deps.config.mcpUrl), ent,
+    knownKey: knownKeyOf(o.secret ?? TEST_SERVER_SECRET, ent),
+  };
 }
 
 /** The bare secret of a tagged refresh token. The Worker untags it before a step runs (Madar enterprises). */

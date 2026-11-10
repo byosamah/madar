@@ -19,7 +19,9 @@ export const SIGNIN_PER_EMAIL = 10;
 export const SIGNIN_PER_EMAIL_TOTAL = 100;
 /**
  * A known address: the person signed in with the right password from this network address (its /64 block for IPv6) in the last 90 days.
- * The table auth_known_addresses keeps a sha256 of the email with the address. A known address still meets its own limit of 10 tries.
+ * The table auth_known_addresses keeps an HMAC of the email with the address, under a key from the server secret (knownKey.ts): a copy of
+ * the database cannot check a guess. The address 'unknown' (no address header) never becomes known. A known address still meets its own
+ * limit of 10 tries.
  */
 export const KNOWN_ADDRESS_DAYS = 90;
 /** A sign-in from a known address writes its row again only when the row is older than one day: one row written a day at most. */

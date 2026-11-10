@@ -75,7 +75,10 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
   `off` ends none (the refresh then gives `account_off`). The password has 12 to 200 characters (`PLATFORM_PASSWORD_MIN`).
   The two rules of the review of 2026-11-10 (`server/auth/CLAUDE.md`) apply on their own tables (schema version 5): a displaced refresh token
   ends its session (`platform_old_hashes`), and a known address skips `psignin:email` (`platform_known_addresses`, key prefix `pknown`, the
-  constants of `limits.ts`). The daily `sweep` deletes the displaced hashes one day after the end of their session (a platform session row
+  constants of `limits.ts`). The pair key is an HMAC under a key that HKDF derives from the server secret of the platform Worker
+  (`serverEnvFrom(...).secretKey`), info text `madar-known-address:platform` (`server/auth/own/knownKey.ts`). That secret is in no database
+  and in no backup, so a copy of the platform database cannot check a guess. The address `unknown` never becomes known. The three refuse
+  steps use the same key, so they do the same work as an office object. The daily `sweep` deletes the displaced hashes one day after the end of their session (a platform session row
   stays after its end) and the known addresses older than 90 days (`cleanupPlatformMemory`).
 - **Refusals are data.** `platformSignIn`, `platformRefresh` and `platformAccounts` return `PlatformOutcome` (`{ ok: true, value }` or `{ ok: false, error }`),
   not a throw: an `ApiError` thrown in a Durable Object loses its class over the RPC hop. The Worker calls `valueOfOutcome` to throw it again. Tests that read a

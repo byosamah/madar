@@ -9,7 +9,7 @@ import { errorResponse, runErrorOf } from '../http/errors';
 import { CLIENT_ADDRESS_HEADER } from '../http/pagesForward';
 import { reservePlace, sendCounted } from '../mail/quota';
 import { renderSigninMail, signinLink } from './mail';
-import { hashedKey, hitLimit, limitAddress } from './rateLimit';
+import { hashedKey, hitLimit, limitAddress, UNKNOWN_ADDRESS } from './rateLimit';
 import { mailOptionsOf } from '../enterprise/brand';
 
 /**
@@ -85,7 +85,7 @@ export { CLIENT_ADDRESS_HEADER };
  */
 export function clientAddress(request: Request): string {
   const name = requestHost().host === 'workers' ? CLIENT_ADDRESS_HEADER : 'cf-connecting-ip';
-  return request.headers.get(name)?.trim() || 'unknown';
+  return request.headers.get(name)?.trim() || UNKNOWN_ADDRESS;
 }
 
 /** Sends the reset mail when the email belongs to an active person with a sign-in link. Otherwise nothing. */

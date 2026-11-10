@@ -1,9 +1,14 @@
 import type { Deps } from '../../core/ports';
 import type { EnterpriseId } from '../../enterprise/ids';
 import type { SigningKeys } from './keys';
+import type { KnownKey } from './knownKey';
 
-/** The deps of a sign-in step in the office object (Supabase exit, wave 2): the SQLite Db, the clock, the log, the keys, and the enterprise of the object (Madar enterprises: it goes into every token and tags the refresh token of a browser). */
-export type SigninDeps = Pick<Deps, 'db' | 'clock' | 'log' | 'config'> & { keys: SigningKeys; ent: EnterpriseId };
+/**
+ * The deps of a sign-in step in the office object (Supabase exit, wave 2): the SQLite Db, the clock, the log, the keys, and the enterprise of
+ * the object (Madar enterprises: it goes into every token and tags the refresh token of a browser). knownKey gives the pair key of a known
+ * address: an HMAC under a key from the server secret, for the enterprise of the object (knownKey.ts, review 2026-11-10).
+ */
+export type SigninDeps = Pick<Deps, 'db' | 'clock' | 'log' | 'config'> & { keys: SigningKeys; ent: EnterpriseId; knownKey: KnownKey };
 
 /** The answer of a browser sign-in: the shape of the Supabase token answer, so the screens port stays small. */
 export type TokenAnswer = { access_token: string; token_type: 'bearer'; expires_in: number; refresh_token: string; user: { id: string } };

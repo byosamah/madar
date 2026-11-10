@@ -2,6 +2,7 @@ import { decodeJwt } from 'jose';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { testPrivateJwk } from '../../auth/own/testKeys';
+import { hashedKey, limitAddress } from '../../auth/rateLimit';
 import { nodeHost } from '../../data/lite/host';
 import { NODE_OFFICE_ENV } from '../../office/test/nodeOffice';
 import { fixedClock } from '../../test/fakes/clock';
@@ -170,6 +171,28 @@ describe('platform sign-in', () => {
       expect(rows[0].pair_key).toMatch(/^pknown:[0-9a-f]{64}$/);
       expect(JSON.stringify(rows)).not.toContain('owner@madar.test');
       expect(JSON.stringify(rows)).not.toContain(ADDRESS);
+    });
+  });
+
+  describe('the pair key is an HMAC under the server secret (review 2026-11-10, K2b)', () => {
+    const pairKeys = (raw: Awaited<ReturnType<typeof withAccount>>['raw']) =>
+      (raw.prepare('select pair_key from platform_known_addresses').all() as { pair_key: string }[]).map((row) => row.pair_key);
+
+    it('the pair key cannot be computed without the server secret', async () => {
+      const { parts, raw } = await withAccount();
+      await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address: ADDRESS });
+      const keys = pairKeys(raw);
+      expect(keys).toHaveLength(1);
+      expect(keys[0]).toMatch(/^pknown:[0-9a-f]{64}$/);
+      expect(keys[0]).not.toBe(await hashedKey('pknown', `owner@madar.test|${limitAddress(ADDRESS)}`));
+    });
+
+    it('the address unknown never becomes known', async () => {
+      const { parts, raw } = await withAccount();
+      for (const address of ['unknown', ' Unknown ', '']) {
+        expect(await parts.platformSignIn({ email: 'owner@madar.test', password: PASSWORD, address })).toMatchObject({ expires_in: 900 });
+      }
+      expect(pairKeys(raw)).toEqual([]);
     });
   });
 

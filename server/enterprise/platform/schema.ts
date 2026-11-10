@@ -40,8 +40,8 @@ const ACCOUNT_SQL: readonly string[] = [
 
 /**
  * The sign-in memory of the platform accounts (version 5, review 2026-11-10), the twins of auth_old_hashes and auth_known_addresses: the
- * refresh hashes that left a platform session row, and the pairs of an email and an address where an account signed in (pair_key is a
- * sha256 with the prefix pknown, never the email or the address).
+ * refresh hashes that left a platform session row, and the pairs of an email and an address where an account signed in (pair_key is an
+ * HMAC with the prefix pknown, under a key from the server secret that is in no database and in no backup: server/auth/own/knownKey.ts).
  */
 const MEMORY_SQL: readonly string[] = [
   'create table platform_old_hashes (hash text primary key, session_id text not null, at text not null)',

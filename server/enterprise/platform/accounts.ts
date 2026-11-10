@@ -1,5 +1,6 @@
 import { ApiError } from '../../../src/api/errors';
 import type { SigningKeys } from '../../auth/own/keys';
+import { knowableAddress, type KnownKey } from '../../auth/own/knownKey';
 import { signPlatformToken } from '../../auth/own/keys';
 import { randomToken, sha256Hex } from '../../auth/own/crypto';
 import {
@@ -35,7 +36,7 @@ const NAME_MAX = 120;
 const ADDRESS_PREFIX = 'psignin:ip';
 const PAIR_PREFIX = 'psignin:pair';
 const EMAIL_PREFIX = 'psignin:email';
-/** The key prefix of a known address of a platform account (the companies use 'known'). */
+/** The key prefix of a known address of a platform account (the companies use 'known'). The key is an HMAC under the server secret (d.knownKey). */
 const KNOWN_PREFIX = 'pknown';
 /**
  * The reuse window of a platform refresh token: 10 s (task D5b). The 60 s of a company browser (REFRESH_REUSE_MS) is for the phones of a
@@ -48,7 +49,8 @@ export type PlatformAccountView = { id: string; name: string; email: string; sta
 export type PlatformTokenAnswer = { access_token: string; refresh_token: string; expires_in: number; account: { id: string; name: string; email: string } };
 export type PlatformAccountsInput = { action: 'create' | 'password' | 'off' | 'on'; email: string; name?: string; password?: string };
 
-export type AccountDeps = { db: LiteDb; clock: Clock; keys: () => Promise<SigningKeys> };
+/** knownKey: the pair key of a known address, an HMAC under a key from the server secret (server/auth/own/knownKey.ts, owner "platform"). */
+export type AccountDeps = { db: LiteDb; clock: Clock; keys: () => Promise<SigningKeys>; knownKey: KnownKey };
 
 type AccountRow = { id: string; email: string; name: string; password_hash: string; state: string; created_at: string };
 type SessionRow = { id: string; account_id: string; refresh_hash: string; prev_hash: string | null; used_at: string | null; ends_at: string };
@@ -84,15 +86,17 @@ async function answerOf(d: AccountDeps, o: { account: AccountRow; sessionId: str
  * that is off shows only after the right password. The limits use their own keys, with the rule of passwordSignIn (review 2026-11-10): the
  * address, the email with the address (10), then the total of the email (100), so a stranger at another address does not lock the account out.
  * A known address (the account signed in from it in the last KNOWN_ADDRESS_DAYS) skips the total, so strangers at 10 addresses cannot lock
- * the account out either. Only the right password writes the known row, at most once a day.
+ * the account out either. Only the right password writes the known row, at most once a day. The pair key is an HMAC under a key from the
+ * server secret (d.knownKey, owner "platform"), so a copy of the database cannot check a guess. The fallback address 'unknown' and an empty
+ * address never become known: no read, no write, and the total applies.
  */
 export async function platformSignIn(d: AccountDeps, input: { email: string; password: string; address: string }): Promise<PlatformTokenAnswer> {
   const email = normalizeEmail(textOf(input.email));
   const password = textOf(input.password).slice(0, PASSWORD_MAX);
   const address = limitAddress(textOf(input.address));
-  const knownKey = await hashedKey(KNOWN_PREFIX, `${email}|${address}`);
+  const knownKey = knowableAddress(address) ? await d.knownKey(KNOWN_PREFIX, `${email}|${address}`) : null;
   const knownSince = new Date(d.clock.now().getTime() - KNOWN_ADDRESS_DAYS * DAY_MS).toISOString();
-  const [seen] = await d.db.statement<{ seen_at: string }>('read', KNOWN_BY_KEY, [knownKey]);
+  const [seen] = knownKey === null ? [] : await d.db.statement<{ seen_at: string }>('read', KNOWN_BY_KEY, [knownKey]);
   const known = seen !== undefined && seen.seen_at > knownSince;
   await countLimits(d, [
     { key: await hashedKey(ADDRESS_PREFIX, address), ...ADDRESS_LIMITS['auth.password'].limit },
@@ -112,7 +116,7 @@ export async function platformSignIn(d: AccountDeps, input: { email: string; pas
     // A new password or a turn-off between the check and this transaction: the check is old, so refuse it.
     if (!row || row.password_hash !== found.password_hash) throw wrongCredentials();
     if (row.state !== 'active') throw accountOff();
-    await q(KNOWN_TOUCH, [knownKey, now.toISOString(), new Date(now.getTime() - KNOWN_ADDRESS_TOUCH_MS).toISOString()]);
+    if (knownKey !== null) await q(KNOWN_TOUCH, [knownKey, now.toISOString(), new Date(now.getTime() - KNOWN_ADDRESS_TOUCH_MS).toISOString()]);
     await q(SESSION_INSERT, [sessionId, row.id, refreshHash, new Date(now.getTime() + SESSION_DAYS * DAY_MS).toISOString(), now.toISOString()]);
     return row;
   });

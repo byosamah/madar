@@ -8,7 +8,8 @@ import { browserTokenChecker } from '../verify';
 import { signAgentToken, signingKeysOf } from './keys';
 import { localSigninOffice, runSigninOp } from './office';
 import { ownAuthRoutes } from './routes';
-import { testPrivateJwk } from './testKeys';
+import { knownKeyOf } from './knownKey';
+import { TEST_SERVER_SECRET, testPrivateJwk } from './testKeys';
 import { addSignIn, bareToken, signinOffice } from './testOffice';
 import { ENT_VADO } from '../../enterprise/ids';
 
@@ -19,7 +20,7 @@ async function setup() {
   const email = (t.raw.prepare('select email from auth_users where id = ?').get(authId) as { email: string }).email;
   const jwk = await testPrivateJwk();
   const keys = await signingKeysOf(jwk, t.deps.config.mcpUrl);
-  const deps = { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys, ent: ENT_VADO };
+  const deps = { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys, ent: ENT_VADO, knownKey: knownKeyOf(TEST_SERVER_SECRET, ENT_VADO) };
   const checkToken = browserTokenChecker({ issuer: ownIssuer(t.deps.config.mcpUrl), jwks: ownKeySet(jwk) });
   const app = apiApp(t.deps as unknown as Deps, { routes: [...ROUTES, ...ownAuthRoutes(localSigninOffice(deps), { jwks: ownPublicJwks(jwk), checkToken })] });
   const send = (path: string, o: { body?: unknown; token?: string; address?: string; method?: string } = {}) => runInHost({ host: 'workers' }, async () => {

@@ -7,6 +7,7 @@ import { signingKeysOf, type SigningKeys } from '../auth/own/keys';
 import { liteAuthAdmin } from '../auth/own/liteAdmin';
 import { sessionEnded } from '../auth/own/sessions';
 import { localSigninOffice, runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../auth/own/office';
+import { knownKeyOf, type KnownKey } from '../auth/own/knownKey';
 import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from '../auth/ownKeys';
 import { renewInvitation } from '../auth/renew';
 import { runInHost } from '../core/after';
@@ -250,6 +251,14 @@ export function officeParts(o: PartsInput): OfficeParts {
   let stateKey: Promise<Uint8Array> | undefined;
   const stateKeyOf = (): Promise<Uint8Array> => (stateKey ??= stateKeyFrom(values.secretKey));
 
+  // The key of the known sign-in addresses (review 2026-11-10, server/auth/own/knownKey.ts): HKDF from the server secret key, with the
+  // enterprise of this object in the info text. The secret is in no database and in no backup. One key function for each enterprise id.
+  let known: { ent: EnterpriseId; key: KnownKey } | undefined;
+  const knownKeyFor = (ent: EnterpriseId): KnownKey => {
+    if (known?.ent !== ent) known = { ent, key: knownKeyOf(values.secretKey, ent) };
+    return known.key;
+  };
+
   function depsFor(net: NetApi): Deps {
     const ports = netPorts(net, { guard: { open: () => db.isOpen(), now: () => clock.now() }, kind: values.config.fileStore, maxFileBytes: values.config.limits.maxFileBytes,
       // The second wall of the file keys: this object works inside the key folder of its own enterprise (server/files/guard.ts). An object
@@ -462,7 +471,7 @@ export function officeParts(o: PartsInput): OfficeParts {
         return { ok: false, error: runErrorOf(error) };
       }
       // runSigninOp answers a name that is not in SIGNIN_STEPS with not_found, so the cast gives no step that does not exist.
-      return runSigninOp({ db, clock, log, config: values.config, keys, ent: gate.id() }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
+      return runSigninOp({ db, clock, log, config: values.config, keys, ent: gate.id(), knownKey: knownKeyFor(gate.id()) }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
     },
     async mailRoute(input, net) {
       const refused = await guard(input.ent, { allow: 'paused' });
@@ -558,7 +567,7 @@ export function officeParts(o: PartsInput): OfficeParts {
         readOffice: () => office(),
         stateKey: await stateKeyOf(),
         fetch: NO_HOP,
-        oauth: (routes) => mountOAuth(routes, localSigninOffice({ db, clock, log, config: deps.config, keys: addressKeys, ent: gate.id() }), { mcpUrl, jwks: ownPublicJwks(secret) }),
+        oauth: (routes) => mountOAuth(routes, localSigninOffice({ db, clock, log, config: deps.config, keys: addressKeys, ent: gate.id(), knownKey: knownKeyFor(gate.id()) }), { mcpUrl, jwks: ownPublicJwks(secret) }),
       });
       const root = new Hono();
       root.route('/mcp', app);

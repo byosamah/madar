@@ -6,6 +6,7 @@ import { RENEW_ADDRESS_LIMIT } from '../../auth/renew';
 import { statementQuery } from '../../data/dialect';
 import { runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../../auth/own/office';
 import { signingKeysOf, type SigningKeys } from '../../auth/own/keys';
+import { knownKeyOf } from '../../auth/own/knownKey';
 import { OWN_AUTH_SECRET } from '../../auth/ownKeys';
 import { consoleLogger, serverEnvFrom, type ReadEnv } from '../../core/deps';
 import type { Clock, Deps, Logger } from '../../core/ports';
@@ -60,7 +61,12 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
   const clock = o.clock ?? { now: () => new Date() };
   const log = o.log ?? consoleLogger();
   // The config of a Worker (the mail address, the MCP address): the refuse steps read it as the object does.
-  const config = serverEnvFrom(o.read, { database: { writeUrl: '', readUrl: '' } }).config;
+  const values = serverEnvFrom(o.read, { database: { writeUrl: '', readUrl: '' } });
+  const config = values.config;
+  // The key of the known sign-in addresses of the platform accounts (review 2026-11-10, server/auth/own/knownKey.ts): HKDF from the server
+  // secret key, with the info text madar-known-address:platform. The secret is in no database and in no backup. The refuse steps use it too,
+  // so they do the same work as an office object (they read an empty table and write no row).
+  const knownKey = knownKeyOf(values.secretKey, 'platform');
   const depsForRefuse = { db, clock, log, config } as unknown as Deps;
 
   // The plan settings (Free limits and the share), read from the settings of the Worker when first needed. A bad value throws an error that names it.
@@ -81,7 +87,7 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
     }
     return held.keys;
   };
-  const accountDeps: AccountDeps = { db, clock, keys: keysOf };
+  const accountDeps: AccountDeps = { db, clock, keys: keysOf, knownKey };
 
   /** The day counts of every enterprise for one UTC day, and their sum: the account. */
   async function sums(day: string): Promise<{ account: DayCounts; byEnterprise: { ent: EnterpriseId; counts: DayCounts }[] }> {
@@ -196,7 +202,7 @@ export function platformParts(o: PlatformPartsInput): PlatformParts {
     },
 
     async refuseSignin({ signin, input }): Promise<OpResult<unknown>> {
-      return runSigninOp({ db, clock, log, config, keys: NO_KEYS, ent: REFUSE_PLACEHOLDER }, signin as SigninOpName, input as OpInput<SigninOpName>);
+      return runSigninOp({ db, clock, log, config, keys: NO_KEYS, ent: REFUSE_PLACEHOLDER, knownKey }, signin as SigninOpName, input as OpInput<SigninOpName>);
     },
 
     async refuseMail(input: Omit<OfficeMailInput, 'ent'>): Promise<OfficeMailAnswer> {

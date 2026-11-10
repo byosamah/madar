@@ -4,6 +4,7 @@ import { readLiteOffice } from '../../data/lite/office';
 import { principalOf } from '../principal';
 import { hashedKey, limitAddress } from '../rateLimit';
 import { randomToken, sha256Hex } from './crypto';
+import { knowableAddress } from './knownKey';
 import { ADDRESS_LIMITS, KNOWN_ADDRESS_DAYS, KNOWN_ADDRESS_TOUCH_MS, SIGNIN_PER_EMAIL, SIGNIN_PER_EMAIL_TOTAL, SIGNIN_WINDOW_MS } from './limits';
 import { LINK_LIFE_MS } from './liteAdmin';
 import { hashPassword, PASSWORD_MIN, verifyPassword } from './password';
@@ -54,10 +55,12 @@ export async function passwordSignIn(deps: SigninDeps, input: { email: string; p
   // An IPv6 address counts as its /64 block (limitAddress), so one machine has one count.
   // A known address (review 2026-11-10): the person signed in from it with the right password in the last KNOWN_ADDRESS_DAYS. It skips the
   // total of the email, so the wrong tries of strangers at 10 other addresses do not lock the person out. It still meets the pair limit.
+  // The pair key is an HMAC under a key from the server secret (deps.knownKey, knownKey.ts): a copy of the database cannot check a guess.
+  // The fallback address 'unknown' and an empty address are no place: no read, no write, and the total applies.
   const address = limitAddress(input.address);
-  const knownKey = await hashedKey('known', `${email}|${address}`);
+  const knownKey = knowableAddress(address) ? await deps.knownKey('known', `${email}|${address}`) : null;
   const knownSince = new Date(deps.clock.now().getTime() - KNOWN_ADDRESS_DAYS * DAY_MS).toISOString();
-  const [seen] = await deps.db.statement<{ seen_at: string }>('read', KNOWN_BY_KEY, [knownKey]);
+  const [seen] = knownKey === null ? [] : await deps.db.statement<{ seen_at: string }>('read', KNOWN_BY_KEY, [knownKey]);
   const known = seen !== undefined && seen.seen_at > knownSince;
   await countLimits(deps, [
     ...(input.addressChecked === true ? [] : [{ key: await hashedKey(ADDRESS_LIMITS['auth.password'].prefix, address), ...ADDRESS_LIMITS['auth.password'].limit }]),
@@ -82,7 +85,7 @@ export async function passwordSignIn(deps: SigninDeps, input: { email: string; p
     principalOf(row.id, await readLiteOffice(liteOf(deps), q));
     await q(AUTH_USER_SIGNED_IN, [row.id, upgraded, now.toISOString()]);
     // The right password from this address: it is known now. At most one row written a day for each person and address.
-    await q(KNOWN_TOUCH, [knownKey, now.toISOString(), new Date(now.getTime() - KNOWN_ADDRESS_TOUCH_MS).toISOString()]);
+    if (knownKey !== null) await q(KNOWN_TOUCH, [knownKey, now.toISOString(), new Date(now.getTime() - KNOWN_ADDRESS_TOUCH_MS).toISOString()]);
     return insertSession(q, { authId: row.id, clientId: null, amr: 'password', refreshHash, linkUntil: null, now });
   });
   return browserAnswer(deps, { authId: found.id, sessionId, refresh });

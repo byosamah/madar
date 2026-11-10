@@ -1,6 +1,8 @@
 /// <reference path="../../../server/office/workers.d.ts" />
 import { DurableObject, type DurableObjectState } from 'cloudflare:workers';
+import { knownKeyOf } from '../../../server/auth/own/knownKey';
 import { runSigninOp } from '../../../server/auth/own/office';
+import { TEST_SERVER_SECRET } from '../../../server/auth/own/testKeys';
 import { liteDb } from '../../../server/data/lite/db';
 import { applyLiteSchema } from '../../../server/data/lite/schema';
 import { doHost } from '../../../server/office/doHost';
@@ -55,7 +57,7 @@ export class ProbeDirectory extends DurableObject {
     const deps = fakeDeps({ db: liteDb(host) });
     const keys = new Proxy({}, { get: () => { throw new Error('The keys were read.'); } }) as never;
     const t = Date.now();
-    const answer = await runSigninOp({ db: deps.db, clock: deps.clock, log: deps.log, config: deps.config, keys, ent: 'ent_001' }, 'auth.password', { email, password, address: '203.0.113.9' });
+    const answer = await runSigninOp({ db: deps.db, clock: deps.clock, log: deps.log, config: deps.config, keys, ent: 'ent_001', knownKey: knownKeyOf(TEST_SERVER_SECRET, 'ent_001') }, 'auth.password', { email, password, address: '203.0.113.9' });
     return { answer, ms: Date.now() - t };
   }
 
