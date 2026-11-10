@@ -52,8 +52,12 @@ import type { SqlHost } from './host';
  * Version 16 (Madar enterprises, plan C): the server table enterprise_use, one row: the running total of the file bytes (storage_bytes), and the
  * platform owners of this enterprise (owners, JSON text; unused since plan F, a released step never changes). It is derived data and an office object table only, like enterprise. The step counts
  * the bytes of the files that the office holds. Its step is in LITE_STEPS.
+ *
+ * Version 17 (the open items of the review of 2026-11-10): the sign-in table auth_old_hashes, the refresh hashes that left a session row, with
+ * the index auth_old_hashes_session. A refresh with such a hash ends its session (server/auth/own/sessions.ts). It is an office object table
+ * only, as the other sign-in tables. Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 16;
+export const LITE_SCHEMA_VERSION = 17;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -158,6 +162,13 @@ const ENTERPRISE_SQL = 'create table enterprise (id text primary key, state text
 const ENTERPRISE_USE_SQL = 'create table enterprise_use (id integer primary key check (id = 1), storage_bytes integer not null default 0, owners text not null default \'[]\')';
 const FILES_BYTES_STEP = "(select coalesce(sum(json_extract(v.value, '$.size')), 0) from files f, json_each(f.doc, '$.versions') v)";
 
+/**
+ * The sign-in memory (version 17, review 2026-11-10). auth_old_hashes: each refresh hash that left a session row by a rotation, so a later
+ * refresh with it ends that session (a thief who rotated twice). It holds hashes only, never a token.
+ */
+const SIGNIN_MEMORY_SQL: readonly string[] = ['create table auth_old_hashes (hash text primary key, session_id text not null, at text not null)'];
+const SIGNIN_MEMORY_INDEXES: readonly LiteIndex[] = [{ table: 'auth_old_hashes', name: 'auth_old_hashes_session', columns: 'session_id' }];
+
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
 const SERVER_SQL: readonly string[] = [
   'create table counters (prefix text primary key, n integer not null check (n >= 0))',
@@ -189,6 +200,7 @@ const SERVER_SQL: readonly string[] = [
   `create table auth_sessions (id text primary key, auth_id text not null, client_id text, amr text not null, refresh_hash text not null, prev_hash text, rotated_at text, link_until text, expires_at text not null, last_used_at text, revoked_at text, created_at text not null default (${NOW}))`,
   `create table oauth_clients (id text primary key, name text, redirect_uris text not null, created_at text not null default (${NOW}))`,
   `create table oauth_requests (id text primary key, client_id text not null, redirect_uri text not null, state text, code_challenge text not null, scope text, resource text, auth_id text, status text not null default 'pending', code_hash text, code_until text, expires_at text not null, created_at text not null default (${NOW}))`,
+  ...SIGNIN_MEMORY_SQL,
   'create table schema_version (id integer primary key check (id = 1), version integer not null)',
 ];
 
@@ -211,6 +223,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
   ...GOOGLE_INDEXES,
   ...DAFTRA_INDEXES,
   ...CONFIRM_INDEXES,
+  ...SIGNIN_MEMORY_INDEXES,
 ];
 
 /**
@@ -234,6 +247,8 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * (target_type, seq) for events.list with a target_type filter, as in liteSchemaSql.
  * Version 15 adds the table enterprise (Madar enterprises), as in liteSchemaSql.
  * Version 16 adds the table enterprise_use (Madar enterprises, plan C) with its one row: a stepped office starts with the bytes of its files.
+ * Version 17 adds the sign-in table auth_old_hashes and its index (review 2026-11-10), as in liteSchemaSql. A stepped office keeps every
+ * session; the table starts empty, so a hash that left a row before the step stays unknown, as before.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -261,10 +276,11 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   ],
   15: [ENTERPRISE_SQL],
   16: [ENTERPRISE_USE_SQL, `insert into enterprise_use (id, storage_bytes) values (1, ${FILES_BYTES_STEP})`],
+  17: [...SIGNIN_MEMORY_SQL, ...SIGNIN_MEMORY_INDEXES.map(indexSql)],
 };
 
-/** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */
-export const SIGNIN_TABLES: readonly string[] = ['auth_users', 'auth_links', 'auth_sessions', 'oauth_clients', 'oauth_requests'];
+/** The sign-in tables of wave 2 and the sign-in memory of version 17: the import of wave 4 and the restore check copy them with the office. */
+export const SIGNIN_TABLES: readonly string[] = ['auth_users', 'auth_links', 'auth_sessions', 'oauth_clients', 'oauth_requests', 'auth_old_hashes'];
 
 /** The index that a read with atOrAfter names (indexed by), so no other index decides its plan (wave 0: 124,339 rows). */
 export const TIME_INDEX: Readonly<Record<string, string>> = { events: 'events_created_at' };

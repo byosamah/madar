@@ -15,4 +15,15 @@ describe('the cleanup of old sign-in rows (server/auth/own/cleanup.ts)', () => {
     expect(raw.prepare('select id from oauth_requests').all()).toEqual([{ id: 'new' }]);
     expect(raw.prepare('select id from auth_sessions order by id').all()).toEqual([{ id: 'just-revoked' }, { id: 'live' }]);
   });
+
+  it('deletes the displaced hashes of a deleted session, and keeps the ones of a live session (review 2026-11-10)', async () => {
+    const { raw, db } = await freshLite();
+    raw.exec(`insert into auth_sessions (id, auth_id, amr, refresh_hash, expires_at, revoked_at) values
+      ('ended', 'a', 'password', 'h1', '2026-10-15T00:00:00.000Z', null), ('live', 'a', 'password', 'h4', '2026-11-15T00:00:00.000Z', null)`);
+    raw.exec(`insert into auth_old_hashes (hash, session_id, at) values
+      ('o1', 'ended', '2026-10-14T00:00:00.000Z'), ('o2', 'ended', '2026-10-14T01:00:00.000Z'), ('o3', 'live', '2026-10-16T00:00:00.000Z'), ('o4', 'gone', '2026-10-01T00:00:00.000Z')`);
+    await db.tx('write', (q) => cleanupSignin(q, new Date('2026-10-17T06:00:00Z')));
+    expect(raw.prepare('select id from auth_sessions').all()).toEqual([{ id: 'live' }]);
+    expect(raw.prepare('select hash from auth_old_hashes').all()).toEqual([{ hash: 'o3' }]);
+  });
 });

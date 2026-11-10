@@ -198,7 +198,8 @@ Commands: `npx vitest run server/data` is the fast path. `npm run test:db` (Post
   `owners`, JSON text; nothing reads or writes it since plan F, because the owner list is gone). `writeTable` (`lite/save.ts`) adds the change of each write of the table `files`; `importFinish` and the daily step
   `storage` count again (`server/enterprise/storage.ts`). An export leaves it out. Feedback pictures are not counted.
 - The sign-in tables (`auth_users`, `auth_links`, `auth_sessions`, `oauth_clients`, `oauth_requests`) have no step, because no
-  office object below version 3 exists outside the tests. An invitation text must repeat its exact term
+  office object below version 3 exists outside the tests. Schema version 17 (review 2026-11-10) adds `auth_old_hashes` with a step (real
+  offices exist now); it is in `SIGNIN_TABLES` and `DRIFT_TABLES`, and the platform object keeps an empty copy (`server/auth/CLAUDE.md`). An invitation text must repeat its exact term
   `kind in ('auth.invite', 'auth.email')`: `kind = 'auth.invite'` alone scans the outbox (the partial index `outbox_signin`).
 - A module that sends its own SQL keeps its Postgres constant and adds a `_LITE` twin beside it, picked with `sqlFor`
   (`dialect.ts`). The fakes match the Postgres text by exact string, so never change it for the SQLite path.

@@ -48,5 +48,11 @@ export const SESSIONS_END_OTHERS = 'update auth_sessions set revoked_at = ?3 whe
 export const SESSION_LINK_DONE = 'update auth_sessions set link_until = null where id = ?1';
 /** The sign-out of one device: only a session of the same person ends. */
 export const SESSION_END_OWN = 'update auth_sessions set revoked_at = ?3 where id = ?1 and auth_id = ?2 and revoked_at is null';
+/**
+ * The memory of displaced refresh hashes (schema version 17, review 2026-11-10). ?1 a hash that leaves its session row now, ?2 the session
+ * id, ?3 now. A hash leaves a row once; "or ignore" keeps the insert calm in any other case.
+ */
+export const OLD_HASH_INSERT = 'insert or ignore into auth_old_hashes (hash, session_id, at) values (?1, ?2, ?3)';
+export const OLD_HASH_BY_HASH = 'select session_id from auth_old_hashes where hash = ?1';
 /** Whether the agent link of a client is removed (a refresh of an agent session needs a live link). */
 export const AGENT_LINK_STATE = 'select revoked_at from agent_links where client_id = ?1';

@@ -56,7 +56,7 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   Worker side: the public key and the issuer). No Supabase entry loads `own/`: bcryptjs imports the bare module `crypto`, which
   Deno may not load (`server/workerGraph.test.ts`). The hosts pass the routes in (`ownApiRoutes`, `mountOAuth`).
 - Rows: `auth_users` (the id of `auth.users` for an imported person), `auth_links`, `auth_sessions`, `oauth_clients`,
-  `oauth_requests`. The sign-in link is `auth_users.user_id`; the office snapshot carries the links, so `principalOf` stays as it
+  `oauth_requests`, and `auth_old_hashes` (schema version 17, below). The sign-in link is `auth_users.user_id`; the office snapshot carries the links, so `principalOf` stays as it
   is. `setLiteAuthLink` is the one write of a link.
 - Passwords: PBKDF2 SHA-256, `PBKDF2_ROUNDS` = 100,000, never more (deployed Workers refuse more; local workerd does not show
   it). A copied bcrypt hash works once, then the row holds PBKDF2. The hash work runs in the office object between two
@@ -70,6 +70,11 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   Auth keeps it), because a longer window only helps a thief with a stolen token. The client of the stored row picks the window. The
   platform sessions keep 10 s (`PLATFORM_REUSE_MS`, `server/enterprise/platform/accounts.ts`). Sign-out others ends agents too. The API
   checks no session for a browser token (15 minutes at most, as on Supabase).
+- A displaced refresh token ends its session (review 2026-11-10). Each rotation keeps the previous hash that leaves the row in
+  `auth_old_hashes` (`OLD_HASH_INSERT`, one more row written for each refresh that has a previous hash). A refresh with a hash that is
+  neither the current nor the previous one reads that table: a hit ends the session (`SESSION_END`, committed), no hit ends nothing. Reason:
+  a thief with a copy of a token rotates twice, and the token of the person is then unknown to the row. The person signs in again, and the
+  thief loses the session. Browser and agent sessions alike. Tests: `own/ops.sessions.test.ts`.
 - Links: random bytes, only the sha256 in the table, one use; a new link ends the open links of the person. A link opens a link
   session that may set a password once with no current password. An agent token never sets a password (403 `agent_token`).
 - Platform tokens (plan F, design D10): `signPlatformToken` (`own/keys.ts`) signs the token of a platform account with the audience `PLATFORM_AUDIENCE`
@@ -106,8 +111,9 @@ First Admin: `scripts/deploy/CLAUDE.md`, "Other scripts".
   unknown email gives the usual `invalid_credentials`. A right password gives `pausedSignIn()` (reason `enterprise_paused`) and makes no
   session. Every other step of a paused object answers `session_ended` (`parts.signin`). A paused `mailRoute` gives the usual answer with no
   work, so no mail goes out, and a paused `mailWork` does nothing.
-- `own/cleanup.ts` (`cleanupSignin`) deletes the links, OAuth requests and sessions that ended more than a day ago; the Cron of
-  the office object runs it in its first run after 00:00 UTC (`server/office/jobs.ts`).
+- `own/cleanup.ts` (`cleanupSignin`) deletes the links, OAuth requests and sessions that ended more than a day ago, and then the displaced
+  hashes of a deleted session; the Cron of the office object runs it in its first run after 00:00 UTC (`server/office/jobs.ts`). Each text
+  binds only the values up to its highest `?N`: SQLite refuses an extra value.
 - The sign-in key of an office copy is the Worker secret `MADAR_AUTH_PRIVATE_JWK`, made by `npx tsx scripts/office/auth-key.ts
   <test|production>` straight into the Worker (never in a file: `scripts/deploy/secrets.ts` refuses a secrets file that holds it). A new key
   signs every person and agent of that copy out once. The test seed (`scripts/office/seed.ts`) gives the 4 accounts fixed ids

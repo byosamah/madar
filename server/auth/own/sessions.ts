@@ -9,8 +9,8 @@ import { principalOf } from '../principal';
 import { hitLimit } from '../rateLimit';
 import { signBrowserToken } from './keys';
 import {
-  AGENT_LINK_STATE, AUTH_USER_BY_ID, SESSION_BY_PREV, SESSION_BY_REFRESH, SESSION_END, SESSION_INSERT, SESSION_ROTATE, type Amr,
-  type AuthUserRow, type SessionRow,
+  AGENT_LINK_STATE, AUTH_USER_BY_ID, OLD_HASH_BY_HASH, OLD_HASH_INSERT, SESSION_BY_PREV, SESSION_BY_REFRESH, SESSION_END, SESSION_INSERT,
+  SESSION_ROTATE, type Amr, type AuthUserRow, type SessionRow,
 } from './rows';
 import type { SigninDeps, TokenAnswer } from './types';
 
@@ -75,6 +75,11 @@ type Rotation = { kind: 'ok'; row: SessionRow } | { kind: 'ended' };
  * previous one after the window ends the whole session, in a transaction that commits (a throw would roll the end back). clientId null
  * is a browser session; a refresh of a turned-off person throws account_off, and of a banned person, an agent whose link is removed or a
  * turned-off owner, session_ended.
+ *
+ * A displaced hash (review 2026-11-10): each rotation keeps the previous hash that leaves the row in auth_old_hashes (one more row written
+ * for each refresh that has a previous hash). A later refresh with such a hash ends its session, in the same committed way. Reason: a thief
+ * with a copy of a token rotates twice, and the token of the person is then neither the current nor the previous hash. The person then
+ * gets session_ended, and the session of the thief ends too. An unknown hash ends nothing.
  */
 export async function rotateSession(deps: SigninDeps, o: { hash: string; nextHash: string; clientId: string | null }): Promise<SessionRow> {
   const now = deps.clock.now();
@@ -82,7 +87,11 @@ export async function rotateSession(deps: SigninDeps, o: { hash: string; nextHas
     let [row] = await q<SessionRow>(SESSION_BY_REFRESH, [o.hash]);
     if (!row) {
       const [old] = await q<SessionRow>(SESSION_BY_PREV, [o.hash]);
-      if (!old) return { kind: 'ended' };
+      if (!old) {
+        const [displaced] = await q<{ session_id: string }>(OLD_HASH_BY_HASH, [o.hash]);
+        if (displaced) await q(SESSION_END, [displaced.session_id, now.toISOString()]);
+        return { kind: 'ended' };
+      }
       const windowMs = (old.client_id ?? null) === null ? REFRESH_REUSE_MS : AGENT_REUSE_MS;
       const inWindow = old.rotated_at !== null && now.getTime() - Date.parse(old.rotated_at) <= windowMs;
       if (!inWindow) {
@@ -102,6 +111,8 @@ export async function rotateSession(deps: SigninDeps, o: { hash: string; nextHas
       const [link] = await q<{ revoked_at: string | null }>(AGENT_LINK_STATE, [o.clientId]);
       if (ownerId === undefined || office.lists.users[ownerId]?.active !== true || (link !== undefined && link.revoked_at !== null)) return { kind: 'ended' };
     }
+    // The previous hash leaves the row now: keep it, so a later use of it ends the session.
+    if (row.prev_hash !== null) await q(OLD_HASH_INSERT, [row.prev_hash, row.id, now.toISOString()]);
     await q(SESSION_ROTATE, [row.id, o.nextHash, now.toISOString(), new Date(now.getTime() + SESSION_DAYS * DAY_MS).toISOString()]);
     return { kind: 'ok', row };
   });

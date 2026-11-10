@@ -1,5 +1,6 @@
 import { decodeJwt } from 'jose';
 import { describe, expect, it } from 'vitest';
+import { exchangeToken } from '../../mcp/oauth/ops';
 import { passwordSignIn, refreshSignIn, signOutSessions } from './ops';
 import { rotateSession } from './sessions';
 import { addSignIn, bareToken, signinDepsOf, signinOffice } from './testOffice';
@@ -73,6 +74,53 @@ describe('the sessions of the own stack (server/auth/own/sessions.ts)', () => {
     t.deps.clock.advance(5_000);
     expect(await rotateSession(deps, { hash: 's-soon-h1', nextHash: 's-soon-h3', clientId: 'c-agent' })).toMatchObject({ id: 's-soon' });
     expect(gone('s-soon')).toEqual({ gone: 0 });
+  });
+
+  it('a displaced token ends the session of a thief (review 2026-11-10, open item)', async () => {
+    const { t, deps, first, sessionId } = await signedIn();
+    const second = await refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) });
+    // The thief holds a copy of the first token and uses it inside the reuse window.
+    t.deps.clock.advance(5_000);
+    const third = await refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) });
+    const fourth = await refreshSignIn(deps, { refreshToken: bareToken(third.refresh_token) });
+    // The token of the person (second) is now neither the current hash nor the previous hash of the session.
+    expect(await reasonOf(refreshSignIn(deps, { refreshToken: bareToken(second.refresh_token) }))).toBe('session_ended');
+    expect(t.raw.prepare('select revoked_at is not null as gone from auth_sessions where id = ?').get(sessionId)).toEqual({ gone: 1 });
+    expect(await reasonOf(refreshSignIn(deps, { refreshToken: bareToken(fourth.refresh_token) }))).toBe('session_ended');
+  });
+
+  it('a displaced hash of an ended session gives the plain answer', async () => {
+    const { t, deps, first, sessionId } = await signedIn();
+    const second = await refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) });
+    t.deps.clock.advance(5_000);
+    const third = await refreshSignIn(deps, { refreshToken: bareToken(first.refresh_token) });
+    await refreshSignIn(deps, { refreshToken: bareToken(third.refresh_token) });
+    t.raw.prepare("update auth_sessions set revoked_at = '2026-10-17T06:00:01.000Z' where id = ?").run(sessionId);
+    expect(await reasonOf(refreshSignIn(deps, { refreshToken: bareToken(second.refresh_token) }))).toBe('session_ended');
+    expect(t.raw.prepare('select revoked_at from auth_sessions where id = ?').get(sessionId)).toEqual({ revoked_at: '2026-10-17T06:00:01.000Z' });
+  });
+
+  it('an unknown token ends nothing', async () => {
+    const { t, deps } = await signedIn();
+    const rows = () => t.raw.prepare('select * from auth_sessions order by id').all();
+    const before = rows();
+    expect(await reasonOf(refreshSignIn(deps, { refreshToken: 'a token that no session ever held' }))).toBe('session_ended');
+    expect(rows()).toEqual(before);
+  });
+
+  it('a displaced token ends an agent session too (the OAuth refresh, inside the 10 s window)', async () => {
+    const { t, authId, deps } = await signedIn();
+    const { sha256Hex } = await import('./crypto');
+    t.raw.prepare("insert into auth_sessions (id, auth_id, client_id, amr, refresh_hash, expires_at) values ('s-agent', ?, 'c-agent', 'oauth', ?, '2026-11-17T06:00:00.000Z')").run(authId, await sha256Hex('agent-t1'));
+    const refresh = (token: string) => exchangeToken(deps, { form: { grant_type: 'refresh_token', refresh_token: token, client_id: 'c-agent' } });
+    const codeOf = (work: Promise<unknown>) => work.then(() => 'passed', (error: { code?: string }) => error.code ?? 'no code');
+    const second = await refresh('agent-t1');
+    t.deps.clock.advance(5_000);
+    const third = await refresh('agent-t1');
+    const fourth = await refresh(third.refresh_token);
+    expect(await codeOf(refresh(second.refresh_token))).toBe('invalid_grant');
+    expect(t.raw.prepare("select revoked_at is not null as gone from auth_sessions where id = 's-agent'").get()).toEqual({ gone: 1 });
+    expect(await codeOf(refresh(fourth.refresh_token))).toBe('invalid_grant');
   });
 
   it('refuses the refresh of a turned-off person, and of a banned one', async () => {

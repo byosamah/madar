@@ -268,10 +268,14 @@ describe('the cleanup and the schema', () => {
     raw.exec(`update schema_version set version = ${PLATFORM_SCHEMA_VERSION}`);
   });
 
-  it('keeps empty copies of the four sign-in tables and no table of an office', async () => {
+  it('keeps empty copies of the sign-in tables and no table of an office', async () => {
+    // Review 2026-11-10: version 5 adds the copy of auth_old_hashes, which the refuse step of a refresh reads.
     const { raw } = await platform();
     const tables = (raw.prepare("select name from sqlite_master where type = 'table' order by name").all() as { name: string }[]).map((r) => r.name);
-    expect(tables).toEqual(['account_day', 'auth_links', 'auth_sessions', 'auth_users', 'emails', 'enterprises', 'mail_pool', 'owners', 'platform_accounts', 'platform_sessions', 'rate_limits', 'schema_version', 'status']);
+    expect(tables).toEqual([
+      'account_day', 'auth_links', 'auth_old_hashes', 'auth_sessions', 'auth_users', 'emails', 'enterprises', 'mail_pool', 'owners', 'platform_accounts',
+      'platform_sessions', 'rate_limits', 'schema_version', 'status',
+    ]);
   });
 
   it('health names the schema', async () => {

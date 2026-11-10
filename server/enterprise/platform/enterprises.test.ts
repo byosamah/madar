@@ -131,6 +131,9 @@ describe('the lists and the state', () => {
   });
 });
 
+/** Takes the objects of version 5 away (the copies of the sign-in memory, review 2026-11-10): the steps of a version below 5 make them again. */
+const dropVersion5 = (raw: DatabaseSync) => raw.exec('drop table auth_old_hashes');
+
 describe('schema version 2', () => {
   it('steps a version 1 platform object to the column logo', async () => {
     const raw = new DatabaseSync(':memory:');
@@ -140,8 +143,9 @@ describe('schema version 2', () => {
     raw.exec('drop table mail_pool');
     raw.exec('drop table platform_sessions');
     raw.exec('drop table platform_accounts');
+    dropVersion5(raw);
     raw.exec('update schema_version set version = 1');
-    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [2, 3, 4] });
+    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [2, 3, 4, 5] });
     expect((raw.prepare('select name from pragma_table_info(?)').all('enterprises') as { name: string }[]).map((r) => r.name)).toContain('logo');
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
   });
@@ -155,8 +159,9 @@ describe('schema version 3', () => {
     raw.exec('drop table mail_pool');
     raw.exec('drop table platform_sessions');
     raw.exec('drop table platform_accounts');
+    dropVersion5(raw);
     raw.exec('update schema_version set version = 2');
-    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [3, 4] });
+    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [3, 4, 5] });
     expect((raw.prepare('select name from pragma_table_info(?)').all('mail_pool') as { name: string }[]).map((r) => r.name)).toEqual(['day', 'ref', 'kind', 'ent']);
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
   });
@@ -170,11 +175,33 @@ describe('schema version 4', () => {
     raw.exec("insert into emails (email, ent) values ('a@x.test', 'ent_001')");
     raw.exec('drop table platform_sessions');
     raw.exec('drop table platform_accounts');
+    dropVersion5(raw);
     raw.exec('update schema_version set version = 3');
-    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [4] });
+    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [4, 5] });
     expect((raw.prepare('select name from pragma_table_info(?)').all('platform_accounts') as { name: string }[]).map((r) => r.name)).toEqual(['id', 'email', 'name', 'password_hash', 'state', 'created_at']);
     expect((raw.prepare('select name from pragma_table_info(?)').all('platform_sessions') as { name: string }[]).map((r) => r.name)).toEqual(['id', 'account_id', 'refresh_hash', 'prev_hash', 'used_at', 'ends_at', 'created_at']);
     expect(raw.prepare('select email from emails').get()).toEqual({ email: 'a@x.test' });
+    expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
+  });
+});
+
+describe('schema version 5', () => {
+  it('steps a version 4 object with an account and a session to version 5, keeps both, and has the same objects as a new one (review 2026-11-10)', async () => {
+    const raw = new DatabaseSync(':memory:');
+    const host = nodeHost(raw);
+    await applyPlatformSchema(host);
+    const objects = () => raw.prepare('select type, name, tbl_name, sql from sqlite_master order by name').all();
+    const fresh = objects();
+    raw.exec("insert into platform_accounts (id, email, name, password_hash, state, created_at) values ('pla_001', 'owner@madar.test', 'The Owner', 'h', 'active', '2026-11-08T08:00:00.000Z')");
+    raw.exec("insert into platform_sessions (id, account_id, refresh_hash, ends_at, created_at) values ('s1', 'pla_001', 'r1', '2026-12-08T08:00:00.000Z', '2026-11-08T08:00:00.000Z')");
+    const kept = () => [raw.prepare('select * from platform_accounts').all(), raw.prepare('select * from platform_sessions').all()];
+    const before = kept();
+    dropVersion5(raw);
+    raw.exec('update schema_version set version = 4');
+    expect(await applyPlatformSchema(host)).toEqual({ applied: true, steps: [5] });
+    expect(objects()).toEqual(fresh);
+    expect(kept()).toEqual(before);
+    expect(raw.prepare('select count(*) as n from auth_old_hashes').get()).toEqual({ n: 0 });
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: PLATFORM_SCHEMA_VERSION });
   });
 });
