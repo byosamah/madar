@@ -674,7 +674,8 @@ function meetingTraps(state: State): void {
 function checkinTraps(state: State): void {
   const leader = state.projects.prj_001.leaderId!;
   apply(state, 'checkins.save', { kind: 'plan', items: [], text: 'The plan of the leader' }, leader, 'cor_trap_checkin_plan');
-  apply(state, 'checkins.save', { kind: 'review', items: [], text: 'The review of the leader' }, leader, 'cor_trap_checkin_review');
+  // A review opens on its Thursday (review finding 9), so this one is saved on Thursday 2026-10-08 of the same week.
+  apply(state, 'checkins.save', { kind: 'review', items: [], text: 'The review of the leader' }, leader, 'cor_trap_checkin_review', undefined, new Date('2026-10-08T06:00:00Z'));
   apply(state, 'checkins.save', { kind: 'plan', items: [], text: 'The plan of the Admin' }, ADMIN, 'cor_trap_checkin_admin');
   const at = '2026-09-27T09:00:00.000+03:00';
   state.checkins = {
@@ -712,7 +713,8 @@ function weekPrivateTraps(state: State): void {
 export function weekWrites(office: State): SweepCall[] {
   const own = Object.values(office.events).filter((e) => e.targetType === 'checkin' && e.correlationId === 'cor_trap_checkin_private');
   if (own.length === 0 || office.users[WEEK_QUIET]?.roleId !== 'rol_900') return [];
-  const calls: SweepCall[] = [['checkins.save', { kind: 'review', items: [], text: 'Changed by the author' }, 'usr_006']];
+  // The sweep runs on a Sunday, when only a plan can be saved, so the author changes the own plan.
+  const calls: SweepCall[] = [['checkins.save', { kind: 'plan', items: [], text: 'Changed by the author' }, 'usr_006']];
   for (const event of own) {
     for (const actor of ['usr_006', WEEK_QUIET, ADMIN]) calls.push(['events.undo', { eventId: event.id }, actor]);
   }

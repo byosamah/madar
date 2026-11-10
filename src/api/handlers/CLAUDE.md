@@ -340,7 +340,7 @@ the hidden-project rule, the notices and the new-call checklist are in `src/api/
   person, week and kind (the unique index `checkins_one`). A call answers with a `CheckinView`: the same record with `items`, the lines `{ taskId, title }`
   that this reader may see.
 - Three calls (`handlers/checkins.ts`). `checkins.mine { week? }` gives the own plan and review of a week (null for a missing one), with no
-  switch. `checkins.save { kind, items: TaskId[], text }` writes the own answer of the CURRENT week and needs `checkin.answer`; a second save
+  switch. `checkins.save { kind, items: TaskId[], text }` writes the own answer of the CURRENT week and needs `checkin.answer`; a review opens on its Thursday (before it: `review_not_yet`, words in `real/rules.*.json`; a plan saves on every day); a second save
   changes the same answer; the same lines and text write no event. `checkins.week { week? }` gives every answer of a week, one row for each person
   who answered, and the people who have not (`missing.plan`; `missing.review` stays empty until the Thursday of that week), and needs
   `checkin.read`. Only an active person who holds `checkin.answer` can be missing: the test is the one of `runScheduledTriggers`. Both switches are basic (on for every role). A week that has not begun is refused (`week_future`).

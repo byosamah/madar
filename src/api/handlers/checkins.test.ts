@@ -92,6 +92,8 @@ describe('checkins.save (fbk_088)', () => {
     const answer = await t.api.call('checkins.save', { kind: 'plan', items: ['tsk_010', 'tsk_011', 'tsk_001'], text: '' });
     expect(answer.items.map((line) => line.taskId)).toEqual(['tsk_010', 'tsk_011', 'tsk_001']);
     expect(checkinsOf(state).chk_001.taskIds).toEqual(['tsk_010', 'tsk_011', 'tsk_001']);
+    // A review opens on Thursday (review finding 9), so the day moves there before the review.
+    setNow(THURSDAY);
     const review = await t.api.call('checkins.save', { kind: 'review', items: ['tsk_010'], text: '' });
     expect(review.items).toEqual([{ taskId: 'tsk_010', title: 'Private office to-do' }]);
   });
@@ -111,6 +113,36 @@ describe('checkins.save (fbk_088)', () => {
     t.as('usr_003');
     await expect(t.api.call('checkins.save', { kind: 'plan', items: [], text: 'x'.repeat(2001) })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(t.api.call('checkins.save', { kind: 'plan', items: Array.from({ length: 31 }, () => 'tsk_001'), text: 'x' })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+});
+
+describe('checkins.save: a review opens on its Thursday (review finding 9)', () => {
+  it('refuses a review from Sunday to Wednesday with review_not_yet and stores nothing, and saves a plan on each of those days', async () => {
+    for (const day of ['2026-11-08', '2026-11-09', '2026-11-10', '2026-11-11']) {
+      const t = office();
+      setNow(new Date(`${day}T06:00:00Z`));
+      t.as('usr_003');
+      await expect(t.api.call('checkins.save', { kind: 'review', items: ['tsk_001'], text: 'Early.' }), day)
+        .rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['kind'], reason: 'review_not_yet' } });
+      expect(Object.keys(checkinsOf(t.store.state)), day).toEqual([]);
+      expect(events(t), day).toEqual([]);
+      await expect(t.api.call('checkins.save', { kind: 'plan', items: ['tsk_001'], text: '' }), day).resolves.toMatchObject({ kind: 'plan', week: WEEK });
+    }
+  });
+
+  it('saves a review on Thursday, Friday and Saturday', async () => {
+    for (const day of ['2026-11-12', '2026-11-13', '2026-11-14']) {
+      const t = office();
+      setNow(new Date(`${day}T06:00:00Z`));
+      t.as('usr_003');
+      await expect(t.api.call('checkins.save', { kind: 'review', items: ['tsk_001'], text: '' }), day).resolves.toMatchObject({ kind: 'review', week: WEEK });
+    }
+  });
+
+  it('checks the switch first: a person without it gets forbidden, not review_not_yet', async () => {
+    const t = office({ usr_004: { off: ['checkin.answer'] } });
+    t.as('usr_004');
+    await expect(t.api.call('checkins.save', { kind: 'review', items: [], text: 'x' })).rejects.toMatchObject({ code: 'forbidden' });
   });
 });
 
@@ -366,6 +398,8 @@ describe('the History of a weekly answer', () => {
     state.projects.prj_002 = { ...state.projects.prj_001, id: 'prj_002', code: 'KH-26-002', name: 'Secret Tower', access: { hidden: true, viewerIds: [] } };
     state.members[memberKey('prj_002', 'usr_003')] = { projectId: 'prj_002', userId: 'usr_003', discipline: 'Architect' };
     state.tasks.tsk_011 = makeTask({ id: 'tsk_011', projectId: 'prj_002', stageId: null, title: 'Secret to-do', ownerId: 'usr_003' });
+    // A review opens on Thursday (review finding 9), so the day moves there before the review.
+    setNow(THURSDAY);
     t.as('usr_003');
     await t.api.call('checkins.save', { kind: 'review', items: ['tsk_011', 'tsk_001'], text: 'Done.' });
     for (const userId of ['usr_002', 'usr_003']) {

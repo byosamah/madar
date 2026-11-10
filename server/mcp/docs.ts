@@ -436,7 +436,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'checkins.save': {
     title: 'Save the weekly answer',
-    description: 'Saves the weekly answer of your person: kind plan or review, items (ids of the own to-dos to keep) and text. A second save changes the answer. Only when your person asks.',
+    description: 'Saves the weekly answer of your person: kind plan or review, items (own to-do ids) and text. A review opens Thursday. A new save changes it. Only when your person asks.',
   },
   'reports.office': {
     title: 'Get the office report',

@@ -85,6 +85,8 @@ const checkinsSave = defineCall({
     assertCan(ctx, 'checkin.answer');
     const me = ctx.authority.id;
     const week = weekOf(ctx.today);
+    // The review opens on its Thursday, as Home asks for it only from Thursday. The plan opens on every day of the week.
+    if (input.kind === 'review' && reviewDay(week) > ctx.today) throw invalid('kind', 'The review of the week opens on Thursday.', 'review_not_yet');
     const taskIds = checkinTaskIds(ctx, input.items);
     if (taskIds.length === 0 && input.text === '') throw invalid('text', 'Write a line, or keep a to-do.', 'empty_answer');
     const old = Object.values(checkinsOf(ctx.state)).find((one) => one.userId === me && one.week === week && one.kind === input.kind);
