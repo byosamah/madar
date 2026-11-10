@@ -1570,3 +1570,24 @@ order; builders run on Sonnet 5.5. Each track merges into `rb/enterprises`; the 
 - [x] (cefc9b51, the leftovers 0e94ba39) Plan F follow-up: PLATFORM_HOSTS and scripts/office/platform-account.ts take the real hosts (one list, no copy); a Pages config file of the site holds the service bindings (MADAR_SERVER_TEST on preview, MADAR_SERVER_PRODUCTION on production), and pages-platform.sh deploys with it
 - [ ] Proposed: scripts/proof/server-time.ts signs in with the own sign-in on an office copy (its page member leg gets 401 today)
 - [ ] Owner OK needed: remove the worktrees ~/dev/madar-rb/enterprises, ent-a, ent-b, ent-c, ent-d, ent-d2, ent-d3, ent-ui, ent-fix and their branches (all merged)
+
+## Code review fixes (2026-11-10)
+
+Plan: docs/superpowers/plans/2026-11-10-review-fixes-plan.md. The code review of production found 9 faults. Each one has a test that failed first. Owner, 2026-11-10: "merge before the switch".
+
+- [x] (b57a6a51) Finding 1: a rate limit writes no row over its limit, and the authorize step of an AI app stops at 60 an hour for each address.
+- [x] (ffd786a1) Finding 2: the company forwarder refuses an encoded path to the platform routes (`/api/%70latform`).
+- [x] (0d1de0d7, c48abb6c; owner: "Count by address") Finding 3: wrong passwords count for each email and address together (10 in 15 minutes), with a total stop of 100 for one email. An IPv6 address counts as its /64 block in every limit.
+- [x] (9f66dfb0) Finding 4: the map link route answers only a signed-in person.
+- [x] (0729961b, 5e3fda6d; owner: "60 seconds") Finding 5: a lost answer of a session renew keeps the browser of a person signed in for 60 seconds. An agent and a platform account keep 10 seconds.
+- [x] (ffa03a17) Finding 6: the week of the team names as missing only the people who may answer.
+- [x] (8c00dfaa) Finding 7: an upload that names no project and no task gets the refusal `office_needs_task`, not an error 500.
+- [x] (d3c88818) Finding 8: the open report screenshots of every company stay out of the storage count.
+- [x] (48fd9bc4) Finding 9: a review of the week opens on its Thursday.
+- [x] The gates (2026-11-10): typecheck, `npm test` (2 tests of `scripts/deploy/deploy.test.ts` hit the time limit at load 23 and pass alone), the three builds, `test:lite`, `test:office`, `test:db`, `test:it`, `test:mcp` (27 expected failures), and the auth.setup, account and agents specs on the local office stack (20 passed).
+- [ ] Open: a person who joined in the middle of a week shows as missing for that week in `checkins.week`. The `User` record has no day of the add; a fix needs a new field.
+- [ ] Open (security check of 2026-11-10): the renew of a session cannot tell a thief from a lost answer inside the window. A short memory of the old refresh hashes of a session would end the session on a displaced token. It needs a schema step of `auth_sessions`.
+- [ ] Open: the total stop of 100 tries for one email still lets 10 addresses lock a person out for 15 minutes (owner choice of 2026-11-10, the trade against a guesser with many addresses).
+- [ ] Note: a stranger can still use the free day quota of Cloudflare requests with plain traffic. No code stops that on a free plan.
+- [ ] The switch commit moves the day of the What's new entry `2026-11-10-163` to 2026-11-11 (the session of the switch does it).
+- [ ] Owner OK needed: remove the worktrees ~/dev/madar-rb/doors and ~/dev/madar-rb/rules and their branches after the merge.
