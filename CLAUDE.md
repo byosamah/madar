@@ -92,8 +92,8 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 
 ## Secrets and accounts
 - Secrets live only in `.env.local` and `secrets/<env>.env` (both git-ignored). Never open, print, commit or log them.
-- Auto mode refuses Claude's read of production Postgres ("Production Reads"): hand the owner a `!` command with `echo production |`.
   Scripts load them with `set -a; . ./.env.local; set +a`. Error texts name variables, never values.
+- Auto mode refuses Claude's read of production Postgres ("Production Reads"): hand the owner a `!` command with `echo production |`.
 - `secrets/<env>.env` does not load as a shell file (a value with special characters). Read one name with
   `grep '^NAME=' secrets/<env>.env | cut -d= -f2-` into a variable, and never print it.
 - To get a secret from the owner: `open -a TextEdit .env.local` and ask him to add a `NAME=value` line, then check its
