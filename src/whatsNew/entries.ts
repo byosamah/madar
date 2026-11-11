@@ -15,8 +15,10 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // The move of VADO to the new servers (plan E, 2026-11-11): sign in once, connect an AI agent again once, and the connect screen keeps a long AI app name inside a phone screen.
+  { id: '2026-11-11-165', day: '2026-11-11' },
   // Sign-in and weekly question fixes of the review of 2026-11-10: a stranger cannot lock a person out, a short network drop keeps the session, and the week of the team names as missing only the people who may answer. The lead sets the real release day before the test deploy.
-  { id: '2026-11-10-163', day: '2026-11-10' },
+  { id: '2026-11-10-163', day: '2026-11-11' },
   // The name and the logo of the company (Madar enterprises, plan C): the header, the mails and the push line show them. The first entry is for everyone, the second for the people who hold the switch Office settings. The lead sets the real release day before the test deploy.
   { id: '2026-11-08-162', day: '2026-11-08', right: 'office.settings', to: '/admin' },
   { id: '2026-11-08-161', day: '2026-11-08' },

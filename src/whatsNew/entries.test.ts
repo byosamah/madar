@@ -23,7 +23,7 @@ describe("What's new entries", () => {
   it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
     const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
     expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
-    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-11-01', '2026-11-02', '2026-11-03', '2026-11-05', '2026-11-08', '2026-11-10']));
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-11-01', '2026-11-02', '2026-11-03', '2026-11-05', '2026-11-08', '2026-11-11']));
   });
 
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
@@ -644,14 +644,37 @@ describe("the What's new entries of the company name and logo", () => {
 });
 
 
+// The move of VADO to the new servers (plan E, 2026-11-11): one entry for everyone, right under the usage entry, with no right and no link.
+describe("the What's new entry of the move to the new servers (2026-11-11)", () => {
+  const words = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-11-11-165', part]));
+
+  it('sits right under the usage entry, with no right and no link', () => {
+    const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-11-11-165')).toEqual({ id: '2026-11-11-165', day: '2026-11-11' });
+    expect(at('2026-11-11-165')).toBe(at('2026-10-23-102') + 1);
+  });
+
+  it('tells each person to sign in once and to connect an AI agent again, in English and Arabic, with no dash', () => {
+    for (const tree of [en, ar]) {
+      for (const part of ['title', 'body']) {
+        expect(words(tree, part).length).toBeGreaterThan(10);
+        expect(words(tree, part)).not.toMatch(/[\u2013\u2014]|undefined/);
+      }
+    }
+    expect(words(en, 'body')).toContain('Sign in once');
+    expect(words(en, 'body')).toContain('AI agent');
+    expect(words(ar, 'body')).toContain('سجّل دخولك مرة واحدة');
+  });
+});
+
 // The sign-in and weekly question fixes of the review of 2026-11-10: one entry for everyone, under the usage entry, with no right and no link.
 describe("the What's new entry of the sign-in and weekly question fixes (review 2026-11-10)", () => {
   const words = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-11-10-163', part]));
 
   it('sits under the usage entry, above the entries of 2026-11-08, with no right and no link', () => {
     const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-11-10-163')).toEqual({ id: '2026-11-10-163', day: '2026-11-10' });
-    expect(at('2026-11-10-163')).toBe(at('2026-10-23-102') + 1);
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-11-10-163')).toEqual({ id: '2026-11-10-163', day: '2026-11-11' });
+    expect(at('2026-11-10-163')).toBe(at('2026-11-11-165') + 1);
     expect(at('2026-11-10-163')).toBeLessThan(at('2026-11-08-162'));
   });
 

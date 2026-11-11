@@ -302,6 +302,10 @@
       "2026-10-23-68": {
         "title": "Rights in sections",
         "body": "The rights of a role now sit in seven sections, and each section has an All switch. Turn on only the parts of the Admin work that a role needs."
+      },
+      "2026-11-11-165": {
+        "title": "Madar runs on new servers",
+        "body": "Madar moved to new servers, with all your data. Sign in once with the same email and password. If you use an AI agent with Madar, connect it again once. On a phone, the connect screen of an AI app now keeps a long app name inside the screen."
       }
     },
     "newMark": "New",
