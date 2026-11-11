@@ -4,7 +4,8 @@ The project management system of Osama's architecture office in Al Khobar (about
 "Madar" is a temporary name until a trademark check. Two products live in this repo:
 - **The prototype**: the full app in the browser over a fake API (zod contract, IndexedDB). Published as a private
   artifact (https://claude.ai/artifact/QRj6nZQKmu6tBcCRMxtjrY).
-- **The real build**: the same screens over a TypeScript server on Supabase. Production is https://madar.vado.sa
+- **The real build**: the same screens over a TypeScript server on one Cloudflare Worker, with an office object (SQLite) for each
+  company. Production moved off Supabase on 2026-11-11; Supabase stays deployed as the way back until 2026-11-25. Production is https://madar.vado.sa
   (`www.madar.vado.sa` and `madar-46r.pages.dev` also work). The test copy is https://preview.madar-46r.pages.dev (the sample
   office, `secrets/test-accounts.env`). Record: proof.md section "Deploy".
 
@@ -57,7 +58,7 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
   `accounts.md` (refs and hosts, no secrets), `patches/` (merge lead patches), `build-process.md` (Workflow-agent and merge
   lore), `r2-switch-runbook.md` (the finished switch of the files to R2).
 - Reviews: `docs/reviews/2026-10-01-colleague-comments.md`, `docs/reviews/2026-10-03-full-audit/README.md`.
-- The Supabase exit to Cloudflare is paused: start at `docs/superpowers/real-build/exit-handoff.md`.
+- The Supabase exit is done (the switch of 2026-11-11, proof.md "the switch of VADO"); its history is in `docs/superpowers/real-build/exit-handoff.md`.
 
 ## Owner rules (always)
 - Write every text in ASD-STE100 Simplified Technical English: code comments, commits, docs, UI words. Never use an
@@ -91,6 +92,7 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 
 ## Secrets and accounts
 - Secrets live only in `.env.local` and `secrets/<env>.env` (both git-ignored). Never open, print, commit or log them.
+- Auto mode refuses Claude's read of production Postgres ("Production Reads"): hand the owner a `!` command with `echo production |`.
   Scripts load them with `set -a; . ./.env.local; set +a`. Error texts name variables, never values.
 - `secrets/<env>.env` does not load as a shell file (a value with special characters). Read one name with
   `grep '^NAME=' secrets/<env>.env | cut -d= -f2-` into a variable, and never print it.
@@ -175,7 +177,7 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
   the same handler.
 - Server (`server/`): one Hono app on Supabase Edge Functions (Deno, Frankfurt) or on one Cloudflare Worker for each copy;
   `config/server-host.json` picks the host of each copy, and the other host stays deployed as the way back.
-- Data: Supabase Postgres, Auth and Realtime (Free plans); files on Cloudflare R2. Email: Resend. Browser push: Web Push,
+- Data: the office object of each company (both copies); Supabase Postgres stays only as the way back; files on Cloudflare R2. Email: Resend. Browser push: Web Push,
   free (`server/push/`). AI agents: MCP at /mcp.
 - A screen calls `api.call(name, input)`. The remote build sends it to `POST /api/batch`. The server runs it in `runCall`
   under the office lock, saves the difference, and sends a change signal on Realtime.

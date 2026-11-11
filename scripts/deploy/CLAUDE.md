@@ -98,6 +98,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   `echo production | scripts/deploy/all.sh production`.
 - A `!` command has no keyboard. Without `echo production |` it stops with "the typed word was not production" and changes
   nothing. The owner may also run the script in his Terminal window and type the word.
+- The office network can block `*.pages.dev` (the TLS handshake times out, 2026-11-11) while `madar.vado.sa` works: `all.sh test` then
+  stops at its checks. Move the Mac to the iPhone hotspot and add `NODE_OPTIONS=--dns-result-order=ipv4first` (wrangler timed out on its IPv6).
 - A `!` command that runs longer than 120 s moves to the background and goes on. The session gets a notice when it ends, and the output is in the task file. Tell the owner that this is normal, and never start a second copy.
 - After the owner asks, `echo production | scripts/deploy/all.sh production` (sandbox off, in the background) has passed the
   auto-mode check. If the check refuses it, hand the owner the `!` command. While it runs, the check can refuse an unrelated
@@ -254,6 +256,7 @@ The evening, after office hours:
 11. The nightly backup moves to production (the owner runs these, a GitHub write): `grep '^MADAR_EXPORT_SECRET=' secrets/production.env | cut -d= -f2- | gh secret set OFFICE_EXPORT_SECRET --repo byosamah/madar`,
     `gh variable set OFFICE_BACKUP_URL --repo byosamah/madar --body https://madar.vado.sa`, and `gh variable set OFFICE_BACKUP_COPY --repo byosamah/madar --body production`.
 12. The owner makes the production platform account: `npx tsx scripts/office/platform-account.ts --production --to https://platform.madar.vado.sa --email <email> --name <name>` (it asks for the password twice).
+    Run it in the Terminal app: it reads the password from the keyboard, and a `!` command has none.
 13. The new invitations of the list of step 6 (an email to real people: the owner's OK first).
 
 A stop before step 9 costs nothing: `npx supabase secrets unset MADAR_WRITES_OFF --project-ref oprkvdjudjxxhvodkzgs`, and the job on again (`active := true`). Production then works as before.

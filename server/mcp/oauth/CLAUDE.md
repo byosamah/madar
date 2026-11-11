@@ -46,3 +46,5 @@ grants of Settings, Agents. The tools, the token check and the approval are in `
 ## Tests
 - `sdk.test.ts` runs the whole flow with `@modelcontextprotocol/sdk` on node:sqlite. `consent.test.ts` and `register.test.ts` cover the steps.
 - The deploy suite on the office path (`tests/e2e-deploy/agents.spec.ts`) uses the own routes under `/mcp` (register, authorize, token).
+- A browser signed in to another company shows "This request ended" on the consent screen (the request stays in its own company).
+  Sign out first when you test two companies in one browser.
