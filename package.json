@@ -61,7 +61,7 @@
     "read-excel-file": "9.3.13",
     "recharts": "3.10.1",
     "vaul": "1.1.2",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-11-12-166": {
+        "title": "A safer server for very large requests",
+        "body": "Madar now checks a very large request more safely, so one bad request cannot slow Madar down for the team. You do not need to do anything."
+      },
       "2026-11-10-164": {
         "title": "A fairer Week page and a safer sign-in",
         "body": "The week of the team no longer lists a new person as missing for a question from before they joined. Sign-in protects you better: the place where you usually sign in keeps working when a stranger tries wrong passwords."

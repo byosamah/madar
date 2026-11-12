@@ -694,10 +694,10 @@ describe("the What's new entry of the sign-in and weekly question fixes (review 
 describe("the What's new entry of the open items of the review (2026-11-10)", () => {
   const words = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-11-10-164', part]));
 
-  it('sits right under the usage entry, above the entry of the first fixes, with no right and no link', () => {
+  it('sits under the entry of the zod update, above the entry of the first fixes, with no right and no link', () => {
     const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
     expect(WHATS_NEW.find((entry) => entry.id === '2026-11-10-164')).toEqual({ id: '2026-11-10-164', day: '2026-11-12' });
-    expect(at('2026-11-10-164')).toBe(at('2026-10-23-102') + 1);
+    expect(at('2026-11-10-164')).toBe(at('2026-11-12-166') + 1);
     expect(at('2026-11-10-164')).toBeLessThan(at('2026-11-10-163'));
   });
 
@@ -710,5 +710,27 @@ describe("the What's new entry of the open items of the review (2026-11-10)", ()
     }
     expect(words(en, 'body')).toContain('a new person as missing');
     expect(words(ar, 'body')).toContain('الموظف الجديد');
+  });
+});
+
+// The zod update of 2026-11-12 (the security questions of Faisal): one entry for everyone, right under the usage entry.
+describe("the What's new entry of the zod update (2026-11-12)", () => {
+  const words = (tree: Parameters<typeof wordAt>[0], part: string) => String(wordAt(tree, ['whatsNew', 'items', '2026-11-12-166', part]));
+
+  it('sits right under the usage entry, with no right and no link', () => {
+    const at = (id: string) => WHATS_NEW.findIndex((entry) => entry.id === id);
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-11-12-166')).toEqual({ id: '2026-11-12-166', day: '2026-11-12' });
+    expect(at('2026-11-12-166')).toBe(at('2026-10-23-102') + 1);
+  });
+
+  it('has an English and an Arabic title and body with no dash', () => {
+    for (const tree of [en, ar]) {
+      for (const part of ['title', 'body']) {
+        expect(words(tree, part).length).toBeGreaterThan(10);
+        expect(words(tree, part)).not.toMatch(/[\u2013\u2014]|undefined/);
+      }
+    }
+    expect(words(en, 'body')).toContain('very large request');
+    expect(words(ar, 'body')).toContain('طلب كبير جداً');
   });
 });

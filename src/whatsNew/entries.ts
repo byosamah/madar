@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // The zod update of 2026-11-12 (the security questions of Faisal): the server refuses a very large request before it uses up its memory.
+  { id: '2026-11-12-166', day: '2026-11-12' },
   // Open items of the review of 2026-11-10: a new person is not missing for a question from before they joined, and a place where a person signed in before keeps working when a stranger tries wrong passwords. The lead sets the real release day before the test deploy.
   { id: '2026-11-10-164', day: '2026-11-12' },
   // The move of VADO to the new servers (plan E, 2026-11-11): sign in once, connect an AI agent again once, and the connect screen keeps a long AI app name inside a phone screen.
