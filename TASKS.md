@@ -1600,3 +1600,7 @@ Plan: docs/superpowers/plans/2026-11-10-review-fixes-plan.md. The code review of
 - [x] (owner OK, 2026-11-10) The worktrees ~/dev/madar-rb/doors and ~/dev/madar-rb/rules and their branches are removed.
 - [x] The short test of d356b29c on the test copy (2026-11-10, by script with the sample member, 11 of 11): sign-in, a session renew, a retry with the old refresh token after 12 s, the map link route with and without a token, the register and authorize steps of an AI app, the encoded platform path (404), sign-out.
 - [ ] Owner OK needed: remove the worktrees ~/dev/madar-rb/keys and ~/dev/madar-rb/joined and their branches after the merge.
+
+## Security questions of Faisal (2026-11-12)
+- [x] Answers to the 7 security questions of Faisal's agent, in the direct chat cnv_012 (msg_459), from the code and probes of production.
+- [x] zod 4.6.5 to 4.6.7 (npm audit high, GHSA-mrhx-c7xc-m3w5), What's new 166: live on production (2026-11-12, bb00cd6e).
