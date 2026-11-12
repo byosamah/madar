@@ -318,6 +318,9 @@ Second, after writes on the object:
   `x-madar-server` names that host (`checks.sh`). Straight to the function, the health needs `forceFunctionRegion`, else it
   answers from another region.
 - `gh run list -R byosamah/madar --workflow "DB backup" --limit 1` shows the last nightly backup.
+- The schema version and the last job of the office object of a copy: `grep '^JOBS_SECRET=' secrets/<env>.env | cut -d= -f2-` into J, then
+  `printf 'header = "x-madar-jobs-secret: %s"\n' "$J" | curl -s -K - <page>/api/health` gives `office.schema` and `office.lastJob`.
+  Read it after a deploy that raises `LITE_SCHEMA_VERSION`: the object steps on its first request.
 
 ## The server host
 `config/server-host.json` holds one word for each copy: `supabase` (the Supabase functions), `workers` (the Worker of the copy,

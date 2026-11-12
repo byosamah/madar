@@ -77,11 +77,10 @@ Owner decisions with dates: `docs/decision-log.md`. A decision that still sets a
 - The stack uses free plans only. The owner refuses a paid plan, also a small one: measure a free limit before you
   propose to pay. Never recommend paying Vercel or another Israeli or pro-Israel vendor (owner boycott). Vercel is out of
   the stack.
-- Supabase stays on the free plan (owner, 2026-10-30), so its egress stays under 5 GB a month for both projects together. Each
-  API request loads the whole office from Postgres, and Supabase counts those bytes as egress. Browser test runs (the deploy
-  suite, Playwright walks) therefore use the local stack (`npm run dev:office`), never the test copy: in October they used
-  about 5 GB of the 9 GB (TASKS.md, "Supabase egress"). The test copy gets only the quick checks of `all.sh test` and one check
-  by hand of the changed screen.
+- Browser test runs (the deploy suite, Playwright walks) use the local stack (`npm run dev:office`), never the test copy. Both copies
+  run on Cloudflare since 2026-11-11 and share the free day limits of one account (100,000 rows written, 5M rows read, 100,000
+  requests; the day ends at 03:00 Riyadh). The test copy gets only the quick checks of `all.sh test` and one check by hand of the
+  changed screen. Supabase (the way back until 2026-11-25) stays on the free plan.
 - Fonts: Thmanyah Sans (free, font.thmanyah.com). Its licence forbids any change to the files and any copy outside the
   built product (tokens and weights: `src/design/CLAUDE.md`).
 - A team report about a screen released the same day may come from a stale browser copy. Read the record through the Madar
