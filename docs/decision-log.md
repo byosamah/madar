@@ -2082,3 +2082,9 @@ Daftra invoice in the screens. The 15-minute job then reads the invoice, and whe
   `paymentsLinkInvoiceHooks` reads the invoice from the account of the project, never from the browser) and `payments.unlinkInvoice`.
 ```
 
+
+## 2026-11-12: create of enterprises opens on production before the way back ends
+- The owner opened `platform.enterprises.create` on production on 2026-11-12, 13 days before the Supabase way back ends (2026-11-25).
+- The owner accepts the cost: a way back to Supabase holds only `ent_001`, so an enterprise made before 2026-11-25 is lost on a way back.
+- How: the Worker secret `MADAR_ENTERPRISE_CREATE=open` on `madar-server-production` (`wrangler secret put`). `secrets.ts` does not manage this name, so a deploy and a secrets run keep it.
+- To close it again: `npx wrangler secret delete MADAR_ENTERPRISE_CREATE -c wrangler.server.toml --env production`.

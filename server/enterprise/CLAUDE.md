@@ -119,7 +119,7 @@ Arabic forms. Its allow list is empty: a new entry needs the owner's reason.
 - Plan and cap: `plan.ts` (`planFrom`, `capVerdict`, `accountStop`, `warnings`) reads the Free limits from `MADAR_PLAN_*` and the share from
   `MADAR_ENTERPRISE_SHARE`. The platform object keeps the day counts (`meter`, `capState`, `meterToday`). The Worker gate `accountGate.ts` refuses every
   enterprise but ENT_VADO at 90 percent of the account (kept 60 s, fails open); the object refuses the share of its own enterprise in a batch and in a tool
-  call of MCP, never in a sign-in step, forgot or renew. `MADAR_ENTERPRISE_CREATE = "open"` opens create.
+  call of MCP, never in a sign-in step, forgot or renew. `MADAR_ENTERPRISE_CREATE = "open"` opens create. On production it is a Worker secret since 2026-11-12 (owner, decision log); `secrets.ts` does not manage it.
 - Name and logo: `brand.ts` (`mailOptionsOf`) gives the mail header; `logoRoute.ts` is `GET /api/enterprise-logo/:ent` (the same 404 for every miss; the logo
   comes from the object, not from the platform copy).
 
